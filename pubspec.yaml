@@ -1,0 +1,42 @@
+name: taxi_app
+description: "A new Flutter project."
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: ^3.10.7
+
+dependencies:
+  flutter:
+    sdk: flutter
+  firebase_core: ^4.3.0
+  cloud_firestore: ^6.1.1
+  firebase_auth: ^6.1.3
+  provider: ^6.1.5
+  lottie: ^2.3.0
+  google_maps_flutter: ^2.10.0
+  geolocator: ^14.0.0
+  permission_handler: ^12.0.1
+  shared_preferences: ^2.5.3
+  geocoding: ^4.0.0
+  flutter_local_notifications: ^19.1.0
+  url_launcher: ^6.3.1
+  http: ^1.6.0
+  flutter_screenutil: ^5.9.3
+  image_picker: ^1.2.1
+  firebase_storage: ^13.0.5
+  flutter_image_compress: ^2.4.0
+  path_provider: ^2.0.0
+    
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/img/
+    - assets/gif/
