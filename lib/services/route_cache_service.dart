@@ -17,6 +17,7 @@ class RouteCacheData {
   final String? conductorName;
   final String? conductorPhone;
   final String? conductorPlate;
+  final String? conductorVehiclePhotoUrl;
   final String? conductorPhotoUrl;
   final double? conductorRating;
 
@@ -31,6 +32,7 @@ class RouteCacheData {
     this.conductorName,
     this.conductorPhone,
     this.conductorPlate,
+    this.conductorVehiclePhotoUrl,
     this.conductorPhotoUrl,
     this.conductorRating,
   });
@@ -47,6 +49,7 @@ class RouteCacheData {
         'conductorPhone': conductorPhone,
         'conductorPlate': conductorPlate,
         'conductorPhotoUrl': conductorPhotoUrl,
+        'conductorVehiclePhotoUrl': conductorVehiclePhotoUrl,
         'conductorRating': conductorRating,
       };
 
@@ -63,6 +66,7 @@ class RouteCacheData {
       conductorName: m['conductorName'] as String?,
       conductorPhone: m['conductorPhone'] as String?,
       conductorPlate: m['conductorPlate'] as String?,
+      conductorVehiclePhotoUrl: m['conductorVehiclePhotoUrl'] as String?,
       conductorPhotoUrl: m['conductorPhotoUrl'] as String?,
       conductorRating: (m['conductorRating'] as num?)?.toDouble(),
     );

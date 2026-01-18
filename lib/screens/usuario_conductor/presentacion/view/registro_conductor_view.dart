@@ -4,15 +4,70 @@ import 'package:taxi_app/components/boton.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:flutter/services.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/inicio_conductor_view.dart';
+import 'package:taxi_app/widgets/perfil.dart';
+import 'package:taxi_app/screens/usuario_conductor/presentacion/view/ruta_conductor_view.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/registro_conductor_viewmodel.dart';
 import 'dart:io';
 import 'package:taxi_app/widgets/sucess_overlay.dart';
+import 'package:taxi_app/widgets/map_loading_widget.dart';
 
 class RegistroConductorView extends StatefulWidget {
   const RegistroConductorView({super.key});
 
   @override
   State<RegistroConductorView> createState() => _RegistroConductorViewState();
+}
+
+class IntroCompletarRegistroView extends StatelessWidget {
+  const IntroCompletarRegistroView({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Registro incompleto')),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text(
+                'Realiza el registro completo',
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Agrega tu foto de perfil y la foto de tu vehículo para completar tu cuenta.',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(builder: (_) => const PaginaPerfilUsuario(tipoUsuario: 'conductor')),
+                  );
+                },
+                child: const Text('Continuar'),
+              ),
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: () {
+                  // Omitir: mostrar loader y luego la pantalla principal
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(builder: (_) => const BienvenidoCargandoView()),
+                  );
+                },
+                child: const Text('Omitir y continuar'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _RegistroConductorViewState extends State<RegistroConductorView> {
@@ -260,11 +315,12 @@ class _RegistroConductorViewState extends State<RegistroConductorView> {
 
                                   if (!ctx.mounted) return;
 
-                                  // Navegar inmediatamente después de la animación
+                                  // Navegar a pantalla introductoria para completar registro (foto perfil + foto vehículo)
+                                  if (!ctx.mounted) return;
                                   Navigator.pushReplacement(
                                     ctx,
                                     MaterialPageRoute(
-                                      builder: (c) => const HomeConductorMapView(),
+                                      builder: (c) => const IntroCompletarRegistroView(),
                                     ),
                                   );
                                 } else if (vm.error.value != null) {
@@ -280,6 +336,52 @@ class _RegistroConductorViewState extends State<RegistroConductorView> {
                 ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class BienvenidoCargandoView extends StatefulWidget {
+  const BienvenidoCargandoView({Key? key}) : super(key: key);
+
+  @override
+  State<BienvenidoCargandoView> createState() => _BienvenidoCargandoViewState();
+}
+
+class _BienvenidoCargandoViewState extends State<BienvenidoCargandoView> {
+  @override
+  void initState() {
+    super.initState();
+    _goNextAfterDelay();
+  }
+
+  void _goNextAfterDelay() {
+    Future.delayed(const Duration(seconds: 5), () {
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const HomeConductorMapView()),
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: const [
+              Text('Bienvenido', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+              SizedBox(height: 12),
+              Text('Cargando mapa...', style: TextStyle(fontSize: 16)),
+              SizedBox(height: 20),
+              CircularProgressIndicator(),
+            ],
           ),
         ),
       ),

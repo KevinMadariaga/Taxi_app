@@ -85,16 +85,34 @@ class _PreviewSolicitudCardState extends State<PreviewSolicitudCard> {
                 Expanded(
                   child: ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: CircleAvatar(
-                      radius: ResponsiveHelper.sp(context, 30),
-                      backgroundColor: AppColores.secondary,
-                      backgroundImage: _photoUrl != null
-                          ? NetworkImage(_photoUrl!)
-                          : null,
-                      child: _photoUrl == null
-                          ? Icon(Icons.person, color: AppColores.textWhite, size: ResponsiveHelper.sp(context, 18))
-                          : null,
-                    ),
+                    leading: _photoUrl != null
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(ResponsiveHelper.sp(context, 36)),
+                            child: Image.network(
+                              _photoUrl!,
+                              width: ResponsiveHelper.sp(context, 50),
+                              height: ResponsiveHelper.sp(context, 50),
+                              fit: BoxFit.cover,
+                              errorBuilder: (ctx, err, st) {
+                                return Container(
+                                  width: ResponsiveHelper.sp(context, 50),
+                                  height: ResponsiveHelper.sp(context, 50),
+                                  color: Colors.grey.shade200,
+                                  child: Icon(Icons.person, color: Colors.grey.shade600, size: ResponsiveHelper.sp(context, 18)),
+                                );
+                              },
+                            ),
+                          )
+                        : Container(
+                            width: ResponsiveHelper.sp(context, 50),
+                            height: ResponsiveHelper.sp(context, 50),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade200,
+                              borderRadius: BorderRadius.circular(ResponsiveHelper.sp(context, 30)),
+                            ),
+                            alignment: Alignment.center,
+                            child: Icon(Icons.person, color: Colors.grey.shade600, size: ResponsiveHelper.sp(context, 18)),
+                          ),
                     title: Text(
                       (preview.clientName ?? 'Cliente').toUpperCase(),
                       style: TextStyle(
@@ -124,7 +142,7 @@ class _PreviewSolicitudCardState extends State<PreviewSolicitudCard> {
                 ),
               ],
             ),
-            SizedBox(height: ResponsiveHelper.hp(context, 1.6)),
+            SizedBox(height: ResponsiveHelper.hp(context, 2)),
             // Show origin (recoger) and client location side-by-side using a Table
             Table(
               columnWidths: const {

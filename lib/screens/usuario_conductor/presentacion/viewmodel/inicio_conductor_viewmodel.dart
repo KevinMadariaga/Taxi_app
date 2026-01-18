@@ -19,6 +19,8 @@ class HomeConductorViewModel extends ChangeNotifier {
   final FirebaseService _firebaseService = FirebaseService();
   final TrackingService _trackingService = TrackingService();
 
+  bool _disposed = false;
+
   String displayName = 'Conductor';
   String? photoUrl;
   String? nameFromDb;
@@ -47,7 +49,7 @@ class HomeConductorViewModel extends ChangeNotifier {
   Future<void> init() async {
     isLoading = true;
     loadingLocation = true;
-    notifyListeners();
+    _safeNotify();
 
     await _loadProfile();
     await _requestBackgroundLocationPermission();
@@ -56,7 +58,7 @@ class HomeConductorViewModel extends ChangeNotifier {
 
     isLoading = false;
     loadingLocation = false;
-    notifyListeners();
+    _safeNotify();
   }
 
   Future<void> _loadProfile() async {
@@ -117,7 +119,7 @@ class HomeConductorViewModel extends ChangeNotifier {
       }
     } catch (_) {}
     loadingLocation = false;
-    notifyListeners();
+    _safeNotify();
   }
 
   Future<void> _requestBackgroundLocationPermission() async {
@@ -135,7 +137,7 @@ class HomeConductorViewModel extends ChangeNotifier {
   void selectPreview(PreviewSolicitud preview) {
     selectedPreview = preview;
     isMapExpanded = false;
-    notifyListeners();
+    _safeNotify();
   }
 
   void clearPreviewAndRoutes() {
@@ -144,13 +146,13 @@ class HomeConductorViewModel extends ChangeNotifier {
     routePoints.clear();
     routePolylines.removeWhere((p) => p.polylineId.value.startsWith('route_'));
     extraMarkers.removeWhere((m) => m.markerId.value == 'driver');
-    notifyListeners();
+    _safeNotify();
   }
 
   void setMapExpanded(bool value) {
     if (isMapExpanded == value) return;
     isMapExpanded = value;
-    notifyListeners();
+    _safeNotify();
   }
 
   void setRoute(String id, List<LatLng> points) {
@@ -164,7 +166,7 @@ class HomeConductorViewModel extends ChangeNotifier {
         points: points,
       ),
     );
-    notifyListeners();
+    _safeNotify();
   }
 
   void _subscribeSolicitudes() {
@@ -265,7 +267,7 @@ class HomeConductorViewModel extends ChangeNotifier {
         _completarDatosSolicitud(item);
       }
       solicitudes.sort((a, b) => (a.distanciaKm ?? double.maxFinite).compareTo(b.distanciaKm ?? double.maxFinite));
-      notifyListeners();
+      _safeNotify();
     });
   }
 
@@ -278,7 +280,7 @@ class HomeConductorViewModel extends ChangeNotifier {
       if (item.direccion == null) {
         item.direccion = 'Ubicación del cliente';
       }
-      notifyListeners();
+      _safeNotify();
     } catch (_) {}
   }
 
@@ -316,7 +318,12 @@ class HomeConductorViewModel extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
     _sub?.cancel();
     super.dispose();
+  }
+
+  void _safeNotify() {
+    if (!_disposed) notifyListeners();
   }
 }

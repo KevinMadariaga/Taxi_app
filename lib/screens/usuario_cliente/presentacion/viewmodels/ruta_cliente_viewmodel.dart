@@ -50,6 +50,7 @@ class RutaClienteViewModel extends ChangeNotifier {
 
   /// Polilíneas de la ruta (por ejemplo, cliente-conductor)
   Set<Polyline> polylines = {};
+  List<LatLng>? _lastRoutePoints;
 
   /// Distancia aproximada de la ruta en km (si OSRM lo devuelve)
   double? routeDistanceKm;
@@ -59,6 +60,7 @@ class RutaClienteViewModel extends ChangeNotifier {
 
   /// Datos del conductor para el encabezado
   String? conductorPhotoUrl;
+  String? conductorVehiclePhotoUrl;
   double? conductorRating;
   String? conductorDisplayName;
   String? conductorPlate;
@@ -72,6 +74,15 @@ class RutaClienteViewModel extends ChangeNotifier {
   /// Indicador para que la vista navegue a la pantalla de destino cuando el estado sea "en camino".
   bool goToDestino = false;
 
+  /// Si es `true` la vista seguirá automáticamente la posición del conductor
+  /// centrando la cámara sobre él y orientándola hacia el cliente.
+  bool followDriver = true;
+
+  /// Bearing (rotación) estimada del vehículo (en grados) — calculada
+  /// a partir de la última y la actual posición del conductor.
+  double? conductorBearing;
+
+
   // --- Dependencias internas ---
 
   final ChatService _chatService = ChatService();
@@ -81,6 +92,13 @@ class RutaClienteViewModel extends ChangeNotifier {
   StreamSubscription<DocumentSnapshot>? _solicitudSub;
   bool _routeCacheSaved = false;
   StreamSubscription<List<ChatMessage>>? _chatSub;
+  Timer? _movementTimer;
+  LatLng? _previousConductorPos;
+  bool _disposed = false;
+
+  void _safeNotify() {
+    if (!_disposed) notifyListeners();
+  }
 
   /// Bounds actuales del mapa calculados a partir de marcadores y polilíneas.
   ///
@@ -98,6 +116,46 @@ class RutaClienteViewModel extends ChangeNotifier {
     return _mapService.computeBoundsFromPoints(points);
   }
 
+  void _animateConductorTo(LatLng from, LatLng to, {int durationMs = 700}) {
+    _movementTimer?.cancel();
+    final stepMs = 50;
+    final steps = (durationMs / stepMs).round().clamp(1, 60);
+    int i = 0;
+
+    _movementTimer = Timer.periodic(Duration(milliseconds: stepMs), (t) {
+      i++;
+      final frac = (i / steps).clamp(0.0, 1.0);
+      final lat = from.latitude + (to.latitude - from.latitude) * frac;
+      final lon = from.longitude + (to.longitude - from.longitude) * frac;
+      final pos = LatLng(lat, lon);
+
+      // actualizar bearing preferente usando la ruta si está disponible
+      try {
+        final rb = _bearingAlongRouteAt(pos);
+        if (rb != null) conductorBearing = rb;
+      } catch (_) {}
+
+      final newMarkers = Set<Marker>.from(markers);
+      newMarkers.removeWhere((m) => m.markerId.value == 'conductor');
+      newMarkers.add(Marker(
+        markerId: const MarkerId('conductor'),
+        position: pos,
+        rotation: conductorBearing ?? 0.0,
+        flat: true,
+        anchor: const Offset(0.5, 0.5),
+        infoWindow: const InfoWindow(title: 'Conductor'),
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+      ));
+      markers = newMarkers;
+      _safeNotify();
+
+      if (frac >= 1.0) {
+        t.cancel();
+        _movementTimer = null;
+      }
+    });
+  }
+
   // --- Ciclo de vida ---
 
   Future<void> init() async {
@@ -108,8 +166,10 @@ class RutaClienteViewModel extends ChangeNotifier {
 
   @override
   void dispose() {
+    _movementTimer?.cancel();
     _solicitudSub?.cancel();
     _chatSub?.cancel();
+    _disposed = true;
     super.dispose();
   }
 
@@ -125,7 +185,7 @@ class RutaClienteViewModel extends ChangeNotifier {
       final data = doc.data();
       if (data == null) {
         loading = false;
-        notifyListeners();
+        _safeNotify();
         return;
       }
 
@@ -174,6 +234,8 @@ class RutaClienteViewModel extends ChangeNotifier {
 
       // marcador de la ubicación del conductor
       if (conductorPos != null) {
+        // almacenar posición para cálculo de bearing en actualizaciones
+        _previousConductorPos = conductorPos;
         newMarkers.add(Marker(
           markerId: const MarkerId('conductor'),
           position: conductorPos,
@@ -184,9 +246,10 @@ class RutaClienteViewModel extends ChangeNotifier {
         ));
       }
 
-      // Trazabilidad (ruta por calles) entre cliente y conductor
+      // Trazabilidad (ruta por calles): solicitar la ruta desde conductor hacia cliente
+      // para respetar el direccionamiento de las calles cuando el vehículo se mueve.
       if (origen != null && conductorPos != null) {
-        await _fetchRouteOSRM(origen, conductorPos, 'cliente_conductor');
+        await _fetchRouteOSRM(conductorPos, origen, 'cliente_conductor');
       }
 
       // Priorizar siempre la ubicación del cliente como centro inicial
@@ -219,6 +282,7 @@ class RutaClienteViewModel extends ChangeNotifier {
           final cdata = cdoc.data();
           if (cdata != null) {
             conductorPhotoUrl = cdata['foto']?.toString();
+            conductorVehiclePhotoUrl = cdata['fotoVehiculo']?.toString();
             conductorRating = (cdata['rating'] is num)
                 ? (cdata['rating'] as num).toDouble()
                 : null;
@@ -236,6 +300,7 @@ class RutaClienteViewModel extends ChangeNotifier {
                   conductorPhone: null,
                   conductorPlate: conductorPlate,
                   conductorPhotoUrl: conductorPhotoUrl,
+                  conductorVehiclePhotoUrl: conductorVehiclePhotoUrl,
                   conductorRating: conductorRating,
                 ));
                 _routeCacheSaved = true;
@@ -252,10 +317,10 @@ class RutaClienteViewModel extends ChangeNotifier {
       markers = newMarkers;
       initialTarget = center;
       loading = false;
-      notifyListeners();
+      _safeNotify();
     } catch (e) {
       loading = false;
-      notifyListeners();
+      _safeNotify();
     }
   }
 
@@ -303,6 +368,23 @@ class RutaClienteViewModel extends ChangeNotifier {
           }
         }
 
+        // Calcular bearing estimado del conductor:
+        // - Preferir la orientación de la ruta (si tenemos puntos de ruta),
+        // - si no está disponible, fallback a la diferencia entre posiciones.
+        if (conductorPos != null) {
+          try {
+            final routeBearing = _bearingAlongRouteAt(conductorPos);
+            if (routeBearing != null) {
+              conductorBearing = routeBearing;
+            } else if (_previousConductorPos != null) {
+              conductorBearing = _calculateBearing(_previousConductorPos!, conductorPos);
+            }
+          } catch (_) {
+            conductorBearing = null;
+          }
+          _previousConductorPos = conductorPos;
+        }
+
         final newMarkers = <Marker>{};
 
         if (origen != null) {
@@ -317,6 +399,8 @@ class RutaClienteViewModel extends ChangeNotifier {
         }
 
         if (conductorPos != null) {
+          // Añadir marcador del conductor inicialmente; la animación lo
+          // ajustará suavemente cuando haya movimiento.
           newMarkers.add(Marker(
             markerId: const MarkerId('conductor'),
             position: conductorPos,
@@ -328,7 +412,7 @@ class RutaClienteViewModel extends ChangeNotifier {
         }
 
         if (origen != null && conductorPos != null) {
-          await _fetchRouteOSRM(origen, conductorPos, 'cliente_conductor');
+          await _fetchRouteOSRM(conductorPos, origen, 'cliente_conductor');
         }
 
         // Priorizar siempre la ubicación del cliente como centro
@@ -349,6 +433,14 @@ class RutaClienteViewModel extends ChangeNotifier {
         markers = newMarkers;
         initialTarget = center;
         loading = false;
+
+        // Si recibimos ubicación del conductor y ya teníamos una previa,
+        // iniciar interpolación suave hacia la nueva posición.
+        try {
+          if (conductorPos != null && _previousConductorPos != null) {
+            _animateConductorTo(_previousConductorPos!, conductorPos);
+          }
+        } catch (_) {}
 
         // actualizar info de conductor si está presente, preferir objeto
         conductorDisplayName = (data['conductor'] is Map
@@ -430,7 +522,7 @@ class RutaClienteViewModel extends ChangeNotifier {
           goToDestino = true;
         }
 
-        notifyListeners();
+        _safeNotify();
       } catch (_) {}
     });
   }
@@ -476,7 +568,7 @@ class RutaClienteViewModel extends ChangeNotifier {
               message: texto,
             );
           }
-          notifyListeners();
+          _safeNotify();
         }
       },
       onError: (_) {},
@@ -487,7 +579,7 @@ class RutaClienteViewModel extends ChangeNotifier {
   void clearNewChatFlag() {
     if (!hasNewChat) return;
     hasNewChat = false;
-    notifyListeners();
+    _safeNotify();
   }
 
   // --- OSRM: cálculo de ruta y métricas ---
@@ -513,6 +605,9 @@ class RutaClienteViewModel extends ChangeNotifier {
         final lat = (c[1] as num).toDouble();
         return LatLng(lat, lon);
       }).toList();
+
+      // Guardar puntos de ruta para cálculos de bearing/snapping
+      _lastRoutePoints = points;
 
       final newPolylines = Set<Polyline>.from(polylines);
       newPolylines.removeWhere((p) => p.polylineId.value == polyId);
@@ -545,10 +640,59 @@ class RutaClienteViewModel extends ChangeNotifier {
         routeDurationMin = duration / 60.0;
       }
 
-      notifyListeners();
+      _safeNotify();
     } catch (_) {
       // ignorar silenciosamente
     }
+  }
+
+  /// Devuelve el bearing (grados) del segmento de la ruta más cercano a [pos].
+  /// Si no hay ruta disponible, retorna null.
+  double? _bearingAlongRouteAt(LatLng pos) {
+    final pts = _lastRoutePoints;
+    if (pts == null || pts.length < 2) return null;
+
+    double minDist = double.infinity;
+    int bestIdx = 0;
+
+    for (int i = 0; i < pts.length - 1; i++) {
+      final a = pts[i];
+      final b = pts[i + 1];
+      final d = _distancePointToSegmentMeters(pos, a, b);
+      if (d < minDist) {
+        minDist = d;
+        bestIdx = i;
+      }
+    }
+
+    final a = pts[bestIdx];
+    final b = pts[bestIdx + 1];
+    return _calculateBearing(a, b);
+  }
+
+  double _distancePointToSegmentMeters(LatLng p, LatLng a, LatLng b) {
+    const R = 6371000.0;
+    // usar aproximación equirectangular local
+    final latRef = p.latitude * pi / 180.0;
+    final ax = (a.longitude - p.longitude) * pi / 180.0 * R * cos(latRef);
+    final ay = (a.latitude - p.latitude) * pi / 180.0 * R;
+    final bx = (b.longitude - p.longitude) * pi / 180.0 * R * cos(latRef);
+    final by = (b.latitude - p.latitude) * pi / 180.0 * R;
+    final px = 0.0;
+    final py = 0.0;
+
+    final vx = bx - ax;
+    final vy = by - ay;
+    final wx = px - ax;
+    final wy = py - ay;
+    final vv = vx * vx + vy * vy;
+    final t = vv == 0.0 ? 0.0 : (vx * wx + vy * wy) / vv;
+    final tt = t.clamp(0.0, 1.0);
+    final projx = ax + vx * tt;
+    final projy = ay + vy * tt;
+    final dx = px - projx;
+    final dy = py - projy;
+    return sqrt(dx * dx + dy * dy);
   }
 
   /// Calcula el bearing (dirección) desde un punto origen hacia un destino

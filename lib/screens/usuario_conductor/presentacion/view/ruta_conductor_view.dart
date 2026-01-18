@@ -18,6 +18,7 @@ import 'package:taxi_app/widgets/google_maps_widget.dart';
 import 'package:taxi_app/widgets/map_loading_widget.dart';
 import 'package:taxi_app/helper/responsive_helper.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:taxi_app/screens/usuario_conductor/presentacion/view/inicio_conductor_view.dart';
 
 class RutaConductorView extends StatefulWidget {
   final String solicitudId;
@@ -263,8 +264,14 @@ class _RutaConductorViewState extends State<RutaConductorView> {
     _chatController.dispose();
     _chatScrollController.dispose();
     _chatFocusNode.dispose();
-    _chatSub?.cancel();
-    _driverPosSub?.cancel();
+    final f1 = _chatSub?.cancel();
+    f1?.catchError((e) {
+      // ignore platform "No active stream to cancel"
+    });
+    final f2 = _driverPosSub?.cancel();
+    f2?.catchError((e) {
+      // ignore platform "No active stream to cancel"
+    });
     _viewModel.dispose();
     super.dispose();
   }
@@ -273,16 +280,26 @@ class _RutaConductorViewState extends State<RutaConductorView> {
     if (!mounted) return;
     // Limpia cache de la solicitud cancelada
     RouteCacheService.clearSolicitud(widget.solicitudId);
+    // Marcar la solicitud como cancelada en Firestore y mostrar loader antes de volver al inicio
+    try {
+      FirebaseFirestore.instance
+          .collection('solicitudes')
+          .doc(widget.solicitudId)
+          .update({'status': 'cancelada'});
+    } catch (_) {}
+
+    // Mostrar pantalla intermedia de 3 segundos y luego volver al inicio
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (_) => const LoaderVolviendoAtrasConductorView(),
-      ),
+      MaterialPageRoute(builder: (_) => const LoaderSolicitudCanceladaConductorView()),
     );
   }
 
   void _listenChatMessages() {
     final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
-    _chatSub?.cancel();
+    final f = _chatSub?.cancel();
+    f?.catchError((e) {
+      // ignore platform "No active stream to cancel"
+    });
     _chatSub = _chatService
         .listenMessages(widget.solicitudId)
         .listen((mensajes) {
@@ -1210,6 +1227,45 @@ class LoaderVolviendoAtrasConductorView extends StatefulWidget {
 
   @override
   State<LoaderVolviendoAtrasConductorView> createState() => _LoaderVolviendoAtrasConductorViewState();
+}
+
+class LoaderSolicitudCanceladaConductorView extends StatefulWidget {
+  const LoaderSolicitudCanceladaConductorView({Key? key}) : super(key: key);
+
+  @override
+  State<LoaderSolicitudCanceladaConductorView> createState() => _LoaderSolicitudCanceladaConductorViewState();
+}
+
+class _LoaderSolicitudCanceladaConductorViewState extends State<LoaderSolicitudCanceladaConductorView> {
+  @override
+  void initState() {
+    super.initState();
+    _goBackAfterDelay();
+  }
+
+  void _goBackAfterDelay() {
+    Future.delayed(const Duration(seconds: 3), () {
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const HomeConductorMapView()),
+        (route) => false,
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: Center(
+          child: MapLoadingWidget(
+            message: 'Solicitud cancelada',
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _LoaderVolviendoAtrasConductorViewState extends State<LoaderVolviendoAtrasConductorView> {

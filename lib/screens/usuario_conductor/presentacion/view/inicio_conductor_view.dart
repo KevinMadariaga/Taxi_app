@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/historial_viaje_conductor.dart';
@@ -61,7 +62,14 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
   // Centraliza el cierre/retroceso de la preview para poder invocarlo
   // desde el listener cuando la solicitud cambie a cancelada.
   Future<void> _closePreview(HomeConductorViewModel vm) async {
-    _previewSub?.cancel();
+    if (_previewSub != null) {
+      try {
+        await _previewSub!.cancel();
+      } catch (e) {
+        // Some platform plugins may throw "No active stream to cancel" when
+        // canceling an already-cancelled native stream; ignore that specific error.
+      }
+    }
     if (!mounted) return;
     vm.clearPreviewAndRoutes();
     if (vm.currentLocation != null) {
@@ -255,15 +263,27 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
                                 ),
                               ),
                               const SizedBox(width: 12.0),
-                              // Foto circular del conductor (usa la foto en DB si existe)
-                              (vm.photoUrl != null && vm.photoUrl!.isNotEmpty)
-                                  ? ClipOval(
+                              // Foto circular del conductor: escuchar el documento `conductor`
+                              StreamBuilder<DocumentSnapshot?>(
+                                stream: _conductorStream,
+                                builder: (ctx, snap) {
+                                  String photoUrl = vm.photoUrl ?? '';
+                                  if (snap.hasData && snap.data != null && snap.data!.exists) {
+                                    try {
+                                      final data = snap.data!.data() as Map<String, dynamic>?;
+                                      final p = data == null ? null : (data['foto'] as String?);
+                                      if (p != null && p.isNotEmpty) photoUrl = p;
+                                    } catch (_) {}
+                                  }
+
+                                  if (photoUrl.isNotEmpty) {
+                                    return ClipOval(
                                       child: Image.network(
-                                        vm.photoUrl!,
+                                        photoUrl,
                                         width: 100,
                                         height: 100,
                                         fit: BoxFit.cover,
-                                        errorBuilder: (ctx, error, stack) {
+                                        errorBuilder: (ctx2, error, stack) {
                                           return Container(
                                             width: 100,
                                             height: 100,
@@ -279,20 +299,24 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
                                           );
                                         },
                                       ),
-                                    )
-                                  : Container(
-                                      width: 100,
-                                      height: 100,
-                                      decoration: BoxDecoration(
-                                        color: Colors.grey.shade200,
-                                        shape: BoxShape.circle,
-                                      ),
-                                      alignment: Alignment.center,
-                                      child: Text(
-                                        vm.displayName.isNotEmpty ? vm.displayName.trim()[0].toUpperCase() : 'C',
-                                        style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: Colors.black87),
-                                      ),
+                                    );
+                                  }
+
+                                  return Container(
+                                    width: 100,
+                                    height: 100,
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey.shade200,
+                                      shape: BoxShape.circle,
                                     ),
+                                    alignment: Alignment.center,
+                                    child: Text(
+                                      vm.displayName.isNotEmpty ? vm.displayName.trim()[0].toUpperCase() : 'C',
+                                      style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: Colors.black87),
+                                    ),
+                                  );
+                                },
+                              ),
                             ],
                           ),
                         ),
@@ -419,7 +443,13 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
                                                             vm.selectPreview(preview);
 
                                                             // Cancel any previous preview listener and subscribe to this solicitud document
-                                                            _previewSub?.cancel();
+                                                            if (_previewSub != null) {
+                                                              try {
+                                                                await _previewSub!.cancel();
+                                                              } catch (e) {
+                                                                // ignore platform "No active stream to cancel"
+                                                              }
+                                                            }
                                                             _previewSub = FirebaseFirestore.instance.collection('solicitudes').doc(s.id).snapshots().listen((snap) async {
                                                               if (!mounted) return;
                                                               try {
@@ -448,9 +478,10 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
                                                                     if (!mounted) return;
                                                                     final navCtx = this.context;
                                                                     try {
+                                                                      // Show a loading screen for 5 seconds so the route view can prepare
                                                                       await Navigator.of(navCtx).push(
                                                                         MaterialPageRoute(
-                                                                          builder: (_) => RutaConductorView(
+                                                                          builder: (_) => RutaConductorLoadingView(
                                                                             solicitudId: s.id,
                                                                             clientLocation: LatLng(
                                                                               s.ubicacionInicial.latitude,
@@ -593,7 +624,10 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
 
   @override
   void dispose() {
-    _previewSub?.cancel();
+    final f = _previewSub?.cancel();
+    f?.catchError((e) {
+      // ignore platform "No active stream to cancel"
+    });
     _mapController = null;
     super.dispose();
   }

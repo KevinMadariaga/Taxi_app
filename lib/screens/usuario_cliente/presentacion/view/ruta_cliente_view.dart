@@ -61,6 +61,8 @@ class _RutaClienteViewState extends State<RutaClienteView> {
     _loadClientIcon();
     _restoreCacheAndNotifyCliente();
   }
+
+  
   
   Future<void> _restoreCacheAndNotifyCliente() async {
     try {
@@ -389,51 +391,92 @@ class _RutaClienteViewState extends State<RutaClienteView> {
   Future<void> _fitBoundsToMarkers() async {
     try {
       if (_mapController == null) return;
+      // Intentar centrar ambos marcadores (cliente + conductor) si están disponibles
+      LatLng? clientePos;
+      LatLng? conductorPos;
+      for (final m in _vm.markers) {
+        if (m.markerId.value == 'cliente') clientePos = m.position;
+        if (m.markerId.value == 'conductor') conductorPos = m.position;
+      }
+
+      if (clientePos != null && conductorPos != null) {
+        final center = LatLng(
+          (clientePos.latitude + conductorPos.latitude) / 2,
+          (clientePos.longitude + conductorPos.longitude) / 2,
+        );
+
+        final distanceMeters = _haversineDistanceMeters(clientePos, conductorPos);
+        final zoom = _zoomForDistanceMeters(distanceMeters);
+        try {
+          await _mapController!.animateCamera(
+            CameraUpdate.newCameraPosition(
+              CameraPosition(target: center, zoom: zoom, bearing: 0.0, tilt: 0.0),
+            ),
+          );
+          return;
+        } catch (_) {
+          // Fallback a LatLngBounds si falla
+          try {
+            final bounds = LatLngBounds(
+              southwest: LatLng(
+                math.min(clientePos.latitude, conductorPos.latitude),
+                math.min(clientePos.longitude, conductorPos.longitude),
+              ),
+              northeast: LatLng(
+                math.max(clientePos.latitude, conductorPos.latitude),
+                math.max(clientePos.longitude, conductorPos.longitude),
+              ),
+            );
+            await _mapController!.animateCamera(
+              CameraUpdate.newLatLngBounds(bounds, 120),
+            );
+            return;
+          } catch (_) {}
+        }
+      }
+
+      // Si no tenemos ambos marcadores, usar los bounds provistos por el ViewModel
       final bounds = _vm.cameraBounds;
       if (bounds == null) return;
       // Calcular distancia aproximada usando la diagonal del bounds
       final sw = bounds.southwest;
       final ne = bounds.northeast;
       final diagonalMeters = _haversineDistanceMeters(sw, ne);
+      // Centrar y ajustar zoom de manera que ambos marcadores queden visibles
+      final center = LatLng(
+        (sw.latitude + ne.latitude) / 2,
+        (sw.longitude + ne.longitude) / 2,
+      );
 
-      // Para distancias cortas, usa zoom dinámico centrado; para largas, usar bounds
-      if (diagonalMeters <= 2000) {
-        final center = LatLng(
-          (sw.latitude + ne.latitude) / 2,
-          (sw.longitude + ne.longitude) / 2,
+      
+
+      // Ajuste leve para compensar que la diagonal es mayor que la distancia real
+      final zoom = _zoomForDistanceMeters(diagonalMeters / 1.5);
+      try {
+        await _mapController!.animateCamera(
+          CameraUpdate.newCameraPosition(
+            CameraPosition(target: center, zoom: zoom, bearing: 0.0, tilt: 0.0),
+          ),
         );
-        // Ajuste leve para compensar que la diagonal es mayor que la distancia real
-        final zoom = _zoomForDistanceMeters(diagonalMeters / 1.5);
-        try {
-          await _mapController!.animateCamera(
-            CameraUpdate.newCameraPosition(
-              CameraPosition(target: center, zoom: zoom),
-            ),
-          );
-        } catch (_) {
-          // Fallback a bounds si falla
-          try {
-            await _mapController!.animateCamera(
-              CameraUpdate.newLatLngBounds(bounds, 160),
-            );
-          } catch (_) {}
-        }
-      } else {
-        // Distancia larga: mostrar ambos marcadores con padding
+      } catch (_) {
+        // Fallback a bounds si falla la animación con CameraPosition
         try {
           await _mapController!.animateCamera(
             CameraUpdate.newLatLngBounds(bounds, 160),
           );
-        } catch (_) {
-          await Future.delayed(const Duration(milliseconds: 200));
-          try {
-            await _mapController!.animateCamera(
-              CameraUpdate.newLatLngBounds(bounds, 160),
-            );
-          } catch (_) {}
-        }
+        } catch (_) {}
       }
     } catch (_) {}
+  }
+
+  double _calculateBearing(LatLng from, LatLng to) {
+    final lat1 = from.latitude * (math.pi / 180);
+    final lat2 = to.latitude * (math.pi / 180);
+    final dLon = (to.longitude - from.longitude) * (math.pi / 180);
+    final y = math.sin(dLon) * math.cos(lat2);
+    final x = math.cos(lat1) * math.sin(lat2) - math.sin(lat1) * math.cos(lat2) * math.cos(dLon);
+    final brng = math.atan2(y, x);
+    return (brng * 180 / math.pi + 360) % 360;
   }
 
   Future<void> _showCancelConfirmDialog() async {
@@ -551,10 +594,14 @@ class _RutaClienteViewState extends State<RutaClienteView> {
             }
           });
 
+          
+
             final conductorPhotoUrl = vm.conductorPhotoUrl ?? _routeCache?.conductorPhotoUrl;
+            final conductorVehiclePhotoUrl = vm.conductorVehiclePhotoUrl ?? _routeCache?.conductorVehiclePhotoUrl;
             final conductorPlate = vm.conductorPlate ?? _routeCache?.conductorPlate;
             final conductorName = vm.conductorDisplayName ?? _routeCache?.conductorName;
             final conductorRatingFallback = vm.conductorRating ?? _routeCache?.conductorRating;
+            final conductorDocId = vm.conductorId ?? _routeCache?.conductorId;
 
             final hasConductorInfo =
               conductorPlate != null ||
@@ -567,7 +614,12 @@ class _RutaClienteViewState extends State<RutaClienteView> {
               return m.copyWith(iconParam: _clientIcon);
             }
             if (m.markerId.value == 'conductor' && _taxiIcon != null) {
-              return m.copyWith(iconParam: _taxiIcon);
+              return m.copyWith(
+                iconParam: _taxiIcon,
+                rotationParam: _vm.conductorBearing ?? 0.0,
+                anchorParam: const Offset(0.5, 0.5),
+                flatParam: true,
+              );
             }
             return m;
           }).toSet();
@@ -671,6 +723,7 @@ class _RutaClienteViewState extends State<RutaClienteView> {
                                     ),
                                   ),
                                 ),
+                              
                             ],
                           );
                         },
@@ -714,7 +767,7 @@ class _RutaClienteViewState extends State<RutaClienteView> {
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     CircleAvatar(
-                                      radius: ResponsiveHelper.sp(context, 26),
+                                      radius: ResponsiveHelper.sp(context, 34),
                                       backgroundColor: Colors.grey.shade200,
                                       backgroundImage: conductorPhotoUrl != null
                                           ? NetworkImage(conductorPhotoUrl)
@@ -722,7 +775,7 @@ class _RutaClienteViewState extends State<RutaClienteView> {
                                       child: conductorPhotoUrl == null
                                           ? Icon(
                                               Icons.person,
-                                              size: ResponsiveHelper.sp(context, 18),
+                                              size: ResponsiveHelper.sp(context, 22),
                                               color: Colors.black87,
                                             )
                                           : null,
@@ -730,10 +783,10 @@ class _RutaClienteViewState extends State<RutaClienteView> {
                                     SizedBox(height: ResponsiveHelper.hp(context, 0.6)),
                                     if (conductorName != null)
                                       Text(
-                                        conductorName,
+                                        conductorName.toUpperCase(),
                                         style: TextStyle(
-                                          fontSize: ResponsiveHelper.sp(context, 15),
-                                          fontWeight: FontWeight.w600,
+                                          fontSize: ResponsiveHelper.sp(context, 14),
+                                          fontWeight: FontWeight.w700,
                                           color: Colores.negro,
                                         ),
                                       ),
@@ -836,11 +889,27 @@ class _RutaClienteViewState extends State<RutaClienteView> {
                                     crossAxisAlignment: CrossAxisAlignment.center,
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Image.asset(
-                                        'assets/img/carrito.png',
-                                        height: ResponsiveHelper.hp(context, 8),
-                                        fit: BoxFit.contain,
-                                      ),
+                                      if (conductorVehiclePhotoUrl != null)
+                                        ClipRRect(
+                                          borderRadius: BorderRadius.circular(8),
+                                          child: Image.network(
+                                            conductorVehiclePhotoUrl,
+                                            height: ResponsiveHelper.hp(context, 8),
+                                            width: ResponsiveHelper.wp(context, 30),
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (c, e, s) => Image.asset(
+                                              'assets/img/carrito.png',
+                                              height: ResponsiveHelper.hp(context, 10),
+                                              fit: BoxFit.contain,
+                                            ),
+                                          ),
+                                        )
+                                      else
+                                        Image.asset(
+                                          'assets/img/carrito.png',
+                                          height: ResponsiveHelper.hp(context, 8),
+                                          fit: BoxFit.contain,
+                                        ),
                                       Text(
                                         conductorPlate,
                                         style: TextStyle(

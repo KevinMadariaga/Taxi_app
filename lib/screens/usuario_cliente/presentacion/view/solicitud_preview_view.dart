@@ -25,6 +25,7 @@ class MapPreview extends StatefulWidget {
 class _MapPreviewState extends State<MapPreview> {
   GoogleMapController? _controller;
   late MapapreviewViewModel _vm;
+  BitmapDescriptor? _destIcon;
 
   @override
   void initState() {
@@ -34,6 +35,21 @@ class _MapPreviewState extends State<MapPreview> {
       destino: widget.destino,
     );
     _vm.init();
+    _loadDestIcon();
+  }
+
+  Future<void> _loadDestIcon() async {
+    try {
+      final dpr = WidgetsBinding.instance.platformDispatcher.views.first.devicePixelRatio;
+      final icon = await BitmapDescriptor.asset(
+        ImageConfiguration(size: const Size(30, 50), devicePixelRatio: dpr),
+        'assets/img/map_pin_red.png',
+      );
+      if (!mounted) return;
+      setState(() {
+        _destIcon = icon;
+      });
+    } catch (_) {}
   }
 
   void _onMapCreated(GoogleMapController controller) {
@@ -105,7 +121,7 @@ class _MapPreviewState extends State<MapPreview> {
                           markerId: const MarkerId('destino'),
                           position: destino,
                           infoWindow: InfoWindow(title: vm.destino.title ?? 'Destino', snippet: vm.destino.subtitle),
-                          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+                          icon: _destIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
                         ),
                       },
                         polylines: vm.polylines,

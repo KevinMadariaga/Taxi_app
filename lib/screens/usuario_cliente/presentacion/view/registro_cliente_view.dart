@@ -118,18 +118,21 @@ class _RegistroClienteViewState extends State<RegistroClienteView> {
                     Center(
                       child: Stack(
                         children: [
-                          CircleAvatar(
-                            radius: width * 0.12,
-                            backgroundImage: _profileImage != null
-                                ? FileImage(_profileImage!) as ImageProvider
-                                : const AssetImage('assets/img/taxi.png'),
+                          SizedBox(
+                            width: width * 0.24,
+                            height: width * 0.24,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: _profileImage != null
+                                  ? Image.file(_profileImage!, fit: BoxFit.cover)
+                                  : Image.asset('assets/img/taxi.png', fit: BoxFit.cover),
+                            ),
                           ),
                           Positioned(
-                            bottom: 0,
-                            right: 0,
-                            child: IconButton(
-                              icon: const Icon(Icons.camera_alt),
-                              onPressed: () async {
+                            bottom: 4,
+                            right: 4,
+                            child: InkWell(
+                              onTap: () async {
                                 final picked = await _picker.pickImage(
                                   source: ImageSource.gallery,
                                   imageQuality: 75,
@@ -140,6 +143,15 @@ class _RegistroClienteViewState extends State<RegistroClienteView> {
                                   });
                                 }
                               },
+                              child: Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: AppColores.buttonPrimary,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Icon(Icons.camera_alt, color: AppColores.textPrimary),
+                              ),
                             ),
                           ),
                         ],

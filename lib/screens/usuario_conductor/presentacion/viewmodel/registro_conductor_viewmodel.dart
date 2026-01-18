@@ -69,7 +69,7 @@ class RegistroConductorViewModel {
         correo: emailController.text.trim(),
         nombre: nombreController.text.trim(),
         telefono: telefonoController.text.trim(),
-        placa: placaController.text.trim(),
+        placa: placaController.text.trim().toUpperCase(),
       );
 
       final docData = {
