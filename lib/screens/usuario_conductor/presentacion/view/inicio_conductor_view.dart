@@ -10,6 +10,7 @@ import 'package:taxi_app/screens/usuario_conductor/presentacion/view/historial_v
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/preview_solicitud.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/inicio_conductor_viewmodel.dart';
 import 'package:provider/provider.dart';
+import 'package:taxi_app/services/notification_service.dart';
 import 'package:taxi_app/widgets/google_maps_widget.dart';
 import 'package:taxi_app/widgets/perfil.dart';
 import 'package:taxi_app/helper/permisos_helper.dart';
@@ -34,6 +35,7 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
   StreamSubscription<DocumentSnapshot>? _previewSub;
   StreamSubscription<String?>? _cachedNameSub;
   bool _navigatingToRuta = false;
+  StreamSubscription<String>? _newSolicitudSub;
 
   // Expande el mapa ocultando la barra; luego centra los marcadores tras 2s
   Future<void> _expandMapAndCenter(PreviewSolicitud preview, HomeConductorViewModel vm) async {
@@ -138,7 +140,13 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
         final vm = HomeConductorViewModel();
         // Request necessary permissions for drivers (notifications, foreground and background location)
         WidgetsBinding.instance.addPostFrameCallback((_) async {
-          await PermissionsHelper.requestAllPermissions(isDriver: true);
+          try {
+            await PermissionsHelper.requestAllPermissions(isDriver: true);
+          } catch (_) {}
+          // Initialize local notifications
+          try {
+            await NotificationService.instance.init();
+          } catch (_) {}
           await vm.init();
         });
         return vm;
@@ -231,54 +239,79 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
                                     ),
                                     
                                     const SizedBox(height: 10.0),
-                                    // Estrellas de calificación desde el documento del conductor
-                                    StreamBuilder<DocumentSnapshot>(
-                                      stream: _conductorStream,
-                                      builder: (context, snapshot) {
-                                        double promedio = 0.0;
-                                        
-                                        if (snapshot.hasData && snapshot.data != null && snapshot.data!.exists) {
-                                          final data = snapshot.data!.data() as Map<String, dynamic>?;
-                                          if (data != null) {
-                                            promedio = (data['calificacion_promedio'] as num?)?.toDouble() ?? 0.0;
-                                          }
-                                        }
-                                        
-                                        final promedioInt = promedio.toInt();
-                                        final tieneMedia = (promedio - promedioInt) >= 0.5;
-                                        
+                                    // Estrellas de calificación calculadas a partir de la colección `solicitudes`
+                                    Builder(builder: (ctx) {
+                                      final uidForRating = FirebaseAuth.instance.currentUser?.uid;
+                                      if (uidForRating == null || uidForRating.isEmpty) {
                                         return Row(
-                                          children: [
-                                            Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: List.generate(5, (index) {
-                                                if (index < promedioInt) {
-                                                  return const Padding(
-                                                    padding: EdgeInsets.only(right: 4),
-                                                    child: Icon(Icons.star, color: Colors.amber, size: 18),
-                                                  );
-                                                } else if (index == promedioInt && tieneMedia) {
-                                                  return const Padding(
-                                                    padding: EdgeInsets.only(right: 4),
-                                                    child: Icon(Icons.star_half, color: Colors.amber, size: 18),
-                                                  );
-                                                } else {
-                                                  return Padding(
-                                                    padding: const EdgeInsets.only(right: 4),
-                                                    child: Icon(Icons.star_border, color: Colors.grey[400], size: 18),
-                                                  );
-                                                }
-                                              }),
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Text(
-                                              promedio > 0 ? promedio.toStringAsFixed(1) : '0.0',
-                                              style: const TextStyle(fontSize: 14, color: Colors.black54, fontWeight: FontWeight.w700),
-                                            ),
+                                          children: const [
+                                            Icon(Icons.star_border, color: Colors.grey, size: 18),
+                                            SizedBox(width: 8),
+                                            Text('0.0', style: TextStyle(fontSize: 14, color: Colors.black54, fontWeight: FontWeight.w700)),
                                           ],
                                         );
-                                      },
-                                    ),
+                                      }
+
+                                      final solicitudesStream = FirebaseFirestore.instance
+                                          .collection('solicitudes')
+                                          .where('conductor.id', isEqualTo: uidForRating)
+                                          .snapshots();
+
+                                      return StreamBuilder<QuerySnapshot>(
+                                        stream: solicitudesStream,
+                                        builder: (context, snap) {
+                                          double promedio = 0.0;
+                                          int totalCalificaciones = 0;
+                                          if (snap.hasData && snap.data != null) {
+                                            for (var doc in snap.data!.docs) {
+                                              try {
+                                                final data = doc.data() as Map<String, dynamic>?;
+                                                final calificacionObj = data == null ? null : (data['calificacion'] ?? data['calificacion_cliente']);
+                                                if (calificacionObj is Map && calificacionObj['score'] != null) {
+                                                  promedio += (calificacionObj['score'] as num).toDouble();
+                                                  totalCalificaciones++;
+                                                }
+                                              } catch (_) {}
+                                            }
+                                            if (totalCalificaciones > 0) promedio = promedio / totalCalificaciones;
+                                          }
+
+                                          final promedioInt = promedio.toInt();
+                                          final tieneMedia = (promedio - promedioInt) >= 0.5;
+
+                                          return Row(
+                                            children: [
+                                              Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: List.generate(5, (index) {
+                                                  if (index < promedioInt) {
+                                                    return const Padding(
+                                                      padding: EdgeInsets.only(right: 4),
+                                                      child: Icon(Icons.star, color: Colors.amber, size: 18),
+                                                    );
+                                                  } else if (index == promedioInt && tieneMedia) {
+                                                    return const Padding(
+                                                      padding: EdgeInsets.only(right: 4),
+                                                      child: Icon(Icons.star_half, color: Colors.amber, size: 18),
+                                                    );
+                                                  } else {
+                                                    return Padding(
+                                                      padding: const EdgeInsets.only(right: 4),
+                                                      child: Icon(Icons.star_border, color: Colors.grey[400], size: 18),
+                                                    );
+                                                  }
+                                                }),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Text(
+                                                promedio > 0 ? promedio.toStringAsFixed(1) : '0.0',
+                                                style: const TextStyle(fontSize: 14, color: Colors.black54, fontWeight: FontWeight.w700),
+                                              ),
+                                            ],
+                                          );
+                                        },
+                                      );
+                                    }),
                                   ],
                                 ),
                               ),
@@ -590,11 +623,6 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
                                     if (vm.photoUrl != null) 'foto': vm.photoUrl,
                                     'placa': vm.vehiclePlate ?? '',
                                     if (vm.currentLocation != null)
-                                      'ubicacion': GeoPoint(
-                                        vm.currentLocation!.latitude,
-                                        vm.currentLocation!.longitude,
-                                      ),
-                                    if (vm.currentLocation != null)
                                       'lat': vm.currentLocation!.latitude,
                                     if (vm.currentLocation != null)
                                       'lng': vm.currentLocation!.longitude,
@@ -648,6 +676,7 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
     f?.catchError((e) {
       // ignore platform "No active stream to cancel"
     });
+    try { _newSolicitudSub?.cancel(); } catch (_) {}
     try {
       final f2 = _cachedNameSub?.cancel();
       f2?.catchError((e) {});

@@ -57,34 +57,28 @@ class ResumenClienteViewModel extends ChangeNotifier {
 
     try {
       final data = solicitudData ?? {};
-      final historialViajeId = data['historial_viaje_id'] as String?;
       final conductorData = data['conductor'] as Map<String, dynamic>?;
-      final conductorId = conductorData?['id'] as String?;
+      final conductorIdLocal = (conductorData?['id'] as String?) ?? conductorId;
 
-      if (historialViajeId == null || historialViajeId.isEmpty) {
-        mensajeCalificacion = 'No se encontró el historial del viaje';
-        if (!_disposed) notifyListeners();
-        return;
-      }
-
-      // Agregar calificación al historial de viajes
+      // Guardar calificación dentro del documento de la solicitud
       await FirebaseFirestore.instance
-          .collection('historial viajes')
-          .doc(historialViajeId)
+          .collection('solicitudes')
+          .doc(solicitudId)
           .update({
-            'calificacion': {
+            'calificacion_cliente': {
               'score': calificacion,
               'comment': comentarioCalificacion.isNotEmpty ? comentarioCalificacion : null,
               'ratedAt': Timestamp.now(),
             },
           });
 
-      // Calcular y actualizar promedio de calificación del conductor
-      if (conductorId != null && conductorId.isNotEmpty) {
+      // Calcular y actualizar promedio de calificación del conductor consultando
+      // la colección `solicitudes` (donde ahora se guardan las calificaciones).
+      if (conductorIdLocal != null && conductorIdLocal.isNotEmpty) {
         try {
           final viajesSnapshot = await FirebaseFirestore.instance
-              .collection('historial viajes')
-              .where('conductor.id', isEqualTo: conductorId)
+              .collection('solicitudes')
+              .where('conductor.id', isEqualTo: conductorIdLocal)
               .get();
 
           double totalCalificacion = 0.0;
@@ -92,7 +86,7 @@ class ResumenClienteViewModel extends ChangeNotifier {
 
           for (var doc in viajesSnapshot.docs) {
             final viajeData = doc.data();
-            final calificacionObj = viajeData['calificacion'];
+            final calificacionObj = viajeData['calificacion_cliente'];
             if (calificacionObj is Map && calificacionObj['score'] != null) {
               totalCalificacion += (calificacionObj['score'] as num).toDouble();
               cantidadCalificaciones++;
@@ -104,8 +98,8 @@ class ResumenClienteViewModel extends ChangeNotifier {
 
             // Actualizar calificación promedio en el documento del conductor
             await FirebaseFirestore.instance
-                .collection('conductor')
-                .doc(conductorId)
+                .collection('usuario_conductor')
+                .doc(conductorIdLocal)
                 .update({
                   'calificacion_promedio': promedioCalificacion,
                   'total_calificaciones': cantidadCalificaciones,
@@ -163,8 +157,8 @@ class ResumenClienteViewModel extends ChangeNotifier {
       }
 
       // Verificar si ya existe calificación
-      if (solicitudData!.containsKey('calificacion_cliente')) {
-        calificacion = (solicitudData!['calificacion_cliente'] ?? 0).toDouble();
+      if (solicitudData!.containsKey('calificacion cliente')) {
+        calificacion = (solicitudData!['calificacion cliente'] ?? 0).toDouble();
         calificacionEnviada = true;
       }
 

@@ -88,17 +88,24 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView> {
   Future<void> _cancelSolicitud() async {
     final id = widget.solicitudId;
     if (id != null && id.isNotEmpty) {
+      final docRef = FirebaseFirestore.instance.collection('solicitudes').doc(id);
       try {
-        await FirebaseFirestore.instance.collection('solicitudes').doc(id).update({
-          'status': 'cancelado',
-          'cancelledAt': FieldValue.serverTimestamp(),
-        });
-      } catch (_) {}
+        // Intentar eliminar el documento directamente
+        await docRef.delete();
+      } catch (_) {
+        // Si la eliminación falla, dejar el registro marcado como cancelado
+        try {
+          await docRef.update({
+            'status': 'cancelado',
+            'cancelledAt': FieldValue.serverTimestamp(),
+          });
+        } catch (_) {}
+      }
     }
     if (!mounted) return;
-    Navigator.of(context).push(MaterialPageRoute(
-     builder: (_) => InicioClienteView(),
-   ));
+    Navigator.of(context).pushReplacement(MaterialPageRoute(
+      builder: (_) => InicioClienteView(),
+    ));
    // Navigator.of(context).pop({'cancelado': true});
   }
 

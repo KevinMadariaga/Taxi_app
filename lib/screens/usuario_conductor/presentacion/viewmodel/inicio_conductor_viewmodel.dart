@@ -12,6 +12,8 @@ import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/previe
 import 'package:taxi_app/services/firebase_service.dart';
 import 'package:taxi_app/services/tracking_service.dart';
 import 'package:taxi_app/services/ubicacion_servicio.dart';
+import 'package:taxi_app/services/notification_service.dart';
+import 'dart:async';
 
 class HomeConductorViewModel extends ChangeNotifier {
   final UbicacionService _ubicacionService = UbicacionService();
@@ -38,6 +40,11 @@ class HomeConductorViewModel extends ChangeNotifier {
   // UI state for HomeConductor screen
   PreviewSolicitud? selectedPreview;
   bool isMapExpanded = false;
+
+  // Stream to notify UI about newly arrived pending solicitudes
+  final StreamController<String> _newSolicitudController = StreamController<String>.broadcast();
+  Stream<String> get onNewSolicitud => _newSolicitudController.stream;
+  final Set<String> _knownPendingIds = {};
 
   // Route and marker state for selected solicitud
   final Map<String, List<LatLng>> routePoints = {};
@@ -173,12 +180,17 @@ class HomeConductorViewModel extends ChangeNotifier {
     _sub?.cancel();
     _sub = _firestore.collection('solicitudes').snapshots().listen((snap) {
       solicitudes.clear();
+      // Detect pending solicitudes and emit notification events for newly arrived ones
+      final currentPendingIds = <String>{};
       for (final doc in snap.docs) {
         final data = doc.data();
         final st = data['estado'] ?? data['status'];
         if (st == null) continue;
         final stLower = st.toString().toLowerCase();
         if (!(stLower == 'buscando' || stLower == 'pending' || stLower == 'pendiente')) continue;
+
+        // mark as pending for notification comparison
+        currentPendingIds.add(doc.id);
 
         GeoPoint? origen;
         String? origenAddress;
@@ -266,6 +278,29 @@ class HomeConductorViewModel extends ChangeNotifier {
         solicitudes.add(item);
         _completarDatosSolicitud(item);
       }
+      // Compare with known pending ids to find newly arrived pending solicitudes
+      try {
+        for (final id in currentPendingIds) {
+          if (!_knownPendingIds.contains(id)) {
+            // emit event for UI to show notification
+            try {
+              _newSolicitudController.add(id);
+            } catch (_) {}
+            // also show a local notification
+            try {
+              NotificationService.instance.showNotification(
+                id.hashCode & 0x7fffffff,
+                'Solicitud entrante',
+                'Cliente necesita servicio',
+              );
+            } catch (_) {}
+          }
+        }
+        // update known set
+        _knownPendingIds
+          ..clear()
+          ..addAll(currentPendingIds);
+      } catch (_) {}
       solicitudes.sort((a, b) => (a.distanciaKm ?? double.maxFinite).compareTo(b.distanciaKm ?? double.maxFinite));
       _safeNotify();
     });
@@ -320,6 +355,7 @@ class HomeConductorViewModel extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _sub?.cancel();
+    try { _newSolicitudController.close(); } catch (_) {}
     super.dispose();
   }
 

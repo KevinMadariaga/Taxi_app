@@ -27,6 +27,7 @@ dependencies:
   firebase_storage: ^13.0.5
   flutter_image_compress: ^2.4.0
   path_provider: ^2.0.0
+  intl: ^0.18.1
     
 
 dev_dependencies:

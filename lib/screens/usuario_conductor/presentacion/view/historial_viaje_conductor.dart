@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'historial_detalle_conductor.dart';
 
 class HistorialConductor extends StatefulWidget {
   const HistorialConductor({super.key});
@@ -12,6 +13,8 @@ class HistorialConductor extends StatefulWidget {
 }
 
 class HistorialConductorState extends State<HistorialConductor> {
+  // Nota: este estado ya no usa filtros; mostramos solo la lista de solicitudes.
+
   String formatoFechaHora(Timestamp timestamp) {
     final fecha = timestamp.toDate().toUtc().subtract(const Duration(hours: 5));
     return "${fecha.day.toString().padLeft(2, '0')}/"
@@ -32,6 +35,27 @@ class HistorialConductorState extends State<HistorialConductor> {
       } catch (_) {
         return "Dirección no disponible";
       }
+    } else if (ubicacion is Map) {
+      // Puede venir como { 'title': 'Lugar', 'lat': x, 'lng': y }
+      if (ubicacion['title'] != null && (ubicacion['title'] as String).isNotEmpty) {
+        return ubicacion['title'].toString();
+      }
+      final latObj = ubicacion['lat'];
+      final lngObj = ubicacion['lng'];
+      if (latObj != null && lngObj != null) {
+        final lat = (latObj is num) ? latObj.toDouble() : double.tryParse(latObj.toString());
+        final lng = (lngObj is num) ? lngObj.toDouble() : double.tryParse(lngObj.toString());
+        if (lat != null && lng != null) {
+          try {
+            final placemarks = await placemarkFromCoordinates(lat, lng);
+            final p = placemarks.first;
+            return "${p.street ?? ''}, ${p.locality ?? ''}";
+          } catch (_) {
+            return "Dirección no disponible";
+          }
+        }
+      }
+      return "Destino desconocido";
     } else if (ubicacion is String) {
       return ubicacion;
     } else {
@@ -44,12 +68,12 @@ class HistorialConductorState extends State<HistorialConductor> {
     final fontSize = screenWidth * 0.04;
 
     final destinoRaw = data['destino'] ?? 'Destino no disponible';
-    final destino = destinoRaw.toString().toLowerCase();
+    final destino = await obtenerDireccion(destinoRaw);
     final duracion = data['duracion minutos']?.toString() ?? '-';
     
     // Extraer score de la calificación
     int calificacionNum = 0;
-    final calificacionObj = data['calificacion'];
+    final calificacionObj = data['calificacion'] ?? data['calificacion_cliente'];
     if (calificacionObj is Map && calificacionObj['score'] != null) {
       calificacionNum = (calificacionObj['score'] as num).toInt();
     }
@@ -57,20 +81,22 @@ class HistorialConductorState extends State<HistorialConductor> {
     // Extraer nombre del cliente del objeto cliente
     String cliente = 'Cliente';
     final clienteObj = data['cliente'];
-    if (clienteObj is Map && clienteObj['name'] != null) {
-      cliente = clienteObj['name'].toString();
+    if (clienteObj is Map) {
+      cliente = (clienteObj['name'] ?? clienteObj['nombre'] ?? cliente).toString();
     }
     
-    // Extraer precio del objeto tarifa
+    // Extraer precio: preferir 'tarifa.total', si no usar 'valor'
     String precio = '---';
     final tarifa = data['tarifa'];
     if (tarifa is Map && tarifa['total'] != null) {
       precio = tarifa['total'].toString();
+    } else if (data['valor'] != null) {
+      precio = data['valor'].toString();
     }
     
-    final metodoPago = (data['metodoPago'] ?? 'efectivo')
-        .toString()
-        .toUpperCase();
+    final metodoPago = (data['metodoPago'] ?? data['metodo_pago'] ?? 'efectivo')
+      .toString()
+      .toUpperCase();
 
     showDialog(
       context: context,
@@ -243,9 +269,21 @@ class HistorialConductorState extends State<HistorialConductor> {
         title: const Text("Historial de Viajes"),
         backgroundColor: Colors.amber,
       ),
+      floatingActionButton: FloatingActionButton.extended(
+        icon: const Icon(Icons.analytics),
+        label: const Text('Ver detalle'),
+        backgroundColor: Colors.amber,
+        onPressed: () {
+          Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => HistorialDetalleConductor(
+              conductorId: conductorId,
+            ),
+          ));
+        },
+      ),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
-            .collection('historial viajes')
+            .collection('solicitudes')
             .where('conductor.id', isEqualTo: conductorId)
             .snapshots(),
         builder: (context, snapshot) {
@@ -258,12 +296,12 @@ class HistorialConductorState extends State<HistorialConductor> {
 
           var allViajes = snapshot.data?.docs ?? [];
           
-          // Ordenar manualmente por completedAt
+          // Ordenar manualmente por fecha de finalización (completedAt o fecha de terminacion)
           allViajes.sort((a, b) {
             final aData = a.data() as Map<String, dynamic>;
             final bData = b.data() as Map<String, dynamic>;
-            final aTime = aData['completedAt'] as Timestamp?;
-            final bTime = bData['completedAt'] as Timestamp?;
+            final aTime = (aData['completedAt'] ?? aData['fecha de terminacion']) as Timestamp?;
+            final bTime = (bData['completedAt'] ?? bData['fecha de terminacion']) as Timestamp?;
             if (aTime == null && bTime == null) return 0;
             if (aTime == null) return 1;
             if (bTime == null) return -1;
@@ -274,119 +312,46 @@ class HistorialConductorState extends State<HistorialConductor> {
             return const Center(child: Text("No hay viajes registrados."));
           }
 
-          // Calcular promedio de calificaciones
-          double promedioCalificacion = 0.0;
-          int totalCalificaciones = 0;
-          for (var viaje in allViajes) {
-            final data = viaje.data() as Map<String, dynamic>;
-            final calificacionObj = data['calificacion'];
-            if (calificacionObj is Map && calificacionObj['score'] != null) {
-              final score = (calificacionObj['score'] as num).toDouble();
-              promedioCalificacion += score;
-              totalCalificaciones++;
-            }
-          }
-          if (totalCalificaciones > 0) {
-            promedioCalificacion = promedioCalificacion / totalCalificaciones;
-          }
+            // Solo mostramos la lista completa de solicitudes (sin tarjeta de resumen ni filtros)
+            return ListView.builder(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              itemCount: allViajes.length,
+              itemBuilder: (context, index) {
+                final data = allViajes[index].data() as Map<String, dynamic>;
+                final destinoRaw = data['destino'];
+                final destinoFuture = obtenerDireccion(destinoRaw);
+                final horaFin = (data['completedAt'] ?? data['fecha de terminacion']) as Timestamp?;
+                final duracion = data['duracion minutos']?.toString() ?? '-';
 
-          return Column(
-            children: [
-              // Tarjeta de calificación promedio
-              Container(
-                margin: const EdgeInsets.all(16),
-                padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-                decoration: BoxDecoration(
-                  color: Colors.amber.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.amber.shade200, width: 1),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
+                return Card(
+                  margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  child: ListTile(
+                    leading: const Icon(Icons.local_taxi, color: Colors.amber),
+                    title: FutureBuilder<String>(
+                      future: destinoFuture,
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return const Text('Cargando...');
+                        }
+                        final text = snapshot.data ??
+                            (destinoRaw is Map
+                                ? (destinoRaw['title']?.toString() ?? destinoRaw['address']?.toString() ?? 'Destino')
+                                : (destinoRaw?.toString() ?? 'Destino'));
+                        return Text(text);
+                      },
+                    ),
+                    subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'Tu Calificación',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: AppColores.textSecondary,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          promedioCalificacion.toStringAsFixed(1),
-                          style: const TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black87,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Basado en $totalCalificaciones viajes',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: AppColores.textSecondary,
-                          ),
-                        ),
+                        if (horaFin != null) Text("📅 Finalizado: ${formatoFechaHora(horaFin)}"),
+                        Text("⏱ Duración: $duracion min"),
                       ],
                     ),
-                    // Mostrar estrellas
-                    Column(
-                      children: [
-                        Row(
-                          children: List.generate(5, (index) {
-                            final esStar = index < promedioCalificacion.toInt();
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 2),
-                              child: Icon(
-                                Icons.star,
-                                size: 24,
-                                color: esStar ? Colors.amber[600] : Colors.grey[300],
-                              ),
-                            );
-                          }),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              // Lista de viajes
-              Expanded(
-                child: ListView.builder(
-                  itemCount: allViajes.length,
-                  itemBuilder: (context, index) {
-                    final data = allViajes[index].data() as Map<String, dynamic>;
-
-                    final destino = data['destino'] ?? 'Destino';
-                    final horaFin = data['completedAt'] as Timestamp?;
-                    final duracion = data['duracion minutos']?.toString() ?? '-';
-
-                    return Card(
-                      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      child: ListTile(
-                        leading: const Icon(Icons.local_taxi, color: Colors.amber),
-                        title: Text("$destino"),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (horaFin != null)
-                              Text("📅 Finalizado: ${formatoFechaHora(horaFin)}"),
-                            Text("⏱ Duración: $duracion min"),
-                          ],
-                        ),
-                        onTap: () => mostrarDetalle(context, data),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
-          );
+                    onTap: () => mostrarDetalle(context, data),
+                  ),
+                );
+              },
+            );
         },
       ),
     );

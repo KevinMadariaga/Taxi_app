@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:geocoding/geocoding.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import 'package:taxi_app/core/app_colores.dart';
 
@@ -32,6 +33,27 @@ class HistorialClienteState extends State<HistorialCliente> {
       } catch (_) {
         return "Dirección no disponible";
       }
+    } else if (ubicacion is Map) {
+      // Puede venir como { 'title': 'Lugar', 'lat': x, 'lng': y }
+      if (ubicacion['title'] != null && (ubicacion['title'] as String).isNotEmpty) {
+        return ubicacion['title'].toString();
+      }
+      final latObj = ubicacion['lat'];
+      final lngObj = ubicacion['lng'];
+      if (latObj != null && lngObj != null) {
+        final lat = (latObj is num) ? latObj.toDouble() : double.tryParse(latObj.toString());
+        final lng = (lngObj is num) ? lngObj.toDouble() : double.tryParse(lngObj.toString());
+        if (lat != null && lng != null) {
+          try {
+            final placemarks = await placemarkFromCoordinates(lat, lng);
+            final p = placemarks.first;
+            return "${p.street ?? ''}, ${p.locality ?? ''}";
+          } catch (_) {
+            return "Dirección no disponible";
+          }
+        }
+      }
+      return "Destino desconocido";
     } else if (ubicacion is String) {
       return ubicacion;
     } else {
@@ -44,14 +66,22 @@ class HistorialClienteState extends State<HistorialCliente> {
     final fontSize = screenWidth * 0.04;
 
     final destinoRaw = data['destino'] ?? 'Destino no disponible';
-    final destino = destinoRaw.toString().toLowerCase();
+    final destino = await obtenerDireccion(destinoRaw);
     final duracion = data['duracion minutos']?.toString() ?? '-';
     
-    // Extraer score de la calificación
+    // Extraer score de la calificación (soporta varios formatos)
     int calificacionNum = 0;
-    final calificacionObj = data['calificacion'];
-    if (calificacionObj is Map && calificacionObj['score'] != null) {
-      calificacionNum = (calificacionObj['score'] as num).toInt();
+    final calificacionObj = data['calificacion cliente'] ?? data['calificacion'] ?? data['calificacion_cliente'] ?? data['rating'];
+    if (calificacionObj != null) {
+      if (calificacionObj is Map) {
+        final score = calificacionObj['score'] ?? calificacionObj['valor'] ?? calificacionObj['rating'] ?? calificacionObj['value'];
+        if (score is num) calificacionNum = score.toInt();
+        else calificacionNum = int.tryParse(score?.toString() ?? '') ?? 0;
+      } else if (calificacionObj is num) {
+        calificacionNum = (calificacionObj as num).toInt();
+      } else if (calificacionObj is String) {
+        calificacionNum = int.tryParse(calificacionObj) ?? 0;
+      }
     }
     
     // Extraer nombre del conductor del objeto conductor
@@ -61,11 +91,13 @@ class HistorialClienteState extends State<HistorialCliente> {
       conductor = conductorObj['nombre'].toString();
     }
     
-    // Extraer precio del objeto tarifa
+    // Extraer precio del objeto tarifa (preferir 'tarifa.total', si no usar 'valor')
     String precio = '---';
     final tarifa = data['tarifa'];
     if (tarifa is Map && tarifa['total'] != null) {
       precio = tarifa['total'].toString();
+    } else if (data['valor'] != null) {
+      precio = data['valor'].toString();
     }
     
     final metodoPago = (data['metodoPago'] ?? 'efectivo')
@@ -241,54 +273,138 @@ class HistorialClienteState extends State<HistorialCliente> {
         title: const Text("Historial de Viajes"),
         backgroundColor: Colors.amber,
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('historial viajes')
-            .orderBy('completedAt', descending: true)
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return const Center(child: Text("Error al cargar los datos."));
+      body: Builder(
+        builder: (context) {
+          final uid = FirebaseAuth.instance.currentUser?.uid;
+          if (uid == null) {
+            return const Center(child: Text("Usuario no autenticado."));
           }
 
-          final allViajes = snapshot.data?.docs ?? [];
+          return StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('solicitudes')
+                .where('cliente.id', isEqualTo: uid)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snapshot.hasError) {
+                return Center(child: Text("Error: ${snapshot.error}"));
+              }
 
-          if (allViajes.isEmpty) {
-            return const Center(child: Text("No hay viajes registrados."));
-          }
+              var allViajes = snapshot.data?.docs ?? [];
 
-          return ListView.builder(
-            itemCount: allViajes.length,
-            itemBuilder: (context, index) {
-              final data = allViajes[index].data() as Map<String, dynamic>;
+              // Ordenar manualmente por fecha de finalización (completedAt o fecha de terminacion)
+              allViajes.sort((a, b) {
+                final aData = a.data() as Map<String, dynamic>;
+                final bData = b.data() as Map<String, dynamic>;
+                final aTime = (aData['completedAt'] ?? aData['fecha de terminacion']) as Timestamp?;
+                final bTime = (bData['completedAt'] ?? bData['fecha de terminacion']) as Timestamp?;
+                if (aTime == null && bTime == null) return 0;
+                if (aTime == null) return 1;
+                if (bTime == null) return -1;
+                return bTime.compareTo(aTime); // Descendente
+              });
 
-              final destino = data['destino'] ?? 'Destino';
-              final horaFin = data['completedAt'] as Timestamp?;
-              final duracion = data['duracion minutos']?.toString() ?? '-';
+              if (allViajes.isEmpty) {
+                return const Center(child: Text("No hay viajes registrados."));
+              }
 
-              return Card(
-                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                child: ListTile(
-                  leading: const Icon(Icons.local_taxi, color: Colors.amber),
-                  title: Text("$destino"),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (horaFin != null)
-                        Text("📅 Finalizado: ${formatoFechaHora(horaFin)}"),
-                      Text("⏱ Duración: $duracion min"),
-                    ],
-                  ),
-                  onTap: () => mostrarDetalle(context, data),
-                ),
+              return ListView.builder(
+                itemCount: allViajes.length,
+                itemBuilder: (context, index) {
+                  final data = allViajes[index].data() as Map<String, dynamic>;
+
+                  final destinoField = data['destino'];
+                  final destinoFuture = obtenerDireccion(destinoField);
+
+                  final horaFin = (data['completedAt'] ?? data['fecha de terminacion']) as Timestamp?;
+                  final duracion = data['duracion minutos']?.toString() ?? '-';
+
+                  // Extraer precio: preferir 'tarifa.total', si no usar 'valor'
+                  String precio = '---';
+                  final tarifa = data['tarifa'];
+                  if (tarifa is Map && tarifa['total'] != null) {
+                    precio = tarifa['total'].toString();
+                  } else if (data['valor'] != null) {
+                    precio = data['valor'].toString();
+                  }
+
+                  // Extraer score de la calificación (soporta varios formatos)
+                  int calificacionNum = 0;
+                  final calificacionObj = data['calificacion cliente'] ?? data['calificacion'] ?? data['calificacion_cliente'] ?? data['rating'];
+                  if (calificacionObj != null) {
+                    if (calificacionObj is Map) {
+                      final score = calificacionObj['score'] ?? calificacionObj['valor'] ?? calificacionObj['rating'] ?? calificacionObj['value'];
+                      if (score is num) calificacionNum = score.toInt();
+                      else calificacionNum = int.tryParse(score?.toString() ?? '') ?? 0;
+                    } else if (calificacionObj is num) {
+                      calificacionNum = (calificacionObj as num).toInt();
+                    } else if (calificacionObj is String) {
+                      calificacionNum = int.tryParse(calificacionObj) ?? 0;
+                    }
+                  }
+
+                  return Card(
+                    margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    child: ListTile(
+                      leading: const Icon(Icons.local_taxi, color: Colors.amber),
+                      title: FutureBuilder<String>(
+                        future: destinoFuture,
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return const Text('Cargando...');
+                          }
+                          final text = snapshot.data ??
+                              (destinoField is Map
+                                  ? (destinoField['title']?.toString() ?? destinoField['address']?.toString() ?? 'Destino')
+                                  : (destinoField?.toString() ?? 'Destino'));
+                          return Text(text);
+                        },
+                      ),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (horaFin != null)
+                            Text("📅 Finalizado: ${formatoFechaHora(horaFin)}"),
+                          Text("⏱ Duración: $duracion min"),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              if (precio != '---')
+                                Text(
+                                  "\$ $precio",
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.green[700],
+                                  ),
+                                ),
+                              if (precio != '---') const SizedBox(width: 12),
+                              Row(
+                                children: List.generate(5, (i) {
+                                  final esStar = i < calificacionNum;
+                                  return Icon(
+                                    Icons.star,
+                                    size: 16,
+                                    color: esStar ? Colors.amber[600] : Colors.grey[300],
+                                  );
+                                }),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      onTap: () => mostrarDetalle(context, data),
+                    ),
+                  );
+                },
               );
             },
           );
         },
       ),
+        
     );
   }
 }

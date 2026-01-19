@@ -641,18 +641,9 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> {
             'timestamp': FieldValue.serverTimestamp(),
           };
           
-          // Crear historial y guardar su ID en la solicitud
-          final historialRef = await FirebaseFirestore.instance
-              .collection('historial viajes')
-              .add(tripData);
-          
-          // Guardar el ID del historial en la solicitud
-          await FirebaseFirestore.instance
-              .collection('solicitudes')
-              .doc(widget.solicitudId)
-              .update({
-                'historial_viaje_id': historialRef.id,
-              });
+          // Nota: ya no se crea ni guarda un documento en 'historial viajes'.
+          // Se omite la creación del historial y la actualización de
+          // 'historial_viaje_id' en la solicitud según la nueva lógica.
         }
       } catch (e) {
         debugPrint('Error al crear historial: $e');
