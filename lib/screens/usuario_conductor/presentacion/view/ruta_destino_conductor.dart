@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/helper/responsive_helper.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/resumen_conductor_view.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/ruta_conductor_viewmodel.dart';
 import 'package:taxi_app/services/firebase_service.dart';
@@ -61,11 +62,13 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> {
     try {
       final dpr = WidgetsBinding.instance.platformDispatcher.views.first.devicePixelRatio;
 
-      final destinoIcon = await BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed);
+      final destino = await BitmapDescriptor.asset(
+        ImageConfiguration(size: const Size(30, 50), devicePixelRatio: dpr),
+        'assets/img/map_pin_red.png',
+      );
       if (!mounted) return;
       setState(() {
-
-        _destinoIcon = destinoIcon;
+        _destinoIcon = destino;
       });
     } catch (_) {}
   }
@@ -372,20 +375,26 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> {
         Marker(
           markerId: const MarkerId('driver'),
           position: _driverLocation!,
-          icon: _driverIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+          icon: BitmapDescriptor.defaultMarker,
           infoWindow: const InfoWindow(title: 'Conductor'),
         ),
       );
     }
     if (_destinoLocation != null) {
-      markers.add(
-        Marker(
-          markerId: const MarkerId('destino'),
-          position: _destinoLocation!,
-          icon: _destinoIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-          infoWindow: const InfoWindow(title: 'Destino'),
-        ),
-      );
+      // Only show destino marker if it's not effectively at the same
+      // position as the driver (avoid overlapping red marker on driver).
+      final shouldShowDestino = _driverLocation == null ||
+          _haversineDistanceMeters(_driverLocation!, _destinoLocation!) > 10;
+      if (shouldShowDestino) {
+        markers.add(
+          Marker(
+            markerId: const MarkerId('destino'),
+            position: _destinoLocation!,
+            icon: _destinoIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+            infoWindow: const InfoWindow(title: 'Destino'),
+          ),
+        );
+      }
     }
 
     final initialTarget = _driverLocation ?? _destinoLocation ?? const LatLng(0, 0);
@@ -416,6 +425,9 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> {
             ),
             Container(
               width: double.infinity,
+              // Mantener una altura mínima y margen inferior para respetar zonas seguras
+              constraints: BoxConstraints(minHeight: ResponsiveHelper.hp(context, 18)),
+              margin: EdgeInsets.only(bottom: ResponsiveHelper.hp(context, 1)),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: const BorderRadius.only(
@@ -430,7 +442,7 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> {
                   ),
                 ],
               ),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+              padding: EdgeInsets.symmetric(horizontal: ResponsiveHelper.wp(context, 4), vertical: ResponsiveHelper.hp(context, 2)),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -438,16 +450,16 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> {
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       CircleAvatar(
-                        radius: 45,
+                        radius: ResponsiveHelper.sp(context, 34),
                         backgroundColor: Colors.grey.shade200,
                         backgroundImage: (_clientPhotoUrl != null && _clientPhotoUrl!.isNotEmpty)
                             ? NetworkImage(_clientPhotoUrl!)
                             : null,
                         child: (_clientPhotoUrl == null || _clientPhotoUrl!.isEmpty)
-                            ? const Icon(Icons.person, size: 32, color: Colors.black87)
+                            ? Icon(Icons.person, size: ResponsiveHelper.sp(context, 22), color: Colors.black87)
                             : null,
                       ),
-                      const SizedBox(width: 12),
+                      SizedBox(width: ResponsiveHelper.wp(context, 3)),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -455,18 +467,18 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> {
                           children: [
                             Text(
                               _clientName ?? 'Cliente',
-                              style: const TextStyle(
-                                fontSize: 18,
+                              style: TextStyle(
+                                fontSize: ResponsiveHelper.sp(context, 16),
                                 fontWeight: FontWeight.w600,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
-                            const SizedBox(height: 6),
+                            SizedBox(height: ResponsiveHelper.hp(context, 0.6)),
                             Text(
                               _destinoDireccion ?? 'Destino',
                               style: TextStyle(
-                                fontSize: 13,
+                                fontSize: ResponsiveHelper.sp(context, 12),
                                 color: Colors.grey.shade700,
                               ),
                             ),
@@ -475,32 +487,32 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
+                  SizedBox(height: ResponsiveHelper.hp(context, 2)),
                   Row(
                     children: [
                       Expanded(
                         child: OutlinedButton.icon(
                           onPressed: _openExternalMaps,
-                          icon: const Icon(Icons.navigation_outlined),
-                          label: const Text('Maps'),
+                          icon: Icon(Icons.navigation_outlined, size: ResponsiveHelper.sp(context, 16)),
+                          label: Text('Maps', style: TextStyle(fontSize: ResponsiveHelper.sp(context, 14))),
                           style: OutlinedButton.styleFrom(
                             foregroundColor: AppColores.primary,
                             side: BorderSide(color: AppColores.primary.withOpacity(0.8), width: 1.2),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            padding: EdgeInsets.symmetric(vertical: ResponsiveHelper.hp(context, 1.2)),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      SizedBox(width: ResponsiveHelper.wp(context, 3)),
                       Expanded(
                         child: ElevatedButton.icon(
                           onPressed: _terminarViaje,
-                          icon: const Icon(Icons.flag_outlined),
-                          label: const Text('Terminar viaje'),
+                          icon: Icon(Icons.flag_outlined, size: ResponsiveHelper.sp(context, 16)),
+                          label: Text('Terminar viaje', style: TextStyle(fontSize: ResponsiveHelper.sp(context, 14))),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColores.primary,
                             foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            padding: EdgeInsets.symmetric(vertical: ResponsiveHelper.hp(context, 1.2)),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
                         ),

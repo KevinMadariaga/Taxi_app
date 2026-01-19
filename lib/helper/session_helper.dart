@@ -53,8 +53,14 @@ class SessionHelper {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_keyCachedName, name);
+      try { _cachedNameController.add(name); } catch (_) {}
     } catch (_) {}
   }
+
+  // Stream controller to notify listeners when cached name changes
+  static final StreamController<String?> _cachedNameController = StreamController<String?>.broadcast();
+
+  static Stream<String?> get cachedNameStream => _cachedNameController.stream;
 
   static Future<String?> getCachedName() async {
     try {
@@ -69,6 +75,7 @@ class SessionHelper {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_keyCachedName);
+      try { _cachedNameController.add(null); } catch (_) {}
     } catch (_) {}
   }
 

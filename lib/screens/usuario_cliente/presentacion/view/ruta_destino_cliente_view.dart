@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/helper/responsive_helper.dart';
 import 'package:taxi_app/services/firebase_service.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/resumen_cliente_view.dart';
 import 'package:taxi_app/services/route_cache_service.dart';
@@ -45,6 +46,7 @@ class _RutaDestinoClienteViewState extends State<RutaDestinoClienteView> {
 
 	String? _conductorNombre;
 	String? _conductorFoto;
+	String? _conductorVehiclePhoto;
 	String? _destinoTitulo;
 	String? _conductorPlaca;
 	String? _conductorId;
@@ -81,6 +83,24 @@ class _RutaDestinoClienteViewState extends State<RutaDestinoClienteView> {
 
 	Future<void> _ensureDatos() async {
 		try {
+			// Primero tratar de restaurar valores desde cache para mostrar foto rápidamente
+			try {
+				final cache = await RouteCacheService.loadForSolicitud(widget.solicitudId);
+				if (cache != null) {
+					if ((_conductorVehiclePhoto == null || _conductorVehiclePhoto!.isEmpty) && cache.conductorVehiclePhotoUrl != null) {
+						_conductorVehiclePhoto = cache.conductorVehiclePhotoUrl;
+					}
+					if ((_conductorFoto == null || _conductorFoto!.isEmpty) && cache.conductorPhotoUrl != null) {
+						_conductorFoto = cache.conductorPhotoUrl;
+					}
+					if ((_conductorNombre == null || _conductorNombre!.isEmpty) && cache.conductorName != null) {
+						_conductorNombre = cache.conductorName;
+					}
+					if ((_conductorPlaca == null || _conductorPlaca!.isEmpty) && cache.conductorPlate != null) {
+						_conductorPlaca = cache.conductorPlate;
+					}
+				}
+			} catch (_) {}
 			final snap = await FirebaseFirestore.instance.collection('solicitudes').doc(widget.solicitudId).get();
 			final data = snap.data();
 			if (data != null) {
@@ -108,6 +128,7 @@ class _RutaDestinoClienteViewState extends State<RutaDestinoClienteView> {
 					final id = rawConductor['id'] ?? rawConductor['conductorId'];
 					final nombre = rawConductor['nombre'] ?? rawConductor['name'];
 					final foto = rawConductor['foto'] ?? rawConductor['photo'] ?? rawConductor['photoUrl'] ?? rawConductor['imagen'];
+					final fotoVehiculo = rawConductor['foto_vehiculo'] ?? rawConductor['fotoVehiculo'] ?? rawConductor['vehiclePhoto'] ?? rawConductor['vehicle_photo'] ?? rawConductor['vehicleImage'] ?? rawConductor['vehicle_image'];
 					final placa = rawConductor['placa'] ?? rawConductor['plate'] ?? rawConductor['licensePlate'];
 					if (id is String) _conductorId = id.trim();
 					if (nombre is String) _conductorNombre = nombre.trim();
@@ -116,8 +137,28 @@ class _RutaDestinoClienteViewState extends State<RutaDestinoClienteView> {
 						final url = foto['url'] ?? foto['link'];
 						if (url is String) _conductorFoto = url.trim();
 					}
+					// intentar leer foto del vehículo si existe
+					if (fotoVehiculo is String && fotoVehiculo.isNotEmpty) {
+						_conductorVehiclePhoto = fotoVehiculo.trim();
+					} else if (fotoVehiculo is Map) {
+						final vurl = fotoVehiculo['url'] ?? fotoVehiculo['link'];
+						if (vurl is String && vurl.isNotEmpty) _conductorVehiclePhoto = vurl.trim();
+					}
 					if (placa is String) _conductorPlaca = placa.trim();
 				}
+
+				// Persistir la foto del vehículo en cache para que otras pantallas la reutilicen
+				try {
+					await RouteCacheService.saveForSolicitud(RouteCacheData(
+						solicitudId: widget.solicitudId,
+						role: 'cliente',
+						conductorId: _conductorId,
+						conductorName: _conductorNombre,
+						conductorPlate: _conductorPlaca,
+						conductorPhotoUrl: _conductorFoto,
+						conductorVehiclePhotoUrl: _conductorVehiclePhoto,
+					));
+				} catch (_) {}
 
 				if (destino != null && _destinoLocation == null) {
 					_destinoLocation = destino;
@@ -515,26 +556,29 @@ class _RutaDestinoClienteViewState extends State<RutaDestinoClienteView> {
 								polylines: _polylines,
 							),
 						),
-						Container(
-							width: double.infinity,
-							decoration: BoxDecoration(
-								color: Colors.white,
-								borderRadius: const BorderRadius.only(
-									topLeft: Radius.circular(24),
-									topRight: Radius.circular(24),
-								),
-								boxShadow: [
-									BoxShadow(
-										color: Colors.black.withOpacity(0.08),
-										blurRadius: 10,
-										offset: const Offset(0, -2),
+							Container(
+								width: double.infinity,
+								// asegurar apariencia responsiva y respetar zonas seguras
+								constraints: BoxConstraints(minHeight: ResponsiveHelper.hp(context, 18)),
+								decoration: BoxDecoration(
+									color: Colors.white,
+									borderRadius: const BorderRadius.only(
+										topLeft: Radius.circular(24),
+										topRight: Radius.circular(24),
 									),
-								],
-							),
-							padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-							child: Column(
-								mainAxisSize: MainAxisSize.min,
-								children: [
+									boxShadow: [
+										BoxShadow(
+											color: Colors.black.withOpacity(0.08),
+											blurRadius: 10,
+											offset: const Offset(0, -2),
+										),
+									],
+								),
+								margin: EdgeInsets.only(bottom: ResponsiveHelper.hp(context, 1)),
+								padding: EdgeInsets.symmetric(horizontal: ResponsiveHelper.wp(context, 4), vertical: ResponsiveHelper.hp(context, 2)),
+								child: Column(
+									mainAxisSize: MainAxisSize.min,
+									children: [
 									Row(
 										crossAxisAlignment: CrossAxisAlignment.center,
 										mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -544,26 +588,26 @@ class _RutaDestinoClienteViewState extends State<RutaDestinoClienteView> {
 												mainAxisSize: MainAxisSize.min,
 												children: [
 													CircleAvatar(
-														radius: 35,
+														radius: ResponsiveHelper.sp(context, 34),
 														backgroundColor: Colors.grey.shade200,
 														backgroundImage: (_conductorFoto != null && _conductorFoto!.isNotEmpty)
-																? NetworkImage(_conductorFoto!)
-																: null,
+															? NetworkImage(_conductorFoto!)
+															: null,
 														child: (_conductorFoto == null || _conductorFoto!.isEmpty)
-																? const Icon(Icons.person, size: 28, color: Colors.black87)
-																: null,
+															? Icon(Icons.person, size: ResponsiveHelper.sp(context, 22), color: Colors.black87)
+															: null,
 													),
-													const SizedBox(height: 10),
+													SizedBox(height: ResponsiveHelper.hp(context, 0.8)),
 													Text(
 														_conductorNombre ?? 'Conductor',
-														style: const TextStyle(
-															fontSize: 20,
+														style: TextStyle(
+															fontSize: ResponsiveHelper.sp(context, 16),
 															fontWeight: FontWeight.w600,
 														),
 														maxLines: 1,
 														overflow: TextOverflow.ellipsis,
 													),
-													const SizedBox(height: 4),
+													SizedBox(height: ResponsiveHelper.hp(context, 0.4)),
 													StreamBuilder<DocumentSnapshot>(
 														stream: _conductorId != null
 																? FirebaseFirestore.instance
@@ -621,22 +665,47 @@ class _RutaDestinoClienteViewState extends State<RutaDestinoClienteView> {
 													),
 												],
 											),
-											const SizedBox(width: 24),
+											SizedBox(width: ResponsiveHelper.wp(context, 4)),
 											// Derecha: Carrito y placa
 											Column(
 												mainAxisSize: MainAxisSize.min,
 												children: [
-													if (_conductorPlaca != null && _conductorPlaca!.isNotEmpty) ...[
-														Image.asset(
-															'assets/img/carrito.png',
-															height: 90,
-															fit: BoxFit.contain,
-														),
-														const SizedBox(height: 4),
+																			if (_conductorPlaca != null && _conductorPlaca!.isNotEmpty) ...[
+																												// Mostrar foto del vehículo si está disponible (redondeada)
+																												if (_conductorVehiclePhoto != null && _conductorVehiclePhoto!.isNotEmpty)
+																													ClipRRect(
+																														borderRadius: BorderRadius.circular(8),
+																														child: Image.network(
+																															_conductorVehiclePhoto!,
+																															height: ResponsiveHelper.hp(context, 8),
+																															width: ResponsiveHelper.wp(context, 30),
+																															fit: BoxFit.cover,
+																															errorBuilder: (c, e, s) => Container(
+																																height: ResponsiveHelper.hp(context, 8),
+																																width: ResponsiveHelper.wp(context, 30),
+																																decoration: BoxDecoration(
+																																	color: Colors.grey.shade200,
+																																	borderRadius: BorderRadius.circular(8),
+																																),
+																																child: Icon(Icons.directions_car, color: Colors.grey[600]),
+																															),
+																														),
+																													)
+																												else
+																													ClipRRect(
+																														borderRadius: BorderRadius.circular(8),
+																														child: Container(
+																															height: ResponsiveHelper.hp(context, 8),
+																															width: ResponsiveHelper.wp(context, 30),
+																															color: Colors.grey.shade200,
+																															child: Icon(Icons.directions_car, color: Colors.grey[600]),
+																														),
+																													),
+														SizedBox(height: ResponsiveHelper.hp(context, 0.5)),
 														Text(
 															_conductorPlaca!,
-															style: const TextStyle(
-																fontSize: 16,
+															style: TextStyle(
+																fontSize: ResponsiveHelper.sp(context, 14),
 																fontWeight: FontWeight.w700,
 															),
 														),
@@ -750,11 +819,31 @@ class _RutaDestinoClienteViewState extends State<RutaDestinoClienteView> {
 													const SizedBox(height: 8),
 													Row(
 														children: [
-															Image.asset(
-																'assets/img/carrito.png',
-																height: 32,
-																fit: BoxFit.contain,
-															),
+																														(_conductorVehiclePhoto != null && _conductorVehiclePhoto!.isNotEmpty)
+																																		? Image.network(
+																																				_conductorVehiclePhoto!,
+																																				height: 32,
+																																				width: 32,
+																																				fit: BoxFit.cover,
+																																				errorBuilder: (c, e, s) => Container(
+																																					height: 32,
+																																					width: 32,
+																																					decoration: BoxDecoration(
+																																						color: Colors.grey.shade200,
+																																						borderRadius: BorderRadius.circular(6),
+																																					),
+																																					child: Icon(Icons.directions_car, color: Colors.grey[600], size: 18),
+																																				),
+																																			)
+																																		: Container(
+																																				height: 32,
+																																				width: 32,
+																																				decoration: BoxDecoration(
+																																					color: Colors.grey.shade200,
+																																					borderRadius: BorderRadius.circular(6),
+																																				),
+																																				child: Icon(Icons.directions_car, color: Colors.grey[600], size: 18),
+																																			),
 															const SizedBox(width: 8),
 															Text(
 																_conductorPlaca!,
@@ -768,24 +857,7 @@ class _RutaDestinoClienteViewState extends State<RutaDestinoClienteView> {
 									),
 								],
 							),
-							const SizedBox(height: 16),
-							SizedBox(
-								width: double.infinity,
-								child: OutlinedButton.icon(
-									onPressed: () {
-										Navigator.of(ctx).pop();
-										_openExternalMaps();
-									},
-									icon: const Icon(Icons.navigation_outlined),
-									label: const Text('Abrir en Google Maps'),
-									style: OutlinedButton.styleFrom(
-										foregroundColor: AppColores.primary,
-										side: BorderSide(color: AppColores.primary.withOpacity(0.8), width: 1.2),
-										padding: const EdgeInsets.symmetric(vertical: 12),
-										shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-									),
-								),
-							),
+							
 						],
 					),
 				);

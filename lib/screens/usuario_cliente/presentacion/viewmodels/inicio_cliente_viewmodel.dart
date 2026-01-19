@@ -24,6 +24,7 @@ class InicioClienteViewModel extends ChangeNotifier {
 
   bool _disposed = false;
   StreamSubscription<User?>? _authSub;
+  StreamSubscription<String?>? _cachedNameSub;
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseService _firebaseService = FirebaseService();
@@ -74,6 +75,23 @@ class InicioClienteViewModel extends ChangeNotifier {
         if (!_disposed) notifyListeners();
       }
     });
+
+    // Suscribirse a cambios del nombre en cache para reflejar ediciones desde Perfil
+    try {
+      _cachedNameSub = SessionHelper.cachedNameStream.listen((n) {
+        if (n != null && n.trim().isNotEmpty) {
+          _clientName = n.trim();
+          if (!_disposed) notifyListeners();
+        }
+      });
+      // Aplicar valor actual si existe
+      SessionHelper.getCachedName().then((n) {
+        if (n != null && n.trim().isNotEmpty) {
+          _clientName = n.trim();
+          if (!_disposed) notifyListeners();
+        }
+      }).catchError((_) {});
+    } catch (_) {}
   }
 
   /// Actualiza la ubicación local y en Firestore si hay cliente
@@ -103,6 +121,9 @@ class InicioClienteViewModel extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _authSub?.cancel();
+    try {
+      _cachedNameSub?.cancel();
+    } catch (_) {}
     super.dispose();
   }
 

@@ -7,21 +7,18 @@ import 'package:flutter/services.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/historial_viaje_conductor.dart';
-import 'package:taxi_app/screens/usuario_conductor/presentacion/view/ruta_conductor_destino.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/preview_solicitud.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/inicio_conductor_viewmodel.dart';
 import 'package:provider/provider.dart';
 import 'package:taxi_app/widgets/google_maps_widget.dart';
 import 'package:taxi_app/widgets/perfil.dart';
 import 'package:taxi_app/helper/permisos_helper.dart';
-
+import 'package:taxi_app/helper/session_helper.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:taxi_app/widgets/preview_solicitud_card.dart';
 import 'package:taxi_app/widgets/solicitud_card.dart';
 import 'ruta_conductor_view.dart';
-import 'package:taxi_app/widgets/map_loading_widget.dart';
-
 
 
 class HomeConductorMapView extends StatefulWidget {
@@ -35,6 +32,7 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
   GoogleMapController? _mapController;
   bool _hasCentered = false;
   StreamSubscription<DocumentSnapshot>? _previewSub;
+  StreamSubscription<String?>? _cachedNameSub;
   bool _navigatingToRuta = false;
 
   // Expande el mapa ocultando la barra; luego centra los marcadores tras 2s
@@ -153,6 +151,28 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
             vm.centerMapOnMarker(_mapController!, zoom: vm.currentLocation != null ? 16.0 : 14.5);
           }
         });
+
+        // Suscribirse una sola vez a cambios del nombre guardado en cache
+        if (_cachedNameSub == null) {
+          _cachedNameSub = SessionHelper.cachedNameStream.listen((name) {
+            if (!mounted) return;
+            if (name != null && name.trim().isNotEmpty) {
+              vm.displayName = name.trim();
+              try {
+                vm.notifyListeners();
+              } catch (_) {}
+            }
+          });
+
+          // Aplicar valor cached actual si existe
+          SessionHelper.getCachedName().then((n) {
+            if (!mounted) return;
+            if (n != null && n.trim().isNotEmpty) {
+              vm.displayName = n.trim();
+              try { vm.notifyListeners(); } catch (_) {}
+            }
+          }).catchError((_) {});
+        }
 
 
 
@@ -628,6 +648,10 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
     f?.catchError((e) {
       // ignore platform "No active stream to cancel"
     });
+    try {
+      final f2 = _cachedNameSub?.cancel();
+      f2?.catchError((e) {});
+    } catch (_) {}
     _mapController = null;
     super.dispose();
   }

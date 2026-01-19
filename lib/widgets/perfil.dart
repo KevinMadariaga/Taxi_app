@@ -36,6 +36,7 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
 
   Map<String, dynamic>? userData;
   File? _cachedImageFile;
+  File? _cachedVehicleFile;
 
   @override
   void initState() {
@@ -61,6 +62,9 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
       try {
         final fotoUrl = userData?['foto']?.toString();
         await _loadCachedImageForUid(uid, fotoUrl);
+        // cargar cache de foto del vehículo (si aplica)
+        final vehUrl = userData?['fotoVehiculo']?.toString();
+        await _loadCachedVehicleImageForUid(uid, vehUrl);
       } catch (_) {}
     }
   }
@@ -172,6 +176,64 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
           _cachedImageFile = file;
         });
       }
+    } catch (_) {}
+  }
+
+  Future<File> _vehicleCacheFileForUid(String uid) async {
+    final dir = await getApplicationDocumentsDirectory();
+    final path = '${dir.path}/vehicle_$uid.jpg';
+    return File(path);
+  }
+
+  Future<void> _loadCachedVehicleImageForUid(String uid, String? fotoVehiculoUrl) async {
+    try {
+      final file = await _vehicleCacheFileForUid(uid);
+      if (file.existsSync()) {
+        if (mounted) {
+          setState(() {
+            _cachedVehicleFile = file;
+          });
+        }
+        return;
+      }
+      if (fotoVehiculoUrl == null || fotoVehiculoUrl.isEmpty) return;
+      await _downloadAndSaveVehicleImage(fotoVehiculoUrl, uid);
+    } catch (_) {}
+  }
+
+  Future<void> _downloadAndSaveVehicleImage(String url, String uid) async {
+    try {
+      final uri = Uri.parse(url);
+      final httpClient = HttpClient();
+      final request = await httpClient.getUrl(uri);
+      final response = await request.close();
+      if (response.statusCode != 200) return;
+      final file = await _vehicleCacheFileForUid(uid);
+      final iosink = file.openWrite();
+      await response.pipe(iosink);
+      await iosink.flush();
+      await iosink.close();
+      try {
+        await FileImage(file).evict();
+      } catch (_) {}
+      if (mounted) {
+        setState(() {
+          _cachedVehicleFile = file;
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _deleteCachedVehicleFile(String uid) async {
+    try {
+      final file = await _vehicleCacheFileForUid(uid);
+      if (file.existsSync()) {
+        try {
+          await FileImage(file).evict();
+        } catch (_) {}
+        await file.delete();
+      }
+      if (mounted) setState(() => _cachedVehicleFile = null);
     } catch (_) {}
   }
 
@@ -295,7 +357,15 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
         } catch (_) {}
       }
 
-      // No hacemos caching local para la foto del vehículo aquí.
+      // Borrar/actualizar cache local para foto del vehículo si corresponde
+      if (fieldName == 'fotoVehiculo') {
+        try {
+          await _deleteCachedVehicleFile(uid);
+        } catch (_) {}
+        try {
+          await _downloadAndSaveVehicleImage(downloadUrl, uid);
+        } catch (_) {}
+      }
 
       await _cargarDatos();
 
@@ -481,9 +551,11 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
                                 height: ResponsiveHelper.wp(context, 14),
                                 child: ClipRRect(
                                   borderRadius: BorderRadius.circular(10),
-                                  child: selectedVehicleImageInDialog != null
+                                    child: selectedVehicleImageInDialog != null
                                       ? Image.file(selectedVehicleImageInDialog!, fit: BoxFit.cover)
-                                      : (userData != null && userData!['fotoVehiculo'] != null && (userData!['fotoVehiculo'] as String).isNotEmpty)
+                                      : (_cachedVehicleFile != null && (_cachedVehicleFile?.existsSync() ?? false))
+                                        ? Image.file(_cachedVehicleFile!, fit: BoxFit.cover)
+                                        : (userData != null && userData!['fotoVehiculo'] != null && (userData!['fotoVehiculo'] as String).isNotEmpty)
                                           ? Image.network(userData!['fotoVehiculo'] as String, fit: BoxFit.cover)
                                           : Container(color: Colors.grey.shade200, child: const Icon(Icons.directions_car, color: Colors.white)),
                                 ),
@@ -707,9 +779,12 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
   }
 
   Widget _buildVehiclePhotoCard() {
-    final imageProvider = (userData != null && userData!['fotoVehiculo'] != null && (userData!['fotoVehiculo'] as String).isNotEmpty)
-        ? NetworkImage(userData!['fotoVehiculo'] as String) as ImageProvider
-        : null;
+    ImageProvider? imageProvider;
+    if (_cachedVehicleFile != null && (_cachedVehicleFile?.existsSync() ?? false)) {
+      imageProvider = FileImage(_cachedVehicleFile!);
+    } else if (userData != null && userData!['fotoVehiculo'] != null && (userData!['fotoVehiculo'] as String).isNotEmpty) {
+      imageProvider = NetworkImage(userData!['fotoVehiculo'] as String);
+    }
 
     return Card(
       margin: EdgeInsets.symmetric(vertical: ResponsiveHelper.hp(context, 0.8)),

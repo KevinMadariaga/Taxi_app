@@ -630,7 +630,7 @@ class _RutaClienteViewState extends State<RutaClienteView> {
               resizeToAvoidBottomInset: false,
               body: SafeArea(
               top: true,
-              bottom: false,
+              bottom: true,
               child: Column(
                 children: [
                   Expanded(
@@ -730,32 +730,31 @@ class _RutaClienteViewState extends State<RutaClienteView> {
                       ),
                     ),
                   ),
-                  SafeArea(
-                    top: false,
-                    bottom: true,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(24),
-                          topRight: Radius.circular(24),
+                  Container(
+                    // Dejar margen inferior responsivo y asegurar altura mínima
+                    margin: EdgeInsets.only(bottom: ResponsiveHelper.hp(context, 1)),
+                    constraints: BoxConstraints(minHeight: ResponsiveHelper.hp(context, 18)),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(24),
+                        topRight: Radius.circular(24),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.08),
+                          blurRadius: 10,
+                          offset: const Offset(0, -2),
                         ),
-                        boxShadow: [
-                          BoxShadow(
-                            color:
-                                Colors.black.withOpacity(0.08),
-                            blurRadius: 10,
-                            offset: const Offset(0, -2),
-                          ),
-                        ],
-                      ),
-                      padding: EdgeInsets.only(
-                        left: ResponsiveHelper.wp(context, 6),
-                        right: ResponsiveHelper.wp(context, 6),
-                        top: 20,
-                        bottom: 16,
-                      ),
-                      child: Column(
+                      ],
+                    ),
+                    padding: EdgeInsets.only(
+                      left: ResponsiveHelper.wp(context, 6),
+                      right: ResponsiveHelper.wp(context, 6),
+                      top: ResponsiveHelper.hp(context, 2),
+                      bottom: ResponsiveHelper.hp(context, 2) + ResponsiveHelper.hp(context, 0.8),
+                    ),
+                    child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           if (hasConductorInfo) ...[
@@ -979,7 +978,6 @@ class _RutaClienteViewState extends State<RutaClienteView> {
                         ],
                       ),
                     ),
-                  ),
                 ],
               ),
             ),

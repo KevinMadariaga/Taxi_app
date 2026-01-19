@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:taxi_app/components/boton.dart';
+import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/inicio_conductor_view.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/resumen_conductor_viewmodel.dart';
 
@@ -82,7 +83,7 @@ class ResumenConductorView extends StatelessWidget {
                   ),
                   child: Column(
                     children: [
-                      SizedBox(height: padding * 0.5),
+                      SizedBox(height: padding * 0.3),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -95,20 +96,20 @@ class ResumenConductorView extends StatelessWidget {
                           Text(
                             'Viaje terminado',
                             style: TextStyle(
-                              fontSize: 30 * scale,
+                              fontSize: 25 * scale,
                               fontWeight: FontWeight.w700,
                               color: Colors.black87,
                             ),
                           ),
                         ],
                       ),
-                      SizedBox(height: padding * 0.8),
+                      SizedBox(height: padding * 0.5),
                       Image.asset(
                         'assets/img/taxi.png',
                         height: imageHeight,
                         fit: BoxFit.contain,
                       ),
-                      SizedBox(height: padding * 0.8),
+                      SizedBox(height: padding * 0.1),
                       // Card del valor
                       Card(
                         color: const Color(0xFF101010),
@@ -147,14 +148,14 @@ class ResumenConductorView extends StatelessWidget {
                                   color: const Color(0xFFFFD600),
                                   fontSize: 20 * scale,
                                   fontWeight: FontWeight.w800,
-                                  letterSpacing: 0.3,
+                                  letterSpacing: 0.2,
                                 ),
                               ),
                             ],
                           ),
                         ),
                       ),
-                      SizedBox(height: padding * 0.8),
+                      SizedBox(height: padding * 0.3),
                       // Card principal con resumen
                       Card(
                         elevation: 2,
@@ -180,18 +181,20 @@ class ResumenConductorView extends StatelessWidget {
                               ),
                               const Divider(height: 8),
                               ListTile(
-                                leading: const CircleAvatar(
-                                  backgroundColor: Color(0xFFEEF7FF),
+                                leading: CircleAvatar(
+                                  backgroundColor: AppColores.secondary.withOpacity(0.12),
                                   child: Icon(
                                     Icons.location_on,
-                                    color: Colors.blue,
+                                    color: AppColores.secondary,
                                   ),
                                 ),
                                 title: Text('Destino', style: titleStyle),
-                                subtitle: Text(
-                                  direccionSeleccionada ?? 'No disponible',
-                                  style: contentStyle,
-                                ),
+                                  subtitle: Text(
+                                    direccionSeleccionada ?? 'No disponible',
+                                    style: contentStyle,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                               ),
                               const Divider(height: 8),
                               ListTile(
@@ -231,7 +234,7 @@ class ResumenConductorView extends StatelessWidget {
                                   style: contentStyle,
                                 ),
                               ),
-                              const Divider(height: 8),
+                              const Divider(height: 5),
                               ListTile(
                                 leading: const CircleAvatar(
                                   backgroundColor: Color(0xFFE8F5E9),
@@ -253,7 +256,7 @@ class ResumenConductorView extends StatelessWidget {
                           ),
                         ),
                       ),
-                      SizedBox(height: 80 * scale),
+                      SizedBox(height: 90 * scale),
                     ],
                   ),
                 ),
@@ -273,7 +276,7 @@ class ResumenConductorView extends StatelessWidget {
                 },
                 width: double.infinity,
                 height: buttonHeight,
-                color: const Color(0xFFFFD600),
+                color: AppColores.buttonPrimary,
               ),
             ),
             floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,

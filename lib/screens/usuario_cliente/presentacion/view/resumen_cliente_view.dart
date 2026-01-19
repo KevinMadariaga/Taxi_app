@@ -80,11 +80,11 @@ class ResumenClienteView extends StatelessWidget {
                 child: SingleChildScrollView(
                   padding: EdgeInsets.symmetric(
                     horizontal: padding,
-                    vertical: padding * 0.6,
+                    vertical: padding * 0.5,
                   ),
                   child: Column(
                     children: [
-                      SizedBox(height: padding * 0.5),
+                      SizedBox(height: padding * 0.3),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -93,24 +93,24 @@ class ResumenClienteView extends StatelessWidget {
                             color: Color(0xFF00C853),
                             size: 30,
                           ),
-                          SizedBox(width: 8 * scale),
+                          SizedBox(width: 5 * scale),
                           Text(
                             'Viaje completado',
                             style: TextStyle(
-                              fontSize: 30 * scale,
+                              fontSize: 25 * scale,
                               fontWeight: FontWeight.w700,
                               color: Colors.black87,
                             ),
                           ),
                         ],
                       ),
-                      SizedBox(height: padding * 0.5),
+                      SizedBox(height: padding * 0.3),
                       Image.asset(
                         'assets/img/taxi.png',
                         height: imageHeight,
                         fit: BoxFit.contain,
                       ),
-                      SizedBox(height: padding * 0.5),
+                      SizedBox(height: padding * 0.2),
                       // Card del valor
                       Card(
                         color: const Color(0xFF101010),
@@ -182,17 +182,19 @@ class ResumenClienteView extends StatelessWidget {
                               ),
                               const Divider(height: 8),
                               ListTile(
-                                leading: const CircleAvatar(
-                                  backgroundColor: AppColores.secondary,
+                                leading: CircleAvatar(
+                                  backgroundColor: AppColores.secondary.withOpacity(0.12),
                                   child: Icon(
                                     Icons.location_on,
-                                    color: Colors.blue,
+                                    color: AppColores.secondary,
                                   ),
                                 ),
                                 title: Text('Destino', style: titleStyle),
                                 subtitle: Text(
                                   destinoTexto,
                                   style: contentStyle,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
                               const Divider(height: 8),
@@ -237,7 +239,7 @@ class ResumenClienteView extends StatelessWidget {
                           ),
                         ),
                       ),
-                      SizedBox(height: 60 * scale),
+                      SizedBox(height: 100 * scale),
                     ],
                   ),
                 ),
@@ -253,7 +255,7 @@ class ResumenClienteView extends StatelessWidget {
                       },
                       width: double.infinity,
                       height: buttonHeight,
-                      color: const Color(0xFFFFD600),
+                      color: AppColores.buttonPrimary,
                     ),
                   )
                 : Padding(

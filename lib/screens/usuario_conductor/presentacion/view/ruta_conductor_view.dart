@@ -879,6 +879,8 @@ class _RutaConductorViewState extends State<RutaConductorView> {
   Widget build(BuildContext context) {
     final clientLocation = _clientLocation ?? widget.clientLocation;
 
+    // Respetar zonas seguras usando SafeArea (se aplica abajo más abajo).
+
     if (clientLocation == null || _loadingSolicitud) {
       return const Scaffold(
         backgroundColor: Colors.white,
@@ -904,19 +906,9 @@ class _RutaConductorViewState extends State<RutaConductorView> {
       ),
     };
 
-    // Añadir marcador del conductor si está disponible
-    if (_driverLocation != null) {
-      markers.add(
-        Marker(
-          markerId: MarkerId('driver_${widget.solicitudId}'),
-          position: _driverLocation!,
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
-          infoWindow: const InfoWindow(
-            title: 'Tu ubicación',
-          ),
-        ),
-      );
-    }
+    // No añadimos un marcador personalizado para el conductor aquí.
+    // Dejamos que el propio Google Maps muestre el 'my-location' (punto azul)
+    // usando `myLocationEnabled: true` en el widget del mapa.
 
     return WillPopScope(
       onWillPop: () async => false,
@@ -924,7 +916,7 @@ class _RutaConductorViewState extends State<RutaConductorView> {
       resizeToAvoidBottomInset: false,
       body: SafeArea(
         top: true,
-        bottom: false,
+        bottom: true,
         child: Column(
           children: [
             // Mapa ocupa casi todo el alto disponible
@@ -974,6 +966,11 @@ class _RutaConductorViewState extends State<RutaConductorView> {
             // Información del cliente + botones (estilo card inferior)
             Container(
               width: double.infinity,
+              // Dejar un pequeño margen inferior para que el card no quede
+              // pegado al borde. `SafeArea(bottom: true)` ya protege
+              // contra la barra de navegación, así evitamos duplicar inset.
+              margin: EdgeInsets.only(bottom: ResponsiveHelper.hp(context, 1)),
+              constraints: BoxConstraints(minHeight: ResponsiveHelper.hp(context, 18)),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: const BorderRadius.only(
@@ -988,7 +985,12 @@ class _RutaConductorViewState extends State<RutaConductorView> {
                   ),
                 ],
               ),
-              padding: EdgeInsets.symmetric(horizontal: ResponsiveHelper.wp(context, 4), vertical: ResponsiveHelper.hp(context, 2)),
+              padding: EdgeInsets.fromLTRB(
+                ResponsiveHelper.wp(context, 4),
+                ResponsiveHelper.hp(context, 2),
+                ResponsiveHelper.wp(context, 4),
+                ResponsiveHelper.hp(context, 2) + ResponsiveHelper.hp(context, 0.8),
+              ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
