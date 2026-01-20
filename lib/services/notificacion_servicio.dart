@@ -42,7 +42,7 @@ class NotificacionesServicio {
       await PermissionsHelper.requestNotificationPermission();
     }
 
-    const android = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const android = AndroidInitializationSettings('@drawable/ic_notification');
     const ios = DarwinInitializationSettings(
       requestAlertPermission: true,
       requestBadgePermission: true,
@@ -100,7 +100,7 @@ class NotificacionesServicio {
       priority: Priority.high,
       enableVibration: true,
       playSound: true,
-      icon: '@mipmap/ic_launcher',
+      icon: '@drawable/ic_notification',
     );
 
     const notificationDetails = NotificationDetails(android: androidDetails);
@@ -130,7 +130,7 @@ class NotificacionesServicio {
       priority: Priority.high,
       enableVibration: vibrate,
       playSound: playSound,
-      icon: '@mipmap/ic_launcher',
+      icon: '@drawable/ic_notification',
     );
 
     final notificationDetails = NotificationDetails(android: androidDetails);
