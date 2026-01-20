@@ -757,6 +757,9 @@ class _RutaClienteViewState extends State<RutaClienteView> {
                     child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
+                          // Mostrar tarjeta consistente: si hay datos del conductor, mostrar los datos;
+                          // si no, mostrar un placeholder con la misma estructura para evitar
+                          // que la UI se desfigure mientras el mapa/VM termina de cargar.
                           if (hasConductorInfo) ...[
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -967,6 +970,99 @@ class _RutaClienteViewState extends State<RutaClienteView> {
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: Colores.amarillo,
                                       foregroundColor: Colores.blanco,
+                                      padding: EdgeInsets.symmetric(vertical: ResponsiveHelper.hp(context, 1.2)),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ] else ...[
+                            // Placeholder: keep same structure and spacing to avoid layout shifts
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    CircleAvatar(
+                                      radius: ResponsiveHelper.sp(context, 34),
+                                      backgroundColor: Colors.grey.shade200,
+                                      child: Icon(Icons.person, size: ResponsiveHelper.sp(context, 22), color: Colors.white70),
+                                    ),
+                                    SizedBox(height: ResponsiveHelper.hp(context, 0.6)),
+                                    Container(
+                                      width: ResponsiveHelper.wp(context, 34),
+                                      height: ResponsiveHelper.hp(context, 2.2),
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey.shade200,
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                    ),
+                                    SizedBox(height: ResponsiveHelper.hp(context, 0.6)),
+                                    Container(
+                                      width: ResponsiveHelper.wp(context, 20),
+                                      height: ResponsiveHelper.hp(context, 1.6),
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey.shade200,
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(width: 16),
+                                Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                      width: ResponsiveHelper.wp(context, 30),
+                                      height: ResponsiveHelper.hp(context, 8),
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey.shade200,
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                    SizedBox(height: ResponsiveHelper.hp(context, 0.6)),
+                                    Container(
+                                      width: ResponsiveHelper.wp(context, 20),
+                                      height: ResponsiveHelper.hp(context, 1.8),
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey.shade200,
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            SizedBox(height: ResponsiveHelper.hp(context, 2)),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: ElevatedButton.icon(
+                                    onPressed: null,
+                                    icon: Icon(Icons.chat_bubble_outline, size: ResponsiveHelper.sp(context, 16)),
+                                    label: Text('Chat', style: TextStyle(fontSize: ResponsiveHelper.sp(context, 14))),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.grey.shade200,
+                                      foregroundColor: Colors.white,
+                                      padding: EdgeInsets.symmetric(vertical: ResponsiveHelper.hp(context, 1.2)),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                SizedBox(width: ResponsiveHelper.wp(context, 3)),
+                                Expanded(
+                                  child: ElevatedButton.icon(
+                                    onPressed: null,
+                                    icon: Icon(Icons.cancel, size: ResponsiveHelper.sp(context, 16)),
+                                    label: Text('Cancelar', style: TextStyle(fontSize: ResponsiveHelper.sp(context, 14))),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.grey.shade200,
+                                      foregroundColor: Colors.white,
                                       padding: EdgeInsets.symmetric(vertical: ResponsiveHelper.hp(context, 1.2)),
                                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                     ),

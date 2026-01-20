@@ -1280,8 +1280,16 @@ class _LoaderVolviendoAtrasConductorViewState extends State<LoaderVolviendoAtras
   void _goBackAfterDelay() {
     Future.delayed(const Duration(seconds: 5), () {
       if (!mounted) return;
-      if (Navigator.of(context).canPop()) {
-        Navigator.of(context).pop();
+      try {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const HomeConductorMapView()),
+          (route) => false,
+        );
+      } catch (_) {
+        // En caso de error con el Navigator, intentar un pop seguro como fallback
+        try {
+          if (Navigator.of(context).canPop()) Navigator.of(context).pop();
+        } catch (_) {}
       }
     });
   }

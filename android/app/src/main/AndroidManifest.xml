@@ -7,7 +7,7 @@
     <!-- Optional: background location (only if your app needs it). Keep if requesting background access. -->
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <application
-        android:label="taxi_app"
+        android:label="Taxi Ya"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <!-- Google Maps API key (replace the value with your actual API key).
