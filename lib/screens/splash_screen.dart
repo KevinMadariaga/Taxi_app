@@ -103,49 +103,25 @@ class _SplashScreenState extends State<SplashScreen>
                     scale: _scaleAnimation,
                     child: Column(
                       children: [
-                        // Icono de taxi
-                        Container(
-                          padding: const EdgeInsets.all(20),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.2),
-                                blurRadius: 20,
-                                spreadRadius: 5,
-                              ),
-                            ],
-                          ),
-                          child: const Icon(
-                            Icons.local_taxi,
-                            size: 80,
-                            color: Colors.black87,
+                        // Icono de taxi (solo imagen desde assets)
+                        SizedBox(
+                          width: 220,
+                          height: 220,
+                          child: Image.asset(
+                            'assets/img/taxi.png',
+                            fit: BoxFit.contain,
+                            errorBuilder: (context, error, stackTrace) => const Icon(
+                              Icons.local_taxi,
+                              size: 160,
+                              color: Colors.black87,
+                            ),
                           ),
                         ),
                         const SizedBox(height: 30),
-                        // Nombre de la app
-                        const Text(
-                          'TAXI YA',
-                          style: TextStyle(
-                            fontSize: 36,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                            letterSpacing: 2,
-                            shadows: [
-                              Shadow(
-                                color: Colors.black26,
-                                offset: Offset(2, 2),
-                                blurRadius: 4,
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 10),
                         const Text(
                           'Tu viaje, nuestra prioridad',
                           style: TextStyle(
-                            fontSize: 16,
+                            fontSize: 24,
                             color: Colors.white70,
                             fontWeight: FontWeight.w400,
                           ),
@@ -169,11 +145,11 @@ class _SplashScreenState extends State<SplashScreen>
                 child: Container(
                   padding: const EdgeInsets.all(15),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.9),
+                    color: Colors.white.withOpacity(0.9),
                     borderRadius: BorderRadius.circular(50),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.1),
+                        color: Colors.black.withOpacity(0.1),
                         blurRadius: 10,
                         spreadRadius: 2,
                       ),
