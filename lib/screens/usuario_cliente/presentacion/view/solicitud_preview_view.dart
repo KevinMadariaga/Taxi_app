@@ -26,6 +26,7 @@ class _MapPreviewState extends State<MapPreview> {
   GoogleMapController? _controller;
   late MapapreviewViewModel _vm;
   BitmapDescriptor? _destIcon;
+  VoidCallback? _vmListener;
 
   @override
   void initState() {
@@ -35,6 +36,14 @@ class _MapPreviewState extends State<MapPreview> {
       destino: widget.destino,
     );
     _vm.init();
+    // Refit camera when ViewModel updates (e.g., polylines are ready)
+    _vmListener = () {
+      if (!mounted) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _fitBoundsToMarkers();
+      });
+    };
+    _vm.addListener(_vmListener!);
     _loadDestIcon();
   }
 
@@ -65,17 +74,25 @@ class _MapPreviewState extends State<MapPreview> {
     final bounds = _vm.cameraBounds;
     if (bounds == null) return;
     try {
+      // Increase padding so the full polyline and both markers are comfortably visible
       await _controller!.animateCamera(
-        CameraUpdate.newLatLngBounds(bounds, 80),
+        CameraUpdate.newLatLngBounds(bounds, 120),
       );
     } catch (_) {
       // Si falla (por ejemplo mapa no ha renderizado), intentar de nuevo levemente después
       await Future.delayed(const Duration(milliseconds: 200));
       try {
         await _controller!
-            .animateCamera(CameraUpdate.newLatLngBounds(bounds, 80));
+            .animateCamera(CameraUpdate.newLatLngBounds(bounds, 120));
       } catch (_) {}
     }
+  }
+
+  @override
+  void dispose() {
+    if (_vmListener != null) _vm.removeListener(_vmListener!);
+    _controller?.dispose();
+    super.dispose();
   }
 
   @override
