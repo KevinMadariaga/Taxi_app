@@ -362,4 +362,10 @@ class HomeConductorViewModel extends ChangeNotifier {
   void _safeNotify() {
     if (!_disposed) notifyListeners();
   }
+
+  /// Actualiza el nombre de display y notifica a los listeners de forma segura.
+  void setDisplayName(String name) {
+    displayName = name;
+    _safeNotify();
+  }
 }

@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/historial_viaje_conductor.dart';
@@ -32,6 +31,8 @@ class HomeConductorMapView extends StatefulWidget {
 class _HomeConductorMapViewState extends State<HomeConductorMapView> {
   GoogleMapController? _mapController;
   bool _hasCentered = false;
+  String? _lastFittedPreviewId;
+  bool _hasCenteredForPreview = false;
   StreamSubscription<DocumentSnapshot>? _previewSub;
   StreamSubscription<String?>? _cachedNameSub;
   bool _navigatingToRuta = false;
@@ -148,6 +149,50 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
     }
   }
 
+  Future<void> _fitBoundsForPreview(PreviewSolicitud preview, HomeConductorViewModel vm) async {
+    if (_mapController == null) return;
+    final s = preview.solicitud;
+    final client = LatLng(s.ubicacionInicial.latitude, s.ubicacionInicial.longitude);
+
+    final points = <LatLng>[];
+    if (vm.currentLocation != null) points.add(vm.currentLocation!);
+    points.add(client);
+
+    // Include all polyline points for accurate bounds
+    for (final poly in vm.routePolylines) {
+      try {
+        points.addAll(poly.points);
+      } catch (_) {}
+    }
+
+    if (points.isEmpty) return;
+
+    double minLat = points.first.latitude;
+    double maxLat = points.first.latitude;
+    double minLng = points.first.longitude;
+    double maxLng = points.first.longitude;
+
+    for (final p in points) {
+      if (p.latitude < minLat) minLat = p.latitude;
+      if (p.latitude > maxLat) maxLat = p.latitude;
+      if (p.longitude < minLng) minLng = p.longitude;
+      if (p.longitude > maxLng) maxLng = p.longitude;
+    }
+
+    final bounds = LatLngBounds(southwest: LatLng(minLat, minLng), northeast: LatLng(maxLat, maxLng));
+
+    try {
+      // Use larger padding to ensure the full polyline is visible
+      await _mapController!.animateCamera(CameraUpdate.newLatLngBounds(bounds, 120));
+      _hasCenteredForPreview = true;
+    } catch (_) {
+      try {
+        await _mapController!.animateCamera(CameraUpdate.newLatLngZoom(client, 15));
+        _hasCenteredForPreview = true;
+      } catch (_) {}
+    }
+  }
+
   // Preview card height: make responsive (45% of screen height)
   double get _previewHeight => MediaQuery.of(context).size.height * 0.35;
 
@@ -177,16 +222,30 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
             vm.centerMapOnMarker(_mapController!, zoom: vm.currentLocation != null ? 16.0 : 14.5);
           }
         });
+        // If a preview is selected, attempt to fit bounds including polylines and markers.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          final preview = vm.selectedPreview;
+          if (preview != null) {
+            final id = preview.solicitud.id;
+            if (_lastFittedPreviewId != id) {
+              _lastFittedPreviewId = id;
+              _hasCenteredForPreview = false;
+              _fitBoundsForPreview(preview, vm);
+            } else if (!_hasCenteredForPreview && vm.routePolylines.isNotEmpty) {
+              _fitBoundsForPreview(preview, vm);
+            }
+          } else {
+            _lastFittedPreviewId = null;
+            _hasCenteredForPreview = false;
+          }
+        });
 
         // Suscribirse una sola vez a cambios del nombre guardado en cache
-        if (_cachedNameSub == null) {
+          if (_cachedNameSub == null) {
           _cachedNameSub = SessionHelper.cachedNameStream.listen((name) {
             if (!mounted) return;
             if (name != null && name.trim().isNotEmpty) {
-              vm.displayName = name.trim();
-              try {
-                vm.notifyListeners();
-              } catch (_) {}
+              vm.setDisplayName(name.trim());
             }
           });
 
@@ -194,8 +253,7 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
           SessionHelper.getCachedName().then((n) {
             if (!mounted) return;
             if (n != null && n.trim().isNotEmpty) {
-              vm.displayName = n.trim();
-              try { vm.notifyListeners(); } catch (_) {}
+              vm.setDisplayName(n.trim());
             }
           }).catchError((_) {});
         }

@@ -100,7 +100,7 @@ class MapapreviewViewModel extends ChangeNotifier {
   /// Calcula el valor del servicio según la hora
   void _calcularValorServicio() {
     final horaActual = DateTime.now();
-    valorServicio = (horaActual.hour >= 18 || horaActual.hour < 6) ? '12000' : '8000';
+    valorServicio = (horaActual.hour >= 18 || horaActual.hour < 6) ? '12000' : '10000';
   }
 
   Future<void> init() async {

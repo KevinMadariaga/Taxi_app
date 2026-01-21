@@ -42,7 +42,7 @@ class NotificacionesServicio {
       await PermissionsHelper.requestNotificationPermission();
     }
 
-    const android = AndroidInitializationSettings('@drawable/ic_notification');
+    const android = AndroidInitializationSettings('ic_notification');
     const ios = DarwinInitializationSettings(
       requestAlertPermission: true,
       requestBadgePermission: true,
@@ -100,7 +100,7 @@ class NotificacionesServicio {
       priority: Priority.high,
       enableVibration: true,
       playSound: true,
-      icon: '@drawable/ic_notification',
+      icon: 'ic_notification',
     );
 
     const notificationDetails = NotificationDetails(android: androidDetails);
