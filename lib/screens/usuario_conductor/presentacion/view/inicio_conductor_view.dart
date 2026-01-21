@@ -36,6 +36,7 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
   StreamSubscription<String?>? _cachedNameSub;
   bool _navigatingToRuta = false;
   StreamSubscription<String>? _newSolicitudSub;
+  bool _isTogglingConnection = false;
 
   // Expande el mapa ocultando la barra; luego centra los marcadores tras 2s
   Future<void> _expandMapAndCenter(PreviewSolicitud preview, HomeConductorViewModel vm) async {
@@ -76,6 +77,23 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
       try {
         await _mapController?.animateCamera(CameraUpdate.newLatLngZoom(vm.currentLocation!, 16));
       } catch (_) {}
+    }
+  }
+
+  Future<void> _toggleConductorConnection() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    setState(() => _isTogglingConnection = true);
+    try {
+      final docRef = FirebaseFirestore.instance.collection('conductor').doc(uid);
+      final snap = await docRef.get();
+      final current = snap.exists && (snap.data()?['conectado'] == true);
+      final newVal = !current;
+      await docRef.update({'conectado': newVal});
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error actualizando estado: $e')));
+    } finally {
+      if (mounted) setState(() => _isTogglingConnection = false);
     }
   }
 
@@ -225,6 +243,7 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
                               BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2)),
                             ],
                           ),
+                          
                           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.center,
@@ -237,7 +256,7 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
                                       vm.displayName.toUpperCase(),
                                       style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.black87),
                                     ),
-                                    
+
                                     const SizedBox(height: 10.0),
                                     // Estrellas de calificación calculadas a partir de la colección `solicitudes`
                                     Builder(builder: (ctx) {
@@ -382,7 +401,7 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
                     // Mapa colocado justo bajo el contenedor de información y ocupa el espacio restante
                     Expanded(
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 5.0),
+                        padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 2.0),
                         child: Container(
                               height: double.infinity,
                               width: double.infinity,
@@ -582,6 +601,33 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
                         ),
                       ),
                     ),
+
+                    // Botón de conexión colocado debajo del mapa, ancho completo
+                    if (!vm.isMapExpanded && vm.selectedPreview == null && _conductorStream != null)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+                        child: StreamBuilder<DocumentSnapshot?>(
+                          stream: _conductorStream,
+                          builder: (ctx, snap) {
+                            final connected = snap.hasData && snap.data != null && (snap.data!.data() as Map<String, dynamic>?)?['conectado'] == true;
+                            return SizedBox(
+                              width: double.infinity,
+                              height: 56,
+                              child: ElevatedButton.icon(
+                                onPressed: _isTogglingConnection ? null : _toggleConductorConnection,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: connected ? AppColores.buttonPrimary : Colors.grey,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                ),
+                                icon: _isTogglingConnection
+                                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                                    : Icon(connected ? Icons.toggle_on : Icons.toggle_off, size: 28),
+                                label: Text(connected ? 'Conectado' : 'Desconectado', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
                   ],
                 ),
                 // Selected solicitud preview: in-flow so the map appears below it
@@ -638,6 +684,7 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
               ],
             ),
           ),
+          // floatingActionButton removed — button is placed below the map in the Column
             bottomNavigationBar: !vm.isMapExpanded && vm.selectedPreview == null
               ? BottomNavigationBar(
                   currentIndex: 0,

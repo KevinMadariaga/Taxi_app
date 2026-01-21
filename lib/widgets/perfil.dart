@@ -37,6 +37,7 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
   Map<String, dynamic>? userData;
   File? _cachedImageFile;
   File? _cachedVehicleFile;
+  bool _isTogglingConnection = false;
 
   @override
   void initState() {
@@ -385,6 +386,45 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
         setState(() {
           _isUploading = false;
           _uploadProgress = 0.0;
+        });
+      }
+    }
+  }
+
+  Future<void> _toggleConectado() async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return;
+    if (widget.tipoUsuario != 'conductor') return;
+
+    final current = (userData?['conectado'] == true);
+    final newVal = !current;
+
+    setState(() {
+      _isTogglingConnection = true;
+      userData ??= {};
+      userData!['conectado'] = newVal;
+    });
+
+    try {
+      await _firestore.collection(widget.tipoUsuario).doc(uid).update({'conectado': newVal});
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(newVal ? 'Estado: Conectado' : 'Estado: Desconectado')),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        userData!['conectado'] = current;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error actualizando estado: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isTogglingConnection = false;
         });
       }
     }
@@ -877,7 +917,9 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
                       ),
                     ),
                   ),
-                  SizedBox(height: ResponsiveHelper.hp(context, 3)),
+                  SizedBox(height: ResponsiveHelper.hp(context, 1)),
+                  // Conductor connection toggle moved to driver home view
+                  SizedBox(height: ResponsiveHelper.hp(context, 1)),
                 _buildInfoCard(
                   Icons.email,
                   'Correo',
