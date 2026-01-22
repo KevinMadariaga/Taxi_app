@@ -11,12 +11,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/preview_solicitud.dart';
 import 'package:taxi_app/services/firebase_service.dart';
 import 'package:taxi_app/services/tracking_service.dart';
-import 'package:taxi_app/services/ubicacion_servicio.dart';
 import 'package:taxi_app/services/notification_service.dart';
-import 'dart:async';
 
 class HomeConductorViewModel extends ChangeNotifier {
-  final UbicacionService _ubicacionService = UbicacionService();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseService _firebaseService = FirebaseService();
   final TrackingService _trackingService = TrackingService();
@@ -50,6 +47,8 @@ class HomeConductorViewModel extends ChangeNotifier {
   final Map<String, List<LatLng>> routePoints = {};
   final Set<Polyline> routePolylines = {};
   final Set<Marker> extraMarkers = {};
+  StreamSubscription<DocumentSnapshot>? _conductorSub;
+  bool isConnected = false;
 
   HomeConductorViewModel();
 
@@ -61,6 +60,7 @@ class HomeConductorViewModel extends ChangeNotifier {
     await _loadProfile();
     await _requestBackgroundLocationPermission();
     await _loadLocation();
+    _subscribeConductorStatus();
     _subscribeSolicitudes();
 
     isLoading = false;
@@ -177,26 +177,36 @@ class HomeConductorViewModel extends ChangeNotifier {
   }
 
   void _subscribeSolicitudes() {
+    // Ensure we don't keep an active listener when driver is disconnected.
     _sub?.cancel();
+    if (!isConnected) {
+      // Do not subscribe while disconnected.
+      return;
+    }
     _sub = _firestore.collection('solicitudes').snapshots().listen((snap) {
+      _handleSolicitudesQuerySnapshot(snap);
+    });
+  }
+
+  void _handleSolicitudesQuerySnapshot(QuerySnapshot snap) {
+    try {
       solicitudes.clear();
-      // Detect pending solicitudes and emit notification events for newly arrived ones
       final currentPendingIds = <String>{};
       for (final doc in snap.docs) {
-        final data = doc.data();
+        final raw = doc.data();
+        if (raw == null) continue;
+        final data = raw as Map<String, dynamic>;
         final st = data['estado'] ?? data['status'];
         if (st == null) continue;
         final stLower = st.toString().toLowerCase();
         if (!(stLower == 'buscando' || stLower == 'pending' || stLower == 'pendiente')) continue;
 
-        // mark as pending for notification comparison
-        currentPendingIds.add(doc.id);
+        // We'll only mark as pending for this driver if within radius (added below)
 
         GeoPoint? origen;
         String? origenAddress;
         String? origenTitle;
 
-        // 1) Prefer nested cliente.ubicacion (nuevo esquema)
         final rawCliente = data['cliente'];
         if (rawCliente is Map && rawCliente['ubicacion'] is Map) {
           try {
@@ -211,7 +221,6 @@ class HomeConductorViewModel extends ChangeNotifier {
           } catch (_) {}
         }
 
-        // 2) Fallbacks antiguos: ubicacion_inicial u origen
         if (origen == null && data['ubicacion_inicial'] is GeoPoint) {
           origen = data['ubicacion_inicial'] as GeoPoint;
         } else if (origen == null && data['origen'] is Map) {
@@ -225,7 +234,6 @@ class HomeConductorViewModel extends ChangeNotifier {
             } else if (o['direccion'] != null) {
               origenAddress = o['direccion']?.toString();
             }
-            // Try to capture a human-friendly title for the origin if present
             if (o['title'] != null) {
               origenTitle = o['title']?.toString();
             } else if (o['address'] != null) {
@@ -237,7 +245,6 @@ class HomeConductorViewModel extends ChangeNotifier {
         }
         if (origen == null) continue;
 
-        // cliente may be a nested map {id, nombre} or just an id string
         String? clienteId;
         String? nombreClienteFromData;
         final clienteField = rawCliente;
@@ -256,37 +263,39 @@ class HomeConductorViewModel extends ChangeNotifier {
           metodoPago: (data['metodoPago'] ?? data['metodo_pago'] ?? data['metodo'])?.toString(),
         );
 
-        // prefer name from nested cliente map, then common top-level keys
         item.nombreCliente = nombreClienteFromData ?? (data['nombreCliente'] ?? data['nombre_cliente'] ?? data['clienteNombre'] ?? data['nombre'])?.toString();
         if (origenAddress == null && data['origen'] is Map) {
           final o = data['origen'];
           origenAddress = (o['address'] ?? o['direccion'] ?? o['address_text'])?.toString();
         }
-        // Prefer explicit origenTitle if available, otherwise use direccion
         item.origenTitle = origenTitle ?? (data['origen'] is Map ? (data['origen']['title'] ?? null)?.toString() : null);
         item.direccion = origenAddress ?? (data['direccion'] ?? data['direccion_recoger'] ?? data['direccion_origen'] ?? data['ubicacion_text'])?.toString();
 
-        if (currentLocation != null) {
-          item.distanciaKm = _distanceKm(
-            currentLocation!.latitude,
-            currentLocation!.longitude,
-            origen.latitude,
-            origen.longitude,
-          );
-        }
+        // Require driver's current location to compute distance; if unavailable, skip
+        if (currentLocation == null) continue;
+        item.distanciaKm = _distanceKm(
+          currentLocation!.latitude,
+          currentLocation!.longitude,
+          origen.latitude,
+          origen.longitude,
+        );
+
+        // Only include solicitudes within 3 km
+        if (item.distanciaKm == null || (item.distanciaKm ?? double.infinity) > 3.0) continue;
+
+        // mark as pending for notification comparison (only when within range)
+        currentPendingIds.add(doc.id);
 
         solicitudes.add(item);
         _completarDatosSolicitud(item);
       }
-      // Compare with known pending ids to find newly arrived pending solicitudes
+
       try {
         for (final id in currentPendingIds) {
           if (!_knownPendingIds.contains(id)) {
-            // emit event for UI to show notification
             try {
               _newSolicitudController.add(id);
             } catch (_) {}
-            // also show a local notification
             try {
               NotificationService.instance.showNotification(
                 id.hashCode & 0x7fffffff,
@@ -296,14 +305,43 @@ class HomeConductorViewModel extends ChangeNotifier {
             } catch (_) {}
           }
         }
-        // update known set
         _knownPendingIds
           ..clear()
           ..addAll(currentPendingIds);
       } catch (_) {}
+
       solicitudes.sort((a, b) => (a.distanciaKm ?? double.maxFinite).compareTo(b.distanciaKm ?? double.maxFinite));
       _safeNotify();
-    });
+    } catch (_) {}
+  }
+
+  void _subscribeConductorStatus() {
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null || uid.isEmpty) return;
+      _conductorSub?.cancel();
+      _conductorSub = _firestore.collection('conductor').doc(uid).snapshots().listen((snap) {
+        final connected = snap.exists && (snap.data()?['conectado'] == true);
+        final previously = isConnected;
+        isConnected = connected;
+        if (!isConnected) {
+          // Clear pending solicitudes and known ids when driver disconnects
+          solicitudes.clear();
+          _knownPendingIds.clear();
+          routePoints.clear();
+          routePolylines.removeWhere((p) => p.polylineId.value.startsWith('route_'));
+          extraMarkers.removeWhere((m) => m.markerId.value == 'driver');
+            // Cancel solicitudes listener when disconnected to avoid processing updates
+            try { _sub?.cancel(); } catch (_) {}
+            _safeNotify();
+        } else if (!previously && isConnected) {
+            // Just became connected: start listening to solicitudes
+            try {
+              _subscribeSolicitudes();
+            } catch (_) {}
+        }
+      });
+    } catch (_) {}
   }
 
   Future<void> _completarDatosSolicitud(SolicitudItem item) async {
@@ -355,6 +393,7 @@ class HomeConductorViewModel extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _sub?.cancel();
+    try { _conductorSub?.cancel(); } catch (_) {}
     try { _newSolicitudController.close(); } catch (_) {}
     super.dispose();
   }

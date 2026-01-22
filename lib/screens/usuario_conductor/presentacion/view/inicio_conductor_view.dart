@@ -511,6 +511,18 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
                                     compassEnabled: true,
                                     markers: markers.union(vm.extraMarkers),
                                     polylines: polylines.union(vm.routePolylines),
+                                    circles: vm.currentLocation != null
+                                        ? {
+                                            Circle(
+                                              circleId: const CircleId('driver_radius'),
+                                              center: vm.currentLocation!,
+                                              radius: 3000, // meters
+                                              strokeWidth: 2,
+                                              strokeColor: AppColores.primary.withOpacity(0.7),
+                                              fillColor: AppColores.primary.withOpacity(0.06),
+                                            ),
+                                          }
+                                        : const <Circle>{},
                                     onMapCreated: (controller) async {
                                       _mapController = controller;
                                       if (vm.currentLocation != null) {

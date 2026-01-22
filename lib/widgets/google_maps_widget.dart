@@ -5,6 +5,7 @@ class AppGoogleMap extends StatefulWidget {
 	final LatLng initialTarget;
 	final double initialZoom;
 	final Set<Marker> markers;
+	final Set<Circle> circles;
 	final Set<Polyline> polylines;
 	final ValueChanged<GoogleMapController>? onMapCreated;
 	final ValueChanged<CameraPosition>? onCameraMove;
@@ -22,6 +23,7 @@ class AppGoogleMap extends StatefulWidget {
 		this.initialZoom = 15.0,
 		this.markers = const <Marker>{},
 		this.polylines = const <Polyline>{},
+		this.circles = const <Circle>{},
 		this.onMapCreated,
 		this.onCameraMove,
 		this.onCameraIdle,
@@ -68,6 +70,7 @@ class _AppGoogleMapState extends State<AppGoogleMap> {
 			mapType: widget.mapType,
 			markers: widget.markers,
 			polylines: widget.polylines,
+			circles: widget.circles,
 			myLocationEnabled: widget.myLocationEnabled,
 			myLocationButtonEnabled: widget.myLocationButtonEnabled,
 			compassEnabled: widget.compassEnabled,
