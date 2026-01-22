@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 
+import 'package:taxi_app/core/app_colores.dart';
+
 class SplashScreen extends StatefulWidget {
   final Widget nextScreen;
 
@@ -77,18 +79,12 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.amber[600],
+      backgroundColor: Colors.white,
       body: Stack(
         children: [
-          // Fondo con gradiente
+          // Fondo blanco
           Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Colors.amber[700]!, Colors.amber[500]!],
-              ),
-            ),
+            color: Colors.white,
           ),
 
           // Contenido central
@@ -145,7 +141,7 @@ class _SplashScreenState extends State<SplashScreen>
                 child: Container(
                   padding: const EdgeInsets.all(15),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.9),
+                    color: AppColores.primary,
                     borderRadius: BorderRadius.circular(50),
                     boxShadow: [
                       BoxShadow(

@@ -347,10 +347,11 @@ class _HistorialDetalleConductorState extends State<HistorialDetalleConductor> {
                               child: Row(
                                 crossAxisAlignment: CrossAxisAlignment.end,
                                 children: List.generate(weekStarts.length, (i) {
-                                  final segments = weekDaySegments[i];
-                                  final weekTotal = segments.fold<double>(0.0, (p, e) => p + e);
-                                  final max = weekDaySegments.map((s) => s.fold<double>(0.0, (p, e) => p + e)).fold<double>(0.0, (p, e) => e > p ? e : p);
-                                  final barMax = max == 0 ? 1.0 : max;
+                                  // Usar conteos por día (weekDayCounts) en lugar de montos
+                                  final segments = weekDayCounts[i];
+                                  final weekTotal = segments.fold<int>(0, (p, e) => p + e);
+                                  final maxWeekly = weekCounts.fold<int>(0, (p, e) => e > p ? e : p);
+                                  final barMax = maxWeekly == 0 ? 1 : maxWeekly;
                                   final weekLabel = DateFormat('d/MM').format(weekStarts[i]);
                                   return Expanded(
                                     child: Column(
@@ -366,7 +367,7 @@ class _HistorialDetalleConductorState extends State<HistorialDetalleConductor> {
                                           },
                                           child: Column(
                                             children: [
-                                              Text(weekTotal.toStringAsFixed(0), style: const TextStyle(fontSize: 12, color: AppColores.textSecondary)),
+                                              Text(weekTotal.toString(), style: const TextStyle(fontSize: 12, color: AppColores.textSecondary)),
                                               const SizedBox(height: 6),
                                               Container(
                                                 height: 90,
@@ -374,7 +375,8 @@ class _HistorialDetalleConductorState extends State<HistorialDetalleConductor> {
                                                 child: Column(
                                                   mainAxisAlignment: MainAxisAlignment.end,
                                                   children: segments.map((seg) {
-                                                    final segHeight = (seg / barMax) * 90.0;
+                                                    double segHeight = (seg / barMax) * 90.0;
+                                                    if (seg > 0 && segHeight < 6.0) segHeight = 6.0;
                                                     return Container(
                                                       width: 18,
                                                       height: segHeight,
@@ -440,7 +442,7 @@ class _HistorialDetalleConductorState extends State<HistorialDetalleConductor> {
                                     child: Stack(
                                       children: [
                                         Align(
-                                          alignment: Alignment.center,
+                                          alignment: Alignment.bottomCenter,
                                           child: Container(
                                             height: 6,
                                             margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -448,34 +450,40 @@ class _HistorialDetalleConductorState extends State<HistorialDetalleConductor> {
                                           ),
                                         ),
                                         Align(
-                                          alignment: Alignment.center,
-                                          child: Row(
-                                            children: List.generate(7, (i) {
-                                              final count = selectedWeekDayCounts[i];
-                                              final bool hasData = count > 0;
-                                              final pillColor = hasData ? AppColores.primary : Colors.grey.shade200;
-                                              final DateTime dayDate = weekStarts[selectedWeekIndex].add(Duration(days: i));
-                                              final double dayEarnings = selectedWeekDayEarnings.length > i ? selectedWeekDayEarnings[i] : 0.0;
-                                              return Expanded(
-                                                child: Center(
-                                                  child: InkWell(
-                                                    borderRadius: BorderRadius.circular(6),
-                                                    onTap: () => _showDayDetail(context, dayDate, dayEarnings, count, integerFmt, twoDecFmt),
-                                                    child: Container(
-                                                      width: 36,
-                                                      height: 8,
-                                                      margin: const EdgeInsets.symmetric(horizontal: 6),
-                                                      decoration: BoxDecoration(
-                                                        color: pillColor,
-                                                        borderRadius: BorderRadius.circular(6),
-                                                        boxShadow: [BoxShadow(color: Colors.black12, offset: Offset(0, 1), blurRadius: 1)],
+                                          alignment: Alignment.bottomCenter,
+                                          child: Builder(builder: (context) {
+                                            final int maxCountInSelectedWeek = selectedWeekDayCounts.fold<int>(0, (p, e) => e > p ? e : p);
+                                            final double maxForDiv = maxCountInSelectedWeek == 0 ? 1.0 : maxCountInSelectedWeek.toDouble();
+                                            return Row(
+                                              children: List.generate(7, (i) {
+                                                final count = selectedWeekDayCounts[i];
+                                                final bool hasData = count > 0;
+                                                final pillColor = hasData ? AppColores.primary : Colors.grey.shade200;
+                                                final DateTime dayDate = weekStarts[selectedWeekIndex].add(Duration(days: i));
+                                                final double dayEarnings = selectedWeekDayEarnings.length > i ? selectedWeekDayEarnings[i] : 0.0;
+                                                final double pillHeight = hasData ? (8.0 + (count.toDouble() / maxForDiv) * 36.0) : 8.0;
+                                                return Expanded(
+                                                  child: Align(
+                                                    alignment: Alignment.bottomCenter,
+                                                    child: InkWell(
+                                                      borderRadius: BorderRadius.circular(6),
+                                                      onTap: () => _showDayDetail(context, dayDate, dayEarnings, count, integerFmt, twoDecFmt),
+                                                      child: Container(
+                                                        width: 36,
+                                                        height: pillHeight,
+                                                        margin: const EdgeInsets.symmetric(horizontal: 6),
+                                                        decoration: BoxDecoration(
+                                                          color: pillColor,
+                                                          borderRadius: BorderRadius.circular(6),
+                                                          boxShadow: [BoxShadow(color: Colors.black12, offset: Offset(0, 1), blurRadius: 1)],
+                                                        ),
                                                       ),
                                                     ),
                                                   ),
-                                                ),
-                                              );
-                                            }),
-                                          ),
+                                                );
+                                              }),
+                                            );
+                                          }),
                                         ),
                                       ],
                                     ),
