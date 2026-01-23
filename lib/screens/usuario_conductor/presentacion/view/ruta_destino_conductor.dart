@@ -11,6 +11,8 @@ import 'package:taxi_app/helper/responsive_helper.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/resumen_conductor_view.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/ruta_conductor_viewmodel.dart';
 import 'package:taxi_app/services/firebase_service.dart';
+import 'package:taxi_app/services/ubicacion_servicio.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:taxi_app/services/route_cache_service.dart';
 import 'package:taxi_app/widgets/google_maps_widget.dart';
 import 'package:taxi_app/widgets/map_loading_widget.dart';
@@ -38,6 +40,7 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> {
 
   late final RutaConductorUsuarioViewModel _vm;
   StreamSubscription<LatLng>? _driverSub;
+  StreamSubscription<LatLng>? _locationSub;
   bool _loading = true;
   bool _terminandoDialogoMostrado = false;
   final FirebaseService _firebaseService = FirebaseService();
@@ -48,6 +51,9 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> {
   LatLng? _clientLocation;
   String? _clientAddress;
 
+  // Nueva variable para controlar si el botón debe estar habilitado
+  bool _puedeTerminarViaje = false;
+
   @override
   void initState() {
     super.initState();
@@ -56,6 +62,42 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> {
     _loadIcons();
     _ensureDestino();
     _subscribeDriver();
+    // Inicializar ViewModel después del primer frame para arrancar tracking
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      try {
+        _vm.init(context);
+      } catch (_) {}
+    });
+    // Suscribirse al servicio de ubicación local para enviar/actualizar
+    // la ubicación en Firestore en cada movimiento del GPS.
+    try {
+      _locationSub = UbicacionService().listenWithCallback((latlng) async {
+        try {
+          _driverLocation = latlng;
+          final uid = FirebaseAuth.instance.currentUser?.uid;
+          if (uid != null) {
+            await _firebaseService.guardarUbicacionConductor(conductorId: uid, position: latlng);
+            await _firebaseService.actualizarUbicacionConductorEnSolicitud(solicitudId: widget.solicitudId, position: latlng);
+          }
+          // Actualizar ruta o recortar si ya hay una
+          if (_driverLocation != null && _destinoLocation != null) {
+            if (_routePoints.isEmpty) {
+              _fetchRouteOSRM(_driverLocation!, _destinoLocation!);
+            } else {
+              _shortenRouteToDriver();
+            }
+            final dist = _haversineDistanceMeters(_driverLocation!, _destinoLocation!);
+            final puedeTerminar = dist <= 50;
+            if (_puedeTerminarViaje != puedeTerminar) {
+              setState(() {
+                _puedeTerminarViaje = puedeTerminar;
+              });
+            }
+          }
+        } catch (_) {}
+        if (mounted) setState(() {});
+      }, distanceFilter: 8);
+    } catch (_) {}
   }
 
   Future<void> _loadIcons() async {
@@ -145,6 +187,14 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> {
         } else {
           _shortenRouteToDriver();
         }
+        // Verificar si está a 50 metros o menos del destino
+        final dist = _haversineDistanceMeters(_driverLocation!, _destinoLocation!);
+        final puedeTerminar = dist <= 50;
+        if (_puedeTerminarViaje != puedeTerminar) {
+          setState(() {
+            _puedeTerminarViaje = puedeTerminar;
+          });
+        }
       }
       setState(() {});
     }, onError: (_) {});
@@ -153,6 +203,8 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> {
   @override
   void dispose() {
     _driverSub?.cancel();
+    try { _vm.dispose(); } catch (_) {}
+    _locationSub?.cancel();
     _mapController?.dispose();
     super.dispose();
   }
@@ -397,128 +449,127 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> {
       onWillPop: () async => false,
       child: Scaffold(
         appBar: AppBar(
-        title: const Text('Ruta al destino'),
-        backgroundColor: AppColores.primary,
-        foregroundColor: Colors.white,
-        automaticallyImplyLeading: false,
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: AppGoogleMap(
-                initialTarget: initialTarget,
-                initialZoom: 15.0,
-                onMapCreated: _onMapCreated,
-                myLocationEnabled: true,
-                myLocationButtonEnabled: true,
-                compassEnabled: true,
-                markers: markers,
-                polylines: _polylines,
-              ),
-            ),
-            Container(
-              width: double.infinity,
-              // Mantener una altura mínima y margen inferior para respetar zonas seguras
-              constraints: BoxConstraints(minHeight: ResponsiveHelper.hp(context, 18)),
-              margin: EdgeInsets.only(bottom: ResponsiveHelper.hp(context, 1)),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(24),
-                  topRight: Radius.circular(24),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.08),
-                    blurRadius: 10,
-                    offset: const Offset(0, -2),
-                  ),
-                ],
-              ),
-              padding: EdgeInsets.symmetric(horizontal: ResponsiveHelper.wp(context, 4), vertical: ResponsiveHelper.hp(context, 2)),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      CircleAvatar(
-                        radius: ResponsiveHelper.sp(context, 34),
-                        backgroundColor: Colors.grey.shade200,
-                        backgroundImage: (_clientPhotoUrl != null && _clientPhotoUrl!.isNotEmpty)
-                            ? NetworkImage(_clientPhotoUrl!)
-                            : null,
-                        child: (_clientPhotoUrl == null || _clientPhotoUrl!.isEmpty)
-                            ? Icon(Icons.person, size: ResponsiveHelper.sp(context, 22), color: Colors.black87)
-                            : null,
-                      ),
-                      SizedBox(width: ResponsiveHelper.wp(context, 3)),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              _clientName ?? 'Cliente',
-                              style: TextStyle(
-                                fontSize: ResponsiveHelper.sp(context, 16),
-                                fontWeight: FontWeight.w600,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            SizedBox(height: ResponsiveHelper.hp(context, 0.6)),
-                            Text(
-                              _destinoDireccion ?? 'Destino',
-                              style: TextStyle(
-                                fontSize: ResponsiveHelper.sp(context, 12),
-                                color: Colors.grey.shade700,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: ResponsiveHelper.hp(context, 2)),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: _openExternalMaps,
-                          icon: Icon(Icons.navigation_outlined, size: ResponsiveHelper.sp(context, 16)),
-                          label: Text('Maps', style: TextStyle(fontSize: ResponsiveHelper.sp(context, 14))),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppColores.primary,
-                            side: BorderSide(color: AppColores.primary.withOpacity(0.8), width: 1.2),
-                            padding: EdgeInsets.symmetric(vertical: ResponsiveHelper.hp(context, 1.2)),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                        ),
-                      ),
-                      SizedBox(width: ResponsiveHelper.wp(context, 3)),
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: _terminarViaje,
-                          icon: Icon(Icons.flag_outlined, size: ResponsiveHelper.sp(context, 16)),
-                          label: Text('Terminar viaje', style: TextStyle(fontSize: ResponsiveHelper.sp(context, 14))),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColores.primary,
-                            foregroundColor: Colors.white,
-                            padding: EdgeInsets.symmetric(vertical: ResponsiveHelper.hp(context, 1.2)),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
+          title: const Text('Ruta al destino'),
+          backgroundColor: AppColores.primary,
+          foregroundColor: Colors.white,
+          automaticallyImplyLeading: false,
         ),
-      ),
+        body: SafeArea(
+          child: Column(
+            children: [
+              Expanded(
+                child: AppGoogleMap(
+                  initialTarget: initialTarget,
+                  initialZoom: 15.0,
+                  onMapCreated: _onMapCreated,
+                  myLocationEnabled: true,
+                  myLocationButtonEnabled: true,
+                  compassEnabled: true,
+                  markers: markers,
+                  polylines: _polylines,
+                ),
+              ),
+              Container(
+                width: double.infinity,
+                constraints: BoxConstraints(minHeight: ResponsiveHelper.hp(context, 18)),
+                margin: EdgeInsets.only(bottom: ResponsiveHelper.hp(context, 1)),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(24),
+                    topRight: Radius.circular(24),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.08),
+                      blurRadius: 10,
+                      offset: const Offset(0, -2),
+                    ),
+                  ],
+                ),
+                padding: EdgeInsets.symmetric(horizontal: ResponsiveHelper.wp(context, 4), vertical: ResponsiveHelper.hp(context, 2)),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        CircleAvatar(
+                          radius: ResponsiveHelper.sp(context, 34),
+                          backgroundColor: Colors.grey.shade200,
+                          backgroundImage: (_clientPhotoUrl != null && _clientPhotoUrl!.isNotEmpty)
+                              ? NetworkImage(_clientPhotoUrl!)
+                              : null,
+                          child: (_clientPhotoUrl == null || _clientPhotoUrl!.isEmpty)
+                              ? Icon(Icons.person, size: ResponsiveHelper.sp(context, 22), color: Colors.black87)
+                              : null,
+                        ),
+                        SizedBox(width: ResponsiveHelper.wp(context, 3)),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                _clientName ?? 'Cliente',
+                                style: TextStyle(
+                                  fontSize: ResponsiveHelper.sp(context, 16),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              SizedBox(height: ResponsiveHelper.hp(context, 0.6)),
+                              Text(
+                                _destinoDireccion ?? 'Destino',
+                                style: TextStyle(
+                                  fontSize: ResponsiveHelper.sp(context, 12),
+                                  color: Colors.grey.shade700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: ResponsiveHelper.hp(context, 2)),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _openExternalMaps,
+                            icon: Icon(Icons.navigation_outlined, size: ResponsiveHelper.sp(context, 16)),
+                            label: Text('Maps', style: TextStyle(fontSize: ResponsiveHelper.sp(context, 14))),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColores.primary,
+                              side: BorderSide(color: AppColores.primary.withOpacity(0.8), width: 1.2),
+                              padding: EdgeInsets.symmetric(vertical: ResponsiveHelper.hp(context, 1.2)),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: ResponsiveHelper.wp(context, 3)),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: _puedeTerminarViaje ? _terminarViaje : null,
+                            icon: Icon(Icons.flag_outlined, size: ResponsiveHelper.sp(context, 16)),
+                            label: Text('Terminar viaje', style: TextStyle(fontSize: ResponsiveHelper.sp(context, 14))),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColores.primary,
+                              foregroundColor: Colors.white,
+                              padding: EdgeInsets.symmetric(vertical: ResponsiveHelper.hp(context, 1.2)),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
