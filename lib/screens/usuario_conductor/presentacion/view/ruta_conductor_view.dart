@@ -910,6 +910,12 @@ class _RutaConductorViewState extends State<RutaConductorView> {
     // Dejamos que el propio Google Maps muestre el 'my-location' (punto azul)
     // usando `myLocationEnabled: true` en el widget del mapa.
 
+    // Calcular distancia actual del conductor al cliente (en metros)
+    final double _distanceToClient = (_driverLocation == null || clientLocation == null)
+      ? double.infinity
+      : _haversineDistanceMeters(_driverLocation!, clientLocation);
+    final bool _canPressArrived = _distanceToClient <= 50.0; // habilitar solo dentro de 50 metros
+
     return WillPopScope(
       onWillPop: () async => false,
       child: Scaffold(
@@ -932,6 +938,43 @@ class _RutaConductorViewState extends State<RutaConductorView> {
                     markers: markers,
                     polylines: _polylines,
                     onMapCreated: _onMapCreated,
+                  ),
+                  // Badge flotante con distancia al cliente
+                  Positioned(
+                    bottom: 12,
+                    right: 12,
+                    child: SafeArea(
+                      child: Material(
+                        color: Colors.transparent,
+                        child: Container(
+                          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 6)],
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.place, size: ResponsiveHelper.sp(context, 14), color: _canPressArrived ? Colors.green : AppColores.primary),
+                              SizedBox(width: ResponsiveHelper.wp(context, 2)),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _distanceToClient.isFinite
+                                        ? (_distanceToClient <= 0.5 ? 'A <1 m' : '${_distanceToClient.round()} m')
+                                        : 'Calculando...',
+                                    style: TextStyle(fontSize: ResponsiveHelper.sp(context, 13), fontWeight: FontWeight.w700, color: _canPressArrived ? Colors.green : AppColores.textPrimary),
+                                  ),
+                                  
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
                   if (_routeDurationMin != null)
                     Align(
@@ -1114,7 +1157,7 @@ class _RutaConductorViewState extends State<RutaConductorView> {
                       SizedBox(width: ResponsiveHelper.wp(context, 3)),
                       Expanded(
                         child: ElevatedButton.icon(
-                          onPressed: () async {
+                          onPressed: _canPressArrived ? () async {
                             try {
                               await FirebaseFirestore.instance
                                   .collection('solicitudes')
@@ -1134,11 +1177,11 @@ class _RutaConductorViewState extends State<RutaConductorView> {
                                 ),
                               ),
                             );
-                          },
+                          } : null,
                           icon: Icon(Icons.check_circle_outline, size: ResponsiveHelper.sp(context, 16)),
                           label: Text('Ya llegué', style: TextStyle(fontSize: ResponsiveHelper.sp(context, 14))),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColores.primary,
+                            backgroundColor: _canPressArrived ? AppColores.primary : Colors.grey.shade400,
                             padding: EdgeInsets.symmetric(vertical: ResponsiveHelper.hp(context, 1.2)),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),

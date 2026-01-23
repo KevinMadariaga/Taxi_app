@@ -370,21 +370,15 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> {
     }
 
     final markers = <Marker>{};
-    if (_driverLocation != null) {
-      markers.add(
-        Marker(
-          markerId: const MarkerId('driver'),
-          position: _driverLocation!,
-          icon: BitmapDescriptor.defaultMarker,
-          infoWindow: const InfoWindow(title: 'Conductor'),
-        ),
-      );
-    }
+    // No agregar un Marker rojo para el conductor: usar el punto azul nativo (`myLocationEnabled`) en su lugar.
+    // Esto evita que un pin rojo se superponga a la ubicación actual.
     if (_destinoLocation != null) {
       // Only show destino marker if it's not effectively at the same
       // position as the driver (avoid overlapping red marker on driver).
-      final shouldShowDestino = _driverLocation == null ||
-          _haversineDistanceMeters(_driverLocation!, _destinoLocation!) > 10;
+        // Ocultar marcador de destino si está muy cerca del conductor
+        // para evitar que el pin rojo quede encima del punto azul (mi ubicación).
+        final shouldShowDestino = _driverLocation == null ||
+          _haversineDistanceMeters(_driverLocation!, _destinoLocation!) > 35;
       if (shouldShowDestino) {
         markers.add(
           Marker(
