@@ -70,6 +70,8 @@ class _RutaConductorViewState extends State<RutaConductorView> {
   int _lastRouteCutIndex = 0;
   RouteCacheData? _routeCache;
   bool _cachePersistedConductor = false;
+  // Mostrar loader centrado en el mapa mientras se obtiene la ruta/dirección
+  bool _obteniendoDireccion = false;
 
   @override
   void initState() {
@@ -624,6 +626,7 @@ class _RutaConductorViewState extends State<RutaConductorView> {
   }
 
   Future<void> _fetchRouteOSRM(LatLng origin, LatLng dest) async {
+    setState(() => _obteniendoDireccion = true);
     try {
       final url = Uri.parse(
         'https://router.project-osrm.org/route/v1/driving/'
@@ -669,6 +672,7 @@ class _RutaConductorViewState extends State<RutaConductorView> {
         } else {
           _routeDurationMin = null;
         }
+        _obteniendoDireccion = false;
       });
 
       // Ajustar cámara centrada en el conductor mirando hacia el cliente con bearing y zoom dinámico
@@ -694,7 +698,11 @@ class _RutaConductorViewState extends State<RutaConductorView> {
           }
         } catch (_) {}
       }
-    } catch (_) {}
+    } catch (_) {
+      // ignore
+    } finally {
+      if (mounted && _obteniendoDireccion) setState(() => _obteniendoDireccion = false);
+    }
   }
 
   // Posición del conductor ahora llega desde el ViewModel vía stream
@@ -939,6 +947,34 @@ class _RutaConductorViewState extends State<RutaConductorView> {
                     polylines: _polylines,
                     onMapCreated: _onMapCreated,
                   ),
+
+                  if (_routeDurationMin != null)
+                    Align(
+                      alignment: Alignment.topCenter,
+                      child: Container(
+                        margin: EdgeInsets.only(top: ResponsiveHelper.hp(context, 2)),
+                        padding: EdgeInsets.symmetric(horizontal: ResponsiveHelper.wp(context, 3), vertical: ResponsiveHelper.hp(context, 1)),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(blurRadius: 6, color: Colors.black26),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.access_time, size: ResponsiveHelper.sp(context, 14), color: AppColores.textSecondary),
+                            SizedBox(width: ResponsiveHelper.wp(context, 2)),
+                            Text(
+                              'Tiempo estimado: ${_routeDurationMin} min',
+                              style: TextStyle(fontSize: ResponsiveHelper.sp(context, 14), fontWeight: FontWeight.w600, color: AppColores.textPrimary),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
                   // Badge flotante con distancia al cliente
                   Positioned(
                     bottom: 12,
@@ -967,7 +1003,6 @@ class _RutaConductorViewState extends State<RutaConductorView> {
                                         : 'Calculando...',
                                     style: TextStyle(fontSize: ResponsiveHelper.sp(context, 13), fontWeight: FontWeight.w700, color: _canPressArrived ? Colors.green : AppColores.textPrimary),
                                   ),
-                                  
                                 ],
                               ),
                             ],
@@ -976,29 +1011,13 @@ class _RutaConductorViewState extends State<RutaConductorView> {
                       ),
                     ),
                   ),
-                  if (_routeDurationMin != null)
-                    Align(
-                      alignment: Alignment.topCenter,
+
+                  if (_obteniendoDireccion)
+                    Positioned.fill(
                       child: Container(
-                        margin: EdgeInsets.only(top: ResponsiveHelper.hp(context, 2)),
-                        padding: EdgeInsets.symmetric(horizontal: ResponsiveHelper.wp(context, 3), vertical: ResponsiveHelper.hp(context, 1)),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(blurRadius: 6, color: Colors.black26),
-                          ],
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.access_time, size: ResponsiveHelper.sp(context, 14), color: AppColores.textSecondary),
-                            SizedBox(width: ResponsiveHelper.wp(context, 2)),
-                            Text(
-                              'Tiempo estimado: ${_routeDurationMin} min',
-                              style: TextStyle(fontSize: ResponsiveHelper.sp(context, 14), fontWeight: FontWeight.w600, color: AppColores.textPrimary),
-                            ),
-                          ],
+                        color: Colors.black.withOpacity(0.2),
+                        child: const Center(
+                          child: MapLoadingWidget(message: 'Obteniendo dirección...'),
                         ),
                       ),
                     ),

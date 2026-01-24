@@ -98,7 +98,7 @@ class ResumenClienteViewModel extends ChangeNotifier {
 
             // Actualizar calificación promedio en el documento del conductor
             await FirebaseFirestore.instance
-                .collection('usuario_conductor')
+                .collection('conductor')
                 .doc(conductorIdLocal)
                 .update({
                   'calificacion_promedio': promedioCalificacion,
@@ -168,7 +168,7 @@ class ResumenClienteViewModel extends ChangeNotifier {
           .toUpperCase();
       if (nombreConductor.isEmpty && conductorId.isNotEmpty) {
         final conductorDoc = await FirebaseFirestore.instance
-            .collection('usuario_conductor')
+            .collection('conductor')
             .doc(conductorId)
             .get();
         nombreConductor = (conductorDoc.data()?['nombre'] ?? '')

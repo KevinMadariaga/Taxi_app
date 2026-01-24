@@ -17,6 +17,7 @@ import 'package:taxi_app/services/route_cache_service.dart';
 import 'package:taxi_app/widgets/google_maps_widget.dart';
 import 'package:taxi_app/widgets/map_loading_widget.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:taxi_app/services/notificacion_servicio.dart';
 
 class RutaDestinoConductorView extends StatefulWidget {
   final String solicitudId;
@@ -28,7 +29,7 @@ class RutaDestinoConductorView extends StatefulWidget {
   State<RutaDestinoConductorView> createState() => _RutaDestinoConductorViewState();
 }
 
-class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> {
+class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> with WidgetsBindingObserver {
   GoogleMapController? _mapController;
   LatLng? _driverLocation;
   LatLng? _destinoLocation;
@@ -43,6 +44,8 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> {
   StreamSubscription<LatLng>? _locationSub;
   bool _loading = true;
   bool _terminandoDialogoMostrado = false;
+  // Mostrar loader centrado en el mapa mientras se obtiene la ruta/dirección
+  bool _obteniendoDireccion = false;
   final FirebaseService _firebaseService = FirebaseService();
 
   String? _clientName;
@@ -57,6 +60,7 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _vm = RutaConductorUsuarioViewModel(solicitudId: widget.solicitudId);
     _destinoLocation = widget.destinoLocation;
     _loadIcons();
@@ -98,7 +102,34 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> {
         if (mounted) setState(() {});
       }, distanceFilter: 8);
     } catch (_) {}
+
+      // Mostrar notificación de continuación cuando la vista se inicia
+      try {
+        _showContinueNotification();
+      } catch (_) {}
   }
+
+    
+
+    @override
+    void didChangeAppLifecycleState(AppLifecycleState state) {
+      super.didChangeAppLifecycleState(state);
+      if (state == AppLifecycleState.resumed) {
+        // Cuando la app se reanuda y esta vista está montada, mostrar notificación
+        try {
+          _showContinueNotification();
+        } catch (_) {}
+      }
+    }
+
+    void _showContinueNotification() {
+      try {
+        NotificacionesServicio.instance.showTripNotification(
+          title: 'Continúa el viaje',
+          body: 'Continúa el viaje y lleva al cliente a su destino',
+        );
+      } catch (_) {}
+    }
 
   Future<void> _loadIcons() async {
     try {
@@ -202,6 +233,7 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _driverSub?.cancel();
     try { _vm.dispose(); } catch (_) {}
     _locationSub?.cancel();
@@ -285,6 +317,7 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> {
   }
 
   Future<void> _fetchRouteOSRM(LatLng origin, LatLng dest) async {
+    setState(() => _obteniendoDireccion = true);
     try {
       final url = Uri.parse(
         'https://router.project-osrm.org/route/v1/driving/'
@@ -323,6 +356,7 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> {
         _polylines = newPolys;
         _routePoints = points;
         _lastRouteCutIndex = 0;
+        _obteniendoDireccion = false;
       });
 
       // Orientar cámara hacia el destino con zoom dinámico
@@ -336,7 +370,11 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> {
           ),
         );
       }
-    } catch (_) {}
+    } catch (_) {
+      // fallthrough
+    } finally {
+      if (mounted && _obteniendoDireccion) setState(() => _obteniendoDireccion = false);
+    }
   }
 
   void _shortenRouteToDriver() {
@@ -458,15 +496,28 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> {
           child: Column(
             children: [
               Expanded(
-                child: AppGoogleMap(
-                  initialTarget: initialTarget,
-                  initialZoom: 15.0,
-                  onMapCreated: _onMapCreated,
-                  myLocationEnabled: true,
-                  myLocationButtonEnabled: true,
-                  compassEnabled: true,
-                  markers: markers,
-                  polylines: _polylines,
+                child: Stack(
+                  children: [
+                    AppGoogleMap(
+                      initialTarget: initialTarget,
+                      initialZoom: 15.0,
+                      onMapCreated: _onMapCreated,
+                      myLocationEnabled: true,
+                      myLocationButtonEnabled: true,
+                      compassEnabled: true,
+                      markers: markers,
+                      polylines: _polylines,
+                    ),
+                    if (_obteniendoDireccion)
+                      Positioned.fill(
+                        child: Container(
+                          color: Colors.black.withOpacity(0.2),
+                          child: const Center(
+                            child: MapLoadingWidget(message: 'Obteniendo dirección...'),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
               Container(
