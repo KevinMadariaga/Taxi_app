@@ -106,8 +106,10 @@ class _MapPreviewState extends State<MapPreview> {
               Column(
                 children: [
               // Map con tamaño responsive para evitar estiramiento
+              // Reducimos ligeramente la altura para mostrar completamente
+              // el botón "Buscar conductor" en pantallas pequeñas.
               SizedBox(
-                height: ResponsiveHelper.hp(context, 45),
+                height: ResponsiveHelper.hp(context, 42),
                 child: Consumer<MapapreviewViewModel>(
                   builder: (context, vm, _) {
                     final origen = vm.origen.position;
@@ -259,7 +261,7 @@ class _MapPreviewState extends State<MapPreview> {
                                     ),
                                   ),
                                 ),
-                                const SizedBox(width: 8),
+                                SizedBox(width: ResponsiveHelper.wp(context, 2)),
                                 Expanded(
                                   child: GestureDetector(
                                     onTap: () => vm.setMetodoPago('Transferencia'),
@@ -326,7 +328,11 @@ class _MapPreviewState extends State<MapPreview> {
                                   }
                                 },
                           child: vm.isSubmitting
-                              ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.black87, strokeWidth: 2))
+                              ? SizedBox(
+                                  width: ResponsiveHelper.wp(context, 5),
+                                  height: ResponsiveHelper.wp(context, 5),
+                                  child: CircularProgressIndicator(color: Colors.black87, strokeWidth: 2),
+                                )
                               : Text('Buscar conductor', style: TextStyle(fontSize: ResponsiveHelper.sp(context, 16), fontWeight: FontWeight.w700)),
                         ),
                       ),
