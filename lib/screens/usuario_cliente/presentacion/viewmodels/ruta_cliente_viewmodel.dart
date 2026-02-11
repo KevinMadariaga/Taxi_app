@@ -536,13 +536,31 @@ class RutaClienteViewModel extends ChangeNotifier {
 
   Future<bool> cancelSolicitudFromRoute() async {
     try {
+      // 1) Marcar la solicitud como cancelada en Firestore
       await _firebaseService.cancelarViaje(
         solicitudId: solicitudId,
         canceladoPor: 'cliente',
       );
+
+      // 2) Limpiar estado local (solicitud activa y cache de ruta)
       try {
-        SessionHelper.clearActiveSolicitud();
+        await SessionHelper.clearActiveSolicitud();
       } catch (_) {}
+      try {
+        await RouteCacheService.clearSolicitud(solicitudId);
+      } catch (_) {}
+
+      // 3) Dar tiempo (2s) para que el conductor escuche el estado "cancelado"
+      await Future.delayed(const Duration(seconds: 2));
+
+      // 4) Eliminar el documento de la solicitud en Firestore
+      try {
+        await FirebaseFirestore.instance
+            .collection('solicitudes')
+            .doc(solicitudId)
+            .delete();
+      } catch (_) {}
+
       return true;
     } catch (_) {
       return false;

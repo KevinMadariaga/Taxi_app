@@ -1,197 +1,271 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:taxi_app/core/app_colores.dart';
-import 'package:taxi_app/helper/responsive_helper.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/view/login_cliente_view.dart';
-import 'package:taxi_app/screens/usuario_conductor/presentacion/view/login_conductor_view.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/view/registro_cliente_view.dart';
+import 'package:taxi_app/services/auth_service.dart';
 
-
-
-
-class HomeView extends StatelessWidget {
+class HomeView extends StatefulWidget {
   const HomeView({super.key});
 
   @override
+  State<HomeView> createState() => _HomeViewState();
+}
+
+class _HomeViewState extends State<HomeView> {
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  bool _isLoading = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _login() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+
+    if (email.isEmpty || password.isEmpty) {
+      setState(() {
+        _error = 'Ingresa correo y contraseña.';
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final authService = AuthService();
+      final credential = await authService.loginWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+
+      final user = credential?.user;
+      if (user == null) {
+        setState(() {
+          _error = 'No se pudo obtener la información del usuario.';
+        });
+        return;
+      }
+
+      // Detectar tipo de usuario según la base de datos (conductor o cliente)
+      final conductorDoc = await FirebaseFirestore.instance
+          .collection('conductor')
+          .doc(user.uid)
+          .get();
+
+      String? role;
+      if (conductorDoc.exists) {
+        role = 'conductor';
+      } else {
+        final clienteDoc = await FirebaseFirestore.instance
+            .collection('cliente')
+            .doc(user.uid)
+            .get();
+
+        if (clienteDoc.exists) {
+          role = 'cliente';
+        }
+      }
+
+      if (role == null) {
+        await authService.logout();
+        setState(() {
+          _error = 'Tu cuenta no está registrada como cliente ni como conductor.';
+        });
+        return;
+      }
+
+      // Guardar rol detectado en la sesión
+      await authService.saveUserSession(role: role, isLoggedIn: true);
+
+      final next = await authService.determineInitialScreen();
+
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => next),
+      );
+    } catch (_) {
+      setState(() {
+        _error = 'Error al iniciar sesión. Verifica tus datos.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  void _showComingSoon(String provider) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Registro con $provider disponible próximamente')),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final screenHeight = MediaQuery.of(context).size.height;
-    
-    // Ajuste dinámico según el tamaño de la pantalla
-    final isSmallScreen = screenHeight < 600;
-    final imgHeight = isSmallScreen 
-        ? ResponsiveHelper.hp(context, 25) 
-        : ResponsiveHelper.hp(context, 45);
-    final spacerSmall = ResponsiveHelper.hp(context, 1);
-    final spacerLarge = isSmallScreen 
-        ? ResponsiveHelper.hp(context, 4) 
-        : ResponsiveHelper.hp(context, 6);
-    final buttonHorizontal = ResponsiveHelper.wp(context, 20);
-    final buttonVertical = ResponsiveHelper.hp(context, 1.8);
-    final titleFont = ResponsiveHelper.sp(context, 17);
-    final buttonFont = ResponsiveHelper.sp(context, 19);
-    final iconSize = ResponsiveHelper.hp(context, 6);
+    final size = MediaQuery.of(context).size;
 
     return Scaffold(
+      backgroundColor: AppColores.background,
       body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return SingleChildScrollView(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  minHeight: constraints.maxHeight,
-                ),
-                child: IntrinsicHeight(
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: ResponsiveHelper.wp(context, 5),
-                      vertical: ResponsiveHelper.hp(context, 2),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Spacer(flex: 1),
-                        
-                         // Imagen del taxi
-                        Image.asset(
-                          'assets/img/home.png', 
-                          height: imgHeight,
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Logo
+                Center(
+                  child: Column(
+                    children: [
+                      SizedBox(
+                        height: size.height * 0.15,
+                        child: Image.asset(
+                          'assets/img/taxi.png',
                           fit: BoxFit.contain,
-                        ),
-                        
-                        SizedBox(height: spacerSmall),
-                        
-                        // Título
-                        Padding(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: ResponsiveHelper.wp(context, 2),
-                          ),
-                          child: Text(
-                            'Viaja seguro, rápido y con confianza',
-                            style: TextStyle(
-                              fontSize: titleFont,
-                              fontWeight: FontWeight.w500,
-                              color: AppColores.textPrimary,
-                            ),
-                            textAlign: TextAlign.center,
+                          errorBuilder: (_, __, ___) => const Icon(
+                            Icons.local_taxi,
+                            size: 120,
+                            color: Colors.black87,
                           ),
                         ),
-                        
-                        SizedBox(height: spacerLarge),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Taxi Ya',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: AppColores.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Ingresa para continuar tu viaje',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: AppColores.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
 
-                        // Botón Clientes
-                        SizedBox(
-                          width: double.infinity,
-                          child: Padding(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: buttonHorizontal,
-                              vertical: buttonVertical,
-                            ),
-                            child: ElevatedButton(
-                              onPressed: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => const Login(),
-                                  ),
-                                );
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColores.buttonPrimary,
-                                foregroundColor: AppColores.textPrimary,
-                                padding: EdgeInsets.symmetric(
-                                  vertical: buttonVertical,
-                                  horizontal: ResponsiveHelper.wp(context, 4),
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(30.0),
-                                ),
-                                elevation: 3,
-                              ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.person,
-                                    size: iconSize,
-                                    color: AppColores.textPrimary,
-                                  ),
-                                  SizedBox(width: ResponsiveHelper.wp(context, 3)),
-                                  Flexible(
-                                    child: Text(
-                                      "Cliente",
-                                      style: TextStyle(
-                                        fontSize: buttonFont,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
+                const SizedBox(height: 32),
 
-                        // Botón Conductor
-                        SizedBox(
-                          width: double.infinity,
-                          child: Padding(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: buttonHorizontal,
-                              vertical: buttonVertical,
-                            ),
-                            child: ElevatedButton(
-                              onPressed: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => const LoginConductorView(),
-                                  ),
-                                );
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColores.buttonPrimary,
-                                foregroundColor: AppColores.textPrimary,
-                                padding: EdgeInsets.symmetric(
-                                  vertical: buttonVertical,
-                                  horizontal: ResponsiveHelper.wp(context, 4),
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(30.0),
-                                ),
-                                elevation: 3,
-                              ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.drive_eta,
-                                    size: iconSize,
-                                    color: AppColores.textPrimary,
-                                  ),
-                                  SizedBox(width: ResponsiveHelper.wp(context, 3)),
-                                  Flexible(
-                                    child: Text(
-                                      "Conductor",
-                                      style: TextStyle(
-                                        fontSize: buttonFont,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
+                // Campos de login
+                TextField(
+                  controller: _emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: InputDecoration(
+                    labelText: 'Correo electrónico',
+                    prefixIcon: const Icon(Icons.email),
+                    border: const OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _passwordController,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Contraseña',
+                    prefixIcon: Icon(Icons.lock),
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+
+                if (_error != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    _error!,
+                    style: const TextStyle(color: Colors.red, fontSize: 13),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+
+                const SizedBox(height: 20),
+
+                // Botón iniciar sesión
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _isLoading ? null : _login,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColores.buttonPrimary,
+                      foregroundColor: AppColores.textWhite,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text(
+                            'Iniciar sesión',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                           ),
-                        ),
-                        
-                        const Spacer(flex: 1),
-                      ],
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                // Métodos de registro
+                Center(
+                  child: Text(
+                    'O regístrate con',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: AppColores.textSecondary,
                     ),
                   ),
                 ),
-              ),
-            );
-          },
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    IconButton(
+                      onPressed: () => _showComingSoon('Google'),
+                      icon: const Icon(Icons.g_mobiledata, size: 32, color: Colors.red),
+                    ),
+                    const SizedBox(width: 16),
+                    IconButton(
+                      onPressed: () => _showComingSoon('Facebook'),
+                      icon: const Icon(Icons.facebook, size: 32, color: Colors.blue),
+                    ),
+                    const SizedBox(width: 16),
+                    IconButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const RegistroClienteView(),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.email, size: 32, color: Colors.black87),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
