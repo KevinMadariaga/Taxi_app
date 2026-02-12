@@ -39,14 +39,14 @@ class TrackingService {
   /// Inicia el tracking de ubicación GPS en tiempo real.
   ///
   /// [onLocationUpdate] - Callback opcional que se ejecuta cada vez que hay una nueva ubicación.
-  /// [distanceFilter] - Distancia mínima en metros para enviar actualización (default: 10m).
-  /// [timeInterval] - Intervalo mínimo en segundos para actualizaciones (default: 5s).
+  /// [distanceFilter] - Distancia mínima en metros para enviar actualización (default: 15m).
+  /// [timeInterval] - Intervalo mínimo en segundos para actualizaciones (default: 10s).
   ///
   /// Retorna `true` si el tracking se inició correctamente, `false` si ya estaba activo.
   Future<bool> iniciarEscuchaGPS({
     Function(Position)? onLocationUpdate,
-    double distanceFilter = 10.0,
-    int timeInterval = 5,
+    double distanceFilter = 15.0,
+    int timeInterval = 10,
   }) async {
     if (_isTracking) {
       developer.log('⚠️ TrackingService: El tracking ya está activo.', name: _loggerName, level: 900);
@@ -132,14 +132,14 @@ class TrackingService {
   /// [userId] - ID del usuario (conductor o cliente).
   /// [userType] - Tipo de usuario: 'conductor' o 'cliente'.
   /// [solicitudId] - ID de la solicitud activa (opcional, para actualizar ubicación en solicitud).
-  /// [distanceFilter] - Distancia mínima para enviar actualización (default: 10m).
-  /// [timeInterval] - Intervalo mínimo de actualización (default: 5s).
+  /// [distanceFilter] - Distancia mínima para enviar actualización (default: 15m).
+  /// [timeInterval] - Intervalo mínimo de actualización (default: 10s).
   Future<bool> iniciarTrackingConEnvio({
     required String userId,
     required String userType,
     String? solicitudId,
-    double distanceFilter = 10.0,
-    int timeInterval = 5,
+    double distanceFilter = 15.0,
+    int timeInterval = 10,
   }) async {
     return await iniciarEscuchaGPS(
       distanceFilter: distanceFilter,

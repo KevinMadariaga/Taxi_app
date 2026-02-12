@@ -280,11 +280,11 @@ class HistorialClienteState extends State<HistorialCliente> {
             return const Center(child: Text("Usuario no autenticado."));
           }
 
-          return StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
+          return FutureBuilder<QuerySnapshot>(
+            future: FirebaseFirestore.instance
                 .collection('solicitudes')
                 .where('cliente.id', isEqualTo: uid)
-                .snapshots(),
+                .get(),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());

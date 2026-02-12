@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:taxi_app/core/app_colores.dart';
@@ -1063,12 +1064,17 @@ class _RutaConductorViewState extends State<RutaConductorView> {
                       (_clientPhotoUrl != null && _clientPhotoUrl!.isNotEmpty)
                           ? ClipRRect(
                               borderRadius: BorderRadius.circular(12),
-                              child: Image.network(
-                                _clientPhotoUrl!,
+                              child: CachedNetworkImage(
+                                imageUrl: _clientPhotoUrl!,
                                 width: ResponsiveHelper.sp(context, 60),
                                 height: ResponsiveHelper.sp(context, 60),
                                 fit: BoxFit.cover,
-                                errorBuilder: (ctx, error, stack) => Container(
+                                placeholder: (_, __) => Container(
+                                  width: ResponsiveHelper.sp(context, 60),
+                                  height: ResponsiveHelper.sp(context, 60),
+                                  color: Colors.grey.shade200,
+                                ),
+                                errorWidget: (ctx, error, stack) => Container(
                                   width: ResponsiveHelper.sp(context, 60),
                                   height: ResponsiveHelper.sp(context, 60),
                                   color: Colors.grey.shade200,

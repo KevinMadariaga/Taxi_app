@@ -281,11 +281,11 @@ class HistorialConductorState extends State<HistorialConductor> {
           ));
         },
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
+      body: FutureBuilder<QuerySnapshot>(
+        future: FirebaseFirestore.instance
             .collection('solicitudes')
             .where('conductor.id', isEqualTo: conductorId)
-            .snapshots(),
+            .get(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());

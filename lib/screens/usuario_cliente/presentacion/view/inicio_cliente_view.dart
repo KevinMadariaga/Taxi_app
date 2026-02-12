@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/historial_viaje_cliente.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/seleccion_destino_view.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/view/mapa_seleccion_destino_view.dart';
 import 'package:taxi_app/widgets/google_maps_widget.dart';
 import 'dart:async';
 
@@ -10,6 +13,7 @@ import 'package:taxi_app/widgets/perfil.dart';
 import 'package:taxi_app/services/ubicacion_servicio.dart';
 import '../viewmodels/inicio_cliente_viewmodel.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/model/mapa_cliente_model.dart';
 
 
 class InicioClienteView extends StatefulWidget {
@@ -90,14 +94,26 @@ class _InicioClienteViewState extends State<InicioClienteView> {
 
   @override
   Widget build(BuildContext context) {
-    // Calcular espacio inferior responsivo para que se vea igual en distintas pantallas
-    final double bottomMapSpacing = math.max(6.0, MediaQuery.of(context).size.height * 0.02);
-    // Alturas responsivas para evitar overflow en pantallas pequeñas
+    // Dimensiones responsivas para que se vea bien en pantallas pequeñas y grandes
     final double screenH = MediaQuery.of(context).size.height;
-    final double carouselHeight = math.min(200.0, screenH * 0.26);
+    final bool isSmallScreen = screenH < 700;
+
+    // Altura del carrusel: compacta en pantallas pequeñas, un poco más amplia en grandes
+    final double baseCarouselHeight = screenH * (isSmallScreen ? 0.22 : 0.26);
+    final double carouselHeight = baseCarouselHeight.clamp(140.0, 220.0);
+
+    // Altura del mapa: volver al tamaño anterior (más discreto)
     final double mapHeight = math.min(140.0, screenH * 0.16);
-    // Espacio responsivo entre el mapa y la etiqueta "Estás aquí"
-    final double labelToMapSpacing = math.max(8.0, screenH * 0.02);
+
+    // Espacio inferior entre mapa y bottomNavigationBar
+    final double bottomMapSpacing = isSmallScreen
+      ? math.max(6.0, screenH * 0.012)
+      : math.max(12.0, screenH * 0.02);
+
+    // Espacio entre la etiqueta "Estás aquí" y el mapa
+    final double labelToMapSpacing = isSmallScreen
+      ? math.max(4.0, screenH * 0.01)
+      : math.max(8.0, screenH * 0.015);
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
@@ -109,116 +125,193 @@ class _InicioClienteViewState extends State<InicioClienteView> {
         child: Stack(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16.0, 24.0, 16.0, 16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Scrollable top content — permite que el mapa quede anclado abajo
-                  Expanded(
-                    child: SingleChildScrollView(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Client name (fetched from FirebaseAuth)
-                          _buildClientName(),
-                          const SizedBox(height: 16),
-                          const Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 1.0),
-                            child: Text(
-                              'Viaje seguro a su destino',
-                              style: TextStyle(
-                                color: Colors.black87,
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          // Search box styled as a button — navigates to selection screen
-                          GestureDetector(
-                            onTap: () async {
-                              //Navigate to destination selection screen, pasando la ubicación actual
-                              Navigator.of(context).push(
-                                MaterialPageRoute(builder: (_) => DestinoSeleccionView(currentLocation: _currentLocation)),
-                              );
-                            },
-                            child: Container(
-                              margin: const EdgeInsets.only(bottom: 20),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(30),
-                                border: Border.all(color: Colors.grey.shade200, width: 1),
-                                boxShadow: [
-                                  BoxShadow(color: Colors.black.withAlpha((0.08 * 255).round()), blurRadius: 12, offset: const Offset(0, 6)),
-                                ],
-                              ),
-                              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-                              child: Row(
-                                children: const [
-                                  Icon(Icons.search, color: Colors.black54),
-                                  SizedBox(width: 12),
-                                  Expanded(child: Text('¿A dónde vas?', style: TextStyle(color: Colors.black54))),
-                                  Icon(Icons.chevron_right, color: Colors.black38),
-                                ],
-                              ),
-                            ),
-                          ),
-
-                          const SizedBox(height: 8),
-                          const Center(child: Text('Sugerencias: Casa · Trabajo · Favorito', style: TextStyle(color: Colors.black54, fontSize: 14))),
-                          const SizedBox(height: 12),
-
-                          // Carrusel de cuadros ubicado debajo del botón (tarjetas publicitarias más grandes)
-                          SizedBox(
-                            height: carouselHeight,
-                            child: _buildCarousel(),
-                          ),
-                          const SizedBox(height: 24),
-                          // label removed from scrollable area; it will be placed below the map
-                        ],
+              padding: const EdgeInsets.fromLTRB(16.0, 8.0, 16.0, 16.0),
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Client name (fetched from FirebaseAuth)
+                    _buildClientName(),
+                    const SizedBox(height: 16),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 1.0),
+                      child: Text(
+                        'Viaje seguro a su destino',
+                        style: TextStyle(
+                          color: Colors.black87,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
-                  ),
-
-                  // Mostrar la etiqueta "Estás aquí" arriba del mapa con espacio responsivo
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 5.0),
-                    child: Text(
-                      'Estás aquí',
-                      style: const TextStyle(fontSize: 25, fontWeight: FontWeight.w800, color: Colors.black87),
-                    ),
-                  ),
-                  SizedBox(height: labelToMapSpacing),
-                  // Map positioned at the bottom of the page (ligeramente reducido)
-                  SizedBox(
-                    height: mapHeight,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(2),
+                    const SizedBox(height: 20),
+                    // Search box styled as a button — navigates to selection screen
+                    GestureDetector(
+                      onTap: () async {
+                        //Navigate to destination selection screen, pasando la ubicación actual
+                        Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => DestinoSeleccionView(currentLocation: _currentLocation)),
+                        );
+                      },
                       child: Container(
-                        width: double.infinity,
+                        margin: const EdgeInsets.only(bottom: 20),
                         decoration: BoxDecoration(
-                          color: const Color.fromARGB(255, 0, 0, 0),                     
-                          border: Border.all(color: const Color.fromARGB(255, 0, 0, 0), width: 1.0),
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(30),
+                          border: Border.all(color: Colors.grey.shade200, width: 1),
+                          boxShadow: [
+                            BoxShadow(color: Colors.black.withAlpha((0.08 * 255).round()), blurRadius: 12, offset: const Offset(0, 6)),
+                          ],
                         ),
-                        child: AppGoogleMap(
-                          initialTarget: _currentLocation ?? const LatLng(8.2595534, -73.353469),
-                          initialZoom: 14.5,
-                          myLocationEnabled: true,
-                          myLocationButtonEnabled: false,
-                          compassEnabled: false,
-                          onMapCreated: (controller) async {
-                            _mapController = controller;
-                            if (_currentLocation != null) {
-                              await controller.animateCamera(CameraUpdate.newLatLngZoom(_currentLocation!, 16));
-                            }
-                          },
+                        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                        child: Row(
+                          children: const [
+                            Icon(Icons.search, color: Colors.black54),
+                            SizedBox(width: 12),
+                            Expanded(child: Text('¿A dónde vas?', style: TextStyle(color: Colors.black54))),
+                            Icon(Icons.chevron_right, color: Colors.black38),
+                          ],
                         ),
                       ),
                     ),
-                  ),
-                  // Espacio configurable entre el mapa/label y el borde inferior (antes del bottomNavigationBar)
-                  SizedBox(height: bottomMapSpacing),
-                ],
+
+                    const SizedBox(height: 5),
+                    FutureBuilder<List<UbicacionResultado>>(
+                      future: _fetchFavoritos(),
+                      builder: (context, snapshot) {
+                        final favs = snapshot.data ?? [];
+                        final hasFavorites = favs.isNotEmpty;
+
+                        return Padding(
+                          padding: const EdgeInsets.only(left: 8.0, right: 4.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                hasFavorites
+                                    ? 'Favoritos'
+                                    : 'Sugerencias: agrega tu ubicación favorita',
+                                style: const TextStyle(color: Colors.black54, fontSize: 14),
+                              ),
+                              const SizedBox(height: 6),
+                              SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: Row(
+                                  children: hasFavorites
+                                      ? favs.map((f) {
+                                          return Padding(
+                                            padding: const EdgeInsets.only(right: 8.0),
+                                            child: GestureDetector(
+                                              onTap: () => _onFavoriteSelected(f),
+                                              child: Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.grey.shade200,
+                                                  borderRadius: BorderRadius.circular(16),
+                                                  border: Border.all(color: Colors.black12),
+                                                ),
+                                                child: Text(
+                                                  f.direccion,
+                                                  style: const TextStyle(
+                                                    color: Colors.black87,
+                                                    fontSize: 14,
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          );
+                                        }).toList()
+                                      : [
+                                          'Casa',
+                                          'Trabajo',
+                                          'Otros',
+                                        ].map((label) {
+                                          return Padding(
+                                            padding: const EdgeInsets.only(right: 8.0),
+                                            child: GestureDetector(
+                                              onTap: () {
+                                                Navigator.of(context).push(
+                                                  MaterialPageRoute(
+                                                    builder: (_) => DestinoSeleccionView(currentLocation: _currentLocation),
+                                                  ),
+                                                );
+                                              },
+                                              child: Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.grey.shade200,
+                                                  borderRadius: BorderRadius.circular(16),
+                                                  border: Border.all(color: Colors.black12),
+                                                ),
+                                                child: Text(
+                                                  label,
+                                                  style: const TextStyle(
+                                                    color: Colors.black87,
+                                                    fontSize: 14,
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          );
+                                        }).toList(),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+
+                    // Carrusel de cuadros ubicado debajo del botón (tarjetas publicitarias más grandes)
+                    SizedBox(
+                      height: carouselHeight,
+                      child: _buildCarousel(),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Mostrar la etiqueta "Estás aquí" arriba del mapa con espacio responsivo
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 5.0),
+                      child: Text(
+                        'Estás aquí',
+                        style: const TextStyle(fontSize: 25, fontWeight: FontWeight.w800, color: Colors.black87),
+                      ),
+                    ),
+                    SizedBox(height: labelToMapSpacing),
+                    // Map dentro del scroll
+                    SizedBox(
+                      height: mapHeight,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(2),
+                        child: Container(
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            color: const Color.fromARGB(255, 0, 0, 0),
+                            border: Border.all(color: const Color.fromARGB(255, 0, 0, 0), width: 1.0),
+                          ),
+                          child: AppGoogleMap(
+                            initialTarget: _currentLocation ?? const LatLng(8.2595534, -73.353469),
+                            initialZoom: 14.5,
+                            myLocationEnabled: true,
+                            myLocationButtonEnabled: false,
+                            compassEnabled: false,
+                            onMapCreated: (controller) async {
+                              _mapController = controller;
+                              if (_currentLocation != null) {
+                                await controller.animateCamera(CameraUpdate.newLatLngZoom(_currentLocation!, 16));
+                              }
+                            },
+                          ),
+                        ),
+                      ),
+                    ),
+                    // Espacio configurable entre el mapa/label y el borde inferior (antes del bottomNavigationBar)
+                    SizedBox(height: bottomMapSpacing),
+                  ],
+                ),
               ),
             ),
 
@@ -264,13 +357,8 @@ class _InicioClienteViewState extends State<InicioClienteView> {
                 setState(() => _selectedIndex = 0);
               });
             } else if (index == 2) {
-              // Navegar a Perfil y al volver resetear el índice a 'Viajes'
-              Navigator.of(context)
-                  .push(MaterialPageRoute(builder: (_) => const PaginaPerfilUsuario(tipoUsuario: 'cliente')))
-                  .then((_) {
-                if (!mounted) return;
-                setState(() => _selectedIndex = 0);
-              });
+              // Navegar a Perfil con una transición más fluida
+              _navigateToPerfil();
             } else {
               setState(() => _selectedIndex = index);
             }
@@ -292,6 +380,76 @@ class _InicioClienteViewState extends State<InicioClienteView> {
       name.toUpperCase(),
       style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: Colors.black87),
     );
+  }
+
+  Future<List<UbicacionResultado>> _fetchFavoritos() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return [];
+
+    final snapshot = await FirebaseFirestore.instance
+        .collection('ubicaciones')
+        .where('userId', isEqualTo: user.uid)
+        .get();
+
+    return snapshot.docs.map((doc) {
+      final data = doc.data();
+      final nombre = (data['nombre'] ?? '') as String;
+      final geo = data['ubicacion'] as GeoPoint;
+      return UbicacionResultado(
+        location: LatLng(geo.latitude, geo.longitude),
+        direccion: nombre.isNotEmpty ? nombre : 'Favorito',
+      );
+    }).toList();
+  }
+
+  void _onFavoriteSelected(UbicacionResultado fav) {
+    if (fav.location == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ubicación no disponible')),
+      );
+      return;
+    }
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => MapaPreviewView(
+          location: fav.location!,
+          direccion: fav.direccion,
+          origenLocation: _currentLocation,
+          origenDireccion: null,
+        ),
+      ),
+    );
+  }
+
+  void _navigateToPerfil() {
+    Navigator.of(context)
+        .push(
+          PageRouteBuilder(
+            pageBuilder: (context, animation, secondaryAnimation) =>
+                const PaginaPerfilUsuario(tipoUsuario: 'cliente'),
+            transitionDuration: const Duration(milliseconds: 250),
+            reverseTransitionDuration: const Duration(milliseconds: 200),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              final curved = CurvedAnimation(parent: animation, curve: Curves.easeInOut);
+
+              return FadeTransition(
+                opacity: curved,
+                child: SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0.0, 0.05),
+                    end: Offset.zero,
+                  ).animate(curved),
+                  child: child,
+                ),
+              );
+            },
+          ),
+        )
+        .then((_) {
+          if (!mounted) return;
+          setState(() => _selectedIndex = 0);
+        });
   }
   // Construye un carrusel simple con indicadores
   Widget _buildCarousel() {

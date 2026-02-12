@@ -183,7 +183,14 @@ class HomeConductorViewModel extends ChangeNotifier {
       // Do not subscribe while disconnected.
       return;
     }
-    _sub = _firestore.collection('solicitudes').snapshots().listen((snap) {
+
+    // Suscribirse solo a solicitudes en estado "pendiente/buscando" para
+    // reducir el volumen de datos descargados.
+    _sub = _firestore
+        .collection('solicitudes')
+        .where('status', whereIn: ['buscando', 'pending', 'pendiente'])
+        .snapshots()
+        .listen((snap) {
       _handleSolicitudesQuerySnapshot(snap);
     });
   }

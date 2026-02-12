@@ -407,10 +407,17 @@ class _RutaClienteViewState extends State<RutaClienteView> {
 
         final distanceMeters = _haversineDistanceMeters(clientePos, conductorPos);
         final zoom = _zoomForDistanceMeters(distanceMeters);
+        // Orientar la cámara desde el cliente hacia el conductor
+        final bearing = _calculateBearing(clientePos, conductorPos);
         try {
           await _mapController!.animateCamera(
             CameraUpdate.newCameraPosition(
-              CameraPosition(target: center, zoom: zoom, bearing: 0.0, tilt: 0.0),
+              CameraPosition(
+                target: center,
+                zoom: zoom,
+                bearing: bearing,
+                tilt: 0.0,
+              ),
             ),
           );
           return;
@@ -455,7 +462,13 @@ class _RutaClienteViewState extends State<RutaClienteView> {
       try {
         await _mapController!.animateCamera(
           CameraUpdate.newCameraPosition(
-            CameraPosition(target: center, zoom: zoom, bearing: 0.0, tilt: 0.0),
+            CameraPosition(
+              target: center,
+              zoom: zoom,
+              // Usar bearing calculado en el ViewModel si está disponible
+              bearing: _vm.initialBearing ?? 0.0,
+              tilt: 0.0,
+            ),
           ),
         );
       } catch (_) {

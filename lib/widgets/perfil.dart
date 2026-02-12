@@ -10,6 +10,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'dart:ui' as ui;
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:provider/provider.dart';
 import 'package:taxi_app/helper/responsive_helper.dart';
 import 'package:taxi_app/helper/session_helper.dart';
@@ -596,7 +597,15 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
                                       : (_cachedVehicleFile != null && (_cachedVehicleFile?.existsSync() ?? false))
                                         ? Image.file(_cachedVehicleFile!, fit: BoxFit.cover)
                                         : (userData != null && userData!['fotoVehiculo'] != null && (userData!['fotoVehiculo'] as String).isNotEmpty)
-                                          ? Image.network(userData!['fotoVehiculo'] as String, fit: BoxFit.cover)
+                                          ? CachedNetworkImage(
+                                              imageUrl: userData!['fotoVehiculo'] as String,
+                                              fit: BoxFit.cover,
+                                              placeholder: (_, __) => Container(color: Colors.grey.shade200),
+                                              errorWidget: (_, __, ___) => Container(
+                                                color: Colors.grey.shade200,
+                                                child: const Icon(Icons.directions_car, color: Colors.white),
+                                              ),
+                                            )
                                           : Container(color: Colors.grey.shade200, child: const Icon(Icons.directions_car, color: Colors.white)),
                                 ),
                               ),

@@ -289,7 +289,7 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
                     // Nombre y placa arriba (dentro de un marco) -- ocultar cuando hay preview seleccionada
                     if (vm.selectedPreview == null)
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(16.0, 5.0, 16.0, 8.0),
+                        padding: const EdgeInsets.fromLTRB(16.0, 0.0, 16.0, 8.0),
                         child: Container(
                           width: double.infinity,
                           constraints: const BoxConstraints(minHeight: 110),
@@ -452,6 +452,9 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
                         ),
                       ),
 
+                    // Espacio entre la tarjeta de información del conductor y el mapa
+                    const SizedBox(height: 12),
+
                     // Reserva espacio para la preview cuando está seleccionada
                     // pero solo si NO hemos expandido el mapa (tap reciente).
                     if (vm.selectedPreview != null && !vm.isMapExpanded) SizedBox(height: _previewHeight + 0),
@@ -459,7 +462,7 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
                     // Mapa colocado justo bajo el contenedor de información y ocupa el espacio restante
                     Expanded(
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 2.0),
+                        padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 8.0),
                         child: Container(
                               height: double.infinity,
                               width: double.infinity,
@@ -675,7 +678,7 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
                     // Botón de conexión colocado debajo del mapa, ancho completo
                     if (!vm.isMapExpanded && vm.selectedPreview == null && _conductorStream != null)
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+                        padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 16.0),
                         child: StreamBuilder<DocumentSnapshot?>(
                           stream: _conductorStream,
                           builder: (ctx, snap) {
@@ -777,7 +780,7 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
                       return;
                     }
                     if (index == 2) {
-                      await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PaginaPerfilUsuario(tipoUsuario: 'conductor')));
+                      _navigateToPerfilConductor();
                     }
                   },
                 )
@@ -800,5 +803,30 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
     } catch (_) {}
     _mapController = null;
     super.dispose();
+  }
+
+  void _navigateToPerfilConductor() {
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            const PaginaPerfilUsuario(tipoUsuario: 'conductor'),
+        transitionDuration: const Duration(milliseconds: 250),
+        reverseTransitionDuration: const Duration(milliseconds: 200),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          final curved = CurvedAnimation(parent: animation, curve: Curves.easeInOut);
+
+          return FadeTransition(
+            opacity: curved,
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0.0, 0.05),
+                end: Offset.zero,
+              ).animate(curved),
+              child: child,
+            ),
+          );
+        },
+      ),
+    );
   }
 }

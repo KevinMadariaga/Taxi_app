@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/helper/responsive_helper.dart';
 import 'package:taxi_app/services/firebase_service.dart';
@@ -675,12 +676,17 @@ class _RutaDestinoClienteViewState extends State<RutaDestinoClienteView> {
 																												if (_conductorVehiclePhoto != null && _conductorVehiclePhoto!.isNotEmpty)
 																													ClipRRect(
 																														borderRadius: BorderRadius.circular(8),
-																														child: Image.network(
-																															_conductorVehiclePhoto!,
+																														child: CachedNetworkImage(
+																															imageUrl: _conductorVehiclePhoto!,
 																															height: ResponsiveHelper.hp(context, 8),
 																															width: ResponsiveHelper.wp(context, 30),
 																															fit: BoxFit.cover,
-																															errorBuilder: (c, e, s) => Container(
+																															placeholder: (_, __) => Container(
+																																height: ResponsiveHelper.hp(context, 8),
+																																width: ResponsiveHelper.wp(context, 30),
+																																color: Colors.grey.shade200,
+																															),
+																															errorWidget: (c, e, s) => Container(
 																																height: ResponsiveHelper.hp(context, 8),
 																																width: ResponsiveHelper.wp(context, 30),
 																																decoration: BoxDecoration(

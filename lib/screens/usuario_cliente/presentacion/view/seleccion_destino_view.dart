@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:geocoding/geocoding.dart';
@@ -69,6 +70,102 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
     _destinoFocus.dispose();
     _origenFocus.dispose();
     super.dispose();
+  }
+
+  Future<void> _guardarUbicacionActualComoFavorita() async {
+    final loc = widget.currentLocation;
+    if (loc == null) return;
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudo guardar: usuario no autenticado')),
+      );
+      return;
+    }
+
+    String etiqueta = '';
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Guardar ubicación'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Elige un nombre para esta ubicación:'),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                children: [
+                  ActionChip(
+                    label: const Text('Casa'),
+                    onPressed: () {
+                      etiqueta = 'Casa';
+                      Navigator.of(ctx).pop();
+                    },
+                  ),
+                  ActionChip(
+                    label: const Text('Trabajo'),
+                    onPressed: () {
+                      etiqueta = 'Trabajo';
+                      Navigator.of(ctx).pop();
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              const Text('Otro nombre (opcional):'),
+              const SizedBox(height: 8),
+              TextField(
+                decoration: const InputDecoration(
+                  hintText: 'Ej. Colegio de los niños',
+                ),
+                onChanged: (value) {
+                  etiqueta = value;
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () {
+                etiqueta = etiqueta.trim();
+                Navigator.of(ctx).pop();
+              },
+              child: const Text('Guardar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (etiqueta.isEmpty) return;
+
+    try {
+      await FirebaseFirestore.instance.collection('ubicaciones').add({
+        'userId': user.uid,
+        'nombre': etiqueta,
+        'ubicacion': GeoPoint(loc.latitude, loc.longitude),
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Ubicación guardada como "$etiqueta"')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudo guardar la ubicación')),
+      );
+    }
   }
 
   @override
@@ -210,6 +307,17 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
                 },
               ),
               const SizedBox(height: 8),
+              // Botón para guardar la ubicación actual como favorita (Casa, Trabajo, etc.)
+              if (widget.currentLocation != null)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: _guardarUbicacionActualComoFavorita,
+                    icon: const Icon(Icons.star_border, color: Colors.black87),
+                    label: const Text('Guardar ubicación actual'),
+                  ),
+                ),
+              const SizedBox(height: 8),
            
               if (_sugerencias.isNotEmpty)
                 Flexible(
@@ -257,19 +365,35 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
 }
 
 Future<List<UbicacionResultado>> buscarUbicacionesHelper(String query) async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) {
+    return [];
+  }
+
   final snapshot = await FirebaseFirestore.instance
       .collection('ubicaciones')
       .get();
   final normalizado = query.toLowerCase();
   return snapshot.docs
-      .where(
-        (doc) => (doc['nombre'] as String).toLowerCase().contains(normalizado),
-      )
+      .where((doc) {
+        final data = doc.data();
+        final nombre = (data['nombre'] ?? '') as String;
+        final ownerId = data['userId'] as String?;
+
+        // Si tiene ownerId, solo mostrar si pertenece al usuario actual
+        if (ownerId != null && ownerId.isNotEmpty && ownerId != user.uid) {
+          return false;
+        }
+
+        return nombre.toLowerCase().contains(normalizado);
+      })
       .map((doc) {
-        final geopoint = doc['ubicacion'];
+        final data = doc.data();
+        final geopoint = data['ubicacion'] as GeoPoint;
+        final nombre = (data['nombre'] ?? '') as String;
         return UbicacionResultado(
           location: LatLng(geopoint.latitude, geopoint.longitude),
-          direccion: doc['nombre'],
+          direccion: nombre,
         );
       })
       .toList();
