@@ -129,6 +129,8 @@ class _MapPreviewState extends State<MapPreview> {
                         onMapCreated: _onMapCreated,
                         myLocationEnabled: false,
                         myLocationButtonEnabled: false,
+                        rotateGesturesEnabled: false,
+                        tiltGesturesEnabled: false,
                         markers: {
                         Marker(
                           markerId: const MarkerId('ubicacion'),
@@ -218,7 +220,7 @@ class _MapPreviewState extends State<MapPreview> {
                                   Text('¿Adónde va?', style: TextStyle(fontSize: ResponsiveHelper.sp(context, 12), color: Colors.black54)),
                                   SizedBox(height: ResponsiveHelper.hp(context, 0.5)),
                                   Text(
-                                    vm.destino.title ?? 'Destino',
+                                    vm.destino.title ?? vm.destino.subtitle ?? 'Destino',
                                     style: TextStyle(fontWeight: FontWeight.w700, fontSize: ResponsiveHelper.sp(context, 14)),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,

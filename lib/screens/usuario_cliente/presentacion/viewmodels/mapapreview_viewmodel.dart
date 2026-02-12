@@ -353,6 +353,7 @@ class MapapreviewViewModel extends ChangeNotifier {
         },
         'destino': {
           'title': destino.title ?? '',
+          'direccion': destino.subtitle ?? destino.title ?? '',
           'lat': destino.position.latitude,
           'lng': destino.position.longitude,
         },

@@ -24,6 +24,7 @@ class RutaConductorUsuarioViewModel {
 
   StreamSubscription<String?>? _solicitudSub;
   bool _trackingActivo = false;
+  bool _cancelHandled = false;
 
   RutaConductorUsuarioViewModel({
     required this.solicitudId,
@@ -156,7 +157,8 @@ class RutaConductorUsuarioViewModel {
           // Delegate UI navigation/transition to the view via callback.
           // ViewModels should not operate on BuildContext directly because
           // async listeners may fire when the UI has been disposed.
-          if (onSolicitudCancelada != null) {
+          if (!_cancelHandled && onSolicitudCancelada != null) {
+            _cancelHandled = true;
             try {
               onSolicitudCancelada!();
             } catch (_) {}

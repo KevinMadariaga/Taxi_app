@@ -149,9 +149,30 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
     if (etiqueta.isEmpty) return;
 
     try {
+      // Obtener una dirección legible para guardar junto con el nombre
+      String direccion = '';
+      try {
+        final placemarks = await placemarkFromCoordinates(loc.latitude, loc.longitude);
+        if (placemarks.isNotEmpty) {
+          final p = placemarks.first;
+          direccion = [
+            p.street,
+            p.subLocality,
+            p.locality,
+            p.administrativeArea,
+          ].where((s) => s != null && s!.isNotEmpty).join(', ');
+        }
+      } catch (_) {}
+
+      // Fallback: usar coordenadas si no se pudo obtener dirección
+      if (direccion.isEmpty) {
+        direccion = '${loc.latitude.toStringAsFixed(6)}, ${loc.longitude.toStringAsFixed(6)}';
+      }
+
       await FirebaseFirestore.instance.collection('ubicaciones').add({
         'userId': user.uid,
         'nombre': etiqueta,
+        'direccion': direccion,
         'ubicacion': GeoPoint(loc.latitude, loc.longitude),
         'createdAt': FieldValue.serverTimestamp(),
       });
@@ -330,7 +351,8 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
                         final s = _sugerencias[index];
                         return ListTile(
                           leading: const Icon(Icons.location_on_outlined, color: Colors.black54),
-                          title: Text(s.direccion),
+                          title: Text(s.nombre.isNotEmpty ? s.nombre : s.direccion),
+                          subtitle: s.direccion.isNotEmpty ? Text(s.direccion) : null,
                           onTap: () {
                             // Cerrar teclado al seleccionar una ubicación
                             FocusScope.of(context).unfocus();
@@ -338,7 +360,7 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
                               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Ubicación no disponible')));
                               return;
                             }
-                            _destinoController.text = s.direccion;
+                            _destinoController.text = s.nombre.isNotEmpty ? s.nombre : s.direccion;
                             setState(() => _sugerencias = []);
                             // Navegar a la vista de mapa mostrando la ubicación seleccionada
                             Navigator.of(context).push(MaterialPageRoute(
@@ -378,6 +400,7 @@ Future<List<UbicacionResultado>> buscarUbicacionesHelper(String query) async {
       .where((doc) {
         final data = doc.data();
         final nombre = (data['nombre'] ?? '') as String;
+      final direccion = (data['direccion'] ?? '') as String;
         final ownerId = data['userId'] as String?;
 
         // Si tiene ownerId, solo mostrar si pertenece al usuario actual
@@ -385,15 +408,18 @@ Future<List<UbicacionResultado>> buscarUbicacionesHelper(String query) async {
           return false;
         }
 
-        return nombre.toLowerCase().contains(normalizado);
+        final textoBusqueda = (nombre + ' ' + direccion).toLowerCase();
+        return textoBusqueda.contains(normalizado);
       })
       .map((doc) {
         final data = doc.data();
         final geopoint = data['ubicacion'] as GeoPoint;
         final nombre = (data['nombre'] ?? '') as String;
+        final direccion = (data['direccion'] ?? '') as String;
         return UbicacionResultado(
           location: LatLng(geopoint.latitude, geopoint.longitude),
-          direccion: nombre,
+          nombre: nombre,
+          direccion: direccion.isNotEmpty ? direccion : nombre,
         );
       })
       .toList();

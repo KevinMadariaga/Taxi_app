@@ -15,6 +15,8 @@ class AppGoogleMap extends StatefulWidget {
 	final bool myLocationEnabled;
 	final bool myLocationButtonEnabled;
 	final bool compassEnabled;
+	final bool rotateGesturesEnabled;
+	final bool tiltGesturesEnabled;
 	final EdgeInsets padding;
 
 	const AppGoogleMap({
@@ -32,6 +34,8 @@ class AppGoogleMap extends StatefulWidget {
 		this.myLocationEnabled = false,
 		this.myLocationButtonEnabled = false,
 		this.compassEnabled = true,
+		this.rotateGesturesEnabled = true,
+		this.tiltGesturesEnabled = true,
 		this.padding = EdgeInsets.zero,
 	});
 
@@ -81,8 +85,8 @@ class _AppGoogleMapState extends State<AppGoogleMap> {
 			zoomControlsEnabled: false,
 			zoomGesturesEnabled: true,
 			scrollGesturesEnabled: true,
-			rotateGesturesEnabled: true,
-			tiltGesturesEnabled: true,
+			rotateGesturesEnabled: widget.rotateGesturesEnabled,
+			tiltGesturesEnabled: widget.tiltGesturesEnabled,
 		);
 	}
 }

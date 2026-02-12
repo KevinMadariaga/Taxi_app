@@ -392,44 +392,6 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
     }
   }
 
-  Future<void> _toggleConectado() async {
-    final uid = _auth.currentUser?.uid;
-    if (uid == null) return;
-    if (widget.tipoUsuario != 'conductor') return;
-
-    final current = (userData?['conectado'] == true);
-    final newVal = !current;
-
-    setState(() {
-      _isTogglingConnection = true;
-      userData ??= {};
-      userData!['conectado'] = newVal;
-    });
-
-    try {
-      await _firestore.collection(widget.tipoUsuario).doc(uid).update({'conectado': newVal});
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(newVal ? 'Estado: Conectado' : 'Estado: Desconectado')),
-        );
-      }
-    } catch (e) {
-      setState(() {
-        userData!['conectado'] = current;
-      });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error actualizando estado: $e')),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isTogglingConnection = false;
-        });
-      }
-    }
-  }
 
   void _mostrarDialogoEditar() {
     final parentContext = context;
@@ -516,114 +478,78 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
               ResponsiveHelper.wp(context, 5),
               0,
             ),
-            title: Row(
+            title: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.edit, color: AppColores.primary, size: iconSize),
-                SizedBox(width: ResponsiveHelper.wp(context, 3)),
-                Text(
-                  "Editar Perfil",
-                  style: TextStyle(
-                    fontSize: titleFontSize,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.black87,
-                  ),
+                Row(
+                  children: [
+                    const Icon(Icons.edit, color: AppColores.primary, size: iconSize),
+                    SizedBox(width: ResponsiveHelper.wp(context, 3)),
+                    Text(
+                      "Editar Perfil",
+                      style: TextStyle(
+                        fontSize: titleFontSize,
+                        fontWeight: FontWeight.w800,
+                        color: AppColores.textPrimary,
+                      ),
+                    ),
+                  ],
                 ),
+                const SizedBox(height: 6),
+                const Divider(thickness: 1),
               ],
             ),
+            
             content: SizedBox(
               width: w,
               child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                      // Preview de foto editable
-                      Center(
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            CircleAvatar(
-                              radius: 48,
-                              backgroundColor: Colors.grey.shade200,
-                              backgroundImage: selectedImageInDialog != null
-                                  ? FileImage(selectedImageInDialog!) as ImageProvider
-                                  : (_cachedImageFile != null && _cachedImageFile!.existsSync())
-                                      ? FileImage(_cachedImageFile!)
-                                      : (userData != null && userData!['foto'] != null && (userData!['foto'] as String).isNotEmpty)
-                                          ? NetworkImage(userData!['foto'] as String)
-                                          : null,
-                              child: (selectedImageInDialog == null && (_cachedImageFile == null || !(_cachedImageFile?.existsSync() ?? false)) &&
-                                      (userData == null || userData!['foto'] == null || (userData!['foto'] as String).isEmpty))
-                                  ? Icon(Icons.person, size: 44, color: Colors.white)
-                                  : null,
-                            ),
-                            Positioned(
-                              bottom: 0,
-                              right: 0,
-                              child: InkWell(
-                                onTap: () async {
-                                  await pickImageForDialog();
-                                },
-                                child: CircleAvatar(
-                                  radius: 18,
-                                  backgroundColor: AppColores.buttonPrimary,
-                                  child: Icon(Icons.camera_alt, size: 18, color: AppColores.textPrimary),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    // Foto del vehículo (solo para conductores)
-                    if (widget.tipoUsuario == 'conductor') ...[
-                      SizedBox(height: ResponsiveHelper.hp(context, 2)),
-                      Column(
+                    // Preview de foto editable (más grande para el conductor)
+                    Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: Text('Foto del vehículo', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                          const Text(
+                            'Foto de perfil',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: AppColores.textPrimary,
+                            ),
                           ),
                           SizedBox(height: ResponsiveHelper.hp(context, 1)),
-                          // Mostrar foto del vehículo con overlay de cámara (tap en el círculo)
-                          // Rectángulo con bordes redondeados para foto del vehículo
                           Stack(
+                            alignment: Alignment.center,
                             children: [
-                              SizedBox(
-                                width: ResponsiveHelper.wp(context, 35),
-                                height: ResponsiveHelper.wp(context, 14),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(10),
-                                    child: selectedVehicleImageInDialog != null
-                                      ? Image.file(selectedVehicleImageInDialog!, fit: BoxFit.cover)
-                                      : (_cachedVehicleFile != null && (_cachedVehicleFile?.existsSync() ?? false))
-                                        ? Image.file(_cachedVehicleFile!, fit: BoxFit.cover)
-                                        : (userData != null && userData!['fotoVehiculo'] != null && (userData!['fotoVehiculo'] as String).isNotEmpty)
-                                          ? CachedNetworkImage(
-                                              imageUrl: userData!['fotoVehiculo'] as String,
-                                              fit: BoxFit.cover,
-                                              placeholder: (_, __) => Container(color: Colors.grey.shade200),
-                                              errorWidget: (_, __, ___) => Container(
-                                                color: Colors.grey.shade200,
-                                                child: const Icon(Icons.directions_car, color: Colors.white),
-                                              ),
-                                            )
-                                          : Container(color: Colors.grey.shade200, child: const Icon(Icons.directions_car, color: Colors.white)),
-                                ),
+                              CircleAvatar(
+                                radius: 60,
+                                backgroundColor: Colors.grey.shade200,
+                                backgroundImage: selectedImageInDialog != null
+                                    ? FileImage(selectedImageInDialog!) as ImageProvider
+                                    : (_cachedImageFile != null && _cachedImageFile!.existsSync())
+                                        ? FileImage(_cachedImageFile!)
+                                        : (userData != null && userData!['foto'] != null && (userData!['foto'] as String).isNotEmpty)
+                                            ? NetworkImage(userData!['foto'] as String)
+                                            : null,
+                                child: (selectedImageInDialog == null && (_cachedImageFile == null || !(_cachedImageFile?.existsSync() ?? false)) &&
+                                        (userData == null || userData!['foto'] == null || (userData!['foto'] as String).isEmpty))
+                                    ? Icon(Icons.person, size: 56, color: Colors.white)
+                                    : null,
                               ),
                               Positioned(
                                 bottom: 4,
                                 right: 4,
                                 child: InkWell(
                                   onTap: () async {
-                                    await pickVehicleImageForDialog();
+                                    await pickImageForDialog();
                                   },
-                                  child: Container(
-                                    width: 30,
-                                    height: 30,
-                                    decoration: BoxDecoration(
-                                      color: AppColores.buttonPrimary,
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Icon(Icons.camera_alt, size: 16, color: AppColores.textPrimary),
+                                  child: CircleAvatar(
+                                    radius: 20,
+                                    backgroundColor: AppColores.buttonPrimary,
+                                    child: Icon(Icons.camera_alt, size: 18, color: AppColores.textPrimary),
                                   ),
                                 ),
                               ),
@@ -631,8 +557,8 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
                           ),
                         ],
                       ),
-                    ],
-                    SizedBox(height: ResponsiveHelper.hp(context, 2)),
+                    ),
+                    SizedBox(height: ResponsiveHelper.hp(context, 2.5)),
                     _buildEditField("Nombre", nombreController),
                     SizedBox(height: ResponsiveHelper.hp(context, 2)),
                     _buildEditField(
@@ -643,6 +569,65 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
                     if (widget.tipoUsuario == 'conductor') ...[
                       SizedBox(height: ResponsiveHelper.hp(context, 2)),
                       _buildEditField("Placa", placaController),
+                      SizedBox(height: ResponsiveHelper.hp(context, 2)),
+                      Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            const Text('Foto del vehículo', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                            SizedBox(height: ResponsiveHelper.hp(context, 1)),
+                            Stack(
+                              children: [
+                                SizedBox(
+                                  width: ResponsiveHelper.wp(context, 50),
+                                  height: ResponsiveHelper.wp(context, 20),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: selectedVehicleImageInDialog != null
+                                        ? Image.file(selectedVehicleImageInDialog!, fit: BoxFit.cover)
+                                        : (_cachedVehicleFile != null && (_cachedVehicleFile?.existsSync() ?? false))
+                                            ? Image.file(_cachedVehicleFile!, fit: BoxFit.cover)
+                                            : (userData != null && userData!['fotoVehiculo'] != null && (userData!['fotoVehiculo'] as String).isNotEmpty)
+                                                ? CachedNetworkImage(
+                                                    imageUrl: userData!['fotoVehiculo'] as String,
+                                                    fit: BoxFit.cover,
+                                                    placeholder: (_, __) => Container(color: Colors.grey.shade200),
+                                                    errorWidget: (_, __, ___) => Container(
+                                                      color: Colors.grey.shade200,
+                                                      child: const Icon(Icons.directions_car, color: Colors.white),
+                                                    ),
+                                                  )
+                                                : Container(
+                                                    color: Colors.grey.shade200,
+                                                    child: const Icon(Icons.directions_car, color: Colors.white),
+                                                  ),
+                                  ),
+                                ),
+                                Positioned(
+                                  bottom: 8,
+                                  right: 8,
+                                  child: InkWell(
+                                    onTap: () async {
+                                      await pickVehicleImageForDialog();
+                                    },
+                                    child: Container(
+                                      width: 28,
+                                      height: 28,
+                                      decoration: BoxDecoration(
+                                        color: AppColores.buttonPrimary,
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Icon(Icons.camera_alt, size: 16, color: AppColores.textPrimary),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      SizedBox(height: ResponsiveHelper.hp(context, 2.5)),
                     ],
                   ],
                 ),
@@ -747,7 +732,7 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
                         label: const Text('Guardar'),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColores.buttonPrimary,
-                          foregroundColor: AppColores.textPrimary,
+                          foregroundColor: AppColores.textWhite,
                           padding: EdgeInsets.symmetric(
                             vertical: ResponsiveHelper.hp(context, 1.5),
                           ),
@@ -867,8 +852,8 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
     // Tamaños fijos estándar
     const double appBarFontSize = 20.0;
     const double nameFontSize = 22.0;
-    const double avatarRadius = 50.0;
-    const double avatarIconSize = 60.0;
+    const double avatarRadius = 68.0;
+    const double avatarIconSize = 80.0;
     const double buttonFontSize = 16.0;
     const double buttonIconSize = 24.0;
 
@@ -879,97 +864,103 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
       body: userData == null
           ? const Center(child: CircularProgressIndicator())
           : SafeArea(
-              child: ListView(
-                padding: EdgeInsets.all(ResponsiveHelper.wp(context, 4)),
-                children: [
-                  Center(
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        CircleAvatar(
-                          radius: avatarRadius,
-                          backgroundColor: Colors.grey.shade200,
-                          backgroundImage: _cachedImageFile != null && _cachedImageFile!.existsSync()
-                              ? FileImage(_cachedImageFile!) as ImageProvider
-                              : (userData != null && userData!['foto'] != null && (userData!['foto'] as String).isNotEmpty)
-                                  ? NetworkImage(userData!['foto'] as String)
+              child: Center(
+                child: Container(
+                  width: double.infinity,
+                  padding: EdgeInsets.all(ResponsiveHelper.wp(context, 4)),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Center(
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            CircleAvatar(
+                              radius: avatarRadius,
+                              backgroundColor: Colors.grey.shade200,
+                              backgroundImage: _cachedImageFile != null && _cachedImageFile!.existsSync()
+                                  ? FileImage(_cachedImageFile!) as ImageProvider
+                                  : (userData != null && userData!['foto'] != null && (userData!['foto'] as String).isNotEmpty)
+                                      ? NetworkImage(userData!['foto'] as String)
+                                      : null,
+                              child: (_cachedImageFile == null || !(_cachedImageFile?.existsSync() ?? false)) &&
+                                      (userData == null || userData!['foto'] == null || (userData!['foto'] as String).isEmpty)
+                                  ? Icon(
+                                      Icons.person,
+                                      size: avatarIconSize,
+                                      color: Colors.white,
+                                    )
                                   : null,
-                          child: (_cachedImageFile == null || !(_cachedImageFile?.existsSync() ?? false)) &&
-                                  (userData == null || userData!['foto'] == null || (userData!['foto'] as String).isEmpty)
-                              ? Icon(
-                                  Icons.person,
-                                  size: avatarIconSize,
-                                  color: Colors.white,
-                                )
-                              : null,
+                            ),
+                            if (_isUploading)
+                              Positioned(
+                                bottom: -6,
+                                child: SizedBox(
+                                  width: avatarRadius * 1.8,
+                                  child: LinearProgressIndicator(value: _uploadProgress),
+                                ),
+                              ),
+                            // Edit overlay removed from main avatar: editing available only inside the edit dialog
+                          ],
                         ),
-                        if (_isUploading)
-                          Positioned(
-                            bottom: -6,
-                            child: SizedBox(
-                              width: avatarRadius * 1.8,
-                              child: LinearProgressIndicator(value: _uploadProgress),
+                      ),
+                      SizedBox(height: ResponsiveHelper.hp(context, 2)),
+                      Center(
+                        child: Text(
+                          nombre.toUpperCase(),
+                          style: const TextStyle(
+                            fontSize: nameFontSize,
+                            fontWeight: FontWeight.bold,
+                            color: AppColores.textPrimary,
+                          ),
+                        ),
+                      ),
+                      SizedBox(height: ResponsiveHelper.hp(context, 1)),
+                      // Conductor connection toggle moved to driver home view
+                      SizedBox(height: ResponsiveHelper.hp(context, 1)),
+                      _buildInfoCard(
+                        Icons.email,
+                        'Correo',
+                        userData?['correo'] ?? 'Sin correo',
+                      ),
+                      _buildInfoCard(
+                        Icons.phone,
+                        'Teléfono',
+                        userData?['telefono'] ?? 'Sin número',
+                      ),
+                      if (widget.tipoUsuario == 'conductor')
+                        _buildInfoCard(
+                          Icons.local_taxi,
+                          'Placa',
+                          userData?['placa'] ?? 'Sin placa registrada',
+                        ),
+                      if (widget.tipoUsuario == 'conductor')
+                        _buildVehiclePhotoCard(),
+                      SizedBox(height: ResponsiveHelper.hp(context, 3)),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: _mostrarDialogoEditar,
+                              icon: const Icon(Icons.edit, size: buttonIconSize),
+                              label: const Text(
+                                "Editar Datos",
+                                style: TextStyle(fontSize: buttonFontSize),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColores.buttonPrimary,
+                                foregroundColor: AppColores.textWhite,
+                                padding: EdgeInsets.symmetric(
+                                  vertical: ResponsiveHelper.hp(context, 1.5),
+                                  horizontal: ResponsiveHelper.wp(context, 2),
+                                ),
+                              ),
                             ),
                           ),
-                        // Edit overlay removed from main avatar: editing available only inside the edit dialog
-                      ],
-                    ),
-                  ),
-                  SizedBox(height: ResponsiveHelper.hp(context, 2)),
-                  Center(
-                    child: Text(
-                      nombre.toUpperCase(),
-                      style: const TextStyle(
-                          fontSize: nameFontSize,
-                        fontWeight: FontWeight.bold,
-                          color: AppColores.textPrimary,
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: ResponsiveHelper.hp(context, 1)),
-                  // Conductor connection toggle moved to driver home view
-                  SizedBox(height: ResponsiveHelper.hp(context, 1)),
-                _buildInfoCard(
-                  Icons.email,
-                  'Correo',
-                  userData?['correo'] ?? 'Sin correo',
-                ),
-                _buildInfoCard(
-                  Icons.phone,
-                  'Teléfono',
-                  userData?['telefono'] ?? 'Sin número',
-                ),
-                if (widget.tipoUsuario == 'conductor')
-                  _buildInfoCard(
-                    Icons.local_taxi,
-                    'Placa',
-                    userData?['placa'] ?? 'Sin placa registrada',
-                  ),
-                if (widget.tipoUsuario == 'conductor')
-                  _buildVehiclePhotoCard(),
-                SizedBox(height: ResponsiveHelper.hp(context, 3)),
-                Center(
-                  child: ElevatedButton.icon(
-                    onPressed: _mostrarDialogoEditar,
-                    icon: const Icon(Icons.edit, size: buttonIconSize),
-                    label: const Text(
-                      "Editar Datos",
-                      style: TextStyle(fontSize: buttonFontSize),
-                    ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColores.buttonPrimary,
-                        foregroundColor: AppColores.textPrimary,
-                      padding: EdgeInsets.symmetric(
-                        vertical: ResponsiveHelper.hp(context, 1.5),
-                        horizontal: ResponsiveHelper.wp(context, 5),
-                      ),
-                    ),
-                  ),
-                ),
-                SizedBox(height: ResponsiveHelper.hp(context, 2)),
-                Center(
-                  child: ElevatedButton.icon(
-                    onPressed: () async {
+                          SizedBox(width: ResponsiveHelper.wp(context, 3)),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () async {
                       // Tamaños fijos para el diálogo de confirmación
                       const double dialogIconSize = 38.0;
                       const double dialogTextSize = 18.0;
@@ -1081,96 +1072,100 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
                         },
                       );
 
-                      if (confirm == true) {
+                              if (confirm == true) {
                         // Capture the BuildContext and NavigatorState before async gaps.
-                        final BuildContext ctx = context;
-                        final navigator = Navigator.of(ctx);
+                                final BuildContext ctx = context;
+                                final navigator = Navigator.of(ctx);
 
                         // Mostrar diálogo de progreso mientras se cierra la sesión
-                        showDialog<void>(
-                          context: context,
-                          barrierDismissible: false,
-                          builder: (ctx) {
-                            return AlertDialog(
-                              content: SizedBox(
-                                height: 60,
-                                child: Row(
-                                  children: const [
-                                    CircularProgressIndicator(),
-                                    SizedBox(width: 16),
-                                    Expanded(
-                                      child: Text(
-                                        'Cerrando sesión...',
-                                        style: TextStyle(fontSize: 16),
+                                showDialog<void>(
+                                  context: context,
+                                  barrierDismissible: false,
+                                  builder: (ctx) {
+                                    return AlertDialog(
+                                      content: SizedBox(
+                                        height: 60,
+                                        child: Row(
+                                          children: const [
+                                            CircularProgressIndicator(),
+                                            SizedBox(width: 16),
+                                            Expanded(
+                                              child: Text(
+                                                'Cerrando sesión...',
+                                                style: TextStyle(fontSize: 16),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                       ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
-                        );
-                        try {
+                                    );
+                                  },
+                                );
+                                try {
                             // Usar el ViewModel / repositorio para cerrar sesión
-                            final vm = Provider.of<AuthViewModel>(context, listen: false);
-                            final uidBeforeLogout = _auth.currentUser?.uid;
-                            await vm.logout();
-                            // Limpiar datos locales de sesión
-                            await SessionHelper.clearSession();
-                            // Borrar cache local de la foto de perfil si existe
-                            try {
-                              if (uidBeforeLogout != null) {
-                                final f = await _cacheFileForUid(uidBeforeLogout);
-                                if (f.existsSync()) {
-                                  await f.delete();
-                                }
-                                if (mounted) {
-                                  setState(() {
-                                    _cachedImageFile = null;
-                                  });
-                                }
-                              }
-                            } catch (_) {}
-                        } finally {
+                                  final vm = Provider.of<AuthViewModel>(context, listen: false);
+                                  final uidBeforeLogout = _auth.currentUser?.uid;
+                                  await vm.logout();
+                                  // Limpiar datos locales de sesión
+                                  await SessionHelper.clearSession();
+                                  // Borrar cache local de la foto de perfil si existe
+                                  try {
+                                    if (uidBeforeLogout != null) {
+                                      final f = await _cacheFileForUid(uidBeforeLogout);
+                                      if (f.existsSync()) {
+                                        await f.delete();
+                                      }
+                                      if (mounted) {
+                                        setState(() {
+                                          _cachedImageFile = null;
+                                        });
+                                      }
+                                    }
+                                  } catch (_) {}
+                                } finally {
                           // Mantener el diálogo de progreso visible un poco más
-                          await Future.delayed(const Duration(milliseconds: 1500));
+                                  await Future.delayed(const Duration(milliseconds: 1500));
 
                           // Use the captured BuildContext's mounted flag before using it.
-                          if (ctx.mounted) {
-                            if (navigator.mounted) {
-                              try {
-                                navigator.pop();
-                              } catch (_) {}
-                              try {
-                                navigator.pushReplacement(MaterialPageRoute(builder: (_) => const HomeView()));
-                              } catch (_) {}
-                            } else {
-                              try {
-                                Navigator.pushReplacement(ctx, MaterialPageRoute(builder: (_) => const HomeView()));
-                              } catch (_) {}
-                            }
-                          }
-                        }
-                      }
-                    },
-                    icon: const Icon(Icons.logout, size: buttonIconSize),
-                    label: const Text(
-                      'Cerrar Sesión',
-                      style: TextStyle(fontSize: buttonFontSize),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.redAccent,
-                      foregroundColor: Colors.white,
-                      padding: EdgeInsets.symmetric(
-                        vertical: ResponsiveHelper.hp(context, 1.5),
-                        horizontal: ResponsiveHelper.wp(context, 5),
+                                  if (ctx.mounted) {
+                                    if (navigator.mounted) {
+                                      try {
+                                        navigator.pop();
+                                      } catch (_) {}
+                                      try {
+                                        navigator.pushReplacement(MaterialPageRoute(builder: (_) => const HomeView()));
+                                      } catch (_) {}
+                                    } else {
+                                      try {
+                                        Navigator.pushReplacement(ctx, MaterialPageRoute(builder: (_) => const HomeView()));
+                                      } catch (_) {}
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            icon: const Icon(Icons.logout, size: buttonIconSize),
+                            label: const Text(
+                              'Cerrar Sesión',
+                              style: TextStyle(fontSize: buttonFontSize),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.redAccent,
+                              foregroundColor: Colors.white,
+                              padding: EdgeInsets.symmetric(
+                                vertical: ResponsiveHelper.hp(context, 1.5),
+                                horizontal: ResponsiveHelper.wp(context, 2),
+                              ),
+                            ),
+                          ),
+                          ),
+                        ],
                       ),
-                    ),
+                    ],
                   ),
                 ),
-              ],
+              ),
             ),
-          ),
     );
   }
 }

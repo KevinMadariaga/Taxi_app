@@ -42,9 +42,20 @@ class ResumenClienteView extends StatelessWidget {
 
           final data = vm.solicitudData ?? <String, dynamic>{};
           final destinoRaw = data['destino'];
-          String destinoTexto = data['direccion_seleccionada'] ?? 'No disponible';
+          String destinoTexto = 'No disponible';
           if (destinoRaw is Map<String, dynamic>) {
-            destinoTexto = destinoRaw['title']?.toString() ?? destinoTexto;
+            final d = destinoRaw;
+            if (d['title']?.toString().trim().isNotEmpty == true) {
+              // Para el cliente mostramos el nombre/etiqueta de la ubicación guardada.
+              destinoTexto = d['title'].toString();
+            } else {
+              destinoTexto = data['direccion_seleccionada']?.toString() ??
+                  d['direccion']?.toString() ??
+                  'No disponible';
+            }
+          } else {
+            destinoTexto =
+                data['direccion_seleccionada']?.toString() ?? 'No disponible';
           }
           final metodoPago = data['metodo_pago'];
           final horaFin = (data['completedAt'] ?? data['fecha de terminacion']) as Timestamp?;

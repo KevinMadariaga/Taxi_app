@@ -281,15 +281,8 @@ class _RutaConductorViewState extends State<RutaConductorView> {
 
   void _handleSolicitudCancelada() {
     if (!mounted) return;
-    // Limpia cache de la solicitud cancelada
+    // Limpia cache de la solicitud cancelada (el estado "cancelado" ya viene desde Firestore)
     RouteCacheService.clearSolicitud(widget.solicitudId);
-    // Marcar la solicitud como cancelada en Firestore y mostrar loader antes de volver al inicio
-    try {
-      FirebaseFirestore.instance
-          .collection('solicitudes')
-          .doc(widget.solicitudId)
-          .update({'status': 'cancelada'});
-    } catch (_) {}
 
     // Mostrar pantalla intermedia de 3 segundos y luego volver al inicio
     Navigator.of(context).pushReplacement(
@@ -326,30 +319,9 @@ class _RutaConductorViewState extends State<RutaConductorView> {
 
   void _onMapCreated(GoogleMapController controller) async {
     _mapController = controller;
-    // Centrar en el conductor, orientando el mapa hacia el cliente
+    // Ajustar vista inicial para que se vean conductor y cliente (si ambos existen)
     try {
-      final origin = _driverLocation ?? widget.driverLocation;
-      final dest = _clientLocation ?? widget.clientLocation;
-
-      if (origin != null && dest != null) {
-        final bearing = _calculateBearing(origin, dest);
-        final dist = _haversineDistanceMeters(origin, dest);
-        final zoom = _zoomForDistanceMeters(dist);
-        await _mapController?.animateCamera(
-          CameraUpdate.newCameraPosition(
-            CameraPosition(
-              target: origin,
-              zoom: zoom,
-              bearing: bearing,
-              tilt: 45, // Inclinación para mejor visualización 3D de la ruta
-            ),
-          ),
-        );
-      } else if (dest != null) {
-        await _mapController?.animateCamera(
-          CameraUpdate.newLatLngZoom(dest, 16),
-        );
-      }
+      await _fitCameraToDriverAndClient();
     } catch (_) {}
   }
 
@@ -679,24 +651,8 @@ class _RutaConductorViewState extends State<RutaConductorView> {
       // Ajustar cámara centrada en el conductor mirando hacia el cliente con bearing y zoom dinámico
       if (_mapController != null && points.isNotEmpty && points.length >= 2) {
         try {
-          final conductorPos = origin;
-          final clientePos = dest;
-          
-          if (conductorPos != null && clientePos != null) {
-            final bearing = _calculateBearing(conductorPos, clientePos);
-            final dist = _haversineDistanceMeters(conductorPos, clientePos);
-            final zoom = _zoomForDistanceMeters(dist);
-            await _mapController!.animateCamera(
-              CameraUpdate.newCameraPosition(
-                CameraPosition(
-                  target: conductorPos,
-                  zoom: zoom,
-                  bearing: bearing,
-                  tilt: 45,
-                ),
-              ),
-            );
-          }
+          // Al tener ya la ruta, ajustamos para que se vean conductor y cliente
+          await _fitCameraToDriverAndClient();
         } catch (_) {}
       }
     } catch (_) {
@@ -718,6 +674,60 @@ class _RutaConductorViewState extends State<RutaConductorView> {
         math.cos(lat1) * math.cos(lat2) * math.sin(dLon / 2) * math.sin(dLon / 2);
     final c = 2 * math.atan2(math.sqrt(h), math.sqrt(1 - h));
     return R * c;
+  }
+
+  /// Ajusta la cámara para que en el mapa se vean, en la misma vista,
+  /// la ubicación del conductor y la del cliente cuando ambas están disponibles.
+  Future<void> _fitCameraToDriverAndClient() async {
+    if (_mapController == null) return;
+
+    final driver = _driverLocation ?? widget.driverLocation;
+    final client = _clientLocation ?? widget.clientLocation;
+
+    // Si solo hay uno de los dos, centramos ahí con un zoom razonable
+    if (driver == null && client == null) return;
+    if (driver != null && client == null) {
+      await _mapController!.animateCamera(
+        CameraUpdate.newLatLngZoom(driver, 15.5),
+      );
+      return;
+    }
+    if (client != null && driver == null) {
+      await _mapController!.animateCamera(
+        CameraUpdate.newLatLngZoom(client, 16.0),
+      );
+      return;
+    }
+
+    // Ambos puntos disponibles: calcular bounds
+    final d = driver!;
+    final c = client!;
+
+    final southWest = LatLng(
+      math.min(d.latitude, c.latitude),
+      math.min(d.longitude, c.longitude),
+    );
+    final northEast = LatLng(
+      math.max(d.latitude, c.latitude),
+      math.max(d.longitude, c.longitude),
+    );
+
+    final bounds = LatLngBounds(southwest: southWest, northeast: northEast);
+
+    try {
+      await _mapController!.animateCamera(
+        CameraUpdate.newLatLngBounds(bounds, 80),
+      );
+    } catch (_) {
+      // En algunos dispositivos puede fallar si el mapa aún no tiene tamaño.
+      // Reintentar tras un pequeño delay.
+      try {
+        await Future.delayed(const Duration(milliseconds: 300));
+        await _mapController!.animateCamera(
+          CameraUpdate.newLatLngBounds(bounds, 80),
+        );
+      } catch (_) {}
+    }
   }
 
   void _shortenRouteToDriver() {
@@ -785,7 +795,7 @@ class _RutaConductorViewState extends State<RutaConductorView> {
               target: _driverLocation!,
               zoom: zoom,
               bearing: bearing,
-              tilt: 45,
+              tilt: 0,
             ),
           ),
         );
@@ -802,19 +812,7 @@ class _RutaConductorViewState extends State<RutaConductorView> {
 
       // Si tenemos tanto la ubicación del conductor como del cliente, centramos con bearing y zoom dinámico
       if (origin != null && dest != null) {
-        final bearing = _calculateBearing(origin, dest);
-        final dist = _haversineDistanceMeters(origin, dest);
-        final zoom = _zoomForDistanceMeters(dist);
-        await _mapController!.animateCamera(
-          CameraUpdate.newCameraPosition(
-            CameraPosition(
-              target: origin,
-              zoom: zoom,
-              bearing: bearing,
-              tilt: 45, // Ligera inclinación para mejor visualización de la ruta
-            ),
-          ),
-        );
+        await _fitCameraToDriverAndClient();
         return;
       }
 
@@ -835,7 +833,7 @@ class _RutaConductorViewState extends State<RutaConductorView> {
               target: allPoints.first,
               zoom: zoom,
               bearing: bearing,
-              tilt: 45,
+              tilt: 0,
             ),
           ),
         );

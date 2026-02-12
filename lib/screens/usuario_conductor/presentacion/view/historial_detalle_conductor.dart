@@ -350,8 +350,10 @@ class _HistorialDetalleConductorState extends State<HistorialDetalleConductor> {
                                   // Usar conteos por día (weekDayCounts) en lugar de montos
                                   final segments = weekDayCounts[i];
                                   final weekTotal = segments.fold<int>(0, (p, e) => p + e);
-                                  final maxWeekly = weekCounts.fold<int>(0, (p, e) => e > p ? e : p);
-                                  final barMax = maxWeekly == 0 ? 1 : maxWeekly;
+                                  // Para evitar overflow, normalizamos la altura total de los segmentos
+                                  // a la altura máxima disponible (90). Así, la suma de todos los
+                                  // segmentos de una barra nunca supera el límite visual.
+                                  final barMax = weekTotal == 0 ? 1 : weekTotal;
                                   final weekLabel = DateFormat('d/MM').format(weekStarts[i]);
                                   return Expanded(
                                     child: Column(

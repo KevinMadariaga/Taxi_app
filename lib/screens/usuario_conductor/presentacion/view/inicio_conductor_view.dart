@@ -462,19 +462,17 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
                     // Mapa colocado justo bajo el contenedor de información y ocupa el espacio restante
                     Expanded(
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 8.0),
+                        padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 7.0),
                         child: Container(
                               height: double.infinity,
                               width: double.infinity,
-                                decoration: vm.selectedPreview == null
-                                  ? BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(color: Colors.black, width: 1.2),
-                                    )
-                                  : const BoxDecoration(
-                                      color: Colors.transparent,
-                                    ),
+                                decoration: BoxDecoration(
+                                  color: vm.selectedPreview == null ? Colors.white : Colors.transparent,
+                                  borderRadius: vm.selectedPreview == null
+                                      ? BorderRadius.circular(12)
+                                      : BorderRadius.zero,
+                                  border: Border.all(color: Colors.black, width: 1.2),
+                                ),
                               child: Stack(
                             children: [
                                   ClipRRect(
@@ -512,6 +510,8 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
                                     myLocationEnabled: true,
                                     myLocationButtonEnabled: true,
                                     compassEnabled: true,
+                                    rotateGesturesEnabled: true,
+                                    tiltGesturesEnabled: false,
                                     markers: markers.union(vm.extraMarkers),
                                     polylines: polylines.union(vm.routePolylines),
                                     circles: vm.currentLocation != null

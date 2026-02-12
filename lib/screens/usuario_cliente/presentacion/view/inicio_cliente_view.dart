@@ -3,9 +3,11 @@ import 'dart:math' as math;
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:geocoding/geocoding.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/historial_viaje_cliente.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/seleccion_destino_view.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/view/mapa_seleccion_destino_view.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/view/solicitud_preview_view.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/model/location_model.dart';
 import 'package:taxi_app/widgets/google_maps_widget.dart';
 import 'dart:async';
 
@@ -65,6 +67,29 @@ class _InicioClienteViewState extends State<InicioClienteView> {
     super.dispose();
   }
 
+  Future<String> _obtenerDireccionDesdeCoordenadas(LatLng coord) async {
+    try {
+      final placemarks =
+          await placemarkFromCoordinates(coord.latitude, coord.longitude);
+      if (placemarks.isNotEmpty) {
+        final p = placemarks.first;
+        final name = p.name?.trim() ?? '';
+        final street = p.street?.trim() ?? '';
+        final subLocality = p.subLocality?.trim() ?? '';
+        final locality = p.locality?.trim() ?? '';
+
+        final parts = <String>[name, street, subLocality, locality]
+            .where((s) => s.isNotEmpty)
+            .toList();
+        if (parts.isNotEmpty) {
+          return parts.take(2).join(', ');
+        }
+      }
+    } catch (_) {}
+
+    return '${coord.latitude.toStringAsFixed(6)}, ${coord.longitude.toStringAsFixed(6)}';
+  }
+
   Future<void> _loadCurrentLocation() async {
     setState(() {
       _isLoadingLocation = true;
@@ -115,18 +140,14 @@ class _InicioClienteViewState extends State<InicioClienteView> {
       ? math.max(4.0, screenH * 0.01)
       : math.max(8.0, screenH * 0.015);
     return Scaffold(
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        backgroundColor: Colors.white,
-        elevation: 0,
-      ),
       backgroundColor: Colors.white,
       body: SafeArea(
         child: Stack(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16.0, 8.0, 16.0, 16.0),
+              padding: const EdgeInsets.fromLTRB(18.0, 18.0, 18.0, 18.0),
               child: SingleChildScrollView(
+                physics: const NeverScrollableScrollPhysics(),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -134,12 +155,12 @@ class _InicioClienteViewState extends State<InicioClienteView> {
                     _buildClientName(),
                     const SizedBox(height: 16),
                     const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 1.0),
+                      padding: EdgeInsets.symmetric(horizontal: 15.0),
                       child: Text(
                         'Viaje seguro a su destino',
                         style: TextStyle(
                           color: Colors.black87,
-                          fontSize: 20,
+                          fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -183,7 +204,7 @@ class _InicioClienteViewState extends State<InicioClienteView> {
                         final hasFavorites = favs.isNotEmpty;
 
                         return Padding(
-                          padding: const EdgeInsets.only(left: 8.0, right: 4.0),
+                          padding: const EdgeInsets.only(left: 12.0, right: 12.0),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -197,7 +218,7 @@ class _InicioClienteViewState extends State<InicioClienteView> {
                               SingleChildScrollView(
                                 scrollDirection: Axis.horizontal,
                                 child: Row(
-                                  children: hasFavorites
+                                    children: hasFavorites
                                       ? favs.map((f) {
                                           return Padding(
                                             padding: const EdgeInsets.only(right: 8.0),
@@ -211,7 +232,7 @@ class _InicioClienteViewState extends State<InicioClienteView> {
                                                   border: Border.all(color: Colors.black12),
                                                 ),
                                                 child: Text(
-                                                  f.direccion,
+                                                  f.nombre.isNotEmpty ? f.nombre : f.direccion,
                                                   style: const TextStyle(
                                                     color: Colors.black87,
                                                     fontSize: 14,
@@ -277,21 +298,22 @@ class _InicioClienteViewState extends State<InicioClienteView> {
                       padding: const EdgeInsets.symmetric(horizontal: 5.0),
                       child: Text(
                         'Estás aquí',
-                        style: const TextStyle(fontSize: 25, fontWeight: FontWeight.w800, color: Colors.black87),
+                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Colors.black87),
                       ),
                     ),
                     SizedBox(height: labelToMapSpacing),
-                    // Map dentro del scroll
+                    // Map dentro del scroll, con borde visible en iOS y Android
                     SizedBox(
                       height: mapHeight,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(2),
-                        child: Container(
-                          width: double.infinity,
-                          decoration: BoxDecoration(
-                            color: const Color.fromARGB(255, 0, 0, 0),
-                            border: Border.all(color: const Color.fromARGB(255, 0, 0, 0), width: 1.0),
-                          ),
+                      child: Container(
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: const Color.fromARGB(255, 0, 0, 0),
+                          borderRadius: BorderRadius.circular(2),
+                          border: Border.all(color: const Color.fromARGB(255, 0, 0, 0), width: 1.0),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(2),
                           child: AppGoogleMap(
                             initialTarget: _currentLocation ?? const LatLng(8.2595534, -73.353469),
                             initialZoom: 14.5,
@@ -376,9 +398,12 @@ class _InicioClienteViewState extends State<InicioClienteView> {
 
   Widget _buildClientName() {
     final name = vm.clientName;
-    return Text(
-      name.toUpperCase(),
-      style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: Colors.black87),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12.0),
+      child: Text(
+        name.toUpperCase(),
+        style: const TextStyle(fontSize: 27, fontWeight: FontWeight.w800, color: Colors.black87),
+      ),
     );
   }
 
@@ -394,15 +419,17 @@ class _InicioClienteViewState extends State<InicioClienteView> {
     return snapshot.docs.map((doc) {
       final data = doc.data();
       final nombre = (data['nombre'] ?? '') as String;
+      final direccion = (data['direccion'] ?? '') as String;
       final geo = data['ubicacion'] as GeoPoint;
       return UbicacionResultado(
         location: LatLng(geo.latitude, geo.longitude),
-        direccion: nombre.isNotEmpty ? nombre : 'Favorito',
+        nombre: nombre.isNotEmpty ? nombre : 'Favorito',
+        direccion: direccion.isNotEmpty ? direccion : nombre,
       );
     }).toList();
   }
 
-  void _onFavoriteSelected(UbicacionResultado fav) {
+  Future<void> _onFavoriteSelected(UbicacionResultado fav) async {
     if (fav.location == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Ubicación no disponible')),
@@ -410,13 +437,27 @@ class _InicioClienteViewState extends State<InicioClienteView> {
       return;
     }
 
+    final origenPos = _currentLocation ?? fav.location!;
+    String origenDireccion = await _obtenerDireccionDesdeCoordenadas(origenPos);
+
+    final origenModel = LocationModel(
+      position: origenPos,
+      title: origenDireccion,
+      subtitle: origenDireccion,
+    );
+
+    final destinoModel = LocationModel(
+      position: fav.location!,
+      title: fav.nombre.isNotEmpty ? fav.nombre : fav.direccion,
+      subtitle: fav.direccion,
+    );
+
+    if (!mounted) return;
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => MapaPreviewView(
-          location: fav.location!,
-          direccion: fav.direccion,
-          origenLocation: _currentLocation,
-          origenDireccion: null,
+        builder: (_) => MapPreview(
+          origen: origenModel,
+          destino: destinoModel,
         ),
       ),
     );

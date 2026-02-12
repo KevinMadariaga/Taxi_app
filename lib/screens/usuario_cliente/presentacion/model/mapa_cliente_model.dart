@@ -50,7 +50,11 @@ class MapaClienteModel {
 /// Resultado simple de búsqueda de ubicación usado en selección de destino.
 class UbicacionResultado {
   final LatLng? location;
+  /// Nombre/etiqueta asignada por el usuario (ej: "Casa", "Colegio").
+  final String nombre;
+
+  /// Dirección completa en texto de la ubicación.
   final String direccion;
 
-  UbicacionResultado({required this.location, required this.direccion});
+  UbicacionResultado({required this.location, required this.nombre, required this.direccion});
 }

@@ -42,9 +42,21 @@ class ResumenConductorView extends StatelessWidget {
 
           final data = vm.solicitudData ?? <String, dynamic>{};
           final destino = data['destino'];
-          final direccionSeleccionada = destino is Map<String, dynamic> 
-              ? (destino['title'] ?? 'No disponible') 
-              : 'No disponible';
+          String direccionSeleccionada = 'No disponible';
+          if (destino is Map<String, dynamic>) {
+            final d = destino;
+            final dir = (d['direccion']?.toString().trim().isNotEmpty == true)
+                ? d['direccion'].toString()
+                : (d['address']?.toString().trim().isNotEmpty == true)
+                    ? d['address'].toString()
+                    : (d['direccion_destino']?.toString().trim().isNotEmpty == true)
+                        ? d['direccion_destino'].toString()
+                        : (d['title']?.toString() ?? 'No disponible');
+            direccionSeleccionada = dir;
+          } else {
+            direccionSeleccionada =
+                data['direccion_seleccionada']?.toString() ?? 'No disponible';
+          }
           final metodoPago = data['metodo_pago'];
           final horaFin = data['fecha de terminacion'] as Timestamp?;
           final valorServicio = data['valor'] ?? 0;

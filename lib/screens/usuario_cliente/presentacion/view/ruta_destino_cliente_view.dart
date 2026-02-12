@@ -325,7 +325,7 @@ class _RutaDestinoClienteViewState extends State<RutaDestinoClienteView> {
 				final zoom = _zoomForDistanceMeters(dist);
 				await _mapController!.animateCamera(
 					CameraUpdate.newCameraPosition(
-						CameraPosition(target: a, zoom: zoom, bearing: bearing, tilt: 45),
+						CameraPosition(target: a, zoom: zoom, bearing: bearing, tilt: 0),
 					),
 				);
 			} else {
@@ -425,7 +425,7 @@ class _RutaDestinoClienteViewState extends State<RutaDestinoClienteView> {
 				final zoom = _zoomForDistanceMeters(dist);
 				await _mapController!.animateCamera(
 					CameraUpdate.newCameraPosition(
-						CameraPosition(target: origin, zoom: zoom, bearing: bearing, tilt: 45),
+						CameraPosition(target: origin, zoom: zoom, bearing: bearing, tilt: 0),
 					),
 				);
 			}
@@ -491,7 +491,7 @@ class _RutaDestinoClienteViewState extends State<RutaDestinoClienteView> {
 				final zoom = _zoomForDistanceMeters(dist);
 				_mapController!.animateCamera(
 					CameraUpdate.newCameraPosition(
-						CameraPosition(target: _driverLocation!, zoom: zoom, bearing: bearing, tilt: 45),
+						CameraPosition(target: _driverLocation!, zoom: zoom, bearing: bearing, tilt: 0),
 					),
 				);
 			}

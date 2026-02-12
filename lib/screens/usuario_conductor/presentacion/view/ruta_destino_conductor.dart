@@ -163,10 +163,10 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> wit
             }
           }
 
-          final dir = rawDestino['title'] ??
-              rawDestino['direccion'] ??
+          final dir = rawDestino['direccion'] ??
               rawDestino['address'] ??
-              rawDestino['direccion_destino'];
+              rawDestino['direccion_destino'] ??
+              rawDestino['title'];
           if (dir is String && dir.trim().isNotEmpty) {
             _destinoDireccion = dir.trim();
           }

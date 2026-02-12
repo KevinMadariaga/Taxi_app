@@ -68,23 +68,47 @@ class _MapaPreviewViewState extends State<MapaPreviewView> {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-          
+                  const SizedBox(height: 10),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 15.0),
+                    child: Center(
+                      child: Text(
+                        'Mueve el indicador en el mapa',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.black87,
+                          fontSize: 19,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 15),
               // Map con tamaño fijo para evitar que se expanda
               SizedBox(
                 height: 420,
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: AppGoogleMap(
-                        initialTarget: widget.location,
-                        initialZoom: 16,
-                        myLocationEnabled: false,
-                        myLocationButtonEnabled: false,
-                        onMapCreated: _onMapCreated,
-                        onCameraMove: _onCameraMove,
-                        onCameraIdle: _onCameraIdle,
+                    Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.black, width: 1),
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: AppGoogleMap(
+                          initialTarget: widget.location,
+                          initialZoom: 16,
+                          myLocationEnabled: false,
+                          myLocationButtonEnabled: false,
+                          rotateGesturesEnabled: false,
+                          tiltGesturesEnabled: false,
+                          onMapCreated: _onMapCreated,
+                          onCameraMove: _onCameraMove,
+                          onCameraIdle: _onCameraIdle,
+                        ),
                       ),
                     ),
 
@@ -100,22 +124,24 @@ class _MapaPreviewViewState extends State<MapaPreviewView> {
                 ),
               ),
 
-              // Contenido inferior desplazable
-              Expanded(
+              // Contenido inferior desplazable con espacio moderado
+              Flexible(
+                fit: FlexFit.loose,
                 child: SingleChildScrollView(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const SizedBox(height: 12),
-
+                      const SizedBox(height: 20),
                       // Nombre del lugar en negrilla alineado a la izquierda (mismo padding horizontal)
                       Padding(
                         padding:
-                            const EdgeInsets.symmetric(horizontal: 12.0),
+                            const EdgeInsets.symmetric(horizontal: 15.0),
                         child: Text(
-                          vm.formatAddress(
-                            widget.direccion ?? 'Nombre del lugar',
-                          ),
+                          vm
+                              .formatAddress(
+                                widget.direccion ?? 'Nombre del lugar',
+                              )
+                              .toUpperCase(),
                           style: const TextStyle(
                             fontSize: 22,
                             fontWeight: FontWeight.w800,
@@ -123,38 +149,24 @@ class _MapaPreviewViewState extends State<MapaPreviewView> {
                           ),
                         ),
                       ),
-                      const SizedBox(height: 10),
-
+                      const SizedBox(height: 8),
                       // Dirección legible (ocupa el ancho disponible) — mismo padding horizontal que el texto
                       Container(
-                        width: double.infinity,
+
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 12.0),
+                            horizontal: 15.0),
                         child: Text(
                           // Mostrar la dirección formateada o las coordenadas si no hay dirección
                           vm.formatAddress(vm.currentAddress).isNotEmpty
                               ? vm.formatAddress(vm.currentAddress)
                               : '${vm.center.latitude.toStringAsFixed(6)}, ${vm.center.longitude.toStringAsFixed(6)}',
                           style: const TextStyle(
-                            fontSize: 14,
+                            fontSize: 18,
                             color: Colors.black54,
                           ),
                         ),
                       ),
-                      const SizedBox(height: 15),
-                      Padding(
-                        padding:
-                            const EdgeInsets.symmetric(horizontal: 12.0),
-                        child: Text(
-                          'Selecciona un destino de la lista o mueve el indicador en el mapa',
-                          style: const TextStyle(
-                            color: Colors.black87,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 12),
                     ],
                   ),
                 ),
@@ -166,10 +178,9 @@ class _MapaPreviewViewState extends State<MapaPreviewView> {
     ),
     ),
         bottomNavigationBar: SafeArea(
-          minimum: const EdgeInsets.only(bottom: 8),
+          bottom: true,
           child: Padding(
-            padding:
-                const EdgeInsets.fromLTRB(12.0, 8.0, 12.0, 12.0),
+            padding: const EdgeInsets.fromLTRB(16.0, 8.0, 16.0, 24.0),
             child: SizedBox(
               width: double.infinity,
               height: 56,
