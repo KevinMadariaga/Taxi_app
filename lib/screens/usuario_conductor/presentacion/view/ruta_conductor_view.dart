@@ -73,10 +73,14 @@ class _RutaConductorViewState extends State<RutaConductorView> {
   bool _cachePersistedConductor = false;
   // Mostrar loader centrado en el mapa mientras se obtiene la ruta/dirección
   bool _obteniendoDireccion = false;
+  bool _initializing = true;
+  bool _initializationScheduled = false;
+  late DateTime _initStart;
 
   @override
   void initState() {
     super.initState();
+    _initStart = DateTime.now();
     _viewModel = RutaConductorUsuarioViewModel(
       solicitudId: widget.solicitudId,
       onSolicitudCancelada: _handleSolicitudCancelada,
@@ -98,6 +102,23 @@ class _RutaConductorViewState extends State<RutaConductorView> {
     }, onError: (_) {});
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _viewModel.init(context);
+    });
+  }
+
+  void _maybeCompleteInitialization(LatLng? clientLocation) {
+    if (!_initializing || _initializationScheduled) return;
+    if (_loadingSolicitud || clientLocation == null) return;
+
+    const minDuration = Duration(seconds: 3);
+    final elapsed = DateTime.now().difference(_initStart);
+    final remaining = elapsed >= minDuration ? Duration.zero : minDuration - elapsed;
+
+    _initializationScheduled = true;
+    Future.delayed(remaining, () {
+      if (!mounted) return;
+      setState(() {
+        _initializing = false;
+      });
     });
   }
 
@@ -380,7 +401,7 @@ class _RutaConductorViewState extends State<RutaConductorView> {
       }
     } catch (_) {}
   }
-
+  
   Future<void> _openChatSheet() async {
     setState(() {
       _isChatOpen = true;
@@ -396,15 +417,15 @@ class _RutaConductorViewState extends State<RutaConductorView> {
         final keyboardOpen = viewInsets.bottom > 0;
         final initialSize = keyboardOpen ? 0.9 : 0.55;
         final minSize = keyboardOpen ? 0.6 : 0.35;
+
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted && _chatFocusNode.canRequestFocus) {
             FocusScope.of(ctx).requestFocus(_chatFocusNode);
           }
         });
+
         return Padding(
-          padding: EdgeInsets.only(
-            bottom: viewInsets.bottom,
-          ),
+          padding: EdgeInsets.only(bottom: viewInsets.bottom),
           child: DraggableScrollableSheet(
             initialChildSize: initialSize,
             minChildSize: minSize,
@@ -412,12 +433,15 @@ class _RutaConductorViewState extends State<RutaConductorView> {
             builder: (_, controller) {
               return Container(
                 decoration: const BoxDecoration(
-                  color: Colors.white,
+                  color: AppColores.sheetBackground,
                   borderRadius: BorderRadius.vertical(
                     top: Radius.circular(20),
                   ),
                   boxShadow: [
-                    BoxShadow(blurRadius: 16, color: Colors.black26),
+                    BoxShadow(
+                      color: AppColores.borderSubtle,
+                      blurRadius: 16,
+                    ),
                   ],
                 ),
                 padding: EdgeInsets.fromLTRB(
@@ -452,9 +476,9 @@ class _RutaConductorViewState extends State<RutaConductorView> {
                     Expanded(
                       child: Container(
                         decoration: BoxDecoration(
-                          color: Colors.grey[100],
+                          color: AppColores.grey100,
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.black12),
+                          border: Border.all(color: AppColores.borderSubtle),
                         ),
                         child: StreamBuilder<List<ChatMessage>>(
                           stream: _chatService.listenMessages(widget.solicitudId),
@@ -462,6 +486,7 @@ class _RutaConductorViewState extends State<RutaConductorView> {
                           builder: (context, snapshot) {
                             final mensajes = snapshot.data ?? const <ChatMessage>[];
                             final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+
                             WidgetsBinding.instance.addPostFrameCallback((_) {
                               if (_chatScrollController.hasClients) {
                                 _chatScrollController.jumpTo(
@@ -469,6 +494,7 @@ class _RutaConductorViewState extends State<RutaConductorView> {
                                 );
                               }
                             });
+
                             if (mensajes.isEmpty) {
                               return const Center(
                                 child: Text(
@@ -477,6 +503,7 @@ class _RutaConductorViewState extends State<RutaConductorView> {
                                 ),
                               );
                             }
+
                             return ListView.builder(
                               controller: _chatScrollController,
                               padding: EdgeInsets.all(ResponsiveHelper.wp(context, 2)),
@@ -506,17 +533,17 @@ class _RutaConductorViewState extends State<RutaConductorView> {
                                     decoration: BoxDecoration(
                                       color: esMio
                                           ? AppColores.primary
-                                          : Colors.white,
+                                          : AppColores.surface,
                                       borderRadius: BorderRadius.circular(16),
                                       boxShadow: const [
                                         BoxShadow(
-                                          color: Colors.black12,
+                                          color: AppColores.borderSubtle,
                                           blurRadius: 2,
                                           offset: Offset(0, 1),
                                         ),
                                       ],
                                       border: Border.all(
-                                        color: Colors.black12,
+                                        color: AppColores.borderSubtle,
                                       ),
                                     ),
                                     child: Column(
@@ -564,7 +591,7 @@ class _RutaConductorViewState extends State<RutaConductorView> {
                             maxLines: 4,
                             decoration: InputDecoration(
                               hintText: 'Escribe un mensaje...',
-                              border: OutlineInputBorder(
+                              border: const OutlineInputBorder(
                                 borderRadius: BorderRadius.all(Radius.circular(20)),
                               ),
                               contentPadding: EdgeInsets.symmetric(
@@ -856,7 +883,10 @@ class _RutaConductorViewState extends State<RutaConductorView> {
       if (destino == null) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No se encuentra la ubicación del cliente')), 
+          const SnackBar(
+            content: Text('No se encuentra la ubicación del cliente'),
+            backgroundColor: AppColores.error,
+          ),
         );
         return;
       }
@@ -871,13 +901,19 @@ class _RutaConductorViewState extends State<RutaConductorView> {
       } else {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No se pudo abrir Google Maps')),
+          const SnackBar(
+            content: Text('No se pudo abrir Google Maps'),
+            backgroundColor: AppColores.error,
+          ),
         );
       }
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Error al intentar abrir Google Maps')),
+        const SnackBar(
+          content: Text('Error al intentar abrir Google Maps'),
+          backgroundColor: AppColores.error,
+        ),
       );
     }
   }
@@ -886,11 +922,13 @@ class _RutaConductorViewState extends State<RutaConductorView> {
   Widget build(BuildContext context) {
     final clientLocation = _clientLocation ?? widget.clientLocation;
 
+    _maybeCompleteInitialization(clientLocation);
+
     // Respetar zonas seguras usando SafeArea (se aplica abajo más abajo).
 
-    if (clientLocation == null || _loadingSolicitud) {
+    if (_initializing || clientLocation == null || _loadingSolicitud) {
       return const Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColores.background,
         body: SafeArea(
           child: Center(
             child: MapLoadingWidget(
@@ -954,10 +992,10 @@ class _RutaConductorViewState extends State<RutaConductorView> {
                         margin: EdgeInsets.only(top: ResponsiveHelper.hp(context, 2)),
                         padding: EdgeInsets.symmetric(horizontal: ResponsiveHelper.wp(context, 3), vertical: ResponsiveHelper.hp(context, 1)),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: AppColores.cardBackground,
                           borderRadius: BorderRadius.circular(20),
                           boxShadow: [
-                            BoxShadow(blurRadius: 6, color: Colors.black26),
+                            BoxShadow(blurRadius: 6, color: AppColores.borderSubtle),
                           ],
                         ),
                         child: Row(
@@ -984,9 +1022,9 @@ class _RutaConductorViewState extends State<RutaConductorView> {
                         child: Container(
                           padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: AppColores.cardBackground,
                             borderRadius: BorderRadius.circular(12),
-                            boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 6)],
+                            boxShadow: [BoxShadow(color: AppColores.borderSubtle, blurRadius: 6)],
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -1014,7 +1052,7 @@ class _RutaConductorViewState extends State<RutaConductorView> {
                   if (_obteniendoDireccion)
                     Positioned.fill(
                       child: Container(
-                        color: Colors.black.withOpacity(0.2),
+                        color: AppColores.borderSubtle,
                         child: const Center(
                           child: MapLoadingWidget(message: 'Obteniendo dirección...'),
                         ),
@@ -1033,14 +1071,14 @@ class _RutaConductorViewState extends State<RutaConductorView> {
               margin: EdgeInsets.only(bottom: ResponsiveHelper.hp(context, 1)),
               constraints: BoxConstraints(minHeight: ResponsiveHelper.hp(context, 18)),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: AppColores.cardBackground,
                 borderRadius: const BorderRadius.only(
                   topLeft: Radius.circular(24),
                   topRight: Radius.circular(24),
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.08),
+                    color: AppColores.borderSubtle,
                     blurRadius: 10,
                     offset: const Offset(0, -2),
                   ),
@@ -1070,12 +1108,12 @@ class _RutaConductorViewState extends State<RutaConductorView> {
                                 placeholder: (_, __) => Container(
                                   width: ResponsiveHelper.sp(context, 60),
                                   height: ResponsiveHelper.sp(context, 60),
-                                  color: Colors.grey.shade200,
+                                  color: AppColores.grey200,
                                 ),
                                 errorWidget: (ctx, error, stack) => Container(
                                   width: ResponsiveHelper.sp(context, 60),
                                   height: ResponsiveHelper.sp(context, 60),
-                                  color: Colors.grey.shade200,
+                                  color: AppColores.grey200,
                                   child: Icon(
                                     Icons.person,
                                     size: ResponsiveHelper.sp(context, 18),
@@ -1088,7 +1126,7 @@ class _RutaConductorViewState extends State<RutaConductorView> {
                               width: ResponsiveHelper.sp(context, 60),
                               height: ResponsiveHelper.sp(context, 60),
                               decoration: BoxDecoration(
-                                color: Colors.grey.shade200,
+                                color: AppColores.grey200,
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Icon(
@@ -1111,7 +1149,7 @@ class _RutaConductorViewState extends State<RutaConductorView> {
                                     style: TextStyle(
                                       fontSize: ResponsiveHelper.sp(context, 18),
                                       fontWeight: FontWeight.w700,
-                                      color: Colors.black,
+                                      color: AppColores.textPrimary,
                                     ),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
@@ -1130,7 +1168,7 @@ class _RutaConductorViewState extends State<RutaConductorView> {
                                             width: 10,
                                             height: 10,
                                             decoration: const BoxDecoration(
-                                              color: Colors.red,
+                                              color: AppColores.error,
                                               shape: BoxShape.circle,
                                             ),
                                           ),
@@ -1147,7 +1185,7 @@ class _RutaConductorViewState extends State<RutaConductorView> {
                                 (_clientAddress ?? widget.clientAddress)!,
                                 style: TextStyle(
                                   fontSize: ResponsiveHelper.sp(context, 13),
-                                  color: Colors.black54,
+                                  color: AppColores.textSecondary,
                                 ),
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
@@ -1167,7 +1205,7 @@ class _RutaConductorViewState extends State<RutaConductorView> {
                           icon: Icon(Icons.navigation_outlined, size: ResponsiveHelper.sp(context, 16)),
                           label: Text('Mapa', style: TextStyle(fontSize: ResponsiveHelper.sp(context, 14))),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
+                            backgroundColor: AppColores.surface,
                             foregroundColor: AppColores.primary,
                             side: BorderSide(color: AppColores.primary),
                             padding: EdgeInsets.symmetric(vertical: ResponsiveHelper.hp(context, 1.2)),
@@ -1204,7 +1242,7 @@ class _RutaConductorViewState extends State<RutaConductorView> {
                           icon: Icon(Icons.check_circle_outline, size: ResponsiveHelper.sp(context, 16)),
                           label: Text('Ya llegué', style: TextStyle(fontSize: ResponsiveHelper.sp(context, 14))),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: _canPressArrived ? AppColores.primary : Colors.grey.shade400,
+                            backgroundColor: _canPressArrived ? AppColores.primary : AppColores.grey400,
                             padding: EdgeInsets.symmetric(vertical: ResponsiveHelper.hp(context, 1.2)),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
@@ -1257,7 +1295,7 @@ class _RutaConductorLoadingViewState extends State<RutaConductorLoadingView> {
   }
 
   void _goToRouteAfterDelay() {
-    Future.delayed(const Duration(seconds: 5), () {
+    Future.delayed(const Duration(seconds: 7), () {
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
@@ -1276,7 +1314,7 @@ class _RutaConductorLoadingViewState extends State<RutaConductorLoadingView> {
   @override
   Widget build(BuildContext context) {
     return const Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColores.background,
       body: SafeArea(
         child: Center(
           child: MapLoadingWidget(
@@ -1324,7 +1362,7 @@ class _LoaderSolicitudCanceladaConductorViewState extends State<LoaderSolicitudC
   @override
   Widget build(BuildContext context) {
     return const Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColores.background,
       body: SafeArea(
         child: Center(
           child: MapLoadingWidget(
@@ -1363,7 +1401,7 @@ class _LoaderVolviendoAtrasConductorViewState extends State<LoaderVolviendoAtras
   @override
   Widget build(BuildContext context) {
     return const Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColores.background,
       body: SafeArea(
         child: Center(
           child: MapLoadingWidget(

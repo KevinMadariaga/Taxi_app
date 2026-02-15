@@ -45,11 +45,15 @@ class _RutaClienteViewState extends State<RutaClienteView> {
   bool _handledCancelNavigation = false;
   bool _handledDestinoNavigation = false;
   RouteCacheData? _routeCache;
+  bool _initializing = true;
+  bool _initializationScheduled = false;
+  late DateTime _initStart;
   
 
   @override
   void initState() {
     super.initState();
+    _initStart = DateTime.now();
     _vm = RutaClienteViewModel(
       solicitudId: widget.solicitudId,
       conductorId: widget.conductorId,
@@ -111,6 +115,23 @@ class _RutaClienteViewState extends State<RutaClienteView> {
     _chatScrollController.dispose();
     _chatFocusNode.dispose();
     super.dispose();
+  }
+
+  void _maybeCompleteInitialization(RutaClienteViewModel vm) {
+    if (!_initializing || _initializationScheduled) return;
+    if (vm.loading) return;
+
+    const minDuration = Duration(seconds: 3);
+    final elapsed = DateTime.now().difference(_initStart);
+    final remaining = elapsed >= minDuration ? Duration.zero : minDuration - elapsed;
+
+    _initializationScheduled = true;
+    Future.delayed(remaining, () {
+      if (!mounted) return;
+      setState(() {
+        _initializing = false;
+      });
+    });
   }
 
   Future<void> _loadTaxiIcon() async {
@@ -201,12 +222,12 @@ class _RutaClienteViewState extends State<RutaClienteView> {
             builder: (_, controller) {
               return Container(
                 decoration: const BoxDecoration(
-                  color: Colors.white,
+                  color: AppColores.sheetBackground,
                   borderRadius: BorderRadius.vertical(
                     top: Radius.circular(20),
                   ),
                   boxShadow: [
-                    BoxShadow(blurRadius: 16, color: Colors.black26),
+                    BoxShadow(blurRadius: 16, color: AppColores.borderSubtle),
                   ],
                 ),
                 padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
@@ -236,9 +257,9 @@ class _RutaClienteViewState extends State<RutaClienteView> {
                     Expanded(
                       child: Container(
                         decoration: BoxDecoration(
-                          color: Colors.grey[100],
+                          color: AppColores.grey100,
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.black12),
+                          border: Border.all(color: AppColores.borderSubtle),
                         ),
                         child: StreamBuilder<List<ChatMessage>>(
                           stream: _chatService.listenMessages(widget.solicitudId),
@@ -288,19 +309,19 @@ class _RutaClienteViewState extends State<RutaClienteView> {
                                       maxWidth: 280,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: esMio
-                                          ? Colores.amarillo
-                                          : Colors.white,
+                                        color: esMio
+                                          ? AppColores.primary
+                                          : AppColores.surface,
                                       borderRadius: BorderRadius.circular(16),
                                       boxShadow: const [
                                         BoxShadow(
-                                          color: Colors.black12,
+                                          color: AppColores.borderSubtle,
                                           blurRadius: 2,
                                           offset: Offset(0, 1),
                                         ),
                                       ],
                                       border: Border.all(
-                                        color: Colors.black12,
+                                        color: AppColores.borderSubtle,
                                       ),
                                     ),
                                     child: Column(
@@ -311,7 +332,7 @@ class _RutaClienteViewState extends State<RutaClienteView> {
                                           m.texto,
                                           style: const TextStyle(
                                             fontSize: 14,
-                                            color: Colors.black87,
+                                            color: AppColores.textPrimary,
                                           ),
                                         ),
                                         if (hhmm.isNotEmpty) ...[
@@ -322,7 +343,7 @@ class _RutaClienteViewState extends State<RutaClienteView> {
                                               hhmm,
                                               style: const TextStyle(
                                                 fontSize: 11,
-                                                color: Colors.black54,
+                                                color: AppColores.textSecondary,
                                               ),
                                             ),
                                           ),
@@ -360,7 +381,7 @@ class _RutaClienteViewState extends State<RutaClienteView> {
                         ),
                         const SizedBox(width: 8),
                         IconButton(
-                          icon: const Icon(Icons.send, color: Colores.amarillo),
+                          icon: const Icon(Icons.send, color: AppColores.primary),
                           onPressed: _sendChatMessage,
                         ),
                       ],
@@ -522,8 +543,8 @@ class _RutaClienteViewState extends State<RutaClienteView> {
                         onPressed: () {
                           Navigator.of(context).pop();
                         },
-                        color: Colors.grey.shade300,
-                        textColor: Colors.black87,
+                        color: AppColores.grey300,
+                        textColor: AppColores.textPrimary,
                         fontSize: ResponsiveHelper.sp(context, 14),
                       ),
                     ),
@@ -535,8 +556,8 @@ class _RutaClienteViewState extends State<RutaClienteView> {
                           Navigator.of(context).pop();
                           await _cancelSolicitudFromRoute();
                         },
-                        color: Colores.amarillo,
-                        textColor: Colores.blanco,
+                        color: AppColores.primary,
+                        textColor: AppColores.textWhite,
                         fontSize: ResponsiveHelper.sp(context, 14),
                       ),
                     ),
@@ -573,6 +594,21 @@ class _RutaClienteViewState extends State<RutaClienteView> {
       value: _vm,
       child: Consumer<RutaClienteViewModel>(
         builder: (context, vm, _) {
+          _maybeCompleteInitialization(vm);
+
+          if (_initializing) {
+            return const Scaffold(
+              backgroundColor: AppColores.background,
+              body: SafeArea(
+                child: Center(
+                  child: MapLoadingWidget(
+                    message: 'Cargando mapa de la ruta...',
+                  ),
+                ),
+              ),
+            );
+          }
+
           // Cache persistence is handled in `RutaClienteViewModel` now.
           if (vm.cancelStatusHandled && !_handledCancelNavigation) {
             _handledCancelNavigation = true;
@@ -661,7 +697,7 @@ class _RutaClienteViewState extends State<RutaClienteView> {
                                 decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(8),
                                   border: Border.all(
-                                    color: Colors.grey.shade300,
+                                    color: AppColores.grey300,
                                   ),
                                 ),
                                 clipBehavior: Clip.hardEdge,
@@ -675,7 +711,7 @@ class _RutaClienteViewState extends State<RutaClienteView> {
                                             child: Icon(
                                               Icons.map,
                                               size: ResponsiveHelper.sp(context, 36),
-                                              color: Colors.grey.shade300,
+                                              color: AppColores.grey300,
                                             ),
                                           )
                                         : AppGoogleMap(
@@ -703,7 +739,7 @@ class _RutaClienteViewState extends State<RutaClienteView> {
                                       vertical: 10,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: Colors.white,
+                                      color: AppColores.cardBackground,
                                       borderRadius:
                                           BorderRadius.circular(20),
                                       boxShadow: [
@@ -718,10 +754,10 @@ class _RutaClienteViewState extends State<RutaClienteView> {
                                     child: Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        Icon(
+                                            Icon(
                                               Icons.access_time,
                                               size: ResponsiveHelper.sp(context, 16),
-                                              color: Colors.black87,
+                                              color: AppColores.textPrimary,
                                             ),
                                             SizedBox(width: ResponsiveHelper.wp(context, 2)),
                                             Text(
@@ -729,7 +765,7 @@ class _RutaClienteViewState extends State<RutaClienteView> {
                                               style: TextStyle(
                                                 fontSize: ResponsiveHelper.sp(context, 16),
                                                 fontWeight: FontWeight.w600,
-                                                color: Colors.black87,
+                                                color: AppColores.textPrimary,
                                               ),
                                             ),
                                       ],
@@ -748,7 +784,7 @@ class _RutaClienteViewState extends State<RutaClienteView> {
                     margin: EdgeInsets.only(bottom: ResponsiveHelper.hp(context, 1)),
                     constraints: BoxConstraints(minHeight: ResponsiveHelper.hp(context, 18)),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: AppColores.cardBackground,
                       borderRadius: const BorderRadius.only(
                         topLeft: Radius.circular(24),
                         topRight: Radius.circular(24),
@@ -783,7 +819,7 @@ class _RutaClienteViewState extends State<RutaClienteView> {
                                   children: [
                                     CircleAvatar(
                                       radius: ResponsiveHelper.sp(context, 34),
-                                      backgroundColor: Colors.grey.shade200,
+                                      backgroundColor: AppColores.grey200,
                                       backgroundImage: conductorPhotoUrl != null
                                           ? NetworkImage(conductorPhotoUrl)
                                           : null,
@@ -791,7 +827,7 @@ class _RutaClienteViewState extends State<RutaClienteView> {
                                           ? Icon(
                                               Icons.person,
                                               size: ResponsiveHelper.sp(context, 22),
-                                              color: Colors.black87,
+                                              color: AppColores.textPrimary,
                                             )
                                           : null,
                                     ),
@@ -828,7 +864,7 @@ class _RutaClienteViewState extends State<RutaClienteView> {
                                                       child: Icon(
                                                         Icons.star,
                                                         size: ResponsiveHelper.sp(context, 12),
-                                                        color: Colors.amber,
+                                                        color: AppColores.primary,
                                                       ),
                                                     );
                                                   } else if (index == promedioInt && tieneMedia) {
@@ -837,7 +873,7 @@ class _RutaClienteViewState extends State<RutaClienteView> {
                                                       child: Icon(
                                                         Icons.star_half,
                                                         size: ResponsiveHelper.sp(context, 12),
-                                                        color: Colors.amber,
+                                                        color: AppColores.primary,
                                                       ),
                                                     );
                                                   } else {
@@ -846,7 +882,7 @@ class _RutaClienteViewState extends State<RutaClienteView> {
                                                       child: Icon(
                                                         Icons.star_border,
                                                         size: ResponsiveHelper.sp(context, 12),
-                                                        color: Colors.grey[400],
+                                                        color: AppColores.grey400,
                                                       ),
                                                     );
                                                   }
@@ -870,7 +906,7 @@ class _RutaClienteViewState extends State<RutaClienteView> {
                                                 child: Icon(
                                                   Icons.star,
                                                   size: 14,
-                                                  color: Colors.amber,
+                                                  color: AppColores.primary,
                                                 ),
                                               );
                                             } else if (index == promedioInt && tieneMedia) {
@@ -879,16 +915,16 @@ class _RutaClienteViewState extends State<RutaClienteView> {
                                                 child: Icon(
                                                   Icons.star_half,
                                                   size: 14,
-                                                  color: Colors.amber,
+                                                  color: AppColores.primary,
                                                 ),
                                               );
                                             } else {
                                               return Padding(
                                                 padding: const EdgeInsets.symmetric(horizontal: 1.0),
-                                                child: Icon(
+                                                  child: Icon(
                                                   Icons.star_border,
                                                   size: 14,
-                                                  color: Colors.grey, 
+                                                  color: AppColores.grey600, 
                                                 ),
                                               );
                                             }
@@ -955,7 +991,7 @@ class _RutaClienteViewState extends State<RutaClienteView> {
                                               width: ResponsiveHelper.sp(context, 6),
                                               height: ResponsiveHelper.sp(context, 6),
                                               decoration: BoxDecoration(
-                                                color: Colors.red,
+                                                color: AppColores.error,
                                                 shape: BoxShape.circle,
                                               ),
                                             ),
@@ -964,7 +1000,7 @@ class _RutaClienteViewState extends State<RutaClienteView> {
                                     ),
                                     label: Text('Chat', style: TextStyle(fontSize: ResponsiveHelper.sp(context, 14))),
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.white,
+                                      backgroundColor: AppColores.surface,
                                       foregroundColor: AppColores.primary,
                                       side: BorderSide(color: AppColores.primary),
                                       padding: EdgeInsets.symmetric(vertical: ResponsiveHelper.hp(context, 1.2)),
@@ -981,8 +1017,8 @@ class _RutaClienteViewState extends State<RutaClienteView> {
                                     icon: Icon(Icons.cancel, size: ResponsiveHelper.sp(context, 16)),
                                     label: Text('Cancelar', style: TextStyle(fontSize: ResponsiveHelper.sp(context, 14))),
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colores.amarillo,
-                                      foregroundColor: Colores.blanco,
+                                      backgroundColor: AppColores.primary,
+                                      foregroundColor: AppColores.background,
                                       padding: EdgeInsets.symmetric(vertical: ResponsiveHelper.hp(context, 1.2)),
                                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                     ),
@@ -1001,15 +1037,15 @@ class _RutaClienteViewState extends State<RutaClienteView> {
                                   children: [
                                     CircleAvatar(
                                       radius: ResponsiveHelper.sp(context, 34),
-                                      backgroundColor: Colors.grey.shade200,
-                                      child: Icon(Icons.person, size: ResponsiveHelper.sp(context, 22), color: Colors.white70),
+                                      backgroundColor: AppColores.grey200,
+                                      child: Icon(Icons.person, size: ResponsiveHelper.sp(context, 22), color: AppColores.textWhiteMuted),
                                     ),
                                     SizedBox(height: ResponsiveHelper.hp(context, 0.6)),
                                     Container(
                                       width: ResponsiveHelper.wp(context, 34),
                                       height: ResponsiveHelper.hp(context, 2.2),
                                       decoration: BoxDecoration(
-                                        color: Colors.grey.shade200,
+                                        color: AppColores.grey200,
                                         borderRadius: BorderRadius.circular(6),
                                       ),
                                     ),
@@ -1018,7 +1054,7 @@ class _RutaClienteViewState extends State<RutaClienteView> {
                                       width: ResponsiveHelper.wp(context, 20),
                                       height: ResponsiveHelper.hp(context, 1.6),
                                       decoration: BoxDecoration(
-                                        color: Colors.grey.shade200,
+                                        color: AppColores.grey200,
                                         borderRadius: BorderRadius.circular(6),
                                       ),
                                     ),
@@ -1032,7 +1068,7 @@ class _RutaClienteViewState extends State<RutaClienteView> {
                                       width: ResponsiveHelper.wp(context, 30),
                                       height: ResponsiveHelper.hp(context, 8),
                                       decoration: BoxDecoration(
-                                        color: Colors.grey.shade200,
+                                        color: AppColores.grey200,
                                         borderRadius: BorderRadius.circular(8),
                                       ),
                                     ),
@@ -1041,7 +1077,7 @@ class _RutaClienteViewState extends State<RutaClienteView> {
                                       width: ResponsiveHelper.wp(context, 20),
                                       height: ResponsiveHelper.hp(context, 1.8),
                                       decoration: BoxDecoration(
-                                        color: Colors.grey.shade200,
+                                        color: AppColores.grey200,
                                         borderRadius: BorderRadius.circular(6),
                                       ),
                                     ),
@@ -1058,8 +1094,8 @@ class _RutaClienteViewState extends State<RutaClienteView> {
                                     icon: Icon(Icons.chat_bubble_outline, size: ResponsiveHelper.sp(context, 16)),
                                     label: Text('Chat', style: TextStyle(fontSize: ResponsiveHelper.sp(context, 14))),
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.grey.shade200,
-                                      foregroundColor: Colors.white,
+                                      backgroundColor: AppColores.grey200,
+                                      foregroundColor: AppColores.textWhite,
                                       padding: EdgeInsets.symmetric(vertical: ResponsiveHelper.hp(context, 1.2)),
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(12),
@@ -1074,8 +1110,8 @@ class _RutaClienteViewState extends State<RutaClienteView> {
                                     icon: Icon(Icons.cancel, size: ResponsiveHelper.sp(context, 16)),
                                     label: Text('Cancelar', style: TextStyle(fontSize: ResponsiveHelper.sp(context, 14))),
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.grey.shade200,
-                                      foregroundColor: Colors.white,
+                                      backgroundColor: AppColores.grey200,
+                                      foregroundColor: AppColores.textWhite,
                                       padding: EdgeInsets.symmetric(vertical: ResponsiveHelper.hp(context, 1.2)),
                                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                     ),
@@ -1127,7 +1163,7 @@ class _LoaderVolviendoAtrasViewState extends State<LoaderVolviendoAtrasView> {
   @override
   Widget build(BuildContext context) {
     return const Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColores.background,
       body: SafeArea(
         child: Center(
           child: MapLoadingWidget(

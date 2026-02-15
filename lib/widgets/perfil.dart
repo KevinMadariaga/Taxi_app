@@ -17,7 +17,6 @@ import 'package:taxi_app/helper/session_helper.dart';
 import 'package:taxi_app/screens/home_screen.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/autenticacion_viewmodel.dart';
 
-
 class PaginaPerfilUsuario extends StatefulWidget {
   final String tipoUsuario; // 'cliente' o 'conductor'
 
@@ -91,12 +90,11 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
     _cargarDatos();
   }
 
-
-
   Future<File> _compressFile(File file, {required int maxBytes}) async {
     try {
       final dir = await getTemporaryDirectory();
-      final outPath = '${dir.path}/${DateTime.now().millisecondsSinceEpoch}_comp.jpg';
+      final outPath =
+          '${dir.path}/${DateTime.now().millisecondsSinceEpoch}_comp.jpg';
 
       // get original dimensions
       final bytes = await file.readAsBytes();
@@ -187,7 +185,10 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
     return File(path);
   }
 
-  Future<void> _loadCachedVehicleImageForUid(String uid, String? fotoVehiculoUrl) async {
+  Future<void> _loadCachedVehicleImageForUid(
+    String uid,
+    String? fotoVehiculoUrl,
+  ) async {
     try {
       final file = await _vehicleCacheFileForUid(uid);
       if (file.existsSync()) {
@@ -246,7 +247,10 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
     // obtener url anterior para borrarla luego
     String? previousUrl;
     try {
-      final doc = await _firestore.collection(widget.tipoUsuario).doc(uid).get();
+      final doc = await _firestore
+          .collection(widget.tipoUsuario)
+          .doc(uid)
+          .get();
       previousUrl = doc.data()?['foto'] as String?;
     } catch (_) {}
 
@@ -256,7 +260,8 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
     });
 
     try {
-      final path = '${widget.tipoUsuario}/$uid/profile_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final path =
+          '${widget.tipoUsuario}/$uid/profile_${DateTime.now().millisecondsSinceEpoch}.jpg';
       final ref = firebase_storage.FirebaseStorage.instance.ref().child(path);
 
       final uploadTask = ref.putFile(file);
@@ -275,12 +280,18 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
       final snapshot = await uploadTask;
       final downloadUrl = await snapshot.ref.getDownloadURL();
 
-      await _firestore.collection(widget.tipoUsuario).doc(uid).update({'foto': downloadUrl});
+      await _firestore.collection(widget.tipoUsuario).doc(uid).update({
+        'foto': downloadUrl,
+      });
 
       // Intentar eliminar la foto anterior en Storage para no acumular archivos
-      if (previousUrl != null && previousUrl.isNotEmpty && previousUrl != downloadUrl) {
+      if (previousUrl != null &&
+          previousUrl.isNotEmpty &&
+          previousUrl != downloadUrl) {
         try {
-          final oldRef = firebase_storage.FirebaseStorage.instance.refFromURL(previousUrl);
+          final oldRef = firebase_storage.FirebaseStorage.instance.refFromURL(
+            previousUrl,
+          );
           await oldRef.delete();
         } catch (_) {}
       }
@@ -293,14 +304,22 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Row(children: const [Icon(Icons.check_circle), SizedBox(width:8), Expanded(child: Text('Foto de perfil actualizada'))])),
+          SnackBar(
+            content: Row(
+              children: const [
+                Icon(Icons.check_circle),
+                SizedBox(width: 8),
+                Expanded(child: Text('Foto de perfil actualizada')),
+              ],
+            ),
+          ),
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error subiendo imagen: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error subiendo imagen: $e')));
       }
     } finally {
       if (mounted) {
@@ -320,7 +339,10 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
     // obtener url anterior para borrarla luego
     String? previousUrl;
     try {
-      final doc = await _firestore.collection(widget.tipoUsuario).doc(uid).get();
+      final doc = await _firestore
+          .collection(widget.tipoUsuario)
+          .doc(uid)
+          .get();
       previousUrl = doc.data()?[fieldName] as String?;
     } catch (_) {}
 
@@ -330,7 +352,8 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
     });
 
     try {
-      final path = '${widget.tipoUsuario}/$uid/${fieldName}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final path =
+          '${widget.tipoUsuario}/$uid/${fieldName}_${DateTime.now().millisecondsSinceEpoch}.jpg';
       final ref = firebase_storage.FirebaseStorage.instance.ref().child(path);
 
       final uploadTask = ref.putFile(file);
@@ -349,12 +372,18 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
       final snapshot = await uploadTask;
       final downloadUrl = await snapshot.ref.getDownloadURL();
 
-      await _firestore.collection(widget.tipoUsuario).doc(uid).update({fieldName: downloadUrl});
+      await _firestore.collection(widget.tipoUsuario).doc(uid).update({
+        fieldName: downloadUrl,
+      });
 
       // Intentar eliminar la foto anterior en Storage
-      if (previousUrl != null && previousUrl.isNotEmpty && previousUrl != downloadUrl) {
+      if (previousUrl != null &&
+          previousUrl.isNotEmpty &&
+          previousUrl != downloadUrl) {
         try {
-          final oldRef = firebase_storage.FirebaseStorage.instance.refFromURL(previousUrl);
+          final oldRef = firebase_storage.FirebaseStorage.instance.refFromURL(
+            previousUrl,
+          );
           await oldRef.delete();
         } catch (_) {}
       }
@@ -373,14 +402,22 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Row(children: const [Icon(Icons.check_circle), SizedBox(width:8), Expanded(child: Text('Imagen subida'))])),
+          SnackBar(
+            content: Row(
+              children: const [
+                Icon(Icons.check_circle),
+                SizedBox(width: 8),
+                Expanded(child: Text('Imagen subida')),
+              ],
+            ),
+          ),
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error subiendo imagen: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error subiendo imagen: $e')));
       }
     } finally {
       if (mounted) {
@@ -391,7 +428,6 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
       }
     }
   }
-
 
   void _mostrarDialogoEditar() {
     final parentContext = context;
@@ -419,206 +455,173 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
         File? selectedImageInDialog;
         File? selectedVehicleImageInDialog;
 
-        return StatefulBuilder(builder: (context, setStateDialog) {
-          Future<void> pickImageForDialog() async {
-            try {
-              final XFile? picked = await _picker.pickImage(
-                source: ImageSource.gallery,
-                imageQuality: 80,
-                maxWidth: 1200,
-              );
-              if (picked == null) return;
-              final pickedFile = File(picked.path);
-              final compressed = await _compressFile(pickedFile, maxBytes: 300 * 1024);
-              setStateDialog(() {
-                selectedImageInDialog = compressed;
-              });
-            } catch (e) {
-              if (!mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Error seleccionando imagen: $e')),
-              );
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            Future<void> pickImageForDialog() async {
+              try {
+                final XFile? picked = await _picker.pickImage(
+                  source: ImageSource.gallery,
+                  imageQuality: 80,
+                  maxWidth: 1200,
+                );
+                if (picked == null) return;
+                final pickedFile = File(picked.path);
+                final compressed = await _compressFile(
+                  pickedFile,
+                  maxBytes: 300 * 1024,
+                );
+                setStateDialog(() {
+                  selectedImageInDialog = compressed;
+                });
+              } catch (e) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Error seleccionando imagen: $e')),
+                );
+              }
             }
-          }
 
-          Future<void> pickVehicleImageForDialog() async {
-            try {
-              final XFile? picked = await _picker.pickImage(
-                source: ImageSource.gallery,
-                imageQuality: 80,
-                maxWidth: 1200,
-              );
-              if (picked == null) return;
-              final pickedFile = File(picked.path);
-              final compressed = await _compressFile(pickedFile, maxBytes: 300 * 1024);
-              setStateDialog(() {
-                selectedVehicleImageInDialog = compressed;
-              });
-            } catch (e) {
-              if (!mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Error seleccionando imagen vehículo: $e')),
-              );
+            Future<void> pickVehicleImageForDialog() async {
+              try {
+                final XFile? picked = await _picker.pickImage(
+                  source: ImageSource.gallery,
+                  imageQuality: 80,
+                  maxWidth: 1200,
+                );
+                if (picked == null) return;
+                final pickedFile = File(picked.path);
+                final compressed = await _compressFile(
+                  pickedFile,
+                  maxBytes: 300 * 1024,
+                );
+                setStateDialog(() {
+                  selectedVehicleImageInDialog = compressed;
+                });
+              } catch (e) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Error seleccionando imagen vehículo: $e'),
+                  ),
+                );
+              }
             }
-          }
 
-          return AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(18),
-            ),
-            contentPadding: EdgeInsets.fromLTRB(
-              ResponsiveHelper.wp(context, 5),
-              ResponsiveHelper.hp(context, 2),
-              ResponsiveHelper.wp(context, 5),
-              ResponsiveHelper.hp(context, 1.5),
-            ),
-            titlePadding: EdgeInsets.fromLTRB(
-              ResponsiveHelper.wp(context, 5),
-              ResponsiveHelper.hp(context, 2.5),
-              ResponsiveHelper.wp(context, 5),
-              0,
-            ),
-            title: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.edit, color: AppColores.primary, size: iconSize),
-                    SizedBox(width: ResponsiveHelper.wp(context, 3)),
-                    Text(
-                      "Editar Perfil",
-                      style: TextStyle(
-                        fontSize: titleFontSize,
-                        fontWeight: FontWeight.w800,
-                        color: AppColores.textPrimary,
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18),
+              ),
+              contentPadding: EdgeInsets.fromLTRB(
+                ResponsiveHelper.wp(context, 5),
+                ResponsiveHelper.hp(context, 2),
+                ResponsiveHelper.wp(context, 5),
+                ResponsiveHelper.hp(context, 1.5),
+              ),
+              titlePadding: EdgeInsets.fromLTRB(
+                ResponsiveHelper.wp(context, 5),
+                ResponsiveHelper.hp(context, 2.5),
+                ResponsiveHelper.wp(context, 5),
+                0,
+              ),
+              title: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.edit,
+                        color: AppColores.primary,
+                        size: iconSize,
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                const Divider(thickness: 1),
-              ],
-            ),
-            
-            content: SizedBox(
-              width: w,
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Preview de foto editable (más grande para el conductor)
-                    Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Text(
-                            'Foto de perfil',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: AppColores.textPrimary,
-                            ),
-                          ),
-                          SizedBox(height: ResponsiveHelper.hp(context, 1)),
-                          Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              CircleAvatar(
-                                radius: 60,
-                                backgroundColor: Colors.grey.shade200,
-                                backgroundImage: selectedImageInDialog != null
-                                    ? FileImage(selectedImageInDialog!) as ImageProvider
-                                    : (_cachedImageFile != null && _cachedImageFile!.existsSync())
-                                        ? FileImage(_cachedImageFile!)
-                                        : (userData != null && userData!['foto'] != null && (userData!['foto'] as String).isNotEmpty)
-                                            ? NetworkImage(userData!['foto'] as String)
-                                            : null,
-                                child: (selectedImageInDialog == null && (_cachedImageFile == null || !(_cachedImageFile?.existsSync() ?? false)) &&
-                                        (userData == null || userData!['foto'] == null || (userData!['foto'] as String).isEmpty))
-                                    ? Icon(Icons.person, size: 56, color: Colors.white)
-                                    : null,
-                              ),
-                              Positioned(
-                                bottom: 4,
-                                right: 4,
-                                child: InkWell(
-                                  onTap: () async {
-                                    await pickImageForDialog();
-                                  },
-                                  child: CircleAvatar(
-                                    radius: 20,
-                                    backgroundColor: AppColores.buttonPrimary,
-                                    child: Icon(Icons.camera_alt, size: 18, color: AppColores.textPrimary),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
+                      SizedBox(width: ResponsiveHelper.wp(context, 3)),
+                      Text(
+                        "Editar Perfil",
+                        style: TextStyle(
+                          fontSize: titleFontSize,
+                          fontWeight: FontWeight.w800,
+                          color: AppColores.textPrimary,
+                        ),
                       ),
-                    ),
-                    SizedBox(height: ResponsiveHelper.hp(context, 2.5)),
-                    _buildEditField("Nombre", nombreController),
-                    SizedBox(height: ResponsiveHelper.hp(context, 2)),
-                    _buildEditField(
-                      "Teléfono",
-                      telefonoController,
-                      keyboardType: TextInputType.phone,
-                    ),
-                    if (widget.tipoUsuario == 'conductor') ...[
-                      SizedBox(height: ResponsiveHelper.hp(context, 2)),
-                      _buildEditField("Placa", placaController),
-                      SizedBox(height: ResponsiveHelper.hp(context, 2)),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  const Divider(thickness: 1),
+                ],
+              ),
+
+              content: SizedBox(
+                width: w,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Preview de foto editable (más grande para el conductor)
                       Center(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
-                            const Text('Foto del vehículo', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                            const Text(
+                              'Foto de perfil',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: AppColores.textPrimary,
+                              ),
+                            ),
                             SizedBox(height: ResponsiveHelper.hp(context, 1)),
                             Stack(
+                              alignment: Alignment.center,
                               children: [
-                                SizedBox(
-                                  width: ResponsiveHelper.wp(context, 50),
-                                  height: ResponsiveHelper.wp(context, 20),
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(12),
-                                    child: selectedVehicleImageInDialog != null
-                                        ? Image.file(selectedVehicleImageInDialog!, fit: BoxFit.cover)
-                                        : (_cachedVehicleFile != null && (_cachedVehicleFile?.existsSync() ?? false))
-                                            ? Image.file(_cachedVehicleFile!, fit: BoxFit.cover)
-                                            : (userData != null && userData!['fotoVehiculo'] != null && (userData!['fotoVehiculo'] as String).isNotEmpty)
-                                                ? CachedNetworkImage(
-                                                    imageUrl: userData!['fotoVehiculo'] as String,
-                                                    fit: BoxFit.cover,
-                                                    placeholder: (_, __) => Container(color: Colors.grey.shade200),
-                                                    errorWidget: (_, __, ___) => Container(
-                                                      color: Colors.grey.shade200,
-                                                      child: const Icon(Icons.directions_car, color: Colors.white),
-                                                    ),
-                                                  )
-                                                : Container(
-                                                    color: Colors.grey.shade200,
-                                                    child: const Icon(Icons.directions_car, color: Colors.white),
-                                                  ),
-                                  ),
+                                CircleAvatar(
+                                  radius: 60,
+                                  backgroundColor: Colors.grey.shade200,
+                                  backgroundImage: selectedImageInDialog != null
+                                      ? FileImage(selectedImageInDialog!)
+                                            as ImageProvider
+                                      : (_cachedImageFile != null &&
+                                            _cachedImageFile!.existsSync())
+                                      ? FileImage(_cachedImageFile!)
+                                      : (userData != null &&
+                                            userData!['foto'] != null &&
+                                            (userData!['foto'] as String)
+                                                .isNotEmpty)
+                                      ? NetworkImage(
+                                          userData!['foto'] as String,
+                                        )
+                                      : null,
+                                  child:
+                                      (selectedImageInDialog == null &&
+                                          (_cachedImageFile == null ||
+                                              !(_cachedImageFile
+                                                      ?.existsSync() ??
+                                                  false)) &&
+                                          (userData == null ||
+                                              userData!['foto'] == null ||
+                                              (userData!['foto'] as String)
+                                                  .isEmpty))
+                                      ? Icon(
+                                          Icons.person,
+                                          size: 56,
+                                          color: Colors.white,
+                                        )
+                                      : null,
                                 ),
                                 Positioned(
-                                  bottom: 8,
-                                  right: 8,
+                                  bottom: 4,
+                                  right: 4,
                                   child: InkWell(
                                     onTap: () async {
-                                      await pickVehicleImageForDialog();
+                                      await pickImageForDialog();
                                     },
-                                    child: Container(
-                                      width: 28,
-                                      height: 28,
-                                      decoration: BoxDecoration(
-                                        color: AppColores.buttonPrimary,
-                                        borderRadius: BorderRadius.circular(10),
+                                    child: CircleAvatar(
+                                      radius: 20,
+                                      backgroundColor: AppColores.buttonPrimary,
+                                      child: Icon(
+                                        Icons.camera_alt,
+                                        size: 18,
+                                        color: AppColores.textPrimary,
                                       ),
-                                      child: Icon(Icons.camera_alt, size: 16, color: AppColores.textPrimary),
                                     ),
                                   ),
                                 ),
@@ -628,126 +631,254 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
                         ),
                       ),
                       SizedBox(height: ResponsiveHelper.hp(context, 2.5)),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-            actions: [
-              Padding(
-                padding: EdgeInsets.only(
-                  bottom: ResponsiveHelper.hp(context, 1),
-                  left: ResponsiveHelper.wp(context, 3),
-                  right: ResponsiveHelper.wp(context, 3),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.pop(context),
-                        style: OutlinedButton.styleFrom(
-                          side: BorderSide(color: AppColores.primary),
-                          padding: EdgeInsets.symmetric(
-                            vertical: ResponsiveHelper.hp(context, 1.5),
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        child: Text(
-                          'Cancelar',
-                          style: TextStyle(
-                            fontSize: buttonFontSize,
-                            color: AppColores.primary,
-                          ),
-                        ),
+                      _buildEditField("Nombre", nombreController),
+                      SizedBox(height: ResponsiveHelper.hp(context, 2)),
+                      _buildEditField(
+                        "Teléfono",
+                        telefonoController,
+                        keyboardType: TextInputType.phone,
                       ),
-                    ),
-                    SizedBox(width: ResponsiveHelper.wp(context, 3)),
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () async {
-                          // Validar y subir imagen de perfil si fue seleccionada en el diálogo
-                          if (selectedImageInDialog != null) {
-                            final comp = await _compressFile(selectedImageInDialog!, maxBytes: 300 * 1024);
-                            final len = await comp.length();
-                            if (len > 300 * 1024) {
-                              if (!parentContext.mounted) return;
-                              ScaffoldMessenger.of(parentContext).showSnackBar(
-                                SnackBar(content: Text('La foto de perfil supera 300KB, elige otra o reduce su tamaño')),
-                              );
-                              return;
-                            }
-                            await _uploadFile(comp);
-                          }
-
-                          // Validar y subir imagen del vehículo si fue seleccionada
-                          if (selectedVehicleImageInDialog != null) {
-                            final compV = await _compressFile(selectedVehicleImageInDialog!, maxBytes: 300 * 1024);
-                            final lenV = await compV.length();
-                            if (lenV > 300 * 1024) {
-                              if (!parentContext.mounted) return;
-                              ScaffoldMessenger.of(parentContext).showSnackBar(
-                                SnackBar(content: Text('La foto del vehículo supera 300KB, elige otra o reduce su tamaño')),
-                              );
-                              return;
-                            }
-                            await _uploadFileForField(compV, 'fotoVehiculo');
-                          }
-
-                          final nuevosDatos = {
-                            "nombre": nombreController.text.trim(),
-                            "telefono": telefonoController.text.trim(),
-                          };
-
-                          if (widget.tipoUsuario == 'conductor') {
-                            nuevosDatos["placa"] = placaController.text.trim();
-                          }
-
-                          await _guardarCambios(nuevosDatos);
-                          if (!mounted) return;
-
-                          if (!parentContext.mounted) return;
-
-                          Navigator.of(parentContext).pop();
-                          ScaffoldMessenger.of(parentContext).showSnackBar(
-                            SnackBar(
-                              duration: const Duration(seconds: 1),
-                              content: Row(
-                                mainAxisSize: MainAxisSize.min,
+                      if (widget.tipoUsuario == 'conductor') ...[
+                        SizedBox(height: ResponsiveHelper.hp(context, 2)),
+                        _buildEditField("Placa", placaController),
+                        SizedBox(height: ResponsiveHelper.hp(context, 2)),
+                        Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              const Text(
+                                'Foto del vehículo',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              SizedBox(height: ResponsiveHelper.hp(context, 1)),
+                              Stack(
                                 children: [
-                                  Icon(
-                                    Icons.check_circle,
-                                    color: AppColores.primary,
+                                  SizedBox(
+                                    width: ResponsiveHelper.wp(context, 50),
+                                    height: ResponsiveHelper.wp(context, 20),
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(12),
+                                      child:
+                                          selectedVehicleImageInDialog != null
+                                          ? Image.file(
+                                              selectedVehicleImageInDialog!,
+                                              fit: BoxFit.cover,
+                                            )
+                                          : (_cachedVehicleFile != null &&
+                                                (_cachedVehicleFile
+                                                        ?.existsSync() ??
+                                                    false))
+                                          ? Image.file(
+                                              _cachedVehicleFile!,
+                                              fit: BoxFit.cover,
+                                            )
+                                          : (userData != null &&
+                                                userData!['fotoVehiculo'] !=
+                                                    null &&
+                                                (userData!['fotoVehiculo']
+                                                        as String)
+                                                    .isNotEmpty)
+                                          ? CachedNetworkImage(
+                                              imageUrl:
+                                                  userData!['fotoVehiculo']
+                                                      as String,
+                                              fit: BoxFit.cover,
+                                              placeholder: (_, __) => Container(
+                                                color: Colors.grey.shade200,
+                                              ),
+                                              errorWidget: (_, __, ___) =>
+                                                  Container(
+                                                    color: Colors.grey.shade200,
+                                                    child: const Icon(
+                                                      Icons.directions_car,
+                                                      color: Colors.white,
+                                                    ),
+                                                  ),
+                                            )
+                                          : Container(
+                                              color: Colors.grey.shade200,
+                                              child: const Icon(
+                                                Icons.directions_car,
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                    ),
                                   ),
-                                  const SizedBox(width: 10),
-                                  const Expanded(child: Text('Cambio realizado')),
+                                  Positioned(
+                                    bottom: 8,
+                                    right: 8,
+                                    child: InkWell(
+                                      onTap: () async {
+                                        await pickVehicleImageForDialog();
+                                      },
+                                      child: Container(
+                                        width: 28,
+                                        height: 28,
+                                        decoration: BoxDecoration(
+                                          color: AppColores.buttonPrimary,
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                        ),
+                                        child: Icon(
+                                          Icons.camera_alt,
+                                          size: 16,
+                                          color: AppColores.textPrimary,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
                                 ],
                               ),
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
-                        },
-                        icon: const Icon(Icons.save),
-                        label: const Text('Guardar'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColores.buttonPrimary,
-                          foregroundColor: AppColores.textWhite,
-                          padding: EdgeInsets.symmetric(
-                            vertical: ResponsiveHelper.hp(context, 1.5),
+                            ],
                           ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                        ),
+                        SizedBox(height: ResponsiveHelper.hp(context, 2.5)),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                Padding(
+                  padding: EdgeInsets.only(
+                    bottom: ResponsiveHelper.hp(context, 1),
+                    left: ResponsiveHelper.wp(context, 3),
+                    right: ResponsiveHelper.wp(context, 3),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(context),
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(color: AppColores.primary),
+                            padding: EdgeInsets.symmetric(
+                              vertical: ResponsiveHelper.hp(context, 1.5),
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          child: Text(
+                            'Cancelar',
+                            style: TextStyle(
+                              fontSize: buttonFontSize,
+                              color: AppColores.primary,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
+                      SizedBox(width: ResponsiveHelper.wp(context, 3)),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () async {
+                            // Validar y subir imagen de perfil si fue seleccionada en el diálogo
+                            if (selectedImageInDialog != null) {
+                              final comp = await _compressFile(
+                                selectedImageInDialog!,
+                                maxBytes: 300 * 1024,
+                              );
+                              final len = await comp.length();
+                              if (len > 300 * 1024) {
+                                if (!parentContext.mounted) return;
+                                ScaffoldMessenger.of(
+                                  parentContext,
+                                ).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      'La foto de perfil supera 300KB, elige otra o reduce su tamaño',
+                                    ),
+                                  ),
+                                );
+                                return;
+                              }
+                              await _uploadFile(comp);
+                            }
+
+                            // Validar y subir imagen del vehículo si fue seleccionada
+                            if (selectedVehicleImageInDialog != null) {
+                              final compV = await _compressFile(
+                                selectedVehicleImageInDialog!,
+                                maxBytes: 300 * 1024,
+                              );
+                              final lenV = await compV.length();
+                              if (lenV > 300 * 1024) {
+                                if (!parentContext.mounted) return;
+                                ScaffoldMessenger.of(
+                                  parentContext,
+                                ).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      'La foto del vehículo supera 300KB, elige otra o reduce su tamaño',
+                                    ),
+                                  ),
+                                );
+                                return;
+                              }
+                              await _uploadFileForField(compV, 'fotoVehiculo');
+                            }
+
+                            final nuevosDatos = {
+                              "nombre": nombreController.text.trim(),
+                              "telefono": telefonoController.text.trim(),
+                            };
+
+                            if (widget.tipoUsuario == 'conductor') {
+                              nuevosDatos["placa"] = placaController.text
+                                  .trim();
+                            }
+
+                            await _guardarCambios(nuevosDatos);
+                            if (!mounted) return;
+
+                            if (!parentContext.mounted) return;
+
+                            Navigator.of(parentContext).pop();
+                            ScaffoldMessenger.of(parentContext).showSnackBar(
+                              SnackBar(
+                                duration: const Duration(seconds: 1),
+                                content: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.check_circle,
+                                      color: AppColores.primary,
+                                    ),
+                                    const SizedBox(width: 10),
+                                    const Expanded(
+                                      child: Text('Cambio realizado'),
+                                    ),
+                                  ],
+                                ),
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                          },
+                          label: const Text('Guardar'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColores.buttonPrimary,
+                            foregroundColor: AppColores.textWhite,
+                            padding: EdgeInsets.symmetric(
+                              vertical: ResponsiveHelper.hp(context, 1.5),
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
-          );
-        });
+              ],
+            );
+          },
+        );
       },
     );
   }
@@ -780,7 +911,10 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
           borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide(color: Colors.grey.shade300),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 14,
+        ),
       ),
     );
   }
@@ -789,11 +923,9 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
     const double iconSize = 24.0;
     const double titleFontSize = 16.0;
     const double valueFontSize = 14.0;
-    
+
     return Card(
-      margin: EdgeInsets.symmetric(
-        vertical: ResponsiveHelper.hp(context, 0.8),
-      ),
+      margin: EdgeInsets.symmetric(vertical: ResponsiveHelper.hp(context, 0.8)),
       child: ListTile(
         leading: Icon(icon, color: AppColores.primary, size: iconSize),
         title: Text(
@@ -814,9 +946,12 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
 
   Widget _buildVehiclePhotoCard() {
     ImageProvider? imageProvider;
-    if (_cachedVehicleFile != null && (_cachedVehicleFile?.existsSync() ?? false)) {
+    if (_cachedVehicleFile != null &&
+        (_cachedVehicleFile?.existsSync() ?? false)) {
       imageProvider = FileImage(_cachedVehicleFile!);
-    } else if (userData != null && userData!['fotoVehiculo'] != null && (userData!['fotoVehiculo'] as String).isNotEmpty) {
+    } else if (userData != null &&
+        userData!['fotoVehiculo'] != null &&
+        (userData!['fotoVehiculo'] as String).isNotEmpty) {
       imageProvider = NetworkImage(userData!['fotoVehiculo'] as String);
     }
 
@@ -834,7 +969,9 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
             width: 80,
             height: 48,
             color: Colors.grey.shade200,
-            child: imageProvider != null ? Image(image: imageProvider, fit: BoxFit.cover) : const Icon(Icons.directions_car, color: Colors.white),
+            child: imageProvider != null
+                ? Image(image: imageProvider, fit: BoxFit.cover)
+                : const Icon(Icons.directions_car, color: Colors.white),
           ),
         ),
         contentPadding: EdgeInsets.symmetric(
@@ -847,15 +984,23 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
 
   @override
   Widget build(BuildContext context) {
-    final nombre = userData?['nombre'] ?? 'Usuario';
-    
-    // Tamaños fijos estándar
+    final nombre = (userData?['nombre'] ?? 'Usuario').toString();
+
+    // Tamaños base estándar
     const double appBarFontSize = 20.0;
-    const double nameFontSize = 22.0;
+    const double baseNameFontSize = 22.0;
     const double avatarRadius = 68.0;
     const double avatarIconSize = 80.0;
     const double buttonFontSize = 16.0;
     const double buttonIconSize = 24.0;
+
+    // Ajuste simple de tamaño para nombres muy largos
+    double computedNameFontSize = baseNameFontSize;
+    if (nombre.length > 18 && nombre.length <= 26) {
+      computedNameFontSize = 20.0;
+    } else if (nombre.length > 26) {
+      computedNameFontSize = 18.0;
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -878,13 +1023,24 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
                             CircleAvatar(
                               radius: avatarRadius,
                               backgroundColor: Colors.grey.shade200,
-                              backgroundImage: _cachedImageFile != null && _cachedImageFile!.existsSync()
-                                  ? FileImage(_cachedImageFile!) as ImageProvider
-                                  : (userData != null && userData!['foto'] != null && (userData!['foto'] as String).isNotEmpty)
-                                      ? NetworkImage(userData!['foto'] as String)
-                                      : null,
-                              child: (_cachedImageFile == null || !(_cachedImageFile?.existsSync() ?? false)) &&
-                                      (userData == null || userData!['foto'] == null || (userData!['foto'] as String).isEmpty)
+                              backgroundImage:
+                                  _cachedImageFile != null &&
+                                      _cachedImageFile!.existsSync()
+                                  ? FileImage(_cachedImageFile!)
+                                        as ImageProvider
+                                  : (userData != null &&
+                                        userData!['foto'] != null &&
+                                        (userData!['foto'] as String)
+                                            .isNotEmpty)
+                                  ? NetworkImage(userData!['foto'] as String)
+                                  : null,
+                              child:
+                                  (_cachedImageFile == null ||
+                                          !(_cachedImageFile?.existsSync() ??
+                                              false)) &&
+                                      (userData == null ||
+                                          userData!['foto'] == null ||
+                                          (userData!['foto'] as String).isEmpty)
                                   ? Icon(
                                       Icons.person,
                                       size: avatarIconSize,
@@ -897,7 +1053,9 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
                                 bottom: -6,
                                 child: SizedBox(
                                   width: avatarRadius * 1.8,
-                                  child: LinearProgressIndicator(value: _uploadProgress),
+                                  child: LinearProgressIndicator(
+                                    value: _uploadProgress,
+                                  ),
                                 ),
                               ),
                             // Edit overlay removed from main avatar: editing available only inside the edit dialog
@@ -906,12 +1064,20 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
                       ),
                       SizedBox(height: ResponsiveHelper.hp(context, 2)),
                       Center(
-                        child: Text(
-                          nombre.toUpperCase(),
-                          style: const TextStyle(
-                            fontSize: nameFontSize,
-                            fontWeight: FontWeight.bold,
-                            color: AppColores.textPrimary,
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxWidth: ResponsiveHelper.wp(context, 80),
+                          ),
+                          child: Text(
+                            nombre.toUpperCase(),
+                            textAlign: TextAlign.center,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: computedNameFontSize,
+                              fontWeight: FontWeight.bold,
+                              color: AppColores.textPrimary,
+                            ),
                           ),
                         ),
                       ),
@@ -942,7 +1108,10 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
                           Expanded(
                             child: ElevatedButton.icon(
                               onPressed: _mostrarDialogoEditar,
-                              icon: const Icon(Icons.edit, size: buttonIconSize),
+                              icon: const Icon(
+                                Icons.edit,
+                                size: buttonIconSize,
+                              ),
                               label: const Text(
                                 "Editar Datos",
                                 style: TextStyle(fontSize: buttonFontSize),
@@ -961,139 +1130,163 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
                           Expanded(
                             child: ElevatedButton.icon(
                               onPressed: () async {
-                      // Tamaños fijos para el diálogo de confirmación
-                      const double dialogIconSize = 38.0;
-                      const double dialogTextSize = 18.0;
-                      const double dialogButtonSize = 14.0;
-                      
-                      final confirm = await showDialog<bool>(
-                        context: context,
-                        barrierDismissible: false,
-                        builder: (context) {
-                          // Diálogo responsive sin altura fija
-                          final dialogWidth = ResponsiveHelper.wp(context, 75);
-                          
-                          return Dialog(
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12.0),
-                            ),
-                            child: Container(
-                              width: dialogWidth,
-                              padding: EdgeInsets.symmetric(
-                                horizontal: ResponsiveHelper.wp(context, 4),
-                                vertical: ResponsiveHelper.hp(context, 2.5),
-                              ),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  // Ícono
-                                  const Icon(
-                                    Icons.logout,
-                                    color: Colors.redAccent,
-                                    size: dialogIconSize,
-                                  ),
-                                  
-                                  SizedBox(height: ResponsiveHelper.hp(context, 2)),
-                                  
-                                  // Texto
-                                  Padding(
-                                    padding: EdgeInsets.symmetric(
-                                      horizontal: ResponsiveHelper.wp(context, 2),
-                                    ),
-                                    child: const Text(
-                                      '¿Deseas cerrar sesión?',
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        fontSize: dialogTextSize,
-                                        height: 1.3,
-                                        color: Colors.black87,
-                                      ),
-                                    ),
-                                  ),
-                                  
-                                  SizedBox(height: ResponsiveHelper.hp(context, 3)),
-                                  
-                                  // Botones
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: OutlinedButton(
-                                          onPressed: () => Navigator.of(
-                                            context,
-                                          ).pop(false),
-                                          style: OutlinedButton.styleFrom(
-                                            padding: EdgeInsets.symmetric(
-                                              vertical: ResponsiveHelper.hp(context, 1.5),
-                                            ),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
-                                            ),
-                                          ),
-                                          child: Text(
-                                            'Cancelar',
-                                            style: TextStyle(
-                                              fontSize: dialogButtonSize,
-                                              color: Colors.grey.shade800,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                      
-                                      SizedBox(width: ResponsiveHelper.wp(context, 3)),
-                                      
-                                      Expanded(
-                                        child: ElevatedButton(
-                                          onPressed: () =>
-                                              Navigator.of(context).pop(true),
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: Colors.redAccent,
-                                            foregroundColor: Colors.white,
-                                            padding: EdgeInsets.symmetric(
-                                              vertical: ResponsiveHelper.hp(context, 1.5),
-                                            ),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
-                                            ),
-                                          ),
-                                          child: const Text(
-                                            'Cerrar sesión',
-                                            style: TextStyle(fontSize: dialogButtonSize),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                      );
+                                // Tamaños fijos para el diálogo de confirmación
+                                const double dialogIconSize = 38.0;
+                                const double dialogTextSize = 18.0;
+                                const double dialogButtonSize = 14.0;
 
-                              if (confirm == true) {
-                        // Capture the BuildContext and NavigatorState before async gaps.
-                                final BuildContext ctx = context;
-                                final navigator = Navigator.of(ctx);
-
-                        // Mostrar diálogo de progreso mientras se cierra la sesión
-                                showDialog<void>(
+                                final confirm = await showDialog<bool>(
                                   context: context,
                                   barrierDismissible: false,
-                                  builder: (ctx) {
-                                    return AlertDialog(
-                                      content: SizedBox(
-                                        height: 60,
-                                        child: Row(
-                                          children: const [
-                                            CircularProgressIndicator(),
-                                            SizedBox(width: 16),
-                                            Expanded(
-                                              child: Text(
-                                                'Cerrando sesión...',
-                                                style: TextStyle(fontSize: 16),
+                                  builder: (context) {
+                                    // Diálogo responsive sin altura fija
+                                    final dialogWidth = ResponsiveHelper.wp(
+                                      context,
+                                      75,
+                                    );
+
+                                    return Dialog(
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(
+                                          12.0,
+                                        ),
+                                      ),
+                                      child: Container(
+                                        width: dialogWidth,
+                                        padding: EdgeInsets.symmetric(
+                                          horizontal: ResponsiveHelper.wp(
+                                            context,
+                                            4,
+                                          ),
+                                          vertical: ResponsiveHelper.hp(
+                                            context,
+                                            2.5,
+                                          ),
+                                        ),
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            // Ícono
+                                            const Icon(
+                                              Icons.logout,
+                                              color: Colors.redAccent,
+                                              size: dialogIconSize,
+                                            ),
+
+                                            SizedBox(
+                                              height: ResponsiveHelper.hp(
+                                                context,
+                                                2,
                                               ),
+                                            ),
+
+                                            // Texto
+                                            Padding(
+                                              padding: EdgeInsets.symmetric(
+                                                horizontal: ResponsiveHelper.wp(
+                                                  context,
+                                                  2,
+                                                ),
+                                              ),
+                                              child: const Text(
+                                                '¿Deseas cerrar sesión?',
+                                                textAlign: TextAlign.center,
+                                                style: TextStyle(
+                                                  fontSize: dialogTextSize,
+                                                  height: 1.3,
+                                                  color: Colors.black87,
+                                                ),
+                                              ),
+                                            ),
+
+                                            SizedBox(
+                                              height: ResponsiveHelper.hp(
+                                                context,
+                                                3,
+                                              ),
+                                            ),
+
+                                            // Botones
+                                            Row(
+                                              children: [
+                                                Expanded(
+                                                  child: OutlinedButton(
+                                                    onPressed: () =>
+                                                        Navigator.of(
+                                                          context,
+                                                        ).pop(false),
+                                                    style: OutlinedButton.styleFrom(
+                                                      side: const BorderSide(
+                                                        color: Colors.redAccent,
+                                                      ),
+                                                      padding: EdgeInsets.symmetric(
+                                                        vertical:
+                                                            ResponsiveHelper.hp(
+                                                              context,
+                                                              1.5,
+                                                            ),
+                                                      ),
+                                                      shape: RoundedRectangleBorder(
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              8,
+                                                            ),
+                                                      ),
+                                                    ),
+                                                    child: Text(
+                                                      'Cancelar',
+                                                      style: TextStyle(
+                                                        fontSize:
+                                                            dialogButtonSize,
+                                                        color: AppColores
+                                                            .buttonCancel,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+
+                                                SizedBox(
+                                                  width: ResponsiveHelper.wp(
+                                                    context,
+                                                    3,
+                                                  ),
+                                                ),
+
+                                                Expanded(
+                                                  child: ElevatedButton(
+                                                    onPressed: () =>
+                                                        Navigator.of(
+                                                          context,
+                                                        ).pop(true),
+                                                    style: ElevatedButton.styleFrom(
+                                                      backgroundColor:
+                                                          Colors.redAccent,
+                                                      foregroundColor:
+                                                          AppColores.textWhite,
+                                                      padding: EdgeInsets.symmetric(
+                                                        vertical:
+                                                            ResponsiveHelper.hp(
+                                                              context,
+                                                              1.5,
+                                                            ),
+                                                      ),
+                                                      shape: RoundedRectangleBorder(
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              8,
+                                                            ),
+                                                      ),
+                                                    ),
+                                                    child: const Text(
+                                                      'Cerrar sesión',
+                                                      style: TextStyle(
+                                                        fontSize:
+                                                            dialogButtonSize,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
                                             ),
                                           ],
                                         ),
@@ -1101,63 +1294,134 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
                                     );
                                   },
                                 );
-                                try {
-                            // Usar el ViewModel / repositorio para cerrar sesión
-                                  final vm = Provider.of<AuthViewModel>(context, listen: false);
-                                  final uidBeforeLogout = _auth.currentUser?.uid;
-                                  await vm.logout();
-                                  // Limpiar datos locales de sesión
-                                  await SessionHelper.clearSession();
-                                  // Borrar cache local de la foto de perfil si existe
-                                  try {
-                                    if (uidBeforeLogout != null) {
-                                      final f = await _cacheFileForUid(uidBeforeLogout);
-                                      if (f.existsSync()) {
-                                        await f.delete();
-                                      }
-                                      if (mounted) {
-                                        setState(() {
-                                          _cachedImageFile = null;
-                                        });
-                                      }
-                                    }
-                                  } catch (_) {}
-                                } finally {
-                          // Mantener el diálogo de progreso visible un poco más
-                                  await Future.delayed(const Duration(milliseconds: 1500));
 
-                          // Use the captured BuildContext's mounted flag before using it.
-                                  if (ctx.mounted) {
-                                    if (navigator.mounted) {
-                                      try {
-                                        navigator.pop();
-                                      } catch (_) {}
-                                      try {
-                                        navigator.pushReplacement(MaterialPageRoute(builder: (_) => const HomeView()));
-                                      } catch (_) {}
-                                    } else {
-                                      try {
-                                        Navigator.pushReplacement(ctx, MaterialPageRoute(builder: (_) => const HomeView()));
-                                      } catch (_) {}
+                                if (confirm == true) {
+                                  // Capture the BuildContext and NavigatorState before async gaps.
+                                  final BuildContext ctx = context;
+                                  final navigator = Navigator.of(ctx);
+
+                                  // Mostrar diálogo de progreso mientras se cierra la sesión
+                                  showDialog<void>(
+                                    context: context,
+                                    barrierDismissible: false,
+                                    builder: (ctx) {
+                                      return AlertDialog(
+                                        content: SizedBox(
+                                          height: 60,
+                                          child: Row(
+                                            children: const [
+                                              CircularProgressIndicator(),
+                                              SizedBox(width: 16),
+                                              Expanded(
+                                                child: Text(
+                                                  'Cerrando sesión...',
+                                                  style: TextStyle(
+                                                    fontSize: 16,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  );
+                                  try {
+                                    // Usar el ViewModel / repositorio para cerrar sesión
+                                    final vm = Provider.of<AuthViewModel>(
+                                      context,
+                                      listen: false,
+                                    );
+                                    final uidBeforeLogout =
+                                        _auth.currentUser?.uid;
+
+                                    // Este logout ya limpia SessionHelper, rutas activas
+                                    // y caches de ruta en FirebaseDataSource.logout
+                                    await vm.logout();
+
+                                    // Refuerzo: limpiar cualquier dato de sesión
+                                    // residual y solicitud activa.
+                                    try {
+                                      await SessionHelper.clearSession();
+                                    } catch (_) {}
+                                    try {
+                                      await SessionHelper.clearActiveSolicitud();
+                                    } catch (_) {}
+
+                                    // Borrar cache local de fotos (perfil y vehículo)
+                                    try {
+                                      if (uidBeforeLogout != null) {
+                                        // Foto de perfil en disco
+                                        final f = await _cacheFileForUid(
+                                          uidBeforeLogout,
+                                        );
+                                        if (f.existsSync()) {
+                                          await f.delete();
+                                        }
+
+                                        // Foto de vehículo en disco (si existe)
+                                        await _deleteCachedVehicleFile(
+                                          uidBeforeLogout,
+                                        );
+
+                                        if (mounted) {
+                                          setState(() {
+                                            _cachedImageFile = null;
+                                            _cachedVehicleFile = null;
+                                          });
+                                        }
+                                      }
+                                    } catch (_) {}
+                                  } finally {
+                                    // Mantener el diálogo de progreso visible un poco más
+                                    await Future.delayed(
+                                      const Duration(milliseconds: 1500),
+                                    );
+
+                                    // Use the captured BuildContext's mounted flag before using it.
+                                    if (ctx.mounted) {
+                                      if (navigator.mounted) {
+                                        try {
+                                          navigator.pop();
+                                        } catch (_) {}
+                                        try {
+                                          navigator.pushReplacement(
+                                            MaterialPageRoute(
+                                              builder: (_) => const HomeView(),
+                                            ),
+                                          );
+                                        } catch (_) {}
+                                      } else {
+                                        try {
+                                          Navigator.pushReplacement(
+                                            ctx,
+                                            MaterialPageRoute(
+                                              builder: (_) => const HomeView(),
+                                            ),
+                                          );
+                                        } catch (_) {}
+                                      }
                                     }
                                   }
                                 }
-                              }
-                            },
-                            icon: const Icon(Icons.logout, size: buttonIconSize),
-                            label: const Text(
-                              'Cerrar Sesión',
-                              style: TextStyle(fontSize: buttonFontSize),
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.redAccent,
-                              foregroundColor: Colors.white,
-                              padding: EdgeInsets.symmetric(
-                                vertical: ResponsiveHelper.hp(context, 1.5),
-                                horizontal: ResponsiveHelper.wp(context, 2),
+                              },
+                              icon: const Icon(
+                                Icons.logout,
+                                size: buttonIconSize,
+                              ),
+                              label: const Text(
+                                'Cerrar Sesión',
+                                style: TextStyle(fontSize: buttonFontSize),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.redAccent,
+                                foregroundColor: Colors.white,
+                                padding: EdgeInsets.symmetric(
+                                  vertical: ResponsiveHelper.hp(context, 1.5),
+                                  horizontal: ResponsiveHelper.wp(context, 2),
+                                ),
                               ),
                             ),
-                          ),
                           ),
                         ],
                       ),

@@ -98,20 +98,6 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
     }
   }
 
-  double _deg2rad(double deg) => deg * (math.pi / 180.0);
-  double _rad2deg(double rad) => rad * (180.0 / math.pi);
-
-  double _calculateBearing(LatLng a, LatLng b) {
-    final lat1 = _deg2rad(a.latitude);
-    final lat2 = _deg2rad(b.latitude);
-    final dLon = _deg2rad(b.longitude - a.longitude);
-    final y = math.sin(dLon) * math.cos(lat2);
-    final x = math.cos(lat1) * math.sin(lat2) - math.sin(lat1) * math.cos(lat2) * math.cos(dLon);
-    var brng = math.atan2(y, x);
-    brng = _rad2deg(brng);
-    return (brng + 360) % 360;
-  }
-
   Future<void> _fetchRouteOSRM(String id, LatLng origin, LatLng dest, HomeConductorViewModel vm) async {
     try {
       final url = Uri.parse('https://router.project-osrm.org/route/v1/driving/${origin.longitude},${origin.latitude};${dest.longitude},${dest.latitude}?overview=full&geometries=geojson');
@@ -271,12 +257,12 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
           _conductorStream = null;
         }
         return Scaffold(
-          backgroundColor: Colors.white,
+          backgroundColor: AppColores.background,
           appBar: _hasPreview
               ? null
               : AppBar(
-                  backgroundColor: Colors.white,
-                  foregroundColor: Colors.black,
+                  backgroundColor: AppColores.background,
+                  foregroundColor: AppColores.textPrimary,
                   elevation: 0,
                   automaticallyImplyLeading: false,
                 ),
@@ -294,11 +280,11 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
                           width: double.infinity,
                           constraints: const BoxConstraints(minHeight: 110),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: AppColores.cardBackground,
                             borderRadius: BorderRadius.circular(12.0),
-                            border: Border.all(color: Colors.black12, width: 1.2),
-                            boxShadow: const [
-                              BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2)),
+                            border: Border.all(color: AppColores.borderSubtle, width: 1.2),
+                            boxShadow: [
+                              BoxShadow(color: AppColores.borderSubtle, blurRadius: 4, offset: const Offset(0, 2)),
                             ],
                           ),
                           
@@ -312,7 +298,7 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
                                   children: [
                                     Text(
                                       vm.displayName.toUpperCase(),
-                                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.black87),
+                                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: AppColores.textPrimary),
                                     ),
 
                                     const SizedBox(height: 10.0),
@@ -322,9 +308,9 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
                                       if (uidForRating == null || uidForRating.isEmpty) {
                                         return Row(
                                           children: const [
-                                            Icon(Icons.star_border, color: Colors.grey, size: 18),
+                                            Icon(Icons.star_border, color: AppColores.grey400, size: 18),
                                             SizedBox(width: 8),
-                                            Text('0.0', style: TextStyle(fontSize: 14, color: Colors.black54, fontWeight: FontWeight.w700)),
+                                            Text('0.0', style: TextStyle(fontSize: 14, color: AppColores.textSecondary, fontWeight: FontWeight.w700)),
                                           ],
                                         );
                                       }
@@ -364,17 +350,17 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
                                                   if (index < promedioInt) {
                                                     return const Padding(
                                                       padding: EdgeInsets.only(right: 4),
-                                                      child: Icon(Icons.star, color: Colors.amber, size: 18),
+                                                      child: Icon(Icons.star, color: AppColores.primary, size: 18),
                                                     );
                                                   } else if (index == promedioInt && tieneMedia) {
                                                     return const Padding(
                                                       padding: EdgeInsets.only(right: 4),
-                                                      child: Icon(Icons.star_half, color: Colors.amber, size: 18),
+                                                      child: Icon(Icons.star_half, color: AppColores.primary, size: 18),
                                                     );
                                                   } else {
                                                     return Padding(
                                                       padding: const EdgeInsets.only(right: 4),
-                                                      child: Icon(Icons.star_border, color: Colors.grey[400], size: 18),
+                                                      child: Icon(Icons.star_border, color: AppColores.grey400, size: 18),
                                                     );
                                                   }
                                                 }),
@@ -382,7 +368,7 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
                                               const SizedBox(width: 8),
                                               Text(
                                                 promedio > 0 ? promedio.toStringAsFixed(1) : '0.0',
-                                                style: const TextStyle(fontSize: 14, color: Colors.black54, fontWeight: FontWeight.w700),
+                                                style: const TextStyle(fontSize: 14, color: AppColores.textSecondary, fontWeight: FontWeight.w700),
                                               ),
                                             ],
                                           );
@@ -418,13 +404,13 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
                                             width: 100,
                                             height: 100,
                                             decoration: BoxDecoration(
-                                              color: Colors.grey.shade200,
+                                              color: AppColores.grey200,
                                               shape: BoxShape.circle,
                                             ),
                                             alignment: Alignment.center,
                                             child: Text(
                                               vm.displayName.isNotEmpty ? vm.displayName.trim()[0].toUpperCase() : 'C',
-                                              style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: Colors.black87),
+                                              style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: AppColores.textPrimary),
                                             ),
                                           );
                                         },
@@ -436,13 +422,13 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
                                     width: 100,
                                     height: 100,
                                     decoration: BoxDecoration(
-                                      color: Colors.grey.shade200,
+                                      color: AppColores.grey200,
                                       shape: BoxShape.circle,
                                     ),
                                     alignment: Alignment.center,
                                     child: Text(
                                       vm.displayName.isNotEmpty ? vm.displayName.trim()[0].toUpperCase() : 'C',
-                                      style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: Colors.black87),
+                                      style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: AppColores.textPrimary),
                                     ),
                                   );
                                 },
@@ -467,11 +453,11 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
                               height: double.infinity,
                               width: double.infinity,
                                 decoration: BoxDecoration(
-                                  color: vm.selectedPreview == null ? Colors.white : Colors.transparent,
+                                  color: vm.selectedPreview == null ? AppColores.cardBackground : Colors.transparent,
                                   borderRadius: vm.selectedPreview == null
                                       ? BorderRadius.circular(12)
                                       : BorderRadius.zero,
-                                  border: Border.all(color: Colors.black, width: 1.2),
+                                  border: Border.all(color: AppColores.borderSubtle, width: 1.2),
                                 ),
                               child: Stack(
                             children: [
@@ -557,13 +543,13 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
                                         Container(
                                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                                           decoration: BoxDecoration(
-                                            color: Colors.red.shade600,
+                                            color: AppColores.error,
                                             borderRadius: BorderRadius.circular(20),
-                                            boxShadow: const [
-                                              BoxShadow(color: Colors.black12, blurRadius: 2, offset: Offset(0, 1)),
+                                            boxShadow: [
+                                              BoxShadow(color: AppColores.borderSubtle, blurRadius: 2, offset: const Offset(0, 1)),
                                             ],
                                           ),
-                                          child: const Text('Solicitud pendiente', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                          child: const Text('Solicitud pendiente', style: TextStyle(color: AppColores.textWhite, fontWeight: FontWeight.bold)),
                                         ),
                                         const SizedBox(height: 8),
 
@@ -604,7 +590,7 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
                                                                   return;
                                                                 }
 
-                                                                final Map<String, dynamic>? data = snap.data() as Map<String, dynamic>?;
+                                                                final Map<String, dynamic>? data = snap.data();
                                                                 final dynamic st = (data != null) ? (data['estado'] ?? data['status']) : null;
                                                                 if (st is String) {
                                                                   final sLower = st.toLowerCase();
@@ -689,11 +675,11 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
                               child: ElevatedButton.icon(
                                 onPressed: _isTogglingConnection ? null : _toggleConductorConnection,
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: connected ? AppColores.buttonPrimary : Colors.grey,
+                                  backgroundColor: connected ? AppColores.buttonPrimary : AppColores.grey400,
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                                 ),
                                 icon: _isTogglingConnection
-                                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppColores.textWhite))
                                     : Icon(connected ? Icons.toggle_on : Icons.toggle_off, size: 28),
                                 label: Text(connected ? 'Conectado' : 'Desconectado', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                               ),
@@ -737,7 +723,7 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
                                     .update({
                                   'status': 'asignado',
                                   'conductor': {
-                                    if (uid != null) 'id': uid,
+                                    'id': uid,
                                     'nombre': vm.displayName,
                                     if (vm.photoUrl != null) 'foto': vm.photoUrl,
                                     'placa': vm.vehiclePlate ?? '',
@@ -761,8 +747,8 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
             bottomNavigationBar: !vm.isMapExpanded && vm.selectedPreview == null
               ? BottomNavigationBar(
                   currentIndex: 0,
-                  selectedItemColor: Colors.amber,
-                  unselectedItemColor: Colors.black54,
+                  selectedItemColor: AppColores.primary,
+                  unselectedItemColor: AppColores.textSecondary,
                   items: const [
                     BottomNavigationBarItem(icon: Icon(Icons.map), label: 'Mapa'),
                     BottomNavigationBarItem(icon: Icon(Icons.list), label: 'Historial'),

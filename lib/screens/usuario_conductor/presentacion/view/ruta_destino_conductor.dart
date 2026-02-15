@@ -23,13 +23,19 @@ class RutaDestinoConductorView extends StatefulWidget {
   final String solicitudId;
   final LatLng? destinoLocation;
 
-  const RutaDestinoConductorView({Key? key, required this.solicitudId, this.destinoLocation}) : super(key: key);
+  const RutaDestinoConductorView({
+    Key? key,
+    required this.solicitudId,
+    this.destinoLocation,
+  }) : super(key: key);
 
   @override
-  State<RutaDestinoConductorView> createState() => _RutaDestinoConductorViewState();
+  State<RutaDestinoConductorView> createState() =>
+      _RutaDestinoConductorViewState();
 }
 
-class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> with WidgetsBindingObserver {
+class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView>
+    with WidgetsBindingObserver {
   GoogleMapController? _mapController;
   LatLng? _driverLocation;
   LatLng? _destinoLocation;
@@ -56,10 +62,15 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> wit
 
   // Nueva variable para controlar si el botón debe estar habilitado
   bool _puedeTerminarViaje = false;
+  bool _initializing = true;
+  bool _initializationScheduled = false;
+  late DateTime _initStart;
+  bool _firstEntryNotificationShown = false;
 
   @override
   void initState() {
     super.initState();
+    _initStart = DateTime.now();
     WidgetsBinding.instance.addObserver(this);
     _vm = RutaConductorUsuarioViewModel(solicitudId: widget.solicitudId);
     _destinoLocation = widget.destinoLocation;
@@ -71,6 +82,10 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> wit
       try {
         _vm.init(context);
       } catch (_) {}
+      // Notificación solo la primera vez que se entra a esta vista
+      try {
+        _showFirstEntryNotification();
+      } catch (_) {}
     });
     // Suscribirse al servicio de ubicación local para enviar/actualizar
     // la ubicación en Firestore en cada movimiento del GPS.
@@ -80,8 +95,14 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> wit
           _driverLocation = latlng;
           final uid = FirebaseAuth.instance.currentUser?.uid;
           if (uid != null) {
-            await _firebaseService.guardarUbicacionConductor(conductorId: uid, position: latlng);
-            await _firebaseService.actualizarUbicacionConductorEnSolicitud(solicitudId: widget.solicitudId, position: latlng);
+            await _firebaseService.guardarUbicacionConductor(
+              conductorId: uid,
+              position: latlng,
+            );
+            await _firebaseService.actualizarUbicacionConductorEnSolicitud(
+              solicitudId: widget.solicitudId,
+              position: latlng,
+            );
           }
           // Actualizar ruta o recortar si ya hay una
           if (_driverLocation != null && _destinoLocation != null) {
@@ -90,7 +111,10 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> wit
             } else {
               _shortenRouteToDriver();
             }
-            final dist = _haversineDistanceMeters(_driverLocation!, _destinoLocation!);
+            final dist = _haversineDistanceMeters(
+              _driverLocation!,
+              _destinoLocation!,
+            );
             final puedeTerminar = dist <= 50;
             if (_puedeTerminarViaje != puedeTerminar) {
               setState(() {
@@ -103,37 +127,66 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> wit
       }, distanceFilter: 8);
     } catch (_) {}
 
-      // Mostrar notificación de continuación cuando la vista se inicia
+  }
+
+  void _maybeCompleteInitialization() {
+    if (!_initializing || _initializationScheduled) return;
+    if (_loading || _destinoLocation == null) return;
+
+    const minDuration = Duration(seconds: 3);
+    final elapsed = DateTime.now().difference(_initStart);
+    final remaining = elapsed >= minDuration
+        ? Duration.zero
+        : minDuration - elapsed;
+
+    _initializationScheduled = true;
+    Future.delayed(remaining, () {
+      if (!mounted) return;
+      setState(() {
+        _initializing = false;
+      });
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      // Cuando la app se reanuda y esta vista está montada, mostrar notificación
       try {
         _showContinueNotification();
       } catch (_) {}
+    }
   }
 
-    
+  void _showFirstEntryNotification() {
+    if (_firstEntryNotificationShown) return;
+    _firstEntryNotificationShown = true;
+    try {
+      NotificacionesServicio.instance.showTripNotification(
+        title: 'Continúa hacia el destino',
+        body: 'Lleva el cliente a su destino.',
+      );
+    } catch (_) {}
+  }
 
-    @override
-    void didChangeAppLifecycleState(AppLifecycleState state) {
-      super.didChangeAppLifecycleState(state);
-      if (state == AppLifecycleState.resumed) {
-        // Cuando la app se reanuda y esta vista está montada, mostrar notificación
-        try {
-          _showContinueNotification();
-        } catch (_) {}
-      }
-    }
-
-    void _showContinueNotification() {
-      try {
-        NotificacionesServicio.instance.showTripNotification(
-          title: 'Continúa el viaje',
-          body: 'Continúa el viaje y lleva al cliente a su destino',
-        );
-      } catch (_) {}
-    }
+  void _showContinueNotification() {
+    try {
+      NotificacionesServicio.instance.showTripNotification(
+        title: 'Continúa el viaje',
+        body: 'Lleva el cliente a su destino.',
+      );
+    } catch (_) {}
+  }
 
   Future<void> _loadIcons() async {
     try {
-      final dpr = WidgetsBinding.instance.platformDispatcher.views.first.devicePixelRatio;
+      final dpr = WidgetsBinding
+          .instance
+          .platformDispatcher
+          .views
+          .first
+          .devicePixelRatio;
 
       final destino = await BitmapDescriptor.asset(
         ImageConfiguration(size: const Size(30, 50), devicePixelRatio: dpr),
@@ -148,7 +201,10 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> wit
 
   Future<void> _ensureDestino() async {
     try {
-      final snap = await FirebaseFirestore.instance.collection('solicitudes').doc(widget.solicitudId).get();
+      final snap = await FirebaseFirestore.instance
+          .collection('solicitudes')
+          .doc(widget.solicitudId)
+          .get();
       final data = snap.data();
       if (data != null) {
         LatLng? destino;
@@ -159,11 +215,15 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> wit
             final lat = (u['lat'] ?? u['latitude'] ?? u['latitud']);
             final lng = (u['lng'] ?? u['longitude'] ?? u['longitud']);
             if (lat != null && lng != null) {
-              destino = LatLng((lat as num).toDouble(), (lng as num).toDouble());
+              destino = LatLng(
+                (lat as num).toDouble(),
+                (lng as num).toDouble(),
+              );
             }
           }
 
-          final dir = rawDestino['direccion'] ??
+          final dir =
+              rawDestino['direccion'] ??
               rawDestino['address'] ??
               rawDestino['direccion_destino'] ??
               rawDestino['title'];
@@ -176,18 +236,38 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> wit
         final rawCliente = data['cliente'];
         if (rawCliente is Map) {
           // intentar leer ubicación del cliente
-          final clienteUbic = rawCliente['ubicacion'] ?? rawCliente['location'] ?? rawCliente['locationData'];
+          final clienteUbic =
+              rawCliente['ubicacion'] ??
+              rawCliente['location'] ??
+              rawCliente['locationData'];
           if (clienteUbic is Map) {
-            final lat = (clienteUbic['lat'] ?? clienteUbic['latitude'] ?? clienteUbic['latitud']);
-            final lng = (clienteUbic['lng'] ?? clienteUbic['longitude'] ?? clienteUbic['longitud']);
+            final lat =
+                (clienteUbic['lat'] ??
+                clienteUbic['latitude'] ??
+                clienteUbic['latitud']);
+            final lng =
+                (clienteUbic['lng'] ??
+                clienteUbic['longitude'] ??
+                clienteUbic['longitud']);
             if (lat != null && lng != null) {
-              _clientLocation = LatLng((lat as num).toDouble(), (lng as num).toDouble());
+              _clientLocation = LatLng(
+                (lat as num).toDouble(),
+                (lng as num).toDouble(),
+              );
             }
-            final addr = clienteUbic['address'] ?? clienteUbic['direccion'] ?? clienteUbic['title'];
-            if (addr is String && addr.trim().isNotEmpty) _clientAddress = addr.trim();
+            final addr =
+                clienteUbic['address'] ??
+                clienteUbic['direccion'] ??
+                clienteUbic['title'];
+            if (addr is String && addr.trim().isNotEmpty)
+              _clientAddress = addr.trim();
           }
           final nombre = rawCliente['nombre'] ?? rawCliente['name'];
-          final foto = rawCliente['foto'] ?? rawCliente['photo'] ?? rawCliente['photoUrl'] ?? rawCliente['imagen'];
+          final foto =
+              rawCliente['foto'] ??
+              rawCliente['photo'] ??
+              rawCliente['photoUrl'] ??
+              rawCliente['imagen'];
           if (nombre is String) {
             _clientName = nombre.trim();
           }
@@ -206,8 +286,6 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> wit
     if (mounted) setState(() => _loading = false);
   }
 
-  
-
   void _subscribeDriver() {
     _driverSub?.cancel();
     _driverSub = _vm.listenPosicionConductor().listen((pos) {
@@ -219,7 +297,10 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> wit
           _shortenRouteToDriver();
         }
         // Verificar si está a 50 metros o menos del destino
-        final dist = _haversineDistanceMeters(_driverLocation!, _destinoLocation!);
+        final dist = _haversineDistanceMeters(
+          _driverLocation!,
+          _destinoLocation!,
+        );
         final puedeTerminar = dist <= 50;
         if (_puedeTerminarViaje != puedeTerminar) {
           setState(() {
@@ -235,7 +316,9 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> wit
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _driverSub?.cancel();
-    try { _vm.dispose(); } catch (_) {}
+    try {
+      _vm.dispose();
+    } catch (_) {}
     _locationSub?.cancel();
     _mapController?.dispose();
     super.dispose();
@@ -289,8 +372,12 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> wit
     final dLon = (b.longitude - a.longitude) * math.pi / 180.0;
     final lat1 = a.latitude * math.pi / 180.0;
     final lat2 = b.latitude * math.pi / 180.0;
-    final h = math.sin(dLat / 2) * math.sin(dLat / 2) +
-        math.cos(lat1) * math.cos(lat2) * math.sin(dLon / 2) * math.sin(dLon / 2);
+    final h =
+        math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(lat1) *
+            math.cos(lat2) *
+            math.sin(dLon / 2) *
+            math.sin(dLon / 2);
     final c = 2 * math.atan2(math.sqrt(h), math.sqrt(1 - h));
     return R * c;
   }
@@ -310,7 +397,8 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> wit
     final lat2 = to.latitude * math.pi / 180;
     final dLon = (to.longitude - from.longitude) * math.pi / 180;
     final y = math.sin(dLon) * math.cos(lat2);
-    final x = math.cos(lat1) * math.sin(lat2) -
+    final x =
+        math.cos(lat1) * math.sin(lat2) -
         math.sin(lat1) * math.cos(lat2) * math.cos(dLon);
     final brng = math.atan2(y, x);
     return (brng * 180 / math.pi + 360) % 360;
@@ -359,21 +447,25 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> wit
         _obteniendoDireccion = false;
       });
 
-      // Orientar cámara hacia el destino con zoom dinámico
+      // Orientar cámara desde la posición del conductor hacia el destino,
+      // con perspectiva de viaje (bearing y zoom dinámico).
       if (_mapController != null && points.isNotEmpty) {
-        final bearing = _calculateBearing(origin, dest);
-        final dist = _haversineDistanceMeters(origin, dest);
-        final zoom = _zoomForDistanceMeters(dist);
-        await _mapController!.animateCamera(
-          CameraUpdate.newCameraPosition(
-            CameraPosition(target: origin, zoom: zoom, bearing: bearing, tilt: 45),
-          ),
-        );
+        try {
+          final bearing = _calculateBearing(origin, dest);
+          final dist = _haversineDistanceMeters(origin, dest);
+          final zoom = _zoomForDistanceMeters(dist);
+          await _mapController!.animateCamera(
+            CameraUpdate.newCameraPosition(
+              CameraPosition(target: origin, zoom: zoom, bearing: bearing),
+            ),
+          );
+        } catch (_) {}
       }
     } catch (_) {
       // fallthrough
     } finally {
-      if (mounted && _obteniendoDireccion) setState(() => _obteniendoDireccion = false);
+      if (mounted && _obteniendoDireccion)
+        setState(() => _obteniendoDireccion = false);
     }
   }
 
@@ -388,7 +480,9 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> wit
         if (distToDest < 35) {
           setState(() {
             _routePoints = [];
-            _polylines = _polylines.where((p) => p.polylineId.value != 'route').toSet();
+            _polylines = _polylines
+                .where((p) => p.polylineId.value != 'route')
+                .toSet();
           });
           return;
         }
@@ -439,7 +533,12 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> wit
         final zoom = _zoomForDistanceMeters(dist);
         _mapController!.animateCamera(
           CameraUpdate.newCameraPosition(
-            CameraPosition(target: _driverLocation!, zoom: zoom, bearing: bearing, tilt: 45),
+            CameraPosition(
+              target: _driverLocation!,
+              zoom: zoom,
+              bearing: bearing,
+              tilt: 45,
+            ),
           ),
         );
       }
@@ -448,9 +547,11 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> wit
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) {
+    _maybeCompleteInitialization();
+
+    if (_initializing || _loading) {
       return const Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColores.background,
         body: SafeArea(
           child: Center(
             child: MapLoadingWidget(message: 'Preparando ruta al destino...'),
@@ -460,28 +561,22 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> wit
     }
 
     final markers = <Marker>{};
-    // No agregar un Marker rojo para el conductor: usar el punto azul nativo (`myLocationEnabled`) en su lugar.
-    // Esto evita que un pin rojo se superponga a la ubicación actual.
+    // Mostrar siempre el marcador rojo del destino cuando haya coordenadas.
     if (_destinoLocation != null) {
-      // Only show destino marker if it's not effectively at the same
-      // position as the driver (avoid overlapping red marker on driver).
-        // Ocultar marcador de destino si está muy cerca del conductor
-        // para evitar que el pin rojo quede encima del punto azul (mi ubicación).
-        final shouldShowDestino = _driverLocation == null ||
-          _haversineDistanceMeters(_driverLocation!, _destinoLocation!) > 35;
-      if (shouldShowDestino) {
-        markers.add(
-          Marker(
-            markerId: const MarkerId('destino'),
-            position: _destinoLocation!,
-            icon: _destinoIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-            infoWindow: const InfoWindow(title: 'Destino'),
-          ),
-        );
-      }
+      markers.add(
+        Marker(
+          markerId: const MarkerId('destino'),
+          position: _destinoLocation!,
+          icon:
+              _destinoIcon ??
+              BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+          infoWindow: const InfoWindow(title: 'Destino'),
+        ),
+      );
     }
 
-    final initialTarget = _driverLocation ?? _destinoLocation ?? const LatLng(0, 0);
+    final initialTarget =
+        _driverLocation ?? _destinoLocation ?? const LatLng(0, 0);
 
     return WillPopScope(
       onWillPop: () async => false,
@@ -489,7 +584,7 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> wit
         appBar: AppBar(
           title: const Text('Ruta al destino'),
           backgroundColor: AppColores.primary,
-          foregroundColor: Colors.white,
+          foregroundColor: AppColores.textWhite,
           automaticallyImplyLeading: false,
         ),
         body: SafeArea(
@@ -511,9 +606,11 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> wit
                     if (_obteniendoDireccion)
                       Positioned.fill(
                         child: Container(
-                          color: Colors.black.withOpacity(0.2),
+                          color: AppColores.overlayLight,
                           child: const Center(
-                            child: MapLoadingWidget(message: 'Obteniendo dirección...'),
+                            child: MapLoadingWidget(
+                              message: 'Obteniendo dirección...',
+                            ),
                           ),
                         ),
                       ),
@@ -522,23 +619,30 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> wit
               ),
               Container(
                 width: double.infinity,
-                constraints: BoxConstraints(minHeight: ResponsiveHelper.hp(context, 18)),
-                margin: EdgeInsets.only(bottom: ResponsiveHelper.hp(context, 1)),
+                constraints: BoxConstraints(
+                  minHeight: ResponsiveHelper.hp(context, 22),
+                ),
+                margin: EdgeInsets.zero,
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: AppColores.sheetBackground,
                   borderRadius: const BorderRadius.only(
                     topLeft: Radius.circular(24),
                     topRight: Radius.circular(24),
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.08),
+                      color: AppColores.borderSubtle,
                       blurRadius: 10,
                       offset: const Offset(0, -2),
                     ),
                   ],
                 ),
-                padding: EdgeInsets.symmetric(horizontal: ResponsiveHelper.wp(context, 4), vertical: ResponsiveHelper.hp(context, 2)),
+                padding: EdgeInsets.fromLTRB(
+                  ResponsiveHelper.wp(context, 4),
+                  ResponsiveHelper.hp(context, 2.2),
+                  ResponsiveHelper.wp(context, 4),
+                  ResponsiveHelper.hp(context, 2.4),
+                ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -547,12 +651,20 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> wit
                       children: [
                         CircleAvatar(
                           radius: ResponsiveHelper.sp(context, 34),
-                          backgroundColor: Colors.grey.shade200,
-                          backgroundImage: (_clientPhotoUrl != null && _clientPhotoUrl!.isNotEmpty)
+                          backgroundColor: AppColores.grey200,
+                          backgroundImage:
+                              (_clientPhotoUrl != null &&
+                                  _clientPhotoUrl!.isNotEmpty)
                               ? NetworkImage(_clientPhotoUrl!)
                               : null,
-                          child: (_clientPhotoUrl == null || _clientPhotoUrl!.isEmpty)
-                              ? Icon(Icons.person, size: ResponsiveHelper.sp(context, 22), color: Colors.black87)
+                          child:
+                              (_clientPhotoUrl == null ||
+                                  _clientPhotoUrl!.isEmpty)
+                              ? Icon(
+                                  Icons.person,
+                                  size: ResponsiveHelper.sp(context, 22),
+                                  color: AppColores.textPrimary,
+                                )
                               : null,
                         ),
                         SizedBox(width: ResponsiveHelper.wp(context, 3)),
@@ -566,16 +678,19 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> wit
                                 style: TextStyle(
                                   fontSize: ResponsiveHelper.sp(context, 16),
                                   fontWeight: FontWeight.w600,
+                                  color: AppColores.textPrimary,
                                 ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
-                              SizedBox(height: ResponsiveHelper.hp(context, 0.6)),
+                              SizedBox(
+                                height: ResponsiveHelper.hp(context, 0.6),
+                              ),
                               Text(
                                 _destinoDireccion ?? 'Destino',
                                 style: TextStyle(
                                   fontSize: ResponsiveHelper.sp(context, 12),
-                                  color: Colors.grey.shade700,
+                                  color: AppColores.textSecondary,
                                 ),
                               ),
                             ],
@@ -589,27 +704,56 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> wit
                         Expanded(
                           child: OutlinedButton.icon(
                             onPressed: _openExternalMaps,
-                            icon: Icon(Icons.navigation_outlined, size: ResponsiveHelper.sp(context, 16)),
-                            label: Text('Maps', style: TextStyle(fontSize: ResponsiveHelper.sp(context, 14))),
+                            icon: Icon(
+                              Icons.navigation_outlined,
+                              size: ResponsiveHelper.sp(context, 16),
+                            ),
+                            label: Text(
+                              'Mapa',
+                              style: TextStyle(
+                                fontSize: ResponsiveHelper.sp(context, 14),
+                              ),
+                            ),
                             style: OutlinedButton.styleFrom(
                               foregroundColor: AppColores.primary,
-                              side: BorderSide(color: AppColores.primary.withOpacity(0.8), width: 1.2),
-                              padding: EdgeInsets.symmetric(vertical: ResponsiveHelper.hp(context, 1.2)),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              side: BorderSide(
+                                color: AppColores.primary.withOpacity(0.8),
+                                width: 1.2,
+                              ),
+                              padding: EdgeInsets.symmetric(
+                                vertical: ResponsiveHelper.hp(context, 1.2),
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                             ),
                           ),
                         ),
                         SizedBox(width: ResponsiveHelper.wp(context, 3)),
                         Expanded(
                           child: ElevatedButton.icon(
-                            onPressed: _puedeTerminarViaje ? _terminarViaje : null,
-                            icon: Icon(Icons.flag_outlined, size: ResponsiveHelper.sp(context, 16)),
-                            label: Text('Terminar viaje', style: TextStyle(fontSize: ResponsiveHelper.sp(context, 14))),
+                            onPressed: _puedeTerminarViaje
+                                ? _terminarViaje
+                                : null,
+                            icon: Icon(
+                              Icons.flag_outlined,
+                              size: ResponsiveHelper.sp(context, 16),
+                            ),
+                            label: Text(
+                              'Terminar viaje',
+                              style: TextStyle(
+                                fontSize: ResponsiveHelper.sp(context, 14),
+                              ),
+                            ),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColores.primary,
-                              foregroundColor: Colors.white,
-                              padding: EdgeInsets.symmetric(vertical: ResponsiveHelper.hp(context, 1.2)),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              foregroundColor: AppColores.textWhite,
+                              padding: EdgeInsets.symmetric(
+                                vertical: ResponsiveHelper.hp(context, 1.2),
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                             ),
                           ),
                         ),
@@ -631,7 +775,9 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> wit
       if (destino == null) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No se encuentra la ubicación de destino')),
+          const SnackBar(
+            content: Text('No se encuentra la ubicación de destino'),
+          ),
         );
         return;
       }
@@ -661,25 +807,29 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> wit
     try {
       await _firebaseService.finalizarViaje(widget.solicitudId);
       if (!mounted) return;
-      
+
       // Obtener la solicitud para calcular duración y crear historial
       try {
         final solicitudSnap = await FirebaseFirestore.instance
             .collection('solicitudes')
             .doc(widget.solicitudId)
             .get();
-        
+
         final data = solicitudSnap.data();
         if (data != null) {
-          final fechaAceptacion = data['fecha de aceptacion conductor'] as Timestamp?;
+          final fechaAceptacion =
+              data['fecha de aceptacion conductor'] as Timestamp?;
           final completedAt = Timestamp.now();
-          
+
           // Calcular duración en minutos usando los timestamps
           int durationMinutes = 0;
           if (fechaAceptacion != null) {
-            durationMinutes = completedAt.toDate().difference(fechaAceptacion.toDate()).inMinutes;
+            durationMinutes = completedAt
+                .toDate()
+                .difference(fechaAceptacion.toDate())
+                .inMinutes;
           }
-          
+
           // Guardar fecha de terminación y duración en solicitud
           await FirebaseFirestore.instance
               .collection('solicitudes')
@@ -691,33 +841,36 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> wit
 
           // Crear registro en historial de viajes
           final clienteData = data['cliente'] as Map<String, dynamic>? ?? {};
-          final conductorData = data['conductor'] as Map<String, dynamic>? ?? {};
+          final conductorData =
+              data['conductor'] as Map<String, dynamic>? ?? {};
           final destinoData = data['destino'] as Map<String, dynamic>? ?? {};
-          
+
           // Extraer datos del origen
-        
-          final addressOrigen = clienteData['ubicacion']?['address'] ?? 'Ubicación inicial';
-          
+
+          final addressOrigen =
+              clienteData['ubicacion']?['address'] ?? 'Ubicación inicial';
+
           // Extraer datos del destino
           final addressDestino = destinoData['title'] ?? 'Destino';
-          
+
           // Extraer datos del cliente
           final clienteId = data['clienteId'] ?? clienteData['id'] ?? '';
           final nombreCliente = clienteData['nombre'] ?? 'Cliente';
-          
+
           // Extraer datos del conductor
           final conductorId = data['conductorId'] ?? conductorData['id'] ?? '';
           final nombreConductor = conductorData['nombre'] ?? 'Conductor';
-          final placa = conductorData['vehiculo']?['placa'] ?? conductorData['placa'] ?? '';
-          
+          final placa =
+              conductorData['vehiculo']?['placa'] ??
+              conductorData['placa'] ??
+              '';
+
           final tripData = {
             'status': 'completado',
-            'createdAt': data['fecha de aceptacion conductor'] ?? Timestamp.now(),
+            'createdAt':
+                data['fecha de aceptacion conductor'] ?? Timestamp.now(),
             'completedAt': completedAt,
-            'cliente': {
-              'id': clienteId,
-              'name': nombreCliente,
-            },
+            'cliente': {'id': clienteId, 'name': nombreCliente},
             'conductor': {
               'id': conductorId,
               'name': nombreConductor,
@@ -727,16 +880,14 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> wit
             'destino': addressDestino,
             'distanceKm': data['distanceKm'] ?? 0.0,
             'duracion minutos': durationMinutes,
-            'tarifa': {
-              'total': data['valor'] ?? 0,
-              'currency': 'COP',
-            },
-            'metodoPago': (data['metodo_pago']?.toString() ?? 'efectivo').toLowerCase(),
+            'tarifa': {'total': data['valor'] ?? 0, 'currency': 'COP'},
+            'metodoPago': (data['metodo_pago']?.toString() ?? 'efectivo')
+                .toLowerCase(),
             'calificacion': null,
             'solicitudId': widget.solicitudId,
             'timestamp': FieldValue.serverTimestamp(),
           };
-          
+
           // Nota: ya no se crea ni guarda un documento en 'historial viajes'.
           // Se omite la creación del historial y la actualización de
           // 'historial_viaje_id' en la solicitud según la nueva lógica.
@@ -749,7 +900,7 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> wit
     } catch (e) {
       debugPrint('Error al terminar viaje: $e');
       if (!mounted) return;
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No se pudo finalizar el viaje')),
       );
@@ -760,7 +911,9 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> wit
     if (_terminandoDialogoMostrado) return;
     _terminandoDialogoMostrado = true;
     // limpiar cache de la solicitud antes de mostrar el diálogo
-    try { RouteCacheService.clearSolicitud(widget.solicitudId); } catch (_) {}
+    try {
+      RouteCacheService.clearSolicitud(widget.solicitudId);
+    } catch (_) {}
 
     showDialog(
       context: context,
@@ -776,11 +929,11 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> wit
                 Container(
                   padding: const EdgeInsets.all(32),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: AppColores.cardBackground,
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
+                        color: AppColores.borderSubtle,
                         blurRadius: 16,
                         offset: const Offset(0, 4),
                       ),
@@ -793,7 +946,9 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> wit
                         width: 64,
                         height: 64,
                         child: CircularProgressIndicator(
-                          valueColor: AlwaysStoppedAnimation<Color>(AppColores.primary),
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            AppColores.primary,
+                          ),
                           strokeWidth: 3,
                         ),
                       ),
@@ -803,7 +958,7 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> wit
                         style: TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.w700,
-                          color: Colors.black87,
+                          color: AppColores.textPrimary,
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -811,7 +966,7 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView> wit
                         'Por favor espere...',
                         style: TextStyle(
                           fontSize: 14,
-                          color: Colors.grey.shade600,
+                          color: AppColores.textSecondary,
                         ),
                       ),
                     ],

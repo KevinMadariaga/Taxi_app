@@ -352,7 +352,9 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
                         return ListTile(
                           leading: const Icon(Icons.location_on_outlined, color: Colors.black54),
                           title: Text(s.nombre.isNotEmpty ? s.nombre : s.direccion),
-                          subtitle: s.direccion.isNotEmpty ? Text(s.direccion) : null,
+                          subtitle: (s.direccion.isNotEmpty && s.direccion != s.nombre)
+                              ? Text(s.direccion)
+                              : null,
                           onTap: () {
                             // Cerrar teclado al seleccionar una ubicación
                             FocusScope.of(context).unfocus();

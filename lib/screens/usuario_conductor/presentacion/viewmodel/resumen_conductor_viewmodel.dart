@@ -53,47 +53,76 @@ class ResumenConductorViewModel extends ChangeNotifier {
         notifyListeners();
         return;
       }
-      solicitudData = solDoc.data() as Map<String, dynamic>;
 
-        // Obtener cliente (prefiere embebido en la solicitud, fallback al documento)
+      final rawData = solDoc.data();
+      if (rawData == null) {
+        solicitudData = <String, dynamic>{};
+      } else {
+        solicitudData = Map<String, dynamic>.from(rawData);
+      }
+
+      // Obtener cliente (prefiere embebido en la solicitud, fallback al documento)
+      try {
         final rawCliente = solicitudData!['cliente'];
-        final clienteEmbebido = rawCliente is Map<String, dynamic> ? rawCliente : null;
+        final clienteEmbebido = rawCliente is Map<String, dynamic>
+            ? rawCliente
+            : null;
         final clienteId = solicitudData!['clienteId'] ?? clienteEmbebido?['id'];
 
         nombreCliente = (clienteEmbebido?['nombre'] ?? '')
-          .toString()
-          .toUpperCase();
+            .toString()
+            .toUpperCase();
 
-        if (nombreCliente.isEmpty && clienteId != null && clienteId.toString().isNotEmpty) {
-        final clienteDoc = await FirebaseFirestore.instance
-          .collection('cliente')
-          .doc(clienteId)
-          .get();
-        nombreCliente = (clienteDoc.data()?['nombre'] ?? '')
-          .toString()
-          .toUpperCase();
+        if (nombreCliente.isEmpty &&
+            clienteId != null &&
+            clienteId.toString().isNotEmpty) {
+          final clienteDoc = await FirebaseFirestore.instance
+              .collection('cliente')
+              .doc(clienteId)
+              .get();
+          nombreCliente = (clienteDoc.data()?['nombre'] ?? '')
+              .toString()
+              .toUpperCase();
         }
-
-      // Calcular duración del servicio
-      final fechaAceptacion = solicitudData!['fecha de aceptacion conductor'] as Timestamp?;
-      final fechaTerminacion = solicitudData!['fecha de terminacion'] as Timestamp?;
-      
-      if (fechaAceptacion != null && fechaTerminacion != null) {
-        final inicio = fechaAceptacion.toDate();
-        final fin = fechaTerminacion.toDate();
-        final duracion = fin.difference(inicio);
-        duracionMinutos = duracion.inMinutes;
+      } catch (_) {
+        // Si algo falla, dejamos nombreCliente en blanco
+        nombreCliente = '';
       }
 
-      final ubicacionInicial = solicitudData!['ubicacion_inicial'];
+      // Calcular duración del servicio (tolerante a tipos y ausencias)
       try {
-        final placemarks = await placemarkFromCoordinates(
-          ubicacionInicial.latitude,
-          ubicacionInicial.longitude,
-        );
-        if (placemarks.isNotEmpty) {
-          final p = placemarks.first;
-          direccionRecogida = "${p.street}, ${p.locality}, ${p.country}";
+        final rawAceptacion = solicitudData!['fecha de aceptacion conductor'];
+        final rawTerminacion = solicitudData!['fecha de terminacion'];
+
+        if (rawAceptacion is Timestamp && rawTerminacion is Timestamp) {
+          final inicio = rawAceptacion.toDate();
+          final fin = rawTerminacion.toDate();
+          final duracion = fin.difference(inicio);
+          duracionMinutos = duracion.inMinutes;
+        } else {
+          duracionMinutos = 0;
+        }
+      } catch (_) {
+        duracionMinutos = 0;
+      }
+
+      // Dirección de recogida (tolerante a nulos / tipos inesperados)
+      try {
+        final ubicacionInicial = solicitudData!['ubicacion_inicial'];
+        if (ubicacionInicial != null &&
+            ubicacionInicial is dynamic &&
+            ubicacionInicial.latitude != null &&
+            ubicacionInicial.longitude != null) {
+          final placemarks = await placemarkFromCoordinates(
+            ubicacionInicial.latitude,
+            ubicacionInicial.longitude,
+          );
+          if (placemarks.isNotEmpty) {
+            final p = placemarks.first;
+            direccionRecogida = "${p.street}, ${p.locality}, ${p.country}";
+          } else {
+            direccionRecogida = "Dirección no disponible";
+          }
         } else {
           direccionRecogida = "Dirección no disponible";
         }

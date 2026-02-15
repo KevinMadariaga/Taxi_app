@@ -51,94 +51,102 @@ class _PreviewSolicitudCardState extends State<PreviewSolicitudCard> {
   Widget build(BuildContext context) {
     final preview = widget.preview;
     final isLoading = widget.isLoading;
-    final onClose = widget.onClose;
     final onCancel = widget.onCancel;
     final onAccept = widget.onAccept;
+
+    final double avatarSize = ResponsiveHelper.sp(context, 70);
 
     final String cercania = (preview.distanciaKm != null)
       ? (preview.distanciaKm! <= 1.0 ? 'Cerca' : 'Lejos')
       : '—';
 
-    return Card(
-      margin: ResponsiveHelper.padding(context, all: 10),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: ResponsiveHelper.padding(context, all: 15),
+    return Container(
+      color: AppColores.cardBackground,
+      // Menos padding lateral y superior para que la foto se vea más protagonista
+      padding: ResponsiveHelper.padding(
+        context,
+        top: 12,
+        left: 14,
+        right: 14,
+        bottom: 0,
+      ),
+      child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Row(
               children: [
-                Icon(Icons.local_taxi, color: AppColores.textSecondary, size: ResponsiveHelper.sp(context, 18)),
-                SizedBox(width: ResponsiveHelper.wp(context, 1.9)),
+                Icon(Icons.local_taxi, color: AppColores.textSecondary, size: ResponsiveHelper.sp(context, 20)),
+                SizedBox(width: ResponsiveHelper.wp(context, 2.5)),
                 Text(
                   'Solicitud seleccionada',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: ResponsiveHelper.sp(context, 16)),
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: ResponsiveHelper.sp(context, 17)),
                 ),
                 
               ],
             ),
-            SizedBox(height: ResponsiveHelper.hp(context, 1.5)),
+            SizedBox(height: ResponsiveHelper.hp(context, 1.8)),
             Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
-                  child: ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: _photoUrl != null
-                        ? ClipRRect(
-                            borderRadius: BorderRadius.circular(ResponsiveHelper.sp(context, 36)),
-                            child: Image.network(
-                              _photoUrl!,
-                              width: ResponsiveHelper.sp(context, 50),
-                              height: ResponsiveHelper.sp(context, 50),
-                              fit: BoxFit.cover,
-                              errorBuilder: (ctx, err, st) {
-                                return Container(
-                                  width: ResponsiveHelper.sp(context, 50),
-                                  height: ResponsiveHelper.sp(context, 50),
-                                  color: Colors.grey.shade200,
-                                  child: Icon(Icons.person, color: Colors.grey.shade600, size: ResponsiveHelper.sp(context, 18)),
-                                );
-                              },
-                            ),
-                          )
-                        : Container(
-                            width: ResponsiveHelper.sp(context, 50),
-                            height: ResponsiveHelper.sp(context, 50),
-                            decoration: BoxDecoration(
-                              color: Colors.grey.shade200,
-                              borderRadius: BorderRadius.circular(ResponsiveHelper.sp(context, 30)),
-                            ),
-                            alignment: Alignment.center,
-                            child: Icon(Icons.person, color: Colors.grey.shade600, size: ResponsiveHelper.sp(context, 18)),
-                          ),
-                    title: Text(
-                      (preview.clientName ?? 'Cliente').toUpperCase(),
-                      style: TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: ResponsiveHelper.sp(context, 15),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      SizedBox(
+                        width: avatarSize,
+                        height: avatarSize,
+                        child: CircleAvatar(
+                          radius: avatarSize / 2,
+                          backgroundColor: AppColores.grey400,
+                          backgroundImage:
+                              _photoUrl != null && _photoUrl!.isNotEmpty
+                                  ? NetworkImage(_photoUrl!)
+                                  : null,
+                          child: (_photoUrl == null || _photoUrl!.isEmpty)
+                              ? Icon(
+                                  Icons.person,
+                                  color: AppColores.textWhite,
+                                  size: ResponsiveHelper.sp(context, 25 ),
+                                )
+                              : null,
+                        ),
                       ),
-                    ),
+                      SizedBox(width: ResponsiveHelper.wp(context, 2)),
+                      Expanded(
+                        child: Text(
+                          (preview.clientName ?? 'Cliente').toUpperCase(),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: ResponsiveHelper.sp(context, 15),
+                            color: AppColores.textPrimary,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      'Distancia',
-                      style: TextStyle(fontSize: ResponsiveHelper.sp(context, 11), color: AppColores.textSecondary),
-                    ),
-                    Text(
-                      cercania,
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: AppColores.textPrimary,
-                        fontSize: ResponsiveHelper.sp(context, 13),
+                Padding(
+                  padding: EdgeInsets.only(left: ResponsiveHelper.wp(context, 2)),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        'Distancia',
+                        style: TextStyle(fontSize: ResponsiveHelper.sp(context, 14), color: AppColores.textSecondary),
                       ),
-                    ),
-                  ],
+                      Text(
+                        cercania,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: AppColores.textPrimary,
+                          fontSize: ResponsiveHelper.sp(context, 16),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -153,7 +161,7 @@ class _PreviewSolicitudCardState extends State<PreviewSolicitudCard> {
                 TableRow(
                   children: [
                     Padding(
-                      padding: EdgeInsets.symmetric(horizontal: ResponsiveHelper.wp(context, 3), vertical: ResponsiveHelper.hp(context, 0.2)),
+                      padding: EdgeInsets.symmetric(horizontal: ResponsiveHelper.wp(context, 1), vertical: ResponsiveHelper.hp(context, 0.1)),
                       child: Text(
                         'Recoger en:',
                         style: TextStyle(
@@ -164,7 +172,7 @@ class _PreviewSolicitudCardState extends State<PreviewSolicitudCard> {
                       ),
                     ),
                     Padding(
-                      padding: EdgeInsets.symmetric(horizontal: ResponsiveHelper.wp(context, 3), vertical: ResponsiveHelper.hp(context, 0.2)),
+                      padding: EdgeInsets.symmetric(horizontal: ResponsiveHelper.wp(context, 5), vertical: ResponsiveHelper.hp(context, 0.1)),
                       child: Text(
                         'Pagará con:',
                         style: TextStyle(
@@ -179,7 +187,7 @@ class _PreviewSolicitudCardState extends State<PreviewSolicitudCard> {
                 TableRow(
                   children: [
                     Padding(
-                      padding: EdgeInsets.symmetric(horizontal: ResponsiveHelper.wp(context, 3)),
+                      padding: EdgeInsets.symmetric(horizontal: ResponsiveHelper.wp(context, 1)),
                       child: Text(
                         preview.solicitud.origenTitle ??
                           '${preview.solicitud.ubicacionInicial.latitude.toStringAsFixed(5)}, ${preview.solicitud.ubicacionInicial.longitude.toStringAsFixed(5)}',
@@ -192,7 +200,7 @@ class _PreviewSolicitudCardState extends State<PreviewSolicitudCard> {
                       ),
                     ),
                     Padding(
-                      padding: EdgeInsets.symmetric(horizontal: ResponsiveHelper.wp(context, 3)),
+                      padding: EdgeInsets.symmetric(horizontal: ResponsiveHelper.wp(context, 4)),
                       child: Builder(builder: (context) {
                         final metodo = (preview.paymentMethod ?? '').toLowerCase();
                         IconData icon = Icons.payment;
@@ -224,13 +232,13 @@ class _PreviewSolicitudCardState extends State<PreviewSolicitudCard> {
                 ),
               ],
             ),
-            SizedBox(height: ResponsiveHelper.hp(context, 3)),
+            SizedBox(height: ResponsiveHelper.hp(context, 2)),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 CustomButton(
                   text: 'Cancelar',
-                  color: Colors.white,
+                  color: AppColores.surface,
                   textColor: AppColores.buttonPrimary,
                   borderColor: AppColores.buttonPrimary,
                   onPressed: isLoading ? null : onCancel,
@@ -238,11 +246,11 @@ class _PreviewSolicitudCardState extends State<PreviewSolicitudCard> {
                   height: ResponsiveHelper.hp(context, 6),
                   fontSize: ResponsiveHelper.sp(context, 14),
                 ),
-                SizedBox(width: ResponsiveHelper.wp(context, 3)),
+                SizedBox(width: ResponsiveHelper.wp(context, 4)),
                 CustomButton(
                   text: 'Aceptar',
                   color: AppColores.buttonPrimary,
-                  textColor: Colors.white,
+                  textColor: AppColores.textWhite,
                   isLoading: isLoading,
                   onPressed: isLoading ? null : onAccept,
                   width: ResponsiveHelper.wp(context, 36),
@@ -251,6 +259,8 @@ class _PreviewSolicitudCardState extends State<PreviewSolicitudCard> {
                 ),
               ],
             ),
+            // Espacio mínimo y responsivo entre los botones y el mapa
+            SizedBox(height: ResponsiveHelper.hp(context, 1.2)),
           ],
         ),
       ),

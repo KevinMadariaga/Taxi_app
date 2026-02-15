@@ -6,7 +6,6 @@ import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/inicio_conductor_view.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/resumen_conductor_viewmodel.dart';
 
-
 class ResumenConductorView extends StatelessWidget {
   final String solicitudId;
   const ResumenConductorView({super.key, required this.solicitudId});
@@ -26,16 +25,17 @@ class ResumenConductorView extends StatelessWidget {
           final TextStyle titleStyle = TextStyle(
             fontSize: 16 * scale,
             fontWeight: FontWeight.w600,
-            color: Colors.black87,
+            color: AppColores.textPrimary,
           );
           final TextStyle contentStyle = TextStyle(
             fontSize: 16 * scale,
             fontWeight: FontWeight.w600,
-            color: Colors.black87,
+            color: AppColores.textPrimary,
           );
 
           if (vm.cargando) {
             return const Scaffold(
+              backgroundColor: AppColores.background,
               body: Center(child: CircularProgressIndicator()),
             );
           }
@@ -48,10 +48,10 @@ class ResumenConductorView extends StatelessWidget {
             final dir = (d['direccion']?.toString().trim().isNotEmpty == true)
                 ? d['direccion'].toString()
                 : (d['address']?.toString().trim().isNotEmpty == true)
-                    ? d['address'].toString()
-                    : (d['direccion_destino']?.toString().trim().isNotEmpty == true)
-                        ? d['direccion_destino'].toString()
-                        : (d['title']?.toString() ?? 'No disponible');
+                ? d['address'].toString()
+                : (d['direccion_destino']?.toString().trim().isNotEmpty == true)
+                ? d['direccion_destino'].toString()
+                : (d['title']?.toString() ?? 'No disponible');
             direccionSeleccionada = dir;
           } else {
             direccionSeleccionada =
@@ -77,23 +77,24 @@ class ResumenConductorView extends StatelessWidget {
           }
 
           return Scaffold(
-            backgroundColor: const Color(0xFFF7F7F7),
+            backgroundColor: AppColores.background,
             body: SafeArea(
-              bottom: false,
+              bottom: true,
               child: Container(
                 decoration: const BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: [Colors.white, Color(0xFFF7F7F7)],
+                    colors: [AppColores.surface, AppColores.background],
                   ),
                 ),
-                child: SingleChildScrollView(
+                child: Padding(
                   padding: EdgeInsets.symmetric(
                     horizontal: padding,
                     vertical: padding * 0.6,
                   ),
                   child: Column(
+                    mainAxisSize: MainAxisSize.max,
                     children: [
                       SizedBox(height: padding * 0.3),
                       Row(
@@ -101,7 +102,7 @@ class ResumenConductorView extends StatelessWidget {
                         children: [
                           const Icon(
                             Icons.check_circle,
-                            color: Color(0xFF00C853),
+                            color: AppColores.success,
                             size: 30,
                           ),
                           SizedBox(width: 8 * scale),
@@ -110,7 +111,7 @@ class ResumenConductorView extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 25 * scale,
                               fontWeight: FontWeight.w700,
-                              color: Colors.black87,
+                              color: AppColores.textPrimary,
                             ),
                           ),
                         ],
@@ -124,7 +125,7 @@ class ResumenConductorView extends StatelessWidget {
                       SizedBox(height: padding * 0.1),
                       // Card del valor
                       Card(
-                        color: const Color(0xFF101010),
+                        color: AppColores.textPrimary,
                         elevation: 3,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
@@ -141,14 +142,14 @@ class ResumenConductorView extends StatelessWidget {
                                 children: [
                                   const Icon(
                                     Icons.local_taxi,
-                                    color: Color(0xFFFFD600),
+                                    color: AppColores.buttonPrimary,
                                   ),
                                   SizedBox(width: 8 * scale),
                                   Text(
                                     'Valor del servicio',
                                     style: TextStyle(
-                                      color: Colors.white70,
-                                      fontSize: 14 * scale,
+                                      color: AppColores.textWhite,
+                                      fontSize: 16 * scale,
                                       fontWeight: FontWeight.w500,
                                     ),
                                   ),
@@ -157,7 +158,7 @@ class ResumenConductorView extends StatelessWidget {
                               Text(
                                 formatCurrency(valorServicio),
                                 style: TextStyle(
-                                  color: const Color(0xFFFFD600),
+                                  color: AppColores.buttonPrimary,
                                   fontSize: 20 * scale,
                                   fontWeight: FontWeight.w800,
                                   letterSpacing: 0.2,
@@ -180,10 +181,10 @@ class ResumenConductorView extends StatelessWidget {
                             children: [
                               ListTile(
                                 leading: const CircleAvatar(
-                                  backgroundColor: Color(0xFFFFD600),
+                                  backgroundColor: AppColores.primary,
                                   child: Icon(
                                     Icons.person,
-                                    color: Colors.black,
+                                    color: AppColores.textPrimary,
                                   ),
                                 ),
                                 title: Text(
@@ -194,27 +195,28 @@ class ResumenConductorView extends StatelessWidget {
                               const Divider(height: 8),
                               ListTile(
                                 leading: CircleAvatar(
-                                  backgroundColor: AppColores.secondary.withOpacity(0.12),
+                                  backgroundColor: AppColores.secondary
+                                      .withOpacity(0.12),
                                   child: Icon(
                                     Icons.location_on,
                                     color: AppColores.secondary,
                                   ),
                                 ),
                                 title: Text('Destino', style: titleStyle),
-                                  subtitle: Text(
-                                    direccionSeleccionada ?? 'No disponible',
-                                    style: contentStyle,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
+                                subtitle: Text(
+                                  direccionSeleccionada ?? 'No disponible',
+                                  style: contentStyle,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ),
                               const Divider(height: 8),
                               ListTile(
                                 leading: const CircleAvatar(
-                                  backgroundColor: Color(0xFFFFF3E0),
+                                  backgroundColor: AppColores.grey100,
                                   child: Icon(
                                     Icons.payment,
-                                    color: Color(0xFFFF9800),
+                                    color: AppColores.warning,
                                   ),
                                 ),
                                 title: Text(
@@ -229,10 +231,10 @@ class ResumenConductorView extends StatelessWidget {
                               const Divider(height: 8),
                               ListTile(
                                 leading: const CircleAvatar(
-                                  backgroundColor: Color(0xFFFFF3E0),
+                                  backgroundColor: AppColores.grey100,
                                   child: Icon(
                                     Icons.schedule,
-                                    color: Color(0xFFFF9800),
+                                    color: AppColores.warning,
                                   ),
                                 ),
                                 title: Text(
@@ -246,29 +248,11 @@ class ResumenConductorView extends StatelessWidget {
                                   style: contentStyle,
                                 ),
                               ),
-                              const Divider(height: 5),
-                              ListTile(
-                                leading: const CircleAvatar(
-                                  backgroundColor: Color(0xFFE8F5E9),
-                                  child: Icon(
-                                    Icons.timer,
-                                    color: Color(0xFF4CAF50),
-                                  ),
-                                ),
-                                title: Text(
-                                  'Duración del servicio',
-                                  style: titleStyle,
-                                ),
-                                subtitle: Text(
-                                  vm.formatoDuracion(vm.duracionMinutos),
-                                  style: contentStyle,
-                                ),
-                              ),
                             ],
                           ),
                         ),
                       ),
-                      SizedBox(height: 90 * scale),
+                      const Spacer(),
                     ],
                   ),
                 ),
@@ -291,7 +275,8 @@ class ResumenConductorView extends StatelessWidget {
                 color: AppColores.buttonPrimary,
               ),
             ),
-            floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+            floatingActionButtonLocation:
+                FloatingActionButtonLocation.centerFloat,
           );
         },
       ),

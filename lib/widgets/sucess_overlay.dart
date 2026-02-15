@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:taxi_app/core/app_colores.dart';
 
 class SuccessOverlay {
   /// Muestra un overlay centrado con una animación de entrada y se elimina
@@ -9,12 +10,12 @@ class SuccessOverlay {
     String message = 'Operación completada',
     Duration duration = const Duration(milliseconds: 1400),
     IconData icon = Icons.check_circle,
-    Color iconColor = Colors.green,
+    Color iconColor = AppColores.success,
   }) async {
     final overlay = OverlayEntry(
       builder: (context) {
         return Material(
-          color: Colors.black45,
+          color: AppColores.overlayDark,
           child: Center(
             child: TweenAnimationBuilder<double>(
               tween: Tween(begin: 0.6, end: 1.0),
@@ -29,11 +30,11 @@ class SuccessOverlay {
               child: Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: AppColores.cardBackground,
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: const [
                     BoxShadow(
-                      color: Colors.black26,
+                      color: AppColores.overlayLight,
                       blurRadius: 10,
                       offset: Offset(0, 4),
                     ),

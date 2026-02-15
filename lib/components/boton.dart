@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:taxi_app/core/app_colores.dart';
 
 class CustomButton extends StatelessWidget {
   final String text;
@@ -44,9 +45,9 @@ class CustomButton extends StatelessWidget {
         onPressed: isDisabled ? null : onPressed,
         style: ElevatedButton.styleFrom(
           backgroundColor: isDisabled
-              ? Colors.grey
-              : (color ?? Colors.yellow[700]),
-          disabledBackgroundColor: Colors.grey.shade400,
+              ? AppColores.grey400
+              : (color ?? AppColores.buttonPrimary),
+          disabledBackgroundColor: AppColores.grey400,
           side: borderColor != null ? BorderSide(color: borderColor!) : null,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(15),
@@ -57,7 +58,7 @@ class CustomButton extends StatelessWidget {
                 width: 22,
                 height: 22,
                 child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  valueColor: const AlwaysStoppedAnimation<Color>(AppColores.textWhite),
                   strokeWidth: 2,
                 ),
               )
@@ -74,7 +75,7 @@ class CustomButton extends StatelessWidget {
                       softWrap: false,
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        color: textColor ?? Colors.white,
+                        color: textColor ?? AppColores.textWhite,
                         fontSize: textFontSize,
                         fontWeight: FontWeight.bold,
                       ),

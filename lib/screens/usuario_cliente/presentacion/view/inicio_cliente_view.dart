@@ -17,7 +17,6 @@ import '../viewmodels/inicio_cliente_viewmodel.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/mapa_cliente_model.dart';
 
-
 class InicioClienteView extends StatefulWidget {
   const InicioClienteView({super.key});
 
@@ -35,7 +34,9 @@ class _InicioClienteViewState extends State<InicioClienteView> {
   // Estado de carga para obtener la ubicación
   bool _isLoadingLocation = true;
   // Carousel controller and current page index (ajustada para tarjetas más anchas)
-  final PageController _carouselController = PageController(viewportFraction: 0.98);
+  final PageController _carouselController = PageController(
+    viewportFraction: 0.98,
+  );
   int _carouselPage = 0;
   // Espacio configurable entre el borde inferior de la pantalla y el mapa
 
@@ -69,8 +70,10 @@ class _InicioClienteViewState extends State<InicioClienteView> {
 
   Future<String> _obtenerDireccionDesdeCoordenadas(LatLng coord) async {
     try {
-      final placemarks =
-          await placemarkFromCoordinates(coord.latitude, coord.longitude);
+      final placemarks = await placemarkFromCoordinates(
+        coord.latitude,
+        coord.longitude,
+      );
       if (placemarks.isNotEmpty) {
         final p = placemarks.first;
         final name = p.name?.trim() ?? '';
@@ -78,9 +81,12 @@ class _InicioClienteViewState extends State<InicioClienteView> {
         final subLocality = p.subLocality?.trim() ?? '';
         final locality = p.locality?.trim() ?? '';
 
-        final parts = <String>[name, street, subLocality, locality]
-            .where((s) => s.isNotEmpty)
-            .toList();
+        final parts = <String>[
+          name,
+          street,
+          subLocality,
+          locality,
+        ].where((s) => s.isNotEmpty).toList();
         if (parts.isNotEmpty) {
           return parts.take(2).join(', ');
         }
@@ -103,7 +109,9 @@ class _InicioClienteViewState extends State<InicioClienteView> {
       });
       // Si el mapa ya está creado, centrar la cámara
       if (_mapController != null) {
-        await _mapController!.animateCamera(CameraUpdate.newLatLngZoom(loc, 16));
+        await _mapController!.animateCamera(
+          CameraUpdate.newLatLngZoom(loc, 16),
+        );
       }
       // Delegar guardado de ubicación al ViewModel
       try {
@@ -120,83 +128,123 @@ class _InicioClienteViewState extends State<InicioClienteView> {
   @override
   Widget build(BuildContext context) {
     // Dimensiones responsivas para que se vea bien en pantallas pequeñas y grandes
-    final double screenH = MediaQuery.of(context).size.height;
+    final size = MediaQuery.of(context).size;
+    final double screenH = size.height;
+    final double screenW = size.width;
+    final double scale = (screenW / 375).clamp(0.9, 1.15);
     final bool isSmallScreen = screenH < 700;
 
     // Altura del carrusel: compacta en pantallas pequeñas, un poco más amplia en grandes
     final double baseCarouselHeight = screenH * (isSmallScreen ? 0.22 : 0.26);
     final double carouselHeight = baseCarouselHeight.clamp(140.0, 220.0);
 
-    // Altura del mapa: volver al tamaño anterior (más discreto)
-    final double mapHeight = math.min(140.0, screenH * 0.16);
+    // Altura del mapa: adaptar mejor en pantallas pequeñas para que no quede "a la mitad"
+    final double mapHeight = isSmallScreen
+        ? (screenH * 0.22).clamp(110.0, 180.0)
+        : math.min(140.0, screenH * 0.16);
 
     // Espacio inferior entre mapa y bottomNavigationBar
     final double bottomMapSpacing = isSmallScreen
-      ? math.max(6.0, screenH * 0.012)
-      : math.max(12.0, screenH * 0.02);
+        ? math.max(4.0, screenH * 0.006)
+        : math.max(12.0, screenH * 0.02);
 
     // Espacio entre la etiqueta "Estás aquí" y el mapa
     final double labelToMapSpacing = isSmallScreen
-      ? math.max(4.0, screenH * 0.01)
-      : math.max(8.0, screenH * 0.015);
+        ? math.max(4.0, screenH * 0.01)
+        : math.max(8.0, screenH * 0.015);
+
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColores.background,
+      appBar: AppBar(backgroundColor: AppColores.background),
       body: SafeArea(
         child: Stack(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(18.0, 18.0, 18.0, 18.0),
+              padding: EdgeInsets.fromLTRB(
+                16.0 * scale,
+                12.0 * scale,
+                16.0 * scale,
+                18.0 * scale,
+              ),
               child: SingleChildScrollView(
                 physics: const NeverScrollableScrollPhysics(),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Client name (fetched from FirebaseAuth)
-                    _buildClientName(),
-                    const SizedBox(height: 16),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 15.0),
+                    _buildClientName(scale),
+                    SizedBox(height: 14 * scale),
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 15.0 * scale),
                       child: Text(
                         'Viaje seguro a su destino',
                         style: TextStyle(
-                          color: Colors.black87,
-                          fontSize: 18,
+                          color: AppColores.textPrimary,
+                          fontSize: 18 * scale,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                     ),
-                    const SizedBox(height: 20),
+                    SizedBox(height: 18 * scale),
                     // Search box styled as a button — navigates to selection screen
                     GestureDetector(
                       onTap: () async {
                         //Navigate to destination selection screen, pasando la ubicación actual
                         Navigator.of(context).push(
-                          MaterialPageRoute(builder: (_) => DestinoSeleccionView(currentLocation: _currentLocation)),
+                          MaterialPageRoute(
+                            builder: (_) => DestinoSeleccionView(
+                              currentLocation: _currentLocation,
+                            ),
+                          ),
                         );
                       },
                       child: Container(
-                        margin: const EdgeInsets.only(bottom: 20),
+                        margin: EdgeInsets.only(bottom: 18 * scale),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: AppColores.surface,
                           borderRadius: BorderRadius.circular(30),
-                          border: Border.all(color: Colors.grey.shade200, width: 1),
-                          boxShadow: [
-                            BoxShadow(color: Colors.black.withAlpha((0.08 * 255).round()), blurRadius: 12, offset: const Offset(0, 6)),
+                          border: Border.all(
+                            color: AppColores.grey200,
+                            width: 1,
+                          ),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: AppColores.borderSubtle,
+                              blurRadius: 12,
+                              offset: Offset(0, 6),
+                            ),
                           ],
                         ),
-                        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                        padding: EdgeInsets.symmetric(
+                          vertical: 14 * scale,
+                          horizontal: 16 * scale,
+                        ),
                         child: Row(
-                          children: const [
-                            Icon(Icons.search, color: Colors.black54),
-                            SizedBox(width: 12),
-                            Expanded(child: Text('¿A dónde vas?', style: TextStyle(color: Colors.black54))),
-                            Icon(Icons.chevron_right, color: Colors.black38),
+                          children: [
+                            const Icon(
+                              Icons.search,
+                              color: AppColores.textSecondary,
+                            ),
+                            SizedBox(width: 12 * scale),
+                            Expanded(
+                              child: Text(
+                                '¿A dónde vas?',
+                                style: TextStyle(
+                                  color: AppColores.textSecondary,
+                                  fontSize: 15 * scale,
+                                ),
+                              ),
+                            ),
+                            const Icon(
+                              Icons.chevron_right,
+                              color: AppColores.textSecondary,
+                            ),
                           ],
                         ),
                       ),
                     ),
 
-                    const SizedBox(height: 5),
+                    SizedBox(height: 1 * scale),
                     FutureBuilder<List<UbicacionResultado>>(
                       future: _fetchFavoritos(),
                       builder: (context, snapshot) {
@@ -204,7 +252,10 @@ class _InicioClienteViewState extends State<InicioClienteView> {
                         final hasFavorites = favs.isNotEmpty;
 
                         return Padding(
-                          padding: const EdgeInsets.only(left: 12.0, right: 12.0),
+                          padding: EdgeInsets.only(
+                            left: 12.0 * scale,
+                            right: 10.0 * scale,
+                          ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -212,30 +263,46 @@ class _InicioClienteViewState extends State<InicioClienteView> {
                                 hasFavorites
                                     ? 'Favoritos'
                                     : 'Sugerencias: agrega tu ubicación favorita',
-                                style: const TextStyle(color: Colors.black54, fontSize: 14),
+                                style: TextStyle(
+                                  color: AppColores.textSecondary,
+                                  fontSize: 13 * scale,
+                                ),
                               ),
-                              const SizedBox(height: 6),
+                              SizedBox(height: 6 * scale),
                               SingleChildScrollView(
                                 scrollDirection: Axis.horizontal,
                                 child: Row(
-                                    children: hasFavorites
+                                  children: hasFavorites
                                       ? favs.map((f) {
                                           return Padding(
-                                            padding: const EdgeInsets.only(right: 8.0),
+                                            padding: EdgeInsets.only(
+                                              right: 8.0 * scale,
+                                            ),
                                             child: GestureDetector(
-                                              onTap: () => _onFavoriteSelected(f),
+                                              onTap: () =>
+                                                  _onFavoriteSelected(f),
                                               child: Container(
-                                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                                padding: EdgeInsets.symmetric(
+                                                  horizontal: 12 * scale,
+                                                  vertical: 6 * scale,
+                                                ),
                                                 decoration: BoxDecoration(
-                                                  color: Colors.grey.shade200,
-                                                  borderRadius: BorderRadius.circular(16),
-                                                  border: Border.all(color: Colors.black12),
+                                                  color: AppColores.grey200,
+                                                  borderRadius:
+                                                      BorderRadius.circular(16),
+                                                  border: Border.all(
+                                                    color:
+                                                        AppColores.borderSubtle,
+                                                  ),
                                                 ),
                                                 child: Text(
-                                                  f.nombre.isNotEmpty ? f.nombre : f.direccion,
-                                                  style: const TextStyle(
-                                                    color: Colors.black87,
-                                                    fontSize: 14,
+                                                  f.nombre.isNotEmpty
+                                                      ? f.nombre
+                                                      : f.direccion,
+                                                  style: TextStyle(
+                                                    color:
+                                                        AppColores.textPrimary,
+                                                    fontSize: 13 * scale,
                                                     fontWeight: FontWeight.w700,
                                                   ),
                                                 ),
@@ -243,33 +310,45 @@ class _InicioClienteViewState extends State<InicioClienteView> {
                                             ),
                                           );
                                         }).toList()
-                                      : [
-                                          'Casa',
-                                          'Trabajo',
-                                          'Otros',
-                                        ].map((label) {
+                                      : ['Casa', 'Trabajo', 'Otros'].map((
+                                          label,
+                                        ) {
                                           return Padding(
-                                            padding: const EdgeInsets.only(right: 8.0),
+                                            padding: EdgeInsets.only(
+                                              right: 8.0 * scale,
+                                            ),
                                             child: GestureDetector(
                                               onTap: () {
                                                 Navigator.of(context).push(
                                                   MaterialPageRoute(
-                                                    builder: (_) => DestinoSeleccionView(currentLocation: _currentLocation),
+                                                    builder: (_) =>
+                                                        DestinoSeleccionView(
+                                                          currentLocation:
+                                                              _currentLocation,
+                                                        ),
                                                   ),
                                                 );
                                               },
                                               child: Container(
-                                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                                padding: EdgeInsets.symmetric(
+                                                  horizontal: 12 * scale,
+                                                  vertical: 6 * scale,
+                                                ),
                                                 decoration: BoxDecoration(
-                                                  color: Colors.grey.shade200,
-                                                  borderRadius: BorderRadius.circular(16),
-                                                  border: Border.all(color: Colors.black12),
+                                                  color: AppColores.grey200,
+                                                  borderRadius:
+                                                      BorderRadius.circular(16),
+                                                  border: Border.all(
+                                                    color:
+                                                        AppColores.borderSubtle,
+                                                  ),
                                                 ),
                                                 child: Text(
                                                   label,
-                                                  style: const TextStyle(
-                                                    color: Colors.black87,
-                                                    fontSize: 14,
+                                                  style: TextStyle(
+                                                    color:
+                                                        AppColores.textPrimary,
+                                                    fontSize: 13 * scale,
                                                     fontWeight: FontWeight.w700,
                                                   ),
                                                 ),
@@ -279,7 +358,7 @@ class _InicioClienteViewState extends State<InicioClienteView> {
                                         }).toList(),
                                 ),
                               ),
-                              const SizedBox(height: 16),
+                              SizedBox(height: 10 * scale),
                             ],
                           ),
                         );
@@ -287,35 +366,40 @@ class _InicioClienteViewState extends State<InicioClienteView> {
                     ),
 
                     // Carrusel de cuadros ubicado debajo del botón (tarjetas publicitarias más grandes)
-                    SizedBox(
-                      height: carouselHeight,
-                      child: _buildCarousel(),
-                    ),
-                    const SizedBox(height: 24),
+                    SizedBox(height: carouselHeight, child: _buildCarousel()),
+                    SizedBox(height: 2 * scale),
 
                     // Mostrar la etiqueta "Estás aquí" arriba del mapa con espacio responsivo
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 5.0),
+                      padding: EdgeInsets.symmetric(horizontal: 5.0 * scale),
                       child: Text(
                         'Estás aquí',
-                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Colors.black87),
+                        style: TextStyle(
+                          fontSize: 20 * scale,
+                          fontWeight: FontWeight.w800,
+                          color: AppColores.textPrimary,
+                        ),
                       ),
                     ),
-                    SizedBox(height: labelToMapSpacing),
-                    // Map dentro del scroll, con borde visible en iOS y Android
+                    SizedBox(height: 7 * scale),
                     SizedBox(
                       height: mapHeight,
                       child: Container(
                         width: double.infinity,
                         decoration: BoxDecoration(
-                          color: const Color.fromARGB(255, 0, 0, 0),
+                          color: AppColores.cardBackground,
                           borderRadius: BorderRadius.circular(2),
-                          border: Border.all(color: const Color.fromARGB(255, 0, 0, 0), width: 1.0),
+                          border: Border.all(
+                            color: AppColores.borderSubtle,
+                            width: 1.0,
+                          ),
                         ),
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(2),
                           child: AppGoogleMap(
-                            initialTarget: _currentLocation ?? const LatLng(8.2595534, -73.353469),
+                            initialTarget:
+                                _currentLocation ??
+                                const LatLng(8.2595534, -73.353469),
                             initialZoom: 14.5,
                             myLocationEnabled: true,
                             myLocationButtonEnabled: false,
@@ -323,7 +407,12 @@ class _InicioClienteViewState extends State<InicioClienteView> {
                             onMapCreated: (controller) async {
                               _mapController = controller;
                               if (_currentLocation != null) {
-                                await controller.animateCamera(CameraUpdate.newLatLngZoom(_currentLocation!, 16));
+                                await controller.animateCamera(
+                                  CameraUpdate.newLatLngZoom(
+                                    _currentLocation!,
+                                    16,
+                                  ),
+                                );
                               }
                             },
                           ),
@@ -341,14 +430,20 @@ class _InicioClienteViewState extends State<InicioClienteView> {
             if (_isLoadingLocation)
               Positioned.fill(
                 child: Container(
-                  color: Colors.black.withAlpha((0.45 * 255).round()),
+                  color: AppColores.overlayDark,
                   child: Center(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: const [
                         CircularProgressIndicator(),
                         SizedBox(height: 12),
-                        Text('Obteniendo ubicación...', style: TextStyle(color: Colors.white, fontSize: 16)),
+                        Text(
+                          'Obteniendo ubicación...',
+                          style: TextStyle(
+                            color: AppColores.textWhite,
+                            fontSize: 16,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -357,27 +452,31 @@ class _InicioClienteViewState extends State<InicioClienteView> {
           ],
         ),
       ),
-      
+
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border(top: BorderSide(color: Colors.grey.shade300, width: 1.0)),
+          color: AppColores.surface,
+          border: Border(
+            top: BorderSide(color: AppColores.grey300, width: 1.0),
+          ),
         ),
         child: BottomNavigationBar(
-          backgroundColor: Colors.white,
+          backgroundColor: AppColores.surface,
           elevation: 0,
           selectedItemColor: yellow,
-          unselectedItemColor: Colors.black54,
+          unselectedItemColor: AppColores.textSecondary,
           currentIndex: _selectedIndex,
           onTap: (index) {
             if (index == 1) {
               // Navegar a Historial de Viajes
               Navigator.of(context)
-                  .push(MaterialPageRoute(builder: (_) => const HistorialCliente()))
+                  .push(
+                    MaterialPageRoute(builder: (_) => const HistorialCliente()),
+                  )
                   .then((_) {
-                if (!mounted) return;
-                setState(() => _selectedIndex = 0);
-              });
+                    if (!mounted) return;
+                    setState(() => _selectedIndex = 0);
+                  });
             } else if (index == 2) {
               // Navegar a Perfil con una transición más fluida
               _navigateToPerfil();
@@ -386,23 +485,46 @@ class _InicioClienteViewState extends State<InicioClienteView> {
             }
           },
           items: const [
-            BottomNavigationBarItem(icon: Icon(Icons.directions_car), label: 'Viajes'),
-            BottomNavigationBarItem(icon: Icon(Icons.calendar_today), label: 'Historial'),
-            BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Tú'),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.directions_car),
+              label: 'Viajes',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.calendar_today),
+              label: 'Historial',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.person_outline),
+              label: 'Tú',
+            ),
           ],
         ),
       ),
     );
   }
 
+  Widget _buildClientName(double scale) {
+    final rawName = (vm.clientName ?? '').trim();
+    String firstName = rawName;
+    if (rawName.isNotEmpty) {
+      final parts = rawName.split(RegExp(r"\s+"));
+      if (parts.isNotEmpty) {
+        firstName = parts.first;
+      }
+    }
+    final double fontSize = (26 * scale).clamp(20.0, 30.0);
 
-  Widget _buildClientName() {
-    final name = vm.clientName;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12.0),
+      padding: EdgeInsets.symmetric(horizontal: 12.0 * scale),
       child: Text(
-        name.toUpperCase(),
-        style: const TextStyle(fontSize: 27, fontWeight: FontWeight.w800, color: Colors.black87),
+        firstName.toUpperCase(),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: fontSize,
+          fontWeight: FontWeight.w800,
+          color: AppColores.textPrimary,
+        ),
       ),
     );
   }
@@ -431,9 +553,9 @@ class _InicioClienteViewState extends State<InicioClienteView> {
 
   Future<void> _onFavoriteSelected(UbicacionResultado fav) async {
     if (fav.location == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Ubicación no disponible')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Ubicación no disponible')));
       return;
     }
 
@@ -455,10 +577,7 @@ class _InicioClienteViewState extends State<InicioClienteView> {
     if (!mounted) return;
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => MapPreview(
-          origen: origenModel,
-          destino: destinoModel,
-        ),
+        builder: (_) => MapPreview(origen: origenModel, destino: destinoModel),
       ),
     );
   }
@@ -471,20 +590,24 @@ class _InicioClienteViewState extends State<InicioClienteView> {
                 const PaginaPerfilUsuario(tipoUsuario: 'cliente'),
             transitionDuration: const Duration(milliseconds: 250),
             reverseTransitionDuration: const Duration(milliseconds: 200),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
-              final curved = CurvedAnimation(parent: animation, curve: Curves.easeInOut);
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
+                  final curved = CurvedAnimation(
+                    parent: animation,
+                    curve: Curves.easeInOut,
+                  );
 
-              return FadeTransition(
-                opacity: curved,
-                child: SlideTransition(
-                  position: Tween<Offset>(
-                    begin: const Offset(0.0, 0.05),
-                    end: Offset.zero,
-                  ).animate(curved),
-                  child: child,
-                ),
-              );
-            },
+                  return FadeTransition(
+                    opacity: curved,
+                    child: SlideTransition(
+                      position: Tween<Offset>(
+                        begin: const Offset(0.0, 0.05),
+                        end: Offset.zero,
+                      ).animate(curved),
+                      child: child,
+                    ),
+                  );
+                },
           ),
         )
         .then((_) {
@@ -492,24 +615,46 @@ class _InicioClienteViewState extends State<InicioClienteView> {
           setState(() => _selectedIndex = 0);
         });
   }
+
   // Construye un carrusel simple con indicadores
   Widget _buildCarousel() {
     final items = [
-      {'title': 'Promociones', 'subtitle': 'Ahorra en tu próximo viaje', 'icon': Icons.local_offer},
-      {'title': 'Seguridad', 'subtitle': 'Consejos para un viaje seguro', 'icon': Icons.shield},
-      {'title': 'Servicios', 'subtitle': 'Tipos de viaje disponibles', 'icon': Icons.directions_car},
-      {'title': 'Soporte', 'subtitle': 'Contacto y ayuda', 'icon': Icons.headset_mic},
+      {
+        'title': 'Promociones',
+        'subtitle': 'Ahorra en tu próximo viaje',
+        'icon': Icons.local_offer,
+      },
+      {
+        'title': 'Seguridad',
+        'subtitle': 'Consejos para un viaje seguro',
+        'icon': Icons.shield,
+      },
+      {
+        'title': 'Servicios',
+        'subtitle': 'Tipos de viaje disponibles',
+        'icon': Icons.directions_car,
+      },
+      {
+        'title': 'Soporte',
+        'subtitle': 'Contacto y ayuda',
+        'icon': Icons.headset_mic,
+      },
     ];
 
     // Calcular dimensiones (simplificado): usar una altura base más larga y aplicar escala
-    final double horizontalPaddingOuter = 16.0 * 2; // padding exterior en el Scaffold
-    final double availableWidth = MediaQuery.of(context).size.width - horizontalPaddingOuter;
+    final double horizontalPaddingOuter =
+        16.0 * 2; // padding exterior en el Scaffold
+    final double availableWidth =
+        MediaQuery.of(context).size.width - horizontalPaddingOuter;
     final double viewportFraction = 0.92; // viewport fraction for page width
     final double pageWidth = availableWidth * viewportFraction;
     final double screenH = MediaQuery.of(context).size.height;
     // Altura base mayor para que las cards se vean más largas hacia abajo
     final double baseCardHeight = math.min(180.0, screenH * 0.50);
-    final double cardHeight = (baseCardHeight * _cardScale).clamp(100.0, screenH * 0.6);
+    final double cardHeight = (baseCardHeight * _cardScale).clamp(
+      100.0,
+      screenH * 0.6,
+    );
     final double indicatorsHeight = 20.0;
     final double verticalSpacing = 8.0;
     final double totalHeight = cardHeight + indicatorsHeight + verticalSpacing;
@@ -529,8 +674,14 @@ class _InicioClienteViewState extends State<InicioClienteView> {
                   onPageChanged: (idx) => setState(() => _carouselPage = idx),
                   itemBuilder: (context, index) {
                     final item = items[index];
-                    final double titleFont = (cardHeight * 0.12 * _titleFontScale).clamp(12.0, 36.0).toDouble();
-                    final double subtitleFont = (cardHeight * 0.08 * _titleFontScale).clamp(10.0, 20.0).toDouble();
+                    final double titleFont =
+                        (cardHeight * 0.12 * _titleFontScale)
+                            .clamp(12.0, 36.0)
+                            .toDouble();
+                    final double subtitleFont =
+                        (cardHeight * 0.08 * _titleFontScale)
+                            .clamp(10.0, 20.0)
+                            .toDouble();
 
                     return Center(
                       child: SizedBox(
@@ -538,26 +689,34 @@ class _InicioClienteViewState extends State<InicioClienteView> {
                         height: cardHeight,
                         child: Card(
                           elevation: 4,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
                           clipBehavior: Clip.hardEdge,
                           child: Stack(
                             fit: StackFit.expand,
                             children: [
                               // Placeholder background for future images (keeps aspect visually pleasant)
-                              Container(color: Colors.grey.shade300),
+                              Container(color: AppColores.grey300),
                               // Subtle gradient overlay for text readability
                               Container(
-                                decoration: BoxDecoration(
+                                decoration: const BoxDecoration(
                                   gradient: LinearGradient(
                                     begin: Alignment.bottomCenter,
                                     end: Alignment.topCenter,
-                                    colors: [Colors.black26, Colors.transparent],
+                                    colors: [
+                                      AppColores.overlayLight,
+                                      Colors.transparent,
+                                    ],
                                   ),
                                 ),
                               ),
                               // Centered promo text with configurable padding (title + subtitle)
                               Padding(
-                                padding: EdgeInsets.symmetric(horizontal: _cardPadding, vertical: _cardPadding),
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: _cardPadding,
+                                  vertical: _cardPadding,
+                                ),
                                 child: Center(
                                   child: Column(
                                     mainAxisSize: MainAxisSize.min,
@@ -568,8 +727,14 @@ class _InicioClienteViewState extends State<InicioClienteView> {
                                         style: TextStyle(
                                           fontSize: titleFont,
                                           fontWeight: FontWeight.w700,
-                                          color: Colors.white,
-                                          shadows: const [Shadow(color: Colors.black45, offset: Offset(0, 1), blurRadius: 4)],
+                                          color: AppColores.textWhite,
+                                          shadows: const [
+                                            Shadow(
+                                              color: AppColores.overlayDark,
+                                              offset: Offset(0, 1),
+                                              blurRadius: 4,
+                                            ),
+                                          ],
                                         ),
                                       ),
                                       const SizedBox(height: 8),
@@ -578,7 +743,7 @@ class _InicioClienteViewState extends State<InicioClienteView> {
                                         textAlign: TextAlign.center,
                                         style: TextStyle(
                                           fontSize: subtitleFont,
-                                          color: Colors.white70,
+                                          color: AppColores.textWhiteMuted,
                                         ),
                                       ),
                                     ],
@@ -600,15 +765,34 @@ class _InicioClienteViewState extends State<InicioClienteView> {
                     child: Center(
                       child: GestureDetector(
                         onTap: () {
-                          final prev = (_carouselPage - 1) < 0 ? (items.length - 1) : (_carouselPage - 1);
-                          _carouselController.animateToPage(prev, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+                          final prev = (_carouselPage - 1) < 0
+                              ? (items.length - 1)
+                              : (_carouselPage - 1);
+                          _carouselController.animateToPage(
+                            prev,
+                            duration: const Duration(milliseconds: 300),
+                            curve: Curves.easeInOut,
+                          );
                           setState(() => _carouselPage = prev);
                         },
                         child: Container(
-                          decoration: BoxDecoration(color: Colors.white.withAlpha((0.85 * 255).round()), shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.black.withAlpha((0.12 * 255).round()), blurRadius: 6)]),
+                          decoration: BoxDecoration(
+                            color: AppColores.cardBackground.withOpacity(0.85),
+                            shape: BoxShape.circle,
+                            boxShadow: const [
+                              BoxShadow(
+                                color: AppColores.borderSubtle,
+                                blurRadius: 6,
+                              ),
+                            ],
+                          ),
                           child: const Padding(
                             padding: EdgeInsets.all(6.0),
-                            child: Icon(Icons.chevron_left, size: 28, color: Colors.black87),
+                            child: Icon(
+                              Icons.chevron_left,
+                              size: 28,
+                              color: AppColores.textPrimary,
+                            ),
                           ),
                         ),
                       ),
@@ -623,14 +807,31 @@ class _InicioClienteViewState extends State<InicioClienteView> {
                       child: GestureDetector(
                         onTap: () {
                           final next = (_carouselPage + 1) % items.length;
-                          _carouselController.animateToPage(next, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+                          _carouselController.animateToPage(
+                            next,
+                            duration: const Duration(milliseconds: 300),
+                            curve: Curves.easeInOut,
+                          );
                           setState(() => _carouselPage = next);
                         },
                         child: Container(
-                          decoration: BoxDecoration(color: Colors.white.withAlpha((0.85 * 255).round()), shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.black.withAlpha((0.12 * 255).round()), blurRadius: 6)]),
+                          decoration: BoxDecoration(
+                            color: AppColores.cardBackground.withOpacity(0.85),
+                            shape: BoxShape.circle,
+                            boxShadow: const [
+                              BoxShadow(
+                                color: AppColores.borderSubtle,
+                                blurRadius: 6,
+                              ),
+                            ],
+                          ),
                           child: const Padding(
                             padding: EdgeInsets.all(6.0),
-                            child: Icon(Icons.chevron_right, size: 28, color: Colors.black87),
+                            child: Icon(
+                              Icons.chevron_right,
+                              size: 28,
+                              color: AppColores.textPrimary,
+                            ),
                           ),
                         ),
                       ),
@@ -650,7 +851,9 @@ class _InicioClienteViewState extends State<InicioClienteView> {
                 width: active ? 14 : 8,
                 height: 8,
                 decoration: BoxDecoration(
-                  color: active ? Colors.black87 : Colors.black26,
+                  color: active
+                      ? AppColores.textPrimary
+                      : AppColores.overlayLight,
                   borderRadius: BorderRadius.circular(8),
                 ),
               );
@@ -660,5 +863,4 @@ class _InicioClienteViewState extends State<InicioClienteView> {
       ),
     );
   }
-
 }

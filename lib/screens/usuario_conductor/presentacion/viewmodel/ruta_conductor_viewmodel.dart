@@ -11,8 +11,6 @@ import 'package:taxi_app/services/tracking_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
-
-
 /// ViewModel ligero para manejar la lógica de negocio de RutaConductorView
 /// (notificaciones locales y escucha del estado de la solicitud).
 class RutaConductorUsuarioViewModel {
@@ -25,6 +23,7 @@ class RutaConductorUsuarioViewModel {
   StreamSubscription<String?>? _solicitudSub;
   bool _trackingActivo = false;
   bool _cancelHandled = false;
+  bool _enCaminoNotificado = false;
 
   RutaConductorUsuarioViewModel({
     required this.solicitudId,
@@ -32,7 +31,8 @@ class RutaConductorUsuarioViewModel {
     NotificacionesServicio? notificacionesServicio,
     FirebaseService? firebaseService,
     TrackingService? trackingService,
-  }) : _notificacionesServicio = notificacionesServicio ?? NotificacionesServicio.instance,
+  }) : _notificacionesServicio =
+           notificacionesServicio ?? NotificacionesServicio.instance,
        _firebaseService = firebaseService ?? FirebaseService(),
        _trackingService = trackingService ?? TrackingService();
 
@@ -40,11 +40,53 @@ class RutaConductorUsuarioViewModel {
   Future<void> init(BuildContext context) async {
     await _notificacionesServicio.init();
 
-    // Notificación cuando el conductor entra a la ruta
-    _notificacionesServicio.showNotification(
-      title: 'Cliente asignado',
-      body: 'Viaja a recogerlo.',
-    );
+    try {
+      // Verificar si ya había una solicitud activa guardada en sesión
+      final activeId = await SessionHelper.getActiveSolicitud();
+
+      // Consultar estado actual de la solicitud en Firestore para detectar
+      // reanudaciones aunque la sesión no lo tenga guardado aún.
+      String? estadoLower;
+      try {
+        final snap = await FirebaseFirestore.instance
+            .collection('solicitudes')
+            .doc(solicitudId)
+            .get();
+        final data = snap.data();
+        if (data != null && data['estado'] != null) {
+          estadoLower = data['estado'].toString().toLowerCase();
+        }
+      } catch (_) {}
+
+      final bool esEnCamino =
+          estadoLower == 'en camino' ||
+          estadoLower == 'on_route' ||
+          estadoLower == 'en_ruta';
+
+      if (activeId != null && activeId == solicitudId) {
+        // La solicitud ya estaba marcada como activa en sesión: reanudación clara
+        await _notificacionesServicio.showTripNotification(
+          title: 'Solicitud activa',
+          body: 'Continúa el servicio',
+        );
+      } else if (activeId == null && esEnCamino) {
+        // La sesión no lo tenía guardado, pero el estado actual ya es "en camino":
+        // tratarlo como reanudación para evitar mostrar "Cliente asignado" otra vez.
+        try {
+          await SessionHelper.setActiveSolicitud(solicitudId);
+        } catch (_) {}
+        await _notificacionesServicio.showTripNotification(
+          title: 'Solicitud activa',
+          body: 'Continúa el servicio',
+        );
+      } else {
+        // Primera vez que se asigna el cliente para esta solicitud
+        await _notificacionesServicio.showNotification(
+          title: 'Cliente asignado',
+          body: 'Viaja a recogerlo.',
+        );
+      }
+    } catch (_) {}
 
     await _iniciarTrackingUbicacion();
     // Do not use the provided BuildContext inside async listeners —
@@ -64,8 +106,14 @@ class RutaConductorUsuarioViewModel {
           if (data == null) return null;
           final rawConductor = data['conductor'];
           if (rawConductor is Map) {
-            final lat = (rawConductor['lat'] ?? rawConductor['latitude'] ?? rawConductor['latitud']);
-            final lng = (rawConductor['lng'] ?? rawConductor['longitude'] ?? rawConductor['longitud']);
+            final lat =
+                (rawConductor['lat'] ??
+                rawConductor['latitude'] ??
+                rawConductor['latitud']);
+            final lng =
+                (rawConductor['lng'] ??
+                rawConductor['longitude'] ??
+                rawConductor['longitud']);
             if (lat != null && lng != null) {
               return LatLng((lat as num).toDouble(), (lng as num).toDouble());
             }
@@ -81,16 +129,16 @@ class RutaConductorUsuarioViewModel {
     final body = texto.trim();
     if (body.isEmpty) return;
     await _notificacionesServicio.showNotification(
-      title: 'Nuevo mensaje del cliente',
+      title: 'Cliente',
       body: body,
     );
   }
 
   void _listenSolicitudChanges() {
     _solicitudSub?.cancel();
-    _solicitudSub = _firebaseService
-        .escucharEstadoViaje(solicitudId)
-        .listen((estado) {
+    _solicitudSub = _firebaseService.escucharEstadoViaje(solicitudId).listen((
+      estado,
+    ) {
       try {
         if (estado == null) return;
         final estadoLower = estado.toLowerCase();
@@ -107,35 +155,81 @@ class RutaConductorUsuarioViewModel {
             // Persistir en cache mínimo para restaurar UI
             try {
               // intentar leer datos mínimos del documento
-              FirebaseFirestore.instance.collection('solicitudes').doc(solicitudId).get().then((snap) async {
-                final data = snap.data();
-                if (data != null) {
-                  final rawCliente = data['cliente'];
-                  String? clientName;
-                  String? clientAddress;
-                  double? clientLat;
-                  double? clientLng;
-                  if (rawCliente is Map) {
-                    clientName = (rawCliente['nombre'] ?? rawCliente['name'])?.toString();
-                    final ubic = rawCliente['ubicacion'] ?? rawCliente['location'];
-                    if (ubic is Map) {
-                      clientLat = (ubic['lat'] ?? ubic['latitude'] ?? ubic['latitud']) is num ? (ubic['lat'] ?? ubic['latitude'] ?? ubic['latitud']).toDouble() : null;
-                      clientLng = (ubic['lng'] ?? ubic['longitude'] ?? ubic['longitud']) is num ? (ubic['lng'] ?? ubic['longitude'] ?? ubic['longitud']).toDouble() : null;
-                      clientAddress = (ubic['address'] ?? ubic['direccion'] ?? ubic['title'])?.toString();
+              FirebaseFirestore.instance
+                  .collection('solicitudes')
+                  .doc(solicitudId)
+                  .get()
+                  .then((snap) async {
+                    final data = snap.data();
+                    if (data != null) {
+                      final rawCliente = data['cliente'];
+                      String? clientName;
+                      String? clientAddress;
+                      double? clientLat;
+                      double? clientLng;
+                      if (rawCliente is Map) {
+                        clientName =
+                            (rawCliente['nombre'] ?? rawCliente['name'])
+                                ?.toString();
+                        final ubic =
+                            rawCliente['ubicacion'] ?? rawCliente['location'];
+                        if (ubic is Map) {
+                          clientLat =
+                              (ubic['lat'] ??
+                                      ubic['latitude'] ??
+                                      ubic['latitud'])
+                                  is num
+                              ? (ubic['lat'] ??
+                                        ubic['latitude'] ??
+                                        ubic['latitud'])
+                                    .toDouble()
+                              : null;
+                          clientLng =
+                              (ubic['lng'] ??
+                                      ubic['longitude'] ??
+                                      ubic['longitud'])
+                                  is num
+                              ? (ubic['lng'] ??
+                                        ubic['longitude'] ??
+                                        ubic['longitud'])
+                                    .toDouble()
+                              : null;
+                          clientAddress =
+                              (ubic['address'] ??
+                                      ubic['direccion'] ??
+                                      ubic['title'])
+                                  ?.toString();
+                        }
+                      }
+                      try {
+                        await RouteCacheService.saveForSolicitud(
+                          RouteCacheData(
+                            solicitudId: solicitudId,
+                            role: 'conductor',
+                            clientName: clientName,
+                            clientAddress: clientAddress,
+                            clientLat: clientLat,
+                            clientLng: clientLng,
+                          ),
+                        );
+                      } catch (_) {}
                     }
-                  }
-                  try {
-                    await RouteCacheService.saveForSolicitud(RouteCacheData(
-                      solicitudId: solicitudId,
-                      role: 'conductor',
-                      clientName: clientName,
-                      clientAddress: clientAddress,
-                      clientLat: clientLat,
-                      clientLng: clientLng,
-                    ));
-                  } catch (_) {}
-                }
-              });
+                  });
+            } catch (_) {}
+          }
+
+          // Si el estado cambia a "en camino" (o equivalentes) y aún
+          // no hemos notificado, mostrar mensaje de continuación del viaje.
+          if ((estadoLower == 'en camino' ||
+                  estadoLower == 'on_route' ||
+                  estadoLower == 'en_ruta') &&
+              !_enCaminoNotificado) {
+            _enCaminoNotificado = true;
+            try {
+              _notificacionesServicio.showTripNotification(
+                title: 'Continúa el viaje',
+                body: 'Continúa el viaje, lleva el cliente a su destino.',
+              );
             } catch (_) {}
           }
 
@@ -149,7 +243,9 @@ class RutaConductorUsuarioViewModel {
               estadoLower == 'completado' ||
               estadoLower == 'completada') {
             SessionHelper.clearActiveSolicitud();
-            try { RouteCacheService.clearSolicitud(solicitudId); } catch (_) {}
+            try {
+              RouteCacheService.clearSolicitud(solicitudId);
+            } catch (_) {}
           }
         } catch (_) {}
 
@@ -207,18 +303,20 @@ class RutaConductorUsuarioViewModel {
     String? conductorPlate,
   }) async {
     try {
-      await RouteCacheService.saveForSolicitud(RouteCacheData(
-        solicitudId: solicitudId,
-        role: 'conductor',
-        clientName: clientName,
-        clientAddress: clientAddress,
-        clientLat: clientLat,
-        clientLng: clientLng,
-        conductorId: conductorId,
-        conductorName: conductorName,
-        conductorPhotoUrl: conductorPhotoUrl,
-        conductorPlate: conductorPlate,
-      ));
+      await RouteCacheService.saveForSolicitud(
+        RouteCacheData(
+          solicitudId: solicitudId,
+          role: 'conductor',
+          clientName: clientName,
+          clientAddress: clientAddress,
+          clientLat: clientLat,
+          clientLng: clientLng,
+          conductorId: conductorId,
+          conductorName: conductorName,
+          conductorPhotoUrl: conductorPhotoUrl,
+          conductorPlate: conductorPlate,
+        ),
+      );
     } catch (_) {}
   }
 
@@ -246,16 +344,19 @@ class RutaConductorUsuarioViewModel {
       } catch (_) {}
     }
 
-    await _trackingService.iniciarTrackingConEnvio(
-      userId: uid,
-      userType: 'conductor',
-      solicitudId: solicitudId,
-      distanceFilter: 8,
-      timeInterval: 5,
-    ).then((started) {
-      _trackingActivo = started;
-    }).catchError((_) {
-      _trackingActivo = false;
-    });
+    await _trackingService
+        .iniciarTrackingConEnvio(
+          userId: uid,
+          userType: 'conductor',
+          solicitudId: solicitudId,
+          distanceFilter: 8,
+          timeInterval: 5,
+        )
+        .then((started) {
+          _trackingActivo = started;
+        })
+        .catchError((_) {
+          _trackingActivo = false;
+        });
   }
 }

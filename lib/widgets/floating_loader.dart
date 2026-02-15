@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:taxi_app/core/app_colores.dart';
 
 /// Muestra un loader centrado como diálogo sin barra de título.
 /// El loader permanece [visibleDuration] y luego se desvanece en [fadeDuration].
@@ -32,11 +33,11 @@ Future<void> showFloatingLoader(
               width: 120,
               height: 120,
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: AppColores.cardBackground,
                 borderRadius: BorderRadius.circular(12),
-                boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 10)],
+                boxShadow: [BoxShadow(color: AppColores.overlayLight, blurRadius: 10)],
               ),
-              child: const Center(child: CircularProgressIndicator()),
+              child: const Center(child: CircularProgressIndicator(color: AppColores.primary)),
             ),
           ),
         ),

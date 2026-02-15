@@ -56,7 +56,6 @@ class SolicitudCard extends StatelessWidget {
                         Builder(builder: (context) {
                           final origenTitle = solicitud.origenTitle;
                           final origenAddress = solicitud.direccion;
-                          final coords = solicitud.ubicacionInicial;
                           final mainName = origenTitle ?? (solicitud.nombreCliente ?? 'Ubicación');
 
                           return Row(
@@ -71,7 +70,7 @@ class SolicitudCard extends StatelessWidget {
                                       children: [
                                         const Padding(
                                           padding: EdgeInsets.only(top: 2.0, right: 8.0),
-                                          child: Icon(Icons.location_on, size: 18, color: Colors.redAccent),
+                                          child: Icon(Icons.location_on, size: 18, color: AppColores.error),
                                         ),
                                         Expanded(
                                           child: Column(
@@ -123,7 +122,7 @@ class SolicitudCard extends StatelessWidget {
                 top: 4,
                 right: 4,
                 child: Material(
-                  color: Colors.white.withOpacity(0.9),
+                  color: AppColores.cardBackground.withOpacity(0.9),
                   shape: const CircleBorder(),
                   elevation: 2,
                   child: IconButton(
