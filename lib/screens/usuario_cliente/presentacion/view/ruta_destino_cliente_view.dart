@@ -14,8 +14,6 @@ import 'package:taxi_app/screens/usuario_cliente/presentacion/view/resumen_clien
 import 'package:taxi_app/services/route_cache_service.dart';
 import 'package:taxi_app/widgets/google_maps_widget.dart';
 import 'package:taxi_app/widgets/map_loading_widget.dart';
-// url_launcher se usaba antes para abrir rutas externas; actualmente no se utiliza.
-
 /// Vista para el cliente cuando ya va rumbo al destino.
 /// Muestra la ruta entre el conductor y el destino, con zoom/bearing dinámico
 /// y recorte progresivo de la polilínea a medida que el conductor avanza.
@@ -52,7 +50,6 @@ class _RutaDestinoClienteViewState extends State<RutaDestinoClienteView> {
   String? _conductorNombre;
   String? _conductorFoto;
   String? _conductorVehiclePhoto;
-  String? _destinoTitulo;
   String? _conductorPlaca;
   String? _conductorId;
   bool _initializing = true;
@@ -166,7 +163,6 @@ class _RutaDestinoClienteViewState extends State<RutaDestinoClienteView> {
               rawDestino['direccion'] ??
               rawDestino['address'];
           if (titulo is String && titulo.trim().isNotEmpty) {
-            _destinoTitulo = titulo.trim();
           }
         }
 
@@ -369,6 +365,140 @@ class _RutaDestinoClienteViewState extends State<RutaDestinoClienteView> {
     _estadoSub?.cancel();
     _mapController?.dispose();
     super.dispose();
+  }
+
+  void _showSafetySheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        final media = MediaQuery.of(ctx);
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              20,
+              16,
+              20,
+              media.viewInsets.bottom + 20,
+            ),
+            child: SingleChildScrollView(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  // Máximo ~60% de alto y nunca más de 420 px para respetar pantallas pequeñas
+                  maxHeight: math.min(media.size.height * 0.6, 420),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'Herramientas de seguridad',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Usa estas herramientas si te sientes inseguro durante tu viaje.',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppColores.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    // Opción 1
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(
+                        Icons.headset_mic_outlined,
+                        color: AppColores.textPrimary,
+                      ),
+                      title: const Text(
+                        'Habla con un agente de seguridad',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      subtitle: const Text(
+                        'Un agente te llamará y te dará orientación durante tu viaje.',
+                        style: TextStyle(fontSize: 13),
+                      ),
+                      onTap: () {
+                        Navigator.of(ctx).pop();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Funcionalidad de agente de seguridad (demo)',
+                            ),
+                          ),
+                        );
+                      },
+                      trailing: const Icon(Icons.chevron_right),
+                    ),
+                    const Divider(height: 1),
+                    // Opción 2
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(
+                        Icons.report_problem_outlined,
+                        color: AppColores.textPrimary,
+                      ),
+                      title: const Text(
+                        'Reportar un problema de seguridad',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      subtitle: const Text(
+                        'Avísanos si sentiste inseguridad en cualquier momento.',
+                        style: TextStyle(fontSize: 13),
+                      ),
+                      onTap: () {
+                        Navigator.of(ctx).pop();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content:
+                                Text('Reporte de seguridad enviado (demo)'),
+                          ),
+                        );
+                      },
+                      trailing: const Icon(Icons.chevron_right),
+                    ),
+                    const Divider(height: 1),
+                    // Opción 3
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(
+                        Icons.location_on_outlined,
+                        color: AppColores.textPrimary,
+                      ),
+                      title: const Text(
+                        'Comparte tu ubicación',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      subtitle: const Text(
+                        'Elige contactos de confianza para compartir tu ubicación.',
+                        style: TextStyle(fontSize: 13),
+                      ),
+                      onTap: () {
+                        Navigator.of(ctx).pop();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Compartir ubicación (demo)'),
+                          ),
+                        );
+                      },
+                      trailing: const Icon(Icons.chevron_right),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   void _onMapCreated(GoogleMapController controller) {
@@ -636,15 +766,33 @@ class _RutaDestinoClienteViewState extends State<RutaDestinoClienteView> {
         child: Column(
           children: [
             Expanded(
-              child: AppGoogleMap(
-                initialTarget: initialTarget,
-                initialZoom: 15.0,
-                onMapCreated: _onMapCreated,
-                myLocationEnabled: false,
-                myLocationButtonEnabled: false,
-                compassEnabled: true,
-                markers: markers,
-                polylines: _polylines,
+              child: Stack(
+                children: [
+                  AppGoogleMap(
+                    initialTarget: initialTarget,
+                    initialZoom: 15.0,
+                    onMapCreated: _onMapCreated,
+                    myLocationEnabled: false,
+                    myLocationButtonEnabled: false,
+                    compassEnabled: true,
+                    markers: markers,
+                    polylines: _polylines,
+                  ),
+                  // Botón flotante de seguridad (solo icono)
+                  Positioned(
+                    right: ResponsiveHelper.wp(context, 4),
+                    bottom: ResponsiveHelper.hp(context, 2.5),
+                    child: SafeArea(
+                      child: FloatingActionButton(
+                        heroTag: 'safetyFab',
+                        backgroundColor: AppColores.surface,
+                        foregroundColor: AppColores.textPrimary,
+                        onPressed: _showSafetySheet,
+                        child: const Icon(Icons.shield_outlined),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
             Container(
@@ -880,114 +1028,185 @@ class _RutaDestinoClienteViewState extends State<RutaDestinoClienteView> {
   void _showDetalles() {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
       ),
       builder: (ctx) {
+        final media = MediaQuery.of(ctx);
         return Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  CircleAvatar(
-                    radius: 32,
-                    backgroundColor: AppColores.grey200,
-                    backgroundImage:
-                        (_conductorFoto != null && _conductorFoto!.isNotEmpty)
-                        ? NetworkImage(_conductorFoto!)
-                        : null,
-                    child: (_conductorFoto == null || _conductorFoto!.isEmpty)
-                        ? const Icon(
-                            Icons.person,
-                            color: AppColores.textPrimary,
-                          )
-                        : null,
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 20,
+            bottom: media.viewInsets.bottom + 20,
+          ),
+          child: SizedBox(
+            height: media.size.height * 0.46,
+            child: Column(
+              mainAxisSize: MainAxisSize.max,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Foto grande del conductor centrada
+                CircleAvatar(
+                  radius: 60,
+                  backgroundColor: AppColores.grey200,
+                  backgroundImage:
+                      (_conductorFoto != null && _conductorFoto!.isNotEmpty)
+                          ? NetworkImage(_conductorFoto!)
+                          : null,
+                  child: (_conductorFoto == null || _conductorFoto!.isEmpty)
+                      ? const Icon(
+                          Icons.person,
+                          color: AppColores.textPrimary,
+                          size: 36,
+                        )
+                      : null,
+                ),
+                const SizedBox(height: 12),
+                // Nombre centrado
+                Text(
+                  _conductorNombre ?? 'Conductor',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _conductorNombre ?? 'Conductor',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _destinoTitulo ?? 'Destino',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: AppColores.textSecondary,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        if (_conductorPlaca != null &&
-                            _conductorPlaca!.isNotEmpty) ...[
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              (_conductorVehiclePhoto != null &&
-                                      _conductorVehiclePhoto!.isNotEmpty)
-                                  ? Image.network(
-                                      _conductorVehiclePhoto!,
-                                      height: 32,
-                                      width: 32,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (c, e, s) => Container(
-                                        height: 32,
-                                        width: 32,
-                                        decoration: BoxDecoration(
-                                          color: AppColores.grey200,
-                                          borderRadius: BorderRadius.circular(
-                                            6,
-                                          ),
-                                        ),
-                                        child: Icon(
-                                          Icons.directions_car,
-                                          color: AppColores.grey600,
-                                          size: 18,
-                                        ),
-                                      ),
-                                    )
-                                  : Container(
-                                      height: 32,
-                                      width: 32,
-                                      decoration: BoxDecoration(
-                                        color: AppColores.grey200,
-                                        borderRadius: BorderRadius.circular(6),
-                                      ),
-                                      child: Icon(
-                                        Icons.directions_car,
-                                        color: AppColores.grey600,
-                                        size: 18,
-                                      ),
-                                    ),
-                              const SizedBox(width: 8),
-                              Text(
-                                _conductorPlaca!,
-                                style: const TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w700,
-                                ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 6),
+                // Calificación del conductor debajo del nombre
+                if (_conductorId != null)
+                  StreamBuilder<DocumentSnapshot>(
+                    stream: FirebaseFirestore.instance
+                        .collection('conductor')
+                        .doc(_conductorId)
+                        .snapshots(),
+                    builder: (context, snapshot) {
+                      double promedio = 0.0;
+
+                      if (snapshot.hasData && snapshot.data!.exists) {
+                        final data =
+                            snapshot.data!.data() as Map<String, dynamic>?;
+                        if (data != null) {
+                          promedio =
+                              (data['calificacion_promedio'] as num?)
+                                      ?.toDouble() ??
+                                  0.0;
+                        }
+                      }
+
+                      final promedioInt = promedio.toInt();
+                      final tieneMedia = (promedio - promedioInt) >= 0.5;
+
+                      return Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
+                        children: List.generate(5, (index) {
+                          if (index < promedioInt) {
+                            return const Padding(
+                              padding:
+                                  EdgeInsets.symmetric(horizontal: 1.0),
+                              child: Icon(
+                                Icons.star,
+                                size: 18,
+                                color: Colors.amber,
                               ),
-                            ],
-                          ),
-                        ],
-                      ],
+                            );
+                          } else if (index == promedioInt && tieneMedia) {
+                            return const Padding(
+                              padding:
+                                  EdgeInsets.symmetric(horizontal: 1.0),
+                              child: Icon(
+                                Icons.star_half,
+                                size: 18,
+                                color: Colors.amber,
+                              ),
+                            );
+                          } else {
+                            return const Padding(
+                              padding:
+                                  EdgeInsets.symmetric(horizontal: 1.0),
+                              child: Icon(
+                                Icons.star_border,
+                                size: 18,
+                                color: AppColores.grey400,
+                              ),
+                            );
+                          }
+                        }),
+                      );
+                    },
+                  ),
+                if (_conductorId == null) const SizedBox(height: 4),
+                const SizedBox(height: 18),
+                // Foto del carro y placa más abajo, centrados
+                if (_conductorPlaca != null &&
+                    _conductorPlaca!.isNotEmpty) ...[
+                  if (_conductorVehiclePhoto != null &&
+                      _conductorVehiclePhoto!.isNotEmpty)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Image.network(
+                        _conductorVehiclePhoto!,
+                        height: media.size.height * 0.08,
+                        width: double.infinity,
+                        fit: BoxFit.contain,
+                      ),
+                    )
+                  else
+                    Container(
+                      height: media.size.height * 0.08,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: AppColores.grey200,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(
+                        Icons.directions_car,
+                        color: AppColores.grey600,
+                        size: 32,
+                      ),
+                    ),
+                  const SizedBox(height: 10),
+                  Text(
+                    _conductorPlaca!,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ],
-              ),
-            ],
+                const SizedBox(height: 18),
+                // Botón para guardar en favoritos (solo)
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.of(ctx).pop();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content:
+                              Text('Conductor guardado en favoritos (demo)'),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.favorite_border),
+                    label: const Text('Favorito'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColores.primary,
+                      foregroundColor: AppColores.textWhite,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       },

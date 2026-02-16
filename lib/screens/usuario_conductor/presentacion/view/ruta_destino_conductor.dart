@@ -111,12 +111,12 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView>
             } else {
               _shortenRouteToDriver();
             }
-            final dist = _haversineDistanceMeters(
-              _driverLocation!,
-              _destinoLocation!,
-            );
-            _distanceToDestinationMeters = dist;
-            final puedeTerminar = dist <= 50;
+                final dist = _haversineDistanceMeters(
+                  _driverLocation!,
+                  _destinoLocation!,
+                );
+                _distanceToDestinationMeters = dist;
+                final puedeTerminar = dist <= 70;
             if (_puedeTerminarViaje != puedeTerminar) {
               setState(() {
                 _puedeTerminarViaje = puedeTerminar;
@@ -279,12 +279,12 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView>
           _shortenRouteToDriver();
         }
         // Verificar si está a 50 metros o menos del destino
-        final dist = _haversineDistanceMeters(
-          _driverLocation!,
-          _destinoLocation!,
-        );
-        _distanceToDestinationMeters = dist;
-        final puedeTerminar = dist <= 50;
+            final dist = _haversineDistanceMeters(
+              _driverLocation!,
+              _destinoLocation!,
+            );
+            _distanceToDestinationMeters = dist;
+            final puedeTerminar = dist <= 70;
         if (_puedeTerminarViaje != puedeTerminar) {
           setState(() {
             _puedeTerminarViaje = puedeTerminar;
@@ -627,6 +627,20 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView>
                       markers: markers,
                       polylines: _polylines,
                     ),
+                    // Botón flotante de seguridad debajo del botón de centrar mapa
+                    Positioned(
+                      right: ResponsiveHelper.wp(context, 4),
+                      top: ResponsiveHelper.hp(context, 8),
+                      child: SafeArea(
+                        child: FloatingActionButton(
+                          heroTag: 'safetyFabConductor',
+                          backgroundColor: AppColores.surface,
+                          foregroundColor: AppColores.textPrimary,
+                          onPressed: _showSafetySheet,
+                          child: const Icon(Icons.shield_outlined),
+                        ),
+                      ),
+                    ),
                     if (distanceText != null)
                       Positioned(
                         bottom: ResponsiveHelper.hp(context, 1.2),
@@ -878,6 +892,109 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView>
           ),
         ),
       ),
+    );
+  }
+
+  void _showSafetySheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        final media = MediaQuery.of(ctx);
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              20,
+              16,
+              20,
+              media.viewInsets.bottom + 20,
+            ),
+            child: SingleChildScrollView(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: math.min(media.size.height * 0.6, 420),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    Text(
+                      'Herramientas de seguridad',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      'Usa estas herramientas si te sientes inseguro durante tu viaje.',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppColores.textSecondary,
+                      ),
+                    ),
+                    SizedBox(height: 20),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(
+                        Icons.headset_mic_outlined,
+                        color: AppColores.textPrimary,
+                      ),
+                      title: Text(
+                        'Habla con un agente de seguridad',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      subtitle: Text(
+                        'Un agente te llamará y te dará orientación durante tu viaje.',
+                        style: TextStyle(fontSize: 13),
+                      ),
+                      trailing: Icon(Icons.chevron_right),
+                    ),
+                    Divider(height: 1),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(
+                        Icons.report_problem_outlined,
+                        color: AppColores.textPrimary,
+                      ),
+                      title: Text(
+                        'Reportar un problema de seguridad',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      subtitle: Text(
+                        'Avísanos si sentiste inseguridad en cualquier momento.',
+                        style: TextStyle(fontSize: 13),
+                      ),
+                      trailing: Icon(Icons.chevron_right),
+                    ),
+                    Divider(height: 1),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(
+                        Icons.location_on_outlined,
+                        color: AppColores.textPrimary,
+                      ),
+                      title: Text(
+                        'Comparte tu ubicación',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      subtitle: Text(
+                        'Elige contactos de confianza para compartir tu ubicación.',
+                        style: TextStyle(fontSize: 13),
+                      ),
+                      trailing: Icon(Icons.chevron_right),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 

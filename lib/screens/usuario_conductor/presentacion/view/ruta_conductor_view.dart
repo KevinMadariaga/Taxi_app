@@ -909,7 +909,7 @@ class _RutaConductorViewState extends State<RutaConductorView> {
     final double _distanceToClient = _driverLocation == null
       ? double.infinity
       : _haversineDistanceMeters(_driverLocation!, clientLocation);
-    final bool _canPressArrived = _distanceToClient <= 50.0; // habilitar solo dentro de 50 metros
+    final bool _canPressArrived = _distanceToClient <= 70.0; // habilitar solo dentro de 70 metros
 
     return WillPopScope(
       onWillPop: () async => false,
