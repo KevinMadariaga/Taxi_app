@@ -35,8 +35,9 @@ class HistorialClienteState extends State<HistorialCliente> {
       }
     } else if (ubicacion is Map) {
       // Puede venir como { 'title': 'Lugar', 'lat': x, 'lng': y }
-      if (ubicacion['title'] != null && (ubicacion['title'] as String).isNotEmpty) {
-        return ubicacion['title'].toString();
+      final title = ubicacion['title'];
+      if (title is String && title.isNotEmpty) {
+        return title;
       }
       final latObj = ubicacion['lat'];
       final lngObj = ubicacion['lng'];
@@ -61,37 +62,43 @@ class HistorialClienteState extends State<HistorialCliente> {
     }
   }
 
-  void mostrarDetalle(BuildContext context, Map<String, dynamic> data) async {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final fontSize = screenWidth * 0.04;
-
-    final destinoRaw = data['destino'] ?? 'Destino no disponible';
-    final destino = await obtenerDireccion(destinoRaw);
-    final duracion = data['duracion minutos']?.toString() ?? '-';
-    
-    // Extraer score de la calificación (soporta varios formatos)
+  int _extraerCalificacion(Map<String, dynamic> data) {
     int calificacionNum = 0;
-    final calificacionObj = data['calificacion cliente'] ?? data['calificacion'] ?? data['calificacion_cliente'] ?? data['rating'];
-    if (calificacionObj != null) {
-      if (calificacionObj is Map) {
-        final score = calificacionObj['score'] ?? calificacionObj['valor'] ?? calificacionObj['rating'] ?? calificacionObj['value'];
-        if (score is num) calificacionNum = score.toInt();
-        else calificacionNum = int.tryParse(score?.toString() ?? '') ?? 0;
-      } else if (calificacionObj is num) {
-        calificacionNum = (calificacionObj as num).toInt();
-      } else if (calificacionObj is String) {
-        calificacionNum = int.tryParse(calificacionObj) ?? 0;
+    final calificacionObj = data['calificacion cliente'] ??
+        data['calificacion'] ??
+        data['calificacion_cliente'] ??
+        data['rating'];
+
+    if (calificacionObj == null) return 0;
+
+    if (calificacionObj is Map) {
+      final score = calificacionObj['score'] ??
+          calificacionObj['valor'] ??
+          calificacionObj['rating'] ??
+          calificacionObj['value'];
+      if (score is num) {
+        calificacionNum = score.toInt();
+      } else if (score != null) {
+        calificacionNum = int.tryParse(score.toString()) ?? 0;
       }
+    } else if (calificacionObj is num) {
+      calificacionNum = calificacionObj.toInt();
+    } else if (calificacionObj is String) {
+      calificacionNum = int.tryParse(calificacionObj) ?? 0;
     }
-    
-    // Extraer nombre del conductor del objeto conductor
-    String conductor = 'Conductor';
+
+    return calificacionNum;
+  }
+
+  String _extraerNombreConductor(Map<String, dynamic> data) {
     final conductorObj = data['conductor'];
     if (conductorObj is Map && conductorObj['nombre'] != null) {
-      conductor = conductorObj['nombre'].toString();
+      return conductorObj['nombre'].toString();
     }
-    
-    // Extraer precio del objeto tarifa (preferir 'tarifa.total', si no usar 'valor')
+    return 'Conductor';
+  }
+
+  String _extraerPrecio(Map<String, dynamic> data) {
     String precio = '---';
     final tarifa = data['tarifa'];
     if (tarifa is Map && tarifa['total'] != null) {
@@ -99,7 +106,20 @@ class HistorialClienteState extends State<HistorialCliente> {
     } else if (data['valor'] != null) {
       precio = data['valor'].toString();
     }
-    
+    return precio;
+  }
+
+  void mostrarDetalle(BuildContext context, Map<String, dynamic> data) async {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final fontSize = screenWidth * 0.04;
+
+    final destinoRaw = data['destino'] ?? 'Destino no disponible';
+    final destino = await obtenerDireccion(destinoRaw);
+    final duracion = data['duracion minutos']?.toString() ?? '-';
+    final calificacionNum = _extraerCalificacion(data);
+    final conductor = _extraerNombreConductor(data);
+    final precio = _extraerPrecio(data);
+
     final metodoPago = (data['metodoPago'] ?? 'efectivo')
         .toString()
         .toUpperCase();
@@ -322,29 +342,8 @@ class HistorialClienteState extends State<HistorialCliente> {
                   final horaFin = (data['completedAt'] ?? data['fecha de terminacion']) as Timestamp?;
                   final duracion = data['duracion minutos']?.toString() ?? '-';
 
-                  // Extraer precio: preferir 'tarifa.total', si no usar 'valor'
-                  String precio = '---';
-                  final tarifa = data['tarifa'];
-                  if (tarifa is Map && tarifa['total'] != null) {
-                    precio = tarifa['total'].toString();
-                  } else if (data['valor'] != null) {
-                    precio = data['valor'].toString();
-                  }
-
-                  // Extraer score de la calificación (soporta varios formatos)
-                  int calificacionNum = 0;
-                  final calificacionObj = data['calificacion cliente'] ?? data['calificacion'] ?? data['calificacion_cliente'] ?? data['rating'];
-                  if (calificacionObj != null) {
-                    if (calificacionObj is Map) {
-                      final score = calificacionObj['score'] ?? calificacionObj['valor'] ?? calificacionObj['rating'] ?? calificacionObj['value'];
-                      if (score is num) calificacionNum = score.toInt();
-                      else calificacionNum = int.tryParse(score?.toString() ?? '') ?? 0;
-                    } else if (calificacionObj is num) {
-                      calificacionNum = (calificacionObj as num).toInt();
-                    } else if (calificacionObj is String) {
-                      calificacionNum = int.tryParse(calificacionObj) ?? 0;
-                    }
-                  }
+                  final precio = _extraerPrecio(data);
+                  final calificacionNum = _extraerCalificacion(data);
 
                   return Card(
                     margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),

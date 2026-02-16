@@ -74,7 +74,7 @@ class ResumenClienteViewModel extends ChangeNotifier {
 
       // Calcular y actualizar promedio de calificación del conductor consultando
       // la colección `solicitudes` (donde ahora se guardan las calificaciones).
-      if (conductorIdLocal != null && conductorIdLocal.isNotEmpty) {
+      if (conductorIdLocal.isNotEmpty) {
         try {
           final viajesSnapshot = await FirebaseFirestore.instance
               .collection('solicitudes')

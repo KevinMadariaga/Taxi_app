@@ -110,9 +110,8 @@ class ResumenConductorViewModel extends ChangeNotifier {
       try {
         final ubicacionInicial = solicitudData!['ubicacion_inicial'];
         if (ubicacionInicial != null &&
-            ubicacionInicial is dynamic &&
-            ubicacionInicial.latitude != null &&
-            ubicacionInicial.longitude != null) {
+          ubicacionInicial.latitude != null &&
+          ubicacionInicial.longitude != null) {
           final placemarks = await placemarkFromCoordinates(
             ubicacionInicial.latitude,
             ubicacionInicial.longitude,

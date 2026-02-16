@@ -160,7 +160,7 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
             p.subLocality,
             p.locality,
             p.administrativeArea,
-          ].where((s) => s != null && s!.isNotEmpty).join(', ');
+          ].where((s) => (s ?? '').isNotEmpty).join(', ');
         }
       } catch (_) {}
 

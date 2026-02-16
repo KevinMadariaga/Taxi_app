@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:taxi_app/helper/permisos_helper.dart';
@@ -10,7 +9,6 @@ class UbicacionService {
   static final UbicacionService _instance = UbicacionService._internal();
   factory UbicacionService() => _instance;
 
-  final FirebaseAuth _auth = FirebaseAuth.instance;
   StreamSubscription<Position>? _positionStream;
   final StreamController<LatLng> _locationController = StreamController<LatLng>.broadcast();
 

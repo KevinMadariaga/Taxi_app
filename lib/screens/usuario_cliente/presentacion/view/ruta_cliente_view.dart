@@ -650,8 +650,6 @@ class _RutaClienteViewState extends State<RutaClienteView> {
             final conductorPlate = vm.conductorPlate ?? _routeCache?.conductorPlate;
             final conductorName = vm.conductorDisplayName ?? _routeCache?.conductorName;
             final conductorRatingFallback = vm.conductorRating ?? _routeCache?.conductorRating;
-            final conductorDocId = vm.conductorId ?? _routeCache?.conductorId;
-
             final hasConductorInfo =
               conductorPlate != null ||
               conductorPhotoUrl != null ||

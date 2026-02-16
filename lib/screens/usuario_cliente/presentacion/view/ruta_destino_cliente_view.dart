@@ -14,7 +14,7 @@ import 'package:taxi_app/screens/usuario_cliente/presentacion/view/resumen_clien
 import 'package:taxi_app/services/route_cache_service.dart';
 import 'package:taxi_app/widgets/google_maps_widget.dart';
 import 'package:taxi_app/widgets/map_loading_widget.dart';
-import 'package:url_launcher/url_launcher.dart';
+// url_launcher se usaba antes para abrir rutas externas; actualmente no se utiliza.
 
 /// Vista para el cliente cuando ya va rumbo al destino.
 /// Muestra la ruta entre el conductor y el destino, con zoom/bearing dinámico

@@ -69,8 +69,6 @@ class _RutaConductorViewState extends State<RutaConductorView> {
   bool _isChatOpen = false;
   late final RutaConductorUsuarioViewModel _viewModel;
   int _lastRouteCutIndex = 0;
-  RouteCacheData? _routeCache;
-  bool _cachePersistedConductor = false;
   // Mostrar loader centrado en el mapa mientras se obtiene la ruta/dirección
   bool _obteniendoDireccion = false;
   bool _initializing = true;
@@ -128,7 +126,6 @@ class _RutaConductorViewState extends State<RutaConductorView> {
       if (!mounted) return;
       if (cache != null) {
         setState(() {
-          _routeCache = cache;
           _clientName = _clientName ?? cache.clientName;
           _clientAddress = _clientAddress ?? cache.clientAddress;
           if (_clientLocation == null && cache.clientLat != null && cache.clientLng != null) {
@@ -830,53 +827,6 @@ class _RutaConductorViewState extends State<RutaConductorView> {
     } catch (_) {}
   }
 
-  Future<void> _recenterOnRoute() async {
-    try {
-      if (_mapController == null) return;
-
-      final origin = _driverLocation ?? widget.driverLocation;
-      final dest = _clientLocation ?? widget.clientLocation;
-
-      // Si tenemos tanto la ubicación del conductor como del cliente, centramos con bearing y zoom dinámico
-      if (origin != null && dest != null) {
-        await _fitCameraToDriverAndClient();
-        return;
-      }
-
-      // Si hay polilíneas, usar sus puntos para ajustar la cámara con bearing
-      final allPoints = <LatLng>[];
-      for (final poly in _polylines) {
-        allPoints.addAll(poly.points);
-      }
-
-      if (allPoints.isNotEmpty && allPoints.length >= 2) {
-        // Calcular bearing desde el primer punto (conductor) al último (cliente)
-        final bearing = _calculateBearing(allPoints.first, allPoints.last);
-        final dist = _haversineDistanceMeters(allPoints.first, allPoints.last);
-        final zoom = _zoomForDistanceMeters(dist);
-        await _mapController!.animateCamera(
-          CameraUpdate.newCameraPosition(
-            CameraPosition(
-              target: allPoints.first,
-              zoom: zoom,
-              bearing: bearing,
-              tilt: 0,
-            ),
-          ),
-        );
-        return;
-      }
-
-      // Fallback: centrar en la ubicación disponible sin bearing
-      final target = origin ?? dest;
-      if (target != null) {
-        await _mapController!.animateCamera(
-          CameraUpdate.newLatLngZoom(target, origin != null ? 15.5 : 16.0),
-        );
-      }
-    } catch (_) {}
-  }
-
   Future<void> _abrirGoogleMapsExternamente() async {
     try {
       final destino = _clientLocation ?? widget.clientLocation;
@@ -956,7 +906,7 @@ class _RutaConductorViewState extends State<RutaConductorView> {
     // usando `myLocationEnabled: true` en el widget del mapa.
 
     // Calcular distancia actual del conductor al cliente (en metros)
-    final double _distanceToClient = (_driverLocation == null || clientLocation == null)
+    final double _distanceToClient = _driverLocation == null
       ? double.infinity
       : _haversineDistanceMeters(_driverLocation!, clientLocation);
     final bool _canPressArrived = _distanceToClient <= 50.0; // habilitar solo dentro de 50 metros

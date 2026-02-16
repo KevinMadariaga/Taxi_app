@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:taxi_app/helper/session_helper.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/inicio_cliente_model.dart';
@@ -25,8 +24,6 @@ class InicioClienteViewModel extends ChangeNotifier {
   bool _disposed = false;
   StreamSubscription<User?>? _authSub;
   StreamSubscription<String?>? _cachedNameSub;
-
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseService _firebaseService = FirebaseService();
 
   /// Inicializar listeners y cargar sesión previa

@@ -204,7 +204,7 @@ class ResumenConductorView extends StatelessWidget {
                                 ),
                                 title: Text('Destino', style: titleStyle),
                                 subtitle: Text(
-                                  direccionSeleccionada ?? 'No disponible',
+                                  direccionSeleccionada,
                                   style: contentStyle,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,

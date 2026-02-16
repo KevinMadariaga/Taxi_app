@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'dart:math' as math;
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -46,6 +47,8 @@ class _InicioClienteViewState extends State<InicioClienteView> {
   final double _titleFontScale = 1.0;
 
   final Color yellow = AppColores.primary;
+  final Color _carouselNavButtonColor =
+      AppColores.cardBackground.withOpacity(0.85);
 
   @override
   void initState() {
@@ -153,24 +156,35 @@ class _InicioClienteViewState extends State<InicioClienteView> {
         ? math.max(4.0, screenH * 0.01)
         : math.max(8.0, screenH * 0.015);
 
-    return Scaffold(
-      backgroundColor: AppColores.background,
-      appBar: AppBar(backgroundColor: AppColores.background),
-      body: SafeArea(
-        child: Stack(
-          children: [
-            Padding(
-              padding: EdgeInsets.fromLTRB(
-                16.0 * scale,
-                12.0 * scale,
-                16.0 * scale,
-                18.0 * scale,
-              ),
-              child: SingleChildScrollView(
-                physics: const NeverScrollableScrollPhysics(),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+    return WillPopScope(
+      onWillPop: () async {
+        // En la pantalla de inicio del cliente, cerrar la app en lugar de volver atrás
+        try {
+          SystemNavigator.pop();
+        } catch (_) {}
+        return false;
+      },
+      child: Scaffold(
+        backgroundColor: AppColores.background,
+        appBar: AppBar(
+          backgroundColor: AppColores.background,
+          automaticallyImplyLeading: false,
+        ),
+        body: SafeArea(
+          child: Stack(
+            children: [
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  16.0 * scale,
+                  12.0 * scale,
+                  16.0 * scale,
+                  18.0 * scale,
+                ),
+                child: SingleChildScrollView(
+                  physics: const NeverScrollableScrollPhysics(),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                     // Client name (fetched from FirebaseAuth)
                     _buildClientName(scale),
                     SizedBox(height: 14 * scale),
@@ -381,7 +395,7 @@ class _InicioClienteViewState extends State<InicioClienteView> {
                         ),
                       ),
                     ),
-                    SizedBox(height: 7 * scale),
+                    SizedBox(height: labelToMapSpacing),
                     SizedBox(
                       height: mapHeight,
                       child: Container(
@@ -450,61 +464,63 @@ class _InicioClienteViewState extends State<InicioClienteView> {
                 ),
               ),
           ],
-        ),
-      ),
-
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: AppColores.surface,
-          border: Border(
-            top: BorderSide(color: AppColores.grey300, width: 1.0),
           ),
         ),
-        child: BottomNavigationBar(
-          backgroundColor: AppColores.surface,
-          elevation: 0,
-          selectedItemColor: yellow,
-          unselectedItemColor: AppColores.textSecondary,
-          currentIndex: _selectedIndex,
-          onTap: (index) {
-            if (index == 1) {
-              // Navegar a Historial de Viajes
-              Navigator.of(context)
-                  .push(
-                    MaterialPageRoute(builder: (_) => const HistorialCliente()),
-                  )
-                  .then((_) {
-                    if (!mounted) return;
-                    setState(() => _selectedIndex = 0);
-                  });
-            } else if (index == 2) {
-              // Navegar a Perfil con una transición más fluida
-              _navigateToPerfil();
-            } else {
-              setState(() => _selectedIndex = index);
-            }
-          },
-          items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.directions_car),
-              label: 'Viajes',
+
+        bottomNavigationBar: Container(
+          decoration: BoxDecoration(
+            color: AppColores.surface,
+            border: Border(
+              top: BorderSide(color: AppColores.grey300, width: 1.0),
             ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.calendar_today),
-              label: 'Historial',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline),
-              label: 'Tú',
-            ),
-          ],
+          ),
+          child: BottomNavigationBar(
+            backgroundColor: AppColores.surface,
+            elevation: 0,
+            selectedItemColor: yellow,
+            unselectedItemColor: AppColores.textSecondary,
+            currentIndex: _selectedIndex,
+            onTap: (index) {
+              if (index == 1) {
+                // Navegar a Historial de Viajes
+                Navigator.of(context)
+                    .push(
+                      MaterialPageRoute(
+                          builder: (_) => const HistorialCliente()),
+                    )
+                    .then((_) {
+                      if (!mounted) return;
+                      setState(() => _selectedIndex = 0);
+                    });
+              } else if (index == 2) {
+                // Navegar a Perfil con una transición más fluida
+                _navigateToPerfil();
+              } else {
+                setState(() => _selectedIndex = index);
+              }
+            },
+            items: const [
+              BottomNavigationBarItem(
+                icon: Icon(Icons.directions_car),
+                label: 'Viajes',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.calendar_today),
+                label: 'Historial',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.person_outline),
+                label: 'Tú',
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
   Widget _buildClientName(double scale) {
-    final rawName = (vm.clientName ?? '').trim();
+    final rawName = vm.clientName.trim();
     String firstName = rawName;
     if (rawName.isNotEmpty) {
       final parts = rawName.split(RegExp(r"\s+"));
@@ -777,7 +793,7 @@ class _InicioClienteViewState extends State<InicioClienteView> {
                         },
                         child: Container(
                           decoration: BoxDecoration(
-                            color: AppColores.cardBackground.withOpacity(0.85),
+                            color: _carouselNavButtonColor,
                             shape: BoxShape.circle,
                             boxShadow: const [
                               BoxShadow(
@@ -816,7 +832,7 @@ class _InicioClienteViewState extends State<InicioClienteView> {
                         },
                         child: Container(
                           decoration: BoxDecoration(
-                            color: AppColores.cardBackground.withOpacity(0.85),
+                            color: _carouselNavButtonColor,
                             shape: BoxShape.circle,
                             boxShadow: const [
                               BoxShadow(

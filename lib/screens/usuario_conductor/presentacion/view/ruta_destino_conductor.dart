@@ -39,7 +39,6 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView>
   GoogleMapController? _mapController;
   LatLng? _driverLocation;
   LatLng? _destinoLocation;
-  BitmapDescriptor? _driverIcon;
   BitmapDescriptor? _destinoIcon;
   Set<Polyline> _polylines = {};
   List<LatLng> _routePoints = [];
@@ -57,11 +56,12 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView>
   String? _clientName;
   String? _clientPhotoUrl;
   String? _destinoDireccion;
-  LatLng? _clientLocation;
-  String? _clientAddress;
 
   // Nueva variable para controlar si el botón debe estar habilitado
   bool _puedeTerminarViaje = false;
+  // Distancia actual al destino en metros y duración estimada de la ruta en minutos
+  double? _distanceToDestinationMeters;
+  int? _routeDurationMin;
   bool _initializing = true;
   bool _initializationScheduled = false;
   late DateTime _initStart;
@@ -115,6 +115,7 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView>
               _driverLocation!,
               _destinoLocation!,
             );
+            _distanceToDestinationMeters = dist;
             final puedeTerminar = dist <= 50;
             if (_puedeTerminarViaje != puedeTerminar) {
               setState(() {
@@ -241,26 +242,7 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView>
               rawCliente['location'] ??
               rawCliente['locationData'];
           if (clienteUbic is Map) {
-            final lat =
-                (clienteUbic['lat'] ??
-                clienteUbic['latitude'] ??
-                clienteUbic['latitud']);
-            final lng =
-                (clienteUbic['lng'] ??
-                clienteUbic['longitude'] ??
-                clienteUbic['longitud']);
-            if (lat != null && lng != null) {
-              _clientLocation = LatLng(
-                (lat as num).toDouble(),
-                (lng as num).toDouble(),
-              );
-            }
-            final addr =
-                clienteUbic['address'] ??
-                clienteUbic['direccion'] ??
-                clienteUbic['title'];
-            if (addr is String && addr.trim().isNotEmpty)
-              _clientAddress = addr.trim();
+            // Datos de ubicación del cliente ya no se usan de forma directa aquí.
           }
           final nombre = rawCliente['nombre'] ?? rawCliente['name'];
           final foto =
@@ -301,6 +283,7 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView>
           _driverLocation!,
           _destinoLocation!,
         );
+        _distanceToDestinationMeters = dist;
         final puedeTerminar = dist <= 50;
         if (_puedeTerminarViaje != puedeTerminar) {
           setState(() {
@@ -420,6 +403,8 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView>
       final routes = data['routes'] as List?;
       if (routes == null || routes.isEmpty) return;
       final route0 = routes[0] as Map<String, dynamic>;
+      final durationSec = (route0['duration'] as num?)?.toDouble();
+      final durationMin = durationSec != null ? (durationSec / 60.0) : null;
       final geometry = route0['geometry'] as Map<String, dynamic>?;
       if (geometry == null || geometry['coordinates'] == null) return;
       final coords = geometry['coordinates'] as List;
@@ -444,6 +429,11 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView>
         _polylines = newPolys;
         _routePoints = points;
         _lastRouteCutIndex = 0;
+        if (durationMin != null) {
+          _routeDurationMin = durationMin.round();
+        } else {
+          _routeDurationMin = null;
+        }
         _obteniendoDireccion = false;
       });
 
@@ -578,6 +568,40 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView>
     final initialTarget =
         _driverLocation ?? _destinoLocation ?? const LatLng(0, 0);
 
+    // Distancia formateada: si sería "0.0 km", mostrar en metros
+    final String? distanceText;
+    if (_distanceToDestinationMeters != null) {
+      final meters = _distanceToDestinationMeters!;
+      final dKm = meters / 1000.0;
+      if (dKm < 0.1) {
+        // Menos de 100 m, mostrar en metros
+        distanceText = '${meters.toStringAsFixed(0)} m';
+      } else {
+        distanceText = '${dKm.toStringAsFixed(1)} km';
+      }
+    } else {
+      distanceText = null;
+    }
+
+    // Tiempo estimado: en minutos si es < 60, si no en horas y minutos
+    final String? etaText;
+    if (_routeDurationMin != null) {
+      final totalMin = _routeDurationMin!;
+      if (totalMin < 60) {
+        etaText = 'Aprox. $totalMin min';
+      } else {
+        final horas = totalMin ~/ 60;
+        final minutosRestantes = totalMin % 60;
+        if (minutosRestantes == 0) {
+          etaText = 'Aprox. ${horas} h';
+        } else {
+          etaText = 'Aprox. ${horas} h ${minutosRestantes} min';
+        }
+      }
+    } else {
+      etaText = null;
+    }
+
     return WillPopScope(
       onWillPop: () async => false,
       child: Scaffold(
@@ -603,6 +627,94 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView>
                       markers: markers,
                       polylines: _polylines,
                     ),
+                    if (distanceText != null)
+                      Positioned(
+                        bottom: ResponsiveHelper.hp(context, 1.2),
+                        left: ResponsiveHelper.wp(context, 4),
+                        child: Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: ResponsiveHelper.wp(context, 3.2),
+                            vertical: ResponsiveHelper.hp(context, 0.6),
+                          ),
+                          decoration: BoxDecoration(
+                            color:
+                                AppColores.cardBackground.withOpacity(0.95),
+                            borderRadius: BorderRadius.circular(24),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColores.borderSubtle,
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.place_outlined,
+                                size: ResponsiveHelper.sp(context, 14),
+                                color: AppColores.primary,
+                              ),
+                              SizedBox(
+                                width: ResponsiveHelper.wp(context, 1.2),
+                              ),
+                              Text(
+                                distanceText,
+                                style: TextStyle(
+                                  fontSize: ResponsiveHelper.sp(context, 12),
+                                  color: AppColores.textPrimary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    if (etaText != null)
+                      Positioned(
+                        bottom: ResponsiveHelper.hp(context, 1.2),
+                        right: ResponsiveHelper.wp(context, 4),
+                        child: Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: ResponsiveHelper.wp(context, 3.2),
+                            vertical: ResponsiveHelper.hp(context, 0.6),
+                          ),
+                          decoration: BoxDecoration(
+                            color:
+                                AppColores.cardBackground.withOpacity(0.95),
+                            borderRadius: BorderRadius.circular(24),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColores.borderSubtle,
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.access_time,
+                                size: ResponsiveHelper.sp(context, 14),
+                                color: AppColores.primary,
+                              ),
+                              SizedBox(
+                                width: ResponsiveHelper.wp(context, 1.2),
+                              ),
+                              Text(
+                                etaText,
+                                style: TextStyle(
+                                  fontSize: ResponsiveHelper.sp(context, 12),
+                                  color: AppColores.textPrimary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                     if (_obteniendoDireccion)
                       Positioned.fill(
                         child: Container(
@@ -838,55 +950,6 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView>
                 'fecha de terminacion': completedAt,
                 'duracion minutos': durationMinutes,
               });
-
-          // Crear registro en historial de viajes
-          final clienteData = data['cliente'] as Map<String, dynamic>? ?? {};
-          final conductorData =
-              data['conductor'] as Map<String, dynamic>? ?? {};
-          final destinoData = data['destino'] as Map<String, dynamic>? ?? {};
-
-          // Extraer datos del origen
-
-          final addressOrigen =
-              clienteData['ubicacion']?['address'] ?? 'Ubicación inicial';
-
-          // Extraer datos del destino
-          final addressDestino = destinoData['title'] ?? 'Destino';
-
-          // Extraer datos del cliente
-          final clienteId = data['clienteId'] ?? clienteData['id'] ?? '';
-          final nombreCliente = clienteData['nombre'] ?? 'Cliente';
-
-          // Extraer datos del conductor
-          final conductorId = data['conductorId'] ?? conductorData['id'] ?? '';
-          final nombreConductor = conductorData['nombre'] ?? 'Conductor';
-          final placa =
-              conductorData['vehiculo']?['placa'] ??
-              conductorData['placa'] ??
-              '';
-
-          final tripData = {
-            'status': 'completado',
-            'createdAt':
-                data['fecha de aceptacion conductor'] ?? Timestamp.now(),
-            'completedAt': completedAt,
-            'cliente': {'id': clienteId, 'name': nombreCliente},
-            'conductor': {
-              'id': conductorId,
-              'name': nombreConductor,
-              'Placa': placa,
-            },
-            'origen': addressOrigen,
-            'destino': addressDestino,
-            'distanceKm': data['distanceKm'] ?? 0.0,
-            'duracion minutos': durationMinutes,
-            'tarifa': {'total': data['valor'] ?? 0, 'currency': 'COP'},
-            'metodoPago': (data['metodo_pago']?.toString() ?? 'efectivo')
-                .toLowerCase(),
-            'calificacion': null,
-            'solicitudId': widget.solicitudId,
-            'timestamp': FieldValue.serverTimestamp(),
-          };
 
           // Nota: ya no se crea ni guarda un documento en 'historial viajes'.
           // Se omite la creación del historial y la actualización de

@@ -44,10 +44,7 @@ class AppGoogleMap extends StatefulWidget {
 }
 
 class _AppGoogleMapState extends State<AppGoogleMap> {
-	GoogleMapController? _controller;
-
 	Future<void> _handleMapCreated(GoogleMapController controller) async {
-		_controller = controller;
 		debugPrint('AppGoogleMap: onMapCreated callback');
 		widget.onMapCreated?.call(controller);
 		// Intentar obtener la región visible para asegurarnos de que el mapa

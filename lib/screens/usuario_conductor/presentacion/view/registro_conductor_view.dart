@@ -5,11 +5,9 @@ import 'package:taxi_app/core/app_colores.dart';
 import 'package:flutter/services.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/inicio_conductor_view.dart';
 import 'package:taxi_app/widgets/perfil.dart';
-import 'package:taxi_app/screens/usuario_conductor/presentacion/view/ruta_conductor_view.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/registro_conductor_viewmodel.dart';
 import 'dart:io';
 import 'package:taxi_app/widgets/sucess_overlay.dart';
-import 'package:taxi_app/widgets/map_loading_widget.dart';
 
 class RegistroConductorView extends StatefulWidget {
   const RegistroConductorView({super.key});

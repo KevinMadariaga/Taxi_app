@@ -8,7 +8,6 @@ import 'package:taxi_app/screens/home_screen.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/inicio_cliente_view.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/ruta_cliente_view.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/ruta_destino_cliente_view.dart';
-import 'package:taxi_app/screens/usuario_conductor/presentacion/view/home_conductor_map_view.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/inicio_conductor_view.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/ruta_conductor_view.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/ruta_destino_conductor.dart';

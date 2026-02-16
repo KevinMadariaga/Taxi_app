@@ -95,7 +95,6 @@ class _HistorialDetalleConductorState extends State<HistorialDetalleConductor> {
           // Aggregate per day
           final Map<String, double> earningsByDay = {};
           final Map<String, int> countByDay = {};
-          double total = 0.0;
 
           for (var d in docs) {
             try {
@@ -112,8 +111,6 @@ class _HistorialDetalleConductorState extends State<HistorialDetalleConductor> {
                 else valor = double.tryParse(v.toString()) ?? 0.0;
               }
 
-              total += valor;
-
               final ts = (data['completedAt'] ?? data['fecha de terminacion']) as Timestamp?;
               final key = ts != null ? ts.toDate().toLocal().toIso8601String().split('T').first : 'Sin fecha';
 
@@ -121,9 +118,6 @@ class _HistorialDetalleConductorState extends State<HistorialDetalleConductor> {
               countByDay[key] = (countByDay[key] ?? 0) + 1;
             } catch (_) {}
           }
-
-          // Sort keys
-          final keys = earningsByDay.keys.toList()..sort((a, b) => b.compareTo(a));
 
           // Formatters
           final NumberFormat integerFmt = NumberFormat.decimalPattern('es');
@@ -204,12 +198,7 @@ class _HistorialDetalleConductorState extends State<HistorialDetalleConductor> {
             } catch (_) {}
           }
 
-          final int weekTotalRequests = weekCounts.fold<int>(0, (p, e) => p + e);
-          final double weekTotalEarnings = weekEarnings.fold<double>(0.0, (p, e) => p + e);
-
-            final String formattedWeekEarnings = (weekTotalEarnings % 1 == 0)
-              ? integerFmt.format(weekTotalEarnings.toInt())
-              : twoDecFmt.format(weekTotalEarnings);
+            // Estos acumuladores mensuales se usan más abajo para construir la UI.
             final String formattedMonthEarnings = (monthTotalEarnings % 1 == 0)
               ? integerFmt.format(monthTotalEarnings.toInt())
               : twoDecFmt.format(monthTotalEarnings);

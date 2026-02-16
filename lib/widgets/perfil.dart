@@ -37,7 +37,6 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
   Map<String, dynamic>? userData;
   File? _cachedImageFile;
   File? _cachedVehicleFile;
-  bool _isTogglingConnection = false;
 
   @override
   void initState() {
