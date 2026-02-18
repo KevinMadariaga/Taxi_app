@@ -23,6 +23,7 @@ class MapaPreviewView extends StatefulWidget {
 
 class _MapaPreviewViewState extends State<MapaPreviewView> {
   late MapapreviewViewModel _vm;
+  GoogleMapController? _mapController;
 
   @override
   void initState() {
@@ -36,7 +37,19 @@ class _MapaPreviewViewState extends State<MapaPreviewView> {
   }
 
   void _onMapCreated(GoogleMapController controller) {
-    // Controller not needed for this preview view; keep method as a no-op
+    _mapController = controller;
+    // Al crear el mapa, hacer un pequeño zoom animado sobre el centro
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (!mounted || _mapController == null) return;
+      _mapController!.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(
+            target: widget.location,
+            zoom: 18,
+          ),
+        ),
+      );
+    });
   }
 
   void _onCameraMove(CameraPosition position) {
@@ -112,12 +125,16 @@ class _MapaPreviewViewState extends State<MapaPreviewView> {
                       ),
                     ),
 
-                    // Fixed center marker (overlay)
-                    const IgnorePointer(
-                      child: Icon(
-                        Icons.place,
-                        size: 48,
-                        color: Color(0xFFFFCA44),
+                    // Marcador fijo centrado: se traslada ligeramente hacia arriba
+                    // para que la PUNTA del ícono coincida con el punto exacto del mapa.
+                    IgnorePointer(
+                      child: Transform.translate(
+                        offset: const Offset(0, -18),
+                        child: const Icon(
+                          Icons.place,
+                          size: 48,
+                          color: Color(0xFFFFCA44),
+                        ),
                       ),
                     ),
                   ],

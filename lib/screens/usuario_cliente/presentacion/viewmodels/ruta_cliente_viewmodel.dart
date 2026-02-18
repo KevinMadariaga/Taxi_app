@@ -116,6 +116,20 @@ class RutaClienteViewModel extends ChangeNotifier {
     return _mapService.computeBoundsFromPoints(points);
   }
 
+  /// Tiempo estimado de llegada en minutos, con un pequeño margen
+  /// adicional para acercarse más a lo que suele mostrar Google Maps.
+  ///
+  /// - Usa la duración devuelta por OSRM (routeDurationMin)
+  /// - Aplica un factor de seguridad (~10%) para evitar subestimar
+  /// - Redondea hacia arriba y asegura mínimo 1 minuto
+  int? get etaMinutesRounded {
+    final base = routeDurationMin;
+    if (base == null) return null;
+    const safetyFactor = 1.1; // 10% extra para aproximarse al tiempo real
+    final adjusted = (base * safetyFactor).ceil();
+    return adjusted < 1 ? 1 : adjusted;
+  }
+
   void _animateConductorTo(LatLng from, LatLng to, {int durationMs = 700}) {
     _movementTimer?.cancel();
     final stepMs = 50;

@@ -726,7 +726,7 @@ class _RutaClienteViewState extends State<RutaClienteView> {
                                             compassEnabled: true,
                                           )),
                               ),
-                              if (vm.routeDurationMin != null)
+                              if (vm.etaMinutesRounded != null)
                                 Align(
                                   alignment: Alignment.topCenter,
                                   child: Container(
@@ -759,7 +759,7 @@ class _RutaClienteViewState extends State<RutaClienteView> {
                                             ),
                                             SizedBox(width: ResponsiveHelper.wp(context, 2)),
                                             Text(
-                                              'Tiempo estimado de llegada: ${vm.routeDurationMin!.round()} min',
+                                              'Llega en aprox. ${vm.etaMinutesRounded} min',
                                               style: TextStyle(
                                                 fontSize: ResponsiveHelper.sp(context, 16),
                                                 fontWeight: FontWeight.w600,

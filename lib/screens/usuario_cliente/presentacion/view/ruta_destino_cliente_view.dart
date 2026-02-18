@@ -40,6 +40,7 @@ class _RutaDestinoClienteViewState extends State<RutaDestinoClienteView> {
   Set<Polyline> _polylines = {};
   List<LatLng> _routePoints = [];
   int _lastRouteCutIndex = 0;
+  double? _routeDurationMin;
 
   StreamSubscription<LatLng>? _driverSub;
   StreamSubscription<String?>? _estadoSub;
@@ -55,6 +56,16 @@ class _RutaDestinoClienteViewState extends State<RutaDestinoClienteView> {
   bool _initializing = true;
   bool _initializationScheduled = false;
   late DateTime _initStart;
+
+  // ETA redondeado para mostrar al usuario, con un pequeño margen adicional
+  // para aproximarnos mejor al tiempo real que suele mostrar Google Maps.
+  int? get _etaMinutesRounded {
+    final base = _routeDurationMin;
+    if (base == null) return null;
+    const safetyFactor = 1.1; // 10% extra para no subestimar
+    final adjusted = (base * safetyFactor).ceil();
+    return adjusted < 1 ? 1 : adjusted;
+  }
 
   @override
   void initState() {
@@ -620,6 +631,14 @@ class _RutaDestinoClienteViewState extends State<RutaDestinoClienteView> {
         _polylines = newPolys;
         _routePoints = points;
         _lastRouteCutIndex = 0;
+
+        // Guardar duración de la ruta para ETA
+        final duration = (route0['duration'] is num)
+            ? (route0['duration'] as num).toDouble()
+            : null;
+        if (duration != null) {
+          _routeDurationMin = duration / 60.0;
+        }
       });
 
       if (_mapController != null && points.isNotEmpty) {
@@ -778,6 +797,52 @@ class _RutaDestinoClienteViewState extends State<RutaDestinoClienteView> {
                     markers: markers,
                     polylines: _polylines,
                   ),
+                  if (_etaMinutesRounded != null)
+                    Positioned(
+                      top: ResponsiveHelper.hp(context, 2),
+                      left: 0,
+                      right: 0,
+                      child: SafeArea(
+                        child: Center(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 10,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColores.cardBackground,
+                              borderRadius: BorderRadius.circular(20),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.15),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.access_time,
+                                  size: ResponsiveHelper.sp(context, 16),
+                                  color: AppColores.textPrimary,
+                                ),
+                                SizedBox(width: ResponsiveHelper.wp(context, 2)),
+                                Text(
+                                  'Llegarás a tu destino en ${_etaMinutesRounded} min',
+                                  style: TextStyle(
+                                    fontSize: ResponsiveHelper.sp(context, 15),
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColores.textPrimary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   // Botón flotante de seguridad (solo icono)
                   Positioned(
                     right: ResponsiveHelper.wp(context, 4),

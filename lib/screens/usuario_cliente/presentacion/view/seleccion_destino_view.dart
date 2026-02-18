@@ -1,7 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:http/http.dart' as http;
 
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:geocoding/geocoding.dart';
@@ -70,6 +72,123 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
     _destinoFocus.dispose();
     _origenFocus.dispose();
     super.dispose();
+  }
+
+  /// Extrae un LatLng del texto pegado.
+  /// Primero busca pares lat,lng en el propio texto.
+  /// Si no encuentra, intenta resolver si hay un link (por ejemplo maps.app.goo.gl)
+  /// siguiendo el redirect una vez y buscando coordenadas en el destino.
+  Future<LatLng?> _extraerLatLngDesdeTexto(String text) async {
+    // 1) Buscar coordenadas directas en el texto
+    final reg = RegExp(r'(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)');
+    final matches = reg.allMatches(text).toList();
+    if (matches.isNotEmpty) {
+      final selected = matches.length >= 2 ? matches[1] : matches[0];
+      final lat = double.tryParse(selected.group(1) ?? '');
+      final lng = double.tryParse(selected.group(2) ?? '');
+      if (lat != null && lng != null) {
+        return LatLng(lat, lng);
+      }
+    }
+
+    // 2) Si no hay coords directas, intentar con un URL (short link de Google Maps, etc.)
+    try {
+      final urlMatch = RegExp(r'(https?://[^\s]+)').firstMatch(text);
+      final rawUrl = (urlMatch?.group(1) ?? text).trim();
+      if (rawUrl.isEmpty) return null;
+
+      Uri uri;
+      try {
+        uri = Uri.parse(rawUrl);
+      } catch (_) {
+        return null;
+      }
+      if (!uri.hasScheme) {
+        uri = Uri.parse('https://$rawUrl');
+      }
+
+      final client = http.Client();
+      try {
+        final req = http.Request('GET', uri)
+          ..followRedirects = false
+          ..maxRedirects = 1
+          ..headers['User-Agent'] =
+              'Mozilla/5.0 (Flutter TaxiApp; +https://example.com)';
+
+        final resp = await client.send(req).timeout(const Duration(seconds: 6));
+
+        // Priorizar header Location (redirect) si existe
+        String target = resp.headers['location'] ?? '';
+        if (target.isEmpty) {
+          // Si no hay redirect explícito, intentar con el cuerpo como fallback
+          target = await resp.stream.bytesToString();
+        }
+        if (target.isEmpty) return null;
+
+        final targetMatches = reg.allMatches(target).toList();
+        if (targetMatches.isEmpty) return null;
+
+        final selected = targetMatches.length >= 2
+            ? targetMatches[1]
+            : targetMatches[0];
+        final lat = double.tryParse(selected.group(1) ?? '');
+        final lng = double.tryParse(selected.group(2) ?? '');
+        if (lat == null || lng == null) return null;
+        return LatLng(lat, lng);
+      } finally {
+        client.close();
+      }
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _usarUbicacionDesdeTextoCompartido() async {
+    try {
+      final data = await Clipboard.getData(Clipboard.kTextPlain);
+      final text = data?.text?.trim() ?? '';
+      if (text.isEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No hay texto en el portapapeles')),
+        );
+        return;
+      }
+
+      // Intentar extraer coordenadas desde el texto o resolviendo el link
+      final destinoLatLng = await _extraerLatLngDesdeTexto(text);
+      if (destinoLatLng == null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No se encontraron coordenadas en el texto compartido')),
+        );
+        return;
+      }
+      // Usar una etiqueta genérica basada en el texto compartido
+      setState(() {
+        _destinoController.text = 'Ubicación compartida';
+        _sugerencias = [];
+      });
+
+      if (!mounted) return;
+      FocusScope.of(context).unfocus();
+
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => MapaPreviewView(
+            location: destinoLatLng,
+            direccion: _destinoController.text,
+            origenLocation: widget.currentLocation,
+            origenDireccion: _origenController.text,
+          ),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error al leer la ubicación compartida')),
+      );
+    }
   }
 
   Future<void> _guardarUbicacionActualComoFavorita() async {
@@ -338,6 +457,15 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
                     label: const Text('Guardar ubicación actual'),
                   ),
                 ),
+              const SizedBox(height: 4),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: _usarUbicacionDesdeTextoCompartido,
+                  icon: const Icon(Icons.gps_fixed, color: Colors.black87),
+                  label: const Text('Pegar ubicación'),
+                ),
+              ),
               const SizedBox(height: 8),
            
               if (_sugerencias.isNotEmpty)

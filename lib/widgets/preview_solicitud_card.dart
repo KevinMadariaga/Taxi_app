@@ -60,20 +60,39 @@ class _PreviewSolicitudCardState extends State<PreviewSolicitudCard> {
       ? (preview.distanciaKm! <= 1.0 ? 'Cerca' : 'Lejos')
       : '—';
 
-    return Container(
-      color: AppColores.cardBackground,
-      // Menos padding lateral y superior para que la foto se vea más protagonista
-      padding: ResponsiveHelper.padding(
-        context,
-        top: 12,
-        left: 14,
-        right: 14,
-        bottom: 0,
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
+    return SafeArea(
+      // Asegura que respetamos notch, barras de sistema y gestos
+      minimum: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final media = MediaQuery.of(context);
+          // Altura útil descontando las zonas seguras del sistema
+          final usableHeight = media.size.height - media.padding.vertical;
+
+          // Limitamos la altura para que en pantallas pequeñas no se corte
+          final maxHeight = constraints.maxHeight == double.infinity
+              ? usableHeight * 0.6
+              : constraints.maxHeight.clamp(0.0, usableHeight * 0.9);
+
+          return ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: maxHeight,
+              minWidth: constraints.maxWidth,
+            ),
+            child: Container(
+              color: AppColores.cardBackground,
+              // Menos padding lateral y superior para que la foto se vea más protagonista
+              padding: ResponsiveHelper.padding(
+                context,
+                top: 12,
+                left: 14,
+                right: 14,
+                bottom: 0,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
             Row(
               children: [
                 Icon(Icons.local_taxi, color: AppColores.textSecondary, size: ResponsiveHelper.sp(context, 20)),
@@ -259,10 +278,14 @@ class _PreviewSolicitudCardState extends State<PreviewSolicitudCard> {
                 ),
               ],
             ),
-            // Espacio mínimo y responsivo entre los botones y el mapa
-            SizedBox(height: ResponsiveHelper.hp(context, 1.2)),
-          ],
-        ),
+                    // Espacio mínimo y responsivo entre los botones y el mapa
+                    SizedBox(height: ResponsiveHelper.hp(context, 1.2)),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
