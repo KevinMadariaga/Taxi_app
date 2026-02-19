@@ -21,7 +21,7 @@ void main() {
     });
     testWidgets('SplashScreen se puede construir', (tester) async {
       await tester.pumpWidget(MaterialApp(home: SplashScreen(nextScreen: Container())));
-      await tester.pumpAndSettle(const Duration(seconds: 4));
+      // Verifica inmediatamente después del pump, antes de que navegue
       expect(find.byType(SplashScreen), findsOneWidget);
     });
   });
