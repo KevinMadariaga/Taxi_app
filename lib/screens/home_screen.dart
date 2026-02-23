@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:taxi_app/core/app_colores.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/view/registro_cliente_view.dart';
 import 'package:taxi_app/services/auth_service.dart';
+import '../services/google_sign_in_service.dart';
+import 'register_screen.dart';
 
 class HomeView extends StatefulWidget {
   const HomeView({super.key});
@@ -106,10 +107,71 @@ class _HomeViewState extends State<HomeView> {
     }
   }
 
-  void _showComingSoon(String provider) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Registro con $provider disponible próximamente')),
-    );
+
+  Future<void> _loginWithGoogle() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    try {
+      final userCredential = await GoogleSignInService().signInWithGoogle();
+      final user = userCredential?.user;
+      if (user == null) {
+        setState(() {
+          _error = 'No se pudo obtener la información del usuario.';
+        });
+        return;
+      }
+
+      // Detectar tipo de usuario según la base de datos (conductor o cliente)
+      final conductorDoc = await FirebaseFirestore.instance
+          .collection('conductor')
+          .doc(user.uid)
+          .get();
+
+      String? role;
+      if (conductorDoc.exists) {
+        role = 'conductor';
+      } else {
+        final clienteDoc = await FirebaseFirestore.instance
+            .collection('cliente')
+            .doc(user.uid)
+            .get();
+
+        if (clienteDoc.exists) {
+          role = 'cliente';
+        }
+      }
+
+      if (role == null) {
+        await AuthService().logout();
+        setState(() {
+          _error = 'Tu cuenta no está registrada como cliente ni como conductor.';
+        });
+        return;
+      }
+
+      // Guardar rol detectado en la sesión
+      await AuthService().saveUserSession(role: role, isLoggedIn: true);
+
+      final next = await AuthService().determineInitialScreen();
+
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => next),
+      );
+    } catch (_) {
+      setState(() {
+        _error = 'Error al iniciar sesión con Google.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -223,49 +285,74 @@ class _HomeViewState extends State<HomeView> {
                           ),
                   ),
                 ),
-
                 const SizedBox(height: 24),
-
-                // Métodos de registro
-                Center(
-                  child: Text(
-                    'O regístrate con',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: AppColores.textSecondary,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    IconButton(
-                      onPressed: () => _showComingSoon('Google'),
-                      icon: const Icon(Icons.g_mobiledata, size: 32, color: Colors.red),
+                    _SocialIconButton(
+                      asset: 'assets/img/icon_google.png',
+                      onTap: _loginWithGoogle,
                     ),
-                    const SizedBox(width: 16),
-                    IconButton(
-                      onPressed: () => _showComingSoon('Facebook'),
-                      icon: const Icon(Icons.facebook, size: 32, color: Colors.blue),
+                    const SizedBox(width: 24),
+                    _SocialIconButton(
+                      asset: 'assets/img/icon_facebook.png',
+                      onTap: () {}, // Aquí puedes implementar el login de Facebook
                     ),
-                    const SizedBox(width: 16),
-                    IconButton(
-                      onPressed: () {
+                  ],
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text('¿No tienes cuenta? ', style: TextStyle(fontSize: 14, color: Colors.black54)),
+                    GestureDetector(
+                      onTap: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(
-                            builder: (_) => const RegistroClienteView(),
-                          ),
+                          MaterialPageRoute(builder: (_) => const RegisterScreen()),
                         );
                       },
-                      icon: const Icon(Icons.email, size: 32, color: Colors.black87),
+                      child: Text(
+                        'Regístrate',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.deepPurple,
+                          fontWeight: FontWeight.bold,
+                          decoration: TextDecoration.underline,
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SocialIconButton extends StatelessWidget {
+  final String asset;
+  final VoidCallback onTap;
+  const _SocialIconButton({required this.asset, required this.onTap, Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: onTap,
+      child: Container(
+        width: 56,
+        height: 56,
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.deepPurple, width: 1.5),
+          borderRadius: BorderRadius.circular(12),
+          color: Colors.white,
+        ),
+        child: Center(
+          child: Image.asset(asset, width: 32, height: 32),
         ),
       ),
     );
