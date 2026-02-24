@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/screens/home_screen.dart';
-import '../components/google_sign_in_button.dart';
 
 class LoginScreen extends StatefulWidget {
 	final VoidCallback? onFinish;
@@ -111,14 +110,6 @@ class _LoginScreenState extends State<LoginScreen> {
 													),
 												),
 												if (index == _pages.length - 1) ...[
-													const SizedBox(height: 32),
-													GoogleSignInButton(
-														onSignIn: (userCredential) {
-															if (userCredential != null && widget.onFinish != null) {
-																widget.onFinish!();
-															}
-														},
-													),
 												],
 											],
 										),

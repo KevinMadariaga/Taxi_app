@@ -27,6 +27,7 @@ class PaginaPerfilUsuario extends StatefulWidget {
 }
 
 class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
+    bool _guardando = false;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final ImagePicker _picker = ImagePicker();
@@ -70,14 +71,14 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
   }
 
   Future<void> _guardarCambios(Map<String, dynamic> nuevosDatos) async {
+    if (_guardando) return;
+    setState(() => _guardando = true);
     final uid = _auth.currentUser?.uid;
-    if (uid == null) return;
-
-    await _firestore
-        .collection(widget.tipoUsuario)
-        .doc(uid)
-        .update(nuevosDatos);
-
+    if (uid == null) {
+      setState(() => _guardando = false);
+      return;
+    }
+    await _firestore.collection(widget.tipoUsuario).doc(uid).update(nuevosDatos);
     // Guardar nombre en cache si se actualizó
     try {
       final n = nuevosDatos['nombre']?.toString();
@@ -85,8 +86,9 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
         await SessionHelper.saveCachedName(n.trim());
       }
     } catch (_) {}
-
     _cargarDatos();
+    // Mensaje de 'Datos guardados' eliminado por solicitud
+    setState(() => _guardando = false);
   }
 
   Future<File> _compressFile(File file, {required int maxBytes}) async {
@@ -775,89 +777,69 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
                       SizedBox(width: ResponsiveHelper.wp(context, 3)),
                       Expanded(
                         child: ElevatedButton.icon(
-                          onPressed: () async {
-                            // Validar y subir imagen de perfil si fue seleccionada en el diálogo
-                            if (selectedImageInDialog != null) {
-                              final comp = await _compressFile(
-                                selectedImageInDialog!,
-                                maxBytes: 300 * 1024,
-                              );
-                              final len = await comp.length();
-                              if (len > 300 * 1024) {
-                                if (!parentContext.mounted) return;
-                                ScaffoldMessenger.of(
-                                  parentContext,
-                                ).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      'La foto de perfil supera 300KB, elige otra o reduce su tamaño',
-                                    ),
-                                  ),
-                                );
-                                return;
-                              }
-                              await _uploadFile(comp);
-                            }
+                          onPressed: _guardando
+                              ? null
+                              : () async {
+                                  // Validar y subir imagen de perfil si fue seleccionada en el diálogo
+                                  if (selectedImageInDialog != null) {
+                                    final comp = await _compressFile(
+                                      selectedImageInDialog!,
+                                      maxBytes: 300 * 1024,
+                                    );
+                                    final len = await comp.length();
+                                    if (len > 300 * 1024) {
+                                      if (!parentContext.mounted) return;
+                                      ScaffoldMessenger.of(
+                                        parentContext,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            'La foto de perfil supera 300KB, elige otra o reduce su tamaño',
+                                          ),
+                                        ),
+                                      );
+                                      return;
+                                    }
+                                    await _uploadFile(comp);
+                                  }
 
-                            // Validar y subir imagen del vehículo si fue seleccionada
-                            if (selectedVehicleImageInDialog != null) {
-                              final compV = await _compressFile(
-                                selectedVehicleImageInDialog!,
-                                maxBytes: 300 * 1024,
-                              );
-                              final lenV = await compV.length();
-                              if (lenV > 300 * 1024) {
-                                if (!parentContext.mounted) return;
-                                ScaffoldMessenger.of(
-                                  parentContext,
-                                ).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      'La foto del vehículo supera 300KB, elige otra o reduce su tamaño',
-                                    ),
-                                  ),
-                                );
-                                return;
-                              }
-                              await _uploadFileForField(compV, 'fotoVehiculo');
-                            }
+                                  // Validar y subir imagen del vehículo si fue seleccionada
+                                  if (selectedVehicleImageInDialog != null) {
+                                    final compV = await _compressFile(
+                                      selectedVehicleImageInDialog!,
+                                      maxBytes: 300 * 1024,
+                                    );
+                                    final lenV = await compV.length();
+                                    if (lenV > 300 * 1024) {
+                                      if (!parentContext.mounted) return;
+                                      ScaffoldMessenger.of(
+                                        parentContext,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            'La foto del vehículo supera 300KB, elige otra o reduce su tamaño',
+                                          ),
+                                        ),
+                                      );
+                                      return;
+                                    }
+                                    await _uploadFileForField(compV, 'fotoVehiculo');
+                                  }
 
-                            final nuevosDatos = {
-                              "nombre": nombreController.text.trim(),
-                              "telefono": telefonoController.text.trim(),
-                            };
+                                  final nuevosDatos = {
+                                    "nombre": nombreController.text.trim(),
+                                    "telefono": telefonoController.text.trim(),
+                                  };
 
-                            if (widget.tipoUsuario == 'conductor') {
-                              nuevosDatos["placa"] = placaController.text
-                                  .trim();
-                            }
+                                  if (widget.tipoUsuario == 'conductor') {
+                                    nuevosDatos["placa"] = placaController.text.trim();
+                                  }
 
-                            await _guardarCambios(nuevosDatos);
-                            if (!mounted) return;
-
-                            if (!parentContext.mounted) return;
-
-                            Navigator.of(parentContext).pop();
-                            ScaffoldMessenger.of(parentContext).showSnackBar(
-                              SnackBar(
-                                duration: const Duration(seconds: 1),
-                                content: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      Icons.check_circle,
-                                      color: AppColores.primary,
-                                    ),
-                                    const SizedBox(width: 10),
-                                    const Expanded(
-                                      child: Text('Cambio realizado'),
-                                    ),
-                                  ],
-                                ),
-                                behavior: SnackBarBehavior.floating,
-                              ),
-                            );
-                          },
+                                  await _guardarCambios(nuevosDatos);
+                                  if (!mounted) return;
+                                  if (!parentContext.mounted) return;
+                                  Navigator.of(parentContext).pop();
+                                },
                           label: const Text('Guardar'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColores.buttonPrimary,

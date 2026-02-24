@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:taxi_app/helper/firebase_helper.dart';
 import 'package:taxi_app/helper/permisos_helper.dart';
 import 'package:taxi_app/screens/splash_screen.dart';
-import 'package:taxi_app/screens/login_screen.dart';
+import 'package:taxi_app/screens/introductorio_screen.dart';
 import 'package:taxi_app/screens/usuario_cliente/data/autenticacion.dart';
 import 'package:taxi_app/screens/usuario_cliente/data/firebaseDB.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/autenticacion_viewmodel.dart';
