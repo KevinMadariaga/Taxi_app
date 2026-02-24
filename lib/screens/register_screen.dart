@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'home_screen.dart';
 import '../components/social_icon_button.dart';
 import '../services/google_sign_in_service.dart';
 import 'usuario_cliente/presentacion/view/inicio_cliente_view.dart';
@@ -23,27 +22,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No se pudo obtener la información del usuario.')));
           return;
         }
-        // Verificar si el usuario ya existe en Firestore
-        final doc = await FirebaseFirestore.instance.collection('usuario').doc(user.uid).get();
-        if (!doc.exists) {
-          await FirebaseFirestore.instance.collection('usuario').doc(user.uid).set({
-            'email': user.email,
+        // Guardar solo en la colección 'cliente'
+        final clienteDoc = await FirebaseFirestore.instance.collection('cliente').doc(user.uid).get();
+        if (!clienteDoc.exists) {
+          await FirebaseFirestore.instance.collection('cliente').doc(user.uid).set({
+            'id': user.uid,
+            'nombre': user.displayName ?? '',
+            'correo': user.email ?? '',
+            'ubicacion': null, // Puedes actualizar esto después con la ubicación real
+            'tipoUsuario': 'cliente',
             'createdAt': FieldValue.serverTimestamp(),
-            'displayName': user.displayName,
           });
         }
-          // Guardar también en la colección 'cliente'
-          final clienteDoc = await FirebaseFirestore.instance.collection('cliente').doc(user.uid).get();
-          if (!clienteDoc.exists) {
-            await FirebaseFirestore.instance.collection('cliente').doc(user.uid).set({
-              'id': user.uid,
-              'nombre': user.displayName ?? '',
-              'correo': user.email ?? '',
-              'ubicacion': null, // Puedes actualizar esto después con la ubicación real
-              'tipoUsuario': 'cliente',
-              'createdAt': FieldValue.serverTimestamp(),
-            });
-          }
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Registro con Google exitoso.')));
           Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const InicioClienteView()));
       } catch (e) {
@@ -81,12 +71,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       final cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(email: email, password: password);
       final uid = cred.user?.uid;
       if (uid != null) {
-        // Save user basic info to Firestore collection 'usuario' using uid as document id
-        await FirebaseFirestore.instance.collection('usuario').doc(uid).set({
-          'email': email,
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-        // Guardar también en la colección 'cliente'
+        // Guardar solo en la colección 'cliente'
         final clienteDoc = await FirebaseFirestore.instance.collection('cliente').doc(uid).get();
         if (!clienteDoc.exists) {
           await FirebaseFirestore.instance.collection('cliente').doc(uid).set({

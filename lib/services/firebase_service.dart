@@ -28,7 +28,6 @@ class FirebaseService {
         'ubicacion': {
           'lat': position.latitude,
           'lng': position.longitude,
-          'address': address ?? '',
           'lastUpdated': FieldValue.serverTimestamp(),
         },
       });
@@ -52,7 +51,6 @@ class FirebaseService {
         'ubicacion': {
           'lat': position.latitude,
           'lng': position.longitude,
-          'address': address ?? '',
           'lastUpdated': FieldValue.serverTimestamp(),
         },
       });
