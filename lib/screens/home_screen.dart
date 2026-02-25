@@ -193,7 +193,7 @@ class _HomeViewState extends State<HomeView> {
                   child: Column(
                     children: [
                       SizedBox(
-                        height: size.height * 0.15,
+                        height: size.height * 0.25,
                         child: Image.asset(
                           'assets/img/taxi.png',
                           fit: BoxFit.contain,
@@ -206,19 +206,10 @@ class _HomeViewState extends State<HomeView> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Taxi Ya',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: AppColores.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
                         'Ingresa para continuar tu viaje',
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          fontSize: 14,
+                          fontSize: 16,
                           color: AppColores.textSecondary,
                         ),
                       ),
@@ -316,9 +307,9 @@ class _HomeViewState extends State<HomeView> {
                         'Regístrate',
                         style: TextStyle(
                           fontSize: 14,
-                          color: Colors.deepPurple,
+                          color: AppColores.buttonPrimary,
                           fontWeight: FontWeight.bold,
-                          decoration: TextDecoration.underline,
+                          
                         ),
                       ),
                     ),
@@ -347,7 +338,7 @@ class _SocialIconButton extends StatelessWidget {
         width: 56,
         height: 56,
         decoration: BoxDecoration(
-          border: Border.all(color: Colors.deepPurple, width: 1.5),
+          border: Border.all(color: AppColores.buttonPrimary, width: 1.5),
           borderRadius: BorderRadius.circular(12),
           color: Colors.white,
         ),
