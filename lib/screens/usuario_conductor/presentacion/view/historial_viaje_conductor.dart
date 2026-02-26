@@ -294,8 +294,13 @@ class HistorialConductorState extends State<HistorialConductor> {
             return Center(child: Text("Error: ${snapshot.error}"));
           }
 
-          var allViajes = snapshot.data?.docs ?? [];
-          
+          // Filtrar solo solicitudes con estado 'completado'
+          var allViajes = (snapshot.data?.docs ?? []).where((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            final estado = (data['estado'] ?? data['status'] ?? '').toString().toLowerCase();
+            return estado == 'completado';
+          }).toList();
+
           // Ordenar manualmente por fecha de finalización (completedAt o fecha de terminacion)
           allViajes.sort((a, b) {
             final aData = a.data() as Map<String, dynamic>;
@@ -312,46 +317,48 @@ class HistorialConductorState extends State<HistorialConductor> {
             return const Center(child: Text("No hay viajes registrados."));
           }
 
-            // Solo mostramos la lista completa de solicitudes (sin tarjeta de resumen ni filtros)
-            return ListView.builder(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              itemCount: allViajes.length,
-              itemBuilder: (context, index) {
-                final data = allViajes[index].data() as Map<String, dynamic>;
-                final destinoRaw = data['destino'];
-                final destinoFuture = obtenerDireccion(destinoRaw);
-                final horaFin = (data['completedAt'] ?? data['fecha de terminacion']) as Timestamp?;
-                final duracion = data['duracion minutos']?.toString() ?? '-';
+          // Solo mostramos la lista completa de solicitudes (sin tarjeta de resumen ni filtros)
+          return ListView.builder(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            itemCount: allViajes.length,
+            itemBuilder: (context, index) {
+              final data = allViajes[index].data() as Map<String, dynamic>;
+              final destinoRaw = data['destino'];
+              final destinoFuture = obtenerDireccion(destinoRaw);
+              final horaFin = (data['completedAt'] ?? data['fecha de terminacion']) as Timestamp?;
+              // final duracion = data['duracion minutos']?.toString() ?? '-';
 
-                return Card(
-                  margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  child: ListTile(
-                    leading: const Icon(Icons.local_taxi, color: Colors.amber),
-                    title: FutureBuilder<String>(
-                      future: destinoFuture,
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting) {
-                          return const Text('Cargando...');
-                        }
-                        final text = snapshot.data ??
-                            (destinoRaw is Map
-                                ? (destinoRaw['title']?.toString() ?? destinoRaw['address']?.toString() ?? 'Destino')
-                                : (destinoRaw?.toString() ?? 'Destino'));
-                        return Text(text);
-                      },
-                    ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (horaFin != null) Text("📅 Finalizado: ${formatoFechaHora(horaFin)}"),
-                        Text("⏱ Duración: $duracion min"),
-                      ],
-                    ),
-                    onTap: () => mostrarDetalle(context, data),
+              return Card(
+                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                child: ListTile(
+                  leading: const Icon(Icons.local_taxi, color: Colors.amber),
+                  title: FutureBuilder<String>(
+                    future: destinoFuture,
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Text('Cargando...');
+                      }
+                      final text = snapshot.data ??
+                          (destinoRaw is Map
+                              ? (destinoRaw['title']?.toString() ?? destinoRaw['address']?.toString() ?? 'Destino')
+                              : (destinoRaw?.toString() ?? 'Destino'));
+                      return Text(
+                        text,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      );
+                    },
                   ),
-                );
-              },
-            );
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (horaFin != null) Text("${formatoFechaHora(horaFin)}"),
+                    ],
+                  ),
+                  onTap: () => mostrarDetalle(context, data),
+                ),
+              );
+            },
+          );
         },
       ),
     );

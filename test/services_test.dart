@@ -1,12 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:taxi_app/services/auth_service.dart';
-import 'package:taxi_app/services/chat_service.dart';
-import 'package:taxi_app/services/firebase_service.dart';
 import 'package:taxi_app/services/map_service.dart';
 import 'package:taxi_app/services/route_cache_service.dart';
 import 'package:taxi_app/services/notificacion_servicio.dart';
 import 'package:taxi_app/services/notification_service.dart';
-import 'package:taxi_app/services/tracking_service.dart';
 import 'package:taxi_app/services/ubicacion_servicio.dart';
 
 void main() {

@@ -447,25 +447,27 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
                 },
               ),
               const SizedBox(height: 8),
-              // Botón para guardar la ubicación actual como favorita (Casa, Trabajo, etc.)
-              if (widget.currentLocation != null)
+              // Ocultar botones si el usuario está escribiendo en el cuadro de texto destino
+              if (_destinoController.text.trim().isEmpty && _sugerencias.isEmpty) ...[
+                if (widget.currentLocation != null)
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: _guardarUbicacionActualComoFavorita,
+                      icon: const Icon(Icons.star_border, color: Colors.black87),
+                      label: const Text('Guardar ubicación actual'),
+                    ),
+                  ),
+                const SizedBox(height: 4),
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton.icon(
-                    onPressed: _guardarUbicacionActualComoFavorita,
-                    icon: const Icon(Icons.star_border, color: Colors.black87),
-                    label: const Text('Guardar ubicación actual'),
+                    onPressed: _usarUbicacionDesdeTextoCompartido,
+                    icon: const Icon(Icons.gps_fixed, color: Colors.black87),
+                    label: const Text('Pegar ubicación'),
                   ),
                 ),
-              const SizedBox(height: 4),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton.icon(
-                  onPressed: _usarUbicacionDesdeTextoCompartido,
-                  icon: const Icon(Icons.gps_fixed, color: Colors.black87),
-                  label: const Text('Pegar ubicación'),
-                ),
-              ),
+              ],
               const SizedBox(height: 8),
            
               if (_sugerencias.isNotEmpty)
