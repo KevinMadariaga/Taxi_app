@@ -1,16 +1,17 @@
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
-
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:geocoding/geocoding.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/model/mapa_cliente_model.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart' show LatLng;
-import 'package:taxi_app/screens/usuario_cliente/presentacion/view/mapa_seleccion_destino_view.dart';
-import 'inicio_cliente_view.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/model/MapaClienteModel.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/view/MapaPreviewView.dart';
+import 'InicioClienteView.dart';
+
+
 
 class DestinoSeleccionView extends StatefulWidget {
   final LatLng? currentLocation;
@@ -91,6 +92,44 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
       }
     }
 
+    // 2) Buscar coordenadas en Google Maps links con '@lat,lng'
+    final urlMatch = RegExp(r'(https?://[^\s]+)').firstMatch(text);
+    final rawUrl = (urlMatch?.group(1) ?? text).trim();
+    if (rawUrl.isNotEmpty && rawUrl.contains('google.com/maps')) {
+      // Buscar el patrón @lat,lng en el link
+      final atReg = RegExp(r'@(-?\d+\.\d+),(-?\d+\.\d+)(?:,|z)');
+      final atMatches = atReg.allMatches(rawUrl).toList();
+      if (atMatches.isNotEmpty) {
+        // Si es un link de /place/, tomar la primera ocurrencia
+        if (rawUrl.contains('/place/')) {
+          final m = atMatches[0];
+          final lat = double.tryParse(m.group(1) ?? '');
+          final lng = double.tryParse(m.group(2) ?? '');
+          if (lat != null && lng != null) {
+            return LatLng(lat, lng);
+          }
+        }
+        // Si es un link de /dir/, tomar la segunda ocurrencia si existe
+        else if (rawUrl.contains('/dir/')) {
+          final m = atMatches.length > 1 ? atMatches[1] : atMatches[0];
+          final lat = double.tryParse(m.group(1) ?? '');
+          final lng = double.tryParse(m.group(2) ?? '');
+          if (lat != null && lng != null) {
+            return LatLng(lat, lng);
+          }
+        }
+        // Si no se puede identificar, tomar la primera
+        else {
+          final m = atMatches[0];
+          final lat = double.tryParse(m.group(1) ?? '');
+          final lng = double.tryParse(m.group(2) ?? '');
+          if (lat != null && lng != null) {
+            return LatLng(lat, lng);
+          }
+        }
+      }
+    }
+
     // 2) Si no hay coords directas, intentar con un URL (short link de Google Maps, etc.)
     try {
       final urlMatch = RegExp(r'(https?://[^\s]+)').firstMatch(text);
@@ -109,32 +148,59 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
 
       final client = http.Client();
       try {
-        final req = http.Request('GET', uri)
-          ..followRedirects = false
-          ..maxRedirects = 1
-          ..headers['User-Agent'] =
-              'Mozilla/5.0 (Flutter TaxiApp; +https://example.com)';
+        // Si es un short link de Google Maps, seguir el redirect
+        bool isShortGoogleMaps = uri.host.contains('maps.app.goo.gl');
+        String target = '';
+        if (isShortGoogleMaps) {
+          final req = http.Request('GET', uri)
+            ..followRedirects = false
+            ..maxRedirects = 1
+            ..headers['User-Agent'] =
+                'Mozilla/5.0 (Flutter TaxiApp; +https://example.com)';
 
-        final resp = await client.send(req).timeout(const Duration(seconds: 6));
-
-        // Priorizar header Location (redirect) si existe
-        String target = resp.headers['location'] ?? '';
-        if (target.isEmpty) {
-          // Si no hay redirect explícito, intentar con el cuerpo como fallback
-          target = await resp.stream.bytesToString();
+          final resp = await client.send(req).timeout(const Duration(seconds: 6));
+          // El header Location debe contener el link largo
+          target = resp.headers['location'] ?? '';
+          if (target.isEmpty) {
+            // Si no hay redirect explícito, intentar con el cuerpo como fallback
+            target = await resp.stream.bytesToString();
+          }
+        } else {
+          // Si no es short link, usar el propio URL
+          target = uri.toString();
         }
         if (target.isEmpty) return null;
 
+        // Buscar coordenadas en el link largo o en el contenido
         final targetMatches = reg.allMatches(target).toList();
-        if (targetMatches.isEmpty) return null;
+        if (targetMatches.isNotEmpty) {
+          final selected = targetMatches.length >= 2
+              ? targetMatches[1]
+              : targetMatches[0];
+          final lat = double.tryParse(selected.group(1) ?? '');
+          final lng = double.tryParse(selected.group(2) ?? '');
+          if (lat != null && lng != null) {
+            return LatLng(lat, lng);
+          }
+        }
 
-        final selected = targetMatches.length >= 2
-            ? targetMatches[1]
-            : targetMatches[0];
-        final lat = double.tryParse(selected.group(1) ?? '');
-        final lng = double.tryParse(selected.group(2) ?? '');
-        if (lat == null || lng == null) return null;
-        return LatLng(lat, lng);
+        // Si no se encontró en el link, intentar obtener el HTML y buscar coordenadas
+        if (isShortGoogleMaps && target.isNotEmpty) {
+          try {
+            final resp2 = await client.get(Uri.parse(target)).timeout(const Duration(seconds: 6));
+            final html = resp2.body;
+            final htmlMatches = reg.allMatches(html).toList();
+            if (htmlMatches.isNotEmpty) {
+              final selected = htmlMatches.length >= 2 ? htmlMatches[1] : htmlMatches[0];
+              final lat = double.tryParse(selected.group(1) ?? '');
+              final lng = double.tryParse(selected.group(2) ?? '');
+              if (lat != null && lng != null) {
+                return LatLng(lat, lng);
+              }
+            }
+          } catch (_) {}
+        }
+        return null;
       } finally {
         client.close();
       }
@@ -146,7 +212,14 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
   Future<void> _usarUbicacionDesdeTextoCompartido() async {
     try {
       final data = await Clipboard.getData(Clipboard.kTextPlain);
-      final text = data?.text?.trim() ?? '';
+      String text = data?.text?.trim() ?? '';
+      // Si el texto está cortado, intenta buscar el primer link completo
+      final urlMatch = RegExp(r'https?://[^\s]+').firstMatch(text);
+      if (urlMatch != null) {
+        // Si el texto termina justo después del link, probablemente está completo
+        // Si hay más texto después, intenta tomar solo el link
+        text = urlMatch.group(0)!;
+      }
       if (text.isEmpty) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -154,6 +227,42 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
         );
         return;
       }
+
+      // Si es un shortlink de maps.app.goo.gl, seguir el redirect para obtener el link largo
+      String linkParaExtraer = text;
+      if (text.contains('maps.app.goo.gl')) {
+        try {
+          final uri = Uri.parse(text);
+          final client = http.Client();
+          final req = http.Request('GET', uri)
+            ..followRedirects = false
+            ..maxRedirects = 1
+            ..headers['User-Agent'] = 'Mozilla/5.0 (Flutter TaxiApp; +https://example.com)';
+          final resp = await client.send(req).timeout(const Duration(seconds: 6));
+          final redirected = resp.headers['location'] ?? '';
+          if (redirected.isNotEmpty) linkParaExtraer = redirected;
+          client.close();
+        } catch (_) {}
+      }
+
+      // Mostrar lat/lng y el link largo si se puede extraer
+      final coords = extraerLatLng(linkParaExtraer);
+      if (coords != null) {
+        await showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Coordenadas encontradas'),
+            content: Text('Latitud: ${coords['latitud']},\nLongitud: ${coords['longitud']}\n\nLink completo:\n$linkParaExtraer'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      }
+
 
       // Intentar extraer coordenadas desde el texto o resolviendo el link
       final destinoLatLng = await _extraerLatLngDesdeTexto(text);
@@ -517,6 +626,20 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
     );
   }
 }
+  /// Extrae latitud y longitud de un link de Google Maps con @lat,lng
+  Map<String, double>? extraerLatLng(String url) {
+    final RegExp regex = RegExp(r'@([-0-9.]+),([-0-9.]+)');
+    final match = regex.firstMatch(url);
+    if (match != null) {
+      final double lat = double.parse(match.group(1)!);
+      final double lng = double.parse(match.group(2)!);
+      return {
+        'latitud': lat,
+        'longitud': lng,
+      };
+    }
+    return null;
+  }
 
 Future<List<UbicacionResultado>> buscarUbicacionesHelper(String query) async {
   final user = FirebaseAuth.instance.currentUser;

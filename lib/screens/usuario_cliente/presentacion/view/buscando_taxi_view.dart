@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:taxi_app/helper/responsive_helper.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/view/inicio_cliente_view.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/view/InicioClienteView.dart';
 
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:async';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/view/ruta_cliente_view.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/view/RutaClienteView.dart';
 import 'package:taxi_app/services/notificacion_servicio.dart';
 import 'package:taxi_app/widgets/map_loading_widget.dart';
 

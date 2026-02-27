@@ -3,7 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../components/social_icon_button.dart';
 import '../services/google_sign_in_service.dart';
-import 'usuario_cliente/presentacion/view/inicio_cliente_view.dart';
+import 'usuario_cliente/presentacion/view/InicioClienteView.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});

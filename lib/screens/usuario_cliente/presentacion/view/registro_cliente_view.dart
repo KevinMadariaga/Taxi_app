@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:taxi_app/core/app_colores.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/view/inicio_cliente_view.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/view/InicioClienteView.dart';
 import '../../../../data/models/viewmodels/registro_cliente_viewmodel.dart';
 import '../../../../data/models/registro_cliente_model.dart';
 import 'package:taxi_app/components/boton.dart';

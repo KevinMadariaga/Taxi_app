@@ -5,47 +5,58 @@ import 'package:taxi_app/helper/firebase_helper.dart';
 import 'package:taxi_app/helper/permisos_helper.dart';
 import 'package:taxi_app/screens/splash_screen.dart';
 import 'package:taxi_app/screens/introductorio_screen.dart';
-import 'package:taxi_app/screens/usuario_cliente/data/autenticacion.dart';
+import 'package:taxi_app/screens/usuario_cliente/data/Auth.dart';
 import 'package:taxi_app/screens/usuario_cliente/data/firebaseDB.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/autenticacion_viewmodel.dart';
+import 'package:taxi_app/models/AuthModel.dart';
 import 'package:taxi_app/services/auth_service.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:taxi_app/services/notificacion_servicio.dart';
 import 'package:taxi_app/theme/app_theme.dart';
  
-void main() async {
+/// Entry point for the Taxi App.
+/// Initializes services, handles permissions, and launches the app.
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Manejo de errores global en Flutter
-  FlutterError.onError = (FlutterErrorDetails details) {
-    FlutterError.presentError(details);
-    // Puedes enviar los errores a Crashlytics aquí si lo deseas
-  };
-
-  await FirebaseHelper.initializeFirebase();
-  await PermissionsHelper.requestAllPermissions();
-  
-  // Inicializar notificaciones usando el servicio singleton
-  await NotificacionesServicio.instance.init();
-
-  // Crear instancia del servicio de autenticación y redirección
-  // AuthService ya no necesita el plugin de notificaciones como parámetro
-  final authService = AuthService();
-
-  // Determinar la pantalla inicial según el estado de sesión
-  final initialScreen = await authService.determineInitialScreen();
-
-  // Revisar si el onboarding ya se mostró
+  _setupGlobalErrorHandling();
+  await _initializeAppServices();
+  final initialScreen = await _getInitialScreen();
   final prefs = await SharedPreferences.getInstance();
   final seenOnboarding = prefs.getBool('seenOnboarding') ?? false;
+  runApp(MyApp(
+    initialScreen: initialScreen,
+    prefs: prefs,
+    seenOnboarding: seenOnboarding,
+  ));
+}
 
-  runApp(MyApp(initialScreen: initialScreen, prefs: prefs, seenOnboarding: seenOnboarding));
+/// Configures global error handling for Flutter errors.
+void _setupGlobalErrorHandling() {
+  FlutterError.onError = (FlutterErrorDetails details) {
+    FlutterError.presentError(details);
+    // Optionally send errors to Crashlytics or another service here.
+  };
+}
+
+/// Initializes Firebase, permissions, and notifications.
+Future<void> _initializeAppServices() async {
+  await FirebaseHelper.initializeFirebase();
+  await PermissionsHelper.requestAllPermissions();
+  await NotificacionesServicio.instance.init();
+}
+
+/// Determines the initial screen based on authentication state.
+Future<Widget> _getInitialScreen() async {
+  final authService = AuthService();
+  return await authService.determineInitialScreen();
 }
 
 // (Inicialización de Firebase movida a `lib/helpers/firebase_helper.dart`)
 
+/// Global navigator key for navigation outside widget context.
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
+/// Root widget for the Taxi App.
+/// Sets up providers, theming, and navigation.
 class MyApp extends StatelessWidget {
   final Widget initialScreen;
   final SharedPreferences prefs;
@@ -60,7 +71,7 @@ class MyApp extends StatelessWidget {
       minTextAdapt: true,
       splitScreenMode: true,
       builder: (context, child) {
-         return MultiProvider(
+        return MultiProvider(
           providers: [
             ChangeNotifierProvider(
               create: (_) => AuthViewModel(
@@ -69,10 +80,7 @@ class MyApp extends StatelessWidget {
                 ),
               ),
             ),
-
-            // 👉 Aquí puedes agregar más ViewModels
-            // ChangeNotifierProvider(create: (_) => TripViewModel(...)),
-            // ChangeNotifierProvider(create: (_) => MapViewModel(...)),
+            // Add more ViewModels here as needed
           ],
           child: MaterialApp(
             debugShowCheckedModeBanner: false,
@@ -83,7 +91,7 @@ class MyApp extends StatelessWidget {
               nextScreen: seenOnboarding
                   ? initialScreen
                   : LoginScreen(onFinish: () {
-                      // Guardar que ya se mostró el onboarding y navegar usando navigatorKey
+                      // Mark onboarding as seen and navigate
                       prefs.setBool('seenOnboarding', true);
                       navigatorKey.currentState?.pushReplacement(
                         MaterialPageRoute(builder: (_) => initialScreen),

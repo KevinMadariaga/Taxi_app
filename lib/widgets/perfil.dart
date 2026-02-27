@@ -15,7 +15,7 @@ import 'package:provider/provider.dart';
 import 'package:taxi_app/helper/responsive_helper.dart';
 import 'package:taxi_app/helper/session_helper.dart';
 import 'package:taxi_app/screens/home_screen.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/autenticacion_viewmodel.dart';
+import 'package:taxi_app/models/AuthModel.dart';
 
 class PaginaPerfilUsuario extends StatefulWidget {
   final String tipoUsuario; // 'cliente' o 'conductor'

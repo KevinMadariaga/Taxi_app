@@ -3,8 +3,7 @@ import 'package:taxi_app/firebase_options.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/historial_viaje_cliente.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/view/inicio_cliente_view.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/view/login_cliente_view.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/view/InicioClienteView.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/registro_cliente_view.dart';
 
 void main() {
@@ -20,10 +19,6 @@ void main() {
     testWidgets('InicioClienteView se puede construir', (tester) async {
       await tester.pumpWidget(MaterialApp(home: InicioClienteView()));
       expect(find.byType(InicioClienteView), findsOneWidget);
-    });
-    testWidgets('Login se puede construir', (tester) async {
-      await tester.pumpWidget(MaterialApp(home: Login()));
-      expect(find.byType(Login), findsOneWidget);
     });
     testWidgets('RegistroClienteView se puede construir', (tester) async {
       await tester.pumpWidget(MaterialApp(home: RegistroClienteView()));

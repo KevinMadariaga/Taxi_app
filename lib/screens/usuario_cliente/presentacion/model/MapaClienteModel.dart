@@ -1,27 +1,16 @@
+
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
-/// Modelo para la pantalla de mapa cliente
-/// 
-/// Contiene datos relacionados con la visualización del mapa,
-/// marcadores, polilíneas y configuración general.
+/// Modelo para la configuración y estado del mapa del cliente.
+/// Contiene datos de posición, zoom, marcadores, polilíneas y estado de carga.
 class MapaClienteModel {
-  /// Posición inicial del mapa
   final LatLng initialTarget;
-
-  /// Zoom inicial
   final double initialZoom;
-
-  /// Marcadores a mostrar en el mapa
   final Set<Marker> markers;
-
-  /// Polilíneas (rutas) a mostrar en el mapa
   final Set<Polyline> polylines;
-
-  /// Indica si el mapa está listo
   final bool mapReady;
 
-  /// Constructor
-  MapaClienteModel({
+  const MapaClienteModel({
     this.initialTarget = const LatLng(8.2595534, -73.353469),
     this.initialZoom = 14.0,
     this.markers = const <Marker>{},
@@ -29,7 +18,7 @@ class MapaClienteModel {
     this.mapReady = false,
   });
 
-  /// Método para copiar con cambios opcionales
+  /// Retorna una copia del modelo con los cambios indicados.
   MapaClienteModel copyWith({
     LatLng? initialTarget,
     double? initialZoom,
@@ -47,14 +36,20 @@ class MapaClienteModel {
   }
 }
 
+
+
 /// Resultado simple de búsqueda de ubicación usado en selección de destino.
 class UbicacionResultado {
+  /// Coordenadas de la ubicación.
   final LatLng? location;
-  /// Nombre/etiqueta asignada por el usuario (ej: "Casa", "Colegio").
+  /// Nombre o etiqueta asignada por el usuario (ej: "Casa", "Colegio").
   final String nombre;
-
   /// Dirección completa en texto de la ubicación.
   final String direccion;
 
-  UbicacionResultado({required this.location, required this.nombre, required this.direccion});
+  const UbicacionResultado({
+    required this.location,
+    required this.nombre,
+    required this.direccion,
+  });
 }
