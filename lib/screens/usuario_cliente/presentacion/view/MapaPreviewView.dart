@@ -241,6 +241,14 @@ class _MapaPreviewViewState extends State<MapaPreviewView> {
 
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    final double screenW = size.width;
+    final bool isTablet = screenW >= 1000;
+    final double mapHeight = isTablet ? 600 : 420;
+    final double maxContentWidth = isTablet ? 900 : double.infinity;
+    final double titleFontSize = isTablet ? 22 : 19;
+    final double addressTitleFontSize = isTablet ? 26 : 22;
+    final double addressSubtitleFontSize = isTablet ? 20 : 18;
     return ChangeNotifierProvider<MapapreviewViewModel>.value(
       value: _vm,
       child: Scaffold(
@@ -252,23 +260,110 @@ class _MapaPreviewViewState extends State<MapaPreviewView> {
         ),
         backgroundColor: Colors.white,
         body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(12.0),
-            child: Consumer<MapapreviewViewModel>(
-              builder: (context, vm, _) => Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 10),
-                  _buildTitle(),
-                  const SizedBox(height: 15),
-                  _buildMap(),
-                  Flexible(
-                    fit: FlexFit.loose,
-                    child: SingleChildScrollView(
-                      child: _buildAddressInfo(vm),
+          child: Center(
+            child: Container(
+              constraints: BoxConstraints(maxWidth: maxContentWidth),
+              padding: EdgeInsets.symmetric(horizontal: isTablet ? 32 : 12, vertical: 12),
+              child: Consumer<MapapreviewViewModel>(
+                builder: (context, vm, _) => Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(height: isTablet ? 20 : 10),
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: isTablet ? 20 : 15),
+                      child: Center(
+                        child: Text(
+                          'Mueve el indicador en el mapa',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.black87,
+                            fontSize: titleFontSize,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ],
+                    SizedBox(height: isTablet ? 25 : 15),
+                    Center(
+                      child: SizedBox(
+                        height: mapHeight,
+                        width: isTablet ? maxContentWidth * 0.9 : double.infinity,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: Colors.black, width: 1),
+                              ),
+                              clipBehavior: Clip.antiAlias,
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: AppGoogleMap(
+                                  initialTarget: widget.location,
+                                  initialZoom: 16,
+                                  myLocationEnabled: false,
+                                  myLocationButtonEnabled: false,
+                                  rotateGesturesEnabled: false,
+                                  tiltGesturesEnabled: false,
+                                  onMapCreated: _onMapCreated,
+                                  onCameraMove: _onCameraMove,
+                                  onCameraIdle: _onCameraIdle,
+                                ),
+                              ),
+                            ),
+                            IgnorePointer(
+                              child: Transform.translate(
+                                offset: const Offset(0, -18),
+                                child: const Icon(
+                                  Icons.place,
+                                  size: 48,
+                                  color: Color(0xFFFFCA44),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Flexible(
+                      fit: FlexFit.loose,
+                      child: SingleChildScrollView(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SizedBox(height: isTablet ? 30 : 20),
+                            Padding(
+                              padding: EdgeInsets.symmetric(horizontal: isTablet ? 20 : 15),
+                              child: Text(
+                                vm.formatAddress(widget.direccion ?? 'Nombre del lugar').toUpperCase(),
+                                style: TextStyle(
+                                  fontSize: addressTitleFontSize,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                            ),
+                            SizedBox(height: isTablet ? 12 : 8),
+                            Padding(
+                              padding: EdgeInsets.symmetric(horizontal: isTablet ? 20 : 15),
+                              child: Text(
+                                vm.formatAddress(vm.currentAddress).isNotEmpty
+                                    ? vm.formatAddress(vm.currentAddress)
+                                    : '${vm.center.latitude.toStringAsFixed(6)}, ${vm.center.longitude.toStringAsFixed(6)}',
+                                style: TextStyle(
+                                  fontSize: addressSubtitleFontSize,
+                                  color: Colors.black54,
+                                ),
+                              ),
+                            ),
+                            SizedBox(height: isTablet ? 18 : 12),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

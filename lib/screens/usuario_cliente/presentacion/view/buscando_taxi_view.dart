@@ -111,6 +111,14 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView> {
 
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    final double screenW = size.width;
+    final bool isTablet = screenW >= 1000;
+    final double iconSize = isTablet ? screenW * 0.18 : 72;
+    final double buttonWidth = isTablet ? screenW * 0.5 : ResponsiveHelper.wp(context, 35);
+    final double buttonHeight = isTablet ? 64 : ResponsiveHelper.wp(context, 12);
+    final double titleFontSize = isTablet ? 32 : 25;
+    final double descFontSize = isTablet ? 18 : 14;
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
@@ -119,35 +127,33 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const SizedBox(height: 24),
-              const Icon(Icons.local_taxi, size: 72, color: Colors.black87),
-              const SizedBox(height: 24),
-              const Text('Buscando taxi', style: TextStyle(fontSize: 25, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 16),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 24.0),
+              SizedBox(height: isTablet ? 32 : 24),
+              Icon(Icons.local_taxi, size: iconSize, color: Colors.black87),
+              SizedBox(height: isTablet ? 32 : 24),
+              Text('Buscando taxi', style: TextStyle(fontSize: titleFontSize, fontWeight: FontWeight.bold)),
+              SizedBox(height: isTablet ? 22 : 16),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: isTablet ? 64.0 : 24.0),
                 child: Text(
                   'Estamos buscando un conductor disponible. Esto puede tardar algunos segundos.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.black54, fontSize: 14),
+                  style: TextStyle(color: Colors.black54, fontSize: descFontSize),
                 ),
               ),
-              const SizedBox(height: 24),
-              //const CircularProgressIndicator(),
-              const SizedBox(height: 36),
+              SizedBox(height: isTablet ? 32 : 24),
+              SizedBox(height: isTablet ? 48 : 36),
               Center(
                 child: SizedBox(
-                  width: ResponsiveHelper.wp(context, 35),
-                  height: ResponsiveHelper.wp(context, 12),
+                  width: buttonWidth,
+                  height: buttonHeight,
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colores.amarillo,
                       foregroundColor: Colors.black87,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                     onPressed: _cancelSolicitud,
-                    child: Text('Cancelar', style: TextStyle(fontWeight: FontWeight.w700, fontSize: ResponsiveHelper.sp(context, 18)))
-                    
+                    child: Text('Cancelar', style: TextStyle(fontWeight: FontWeight.w700, fontSize: isTablet ? 22 : ResponsiveHelper.sp(context, 18)))
                   ),
                 ),
               ),

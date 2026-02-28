@@ -803,9 +803,22 @@ class _RutaDestinoClienteViewState extends State<RutaDestinoClienteView> {
     final initialTarget =
         _driverLocation ?? _destinoLocation ?? const LatLng(0, 0);
 
+    final deviceType = ResponsiveHelper.getResponsiveData(context).deviceType;
+    final isTablet = deviceType == DeviceType.tablet;
+    final isLargeScreen = deviceType == DeviceType.desktop;
+    final appBarFontSize = (isLargeScreen || isTablet)
+      ? ResponsiveHelper.sp(context, 20)
+      : ResponsiveHelper.sp(context, 17);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Ruta al destino'),
+        title: Text(
+          'Ruta al destino',
+          style: TextStyle(
+            fontSize: appBarFontSize,
+            fontWeight: FontWeight.w600,
+            color: AppColores.textPrimary,
+          ),
+        ),
         backgroundColor: AppColores.primary,
         foregroundColor: AppColores.textWhite,
         automaticallyImplyLeading: false,
@@ -983,29 +996,34 @@ class _RutaDestinoClienteViewState extends State<RutaDestinoClienteView> {
                               final tieneMedia =
                                   (promedio - promedioInt) >= 0.5;
 
+                              final deviceType = ResponsiveHelper.getResponsiveData(context).deviceType;
+                              final isTablet = deviceType == DeviceType.tablet;
+                              final isLargeScreen = deviceType == DeviceType.desktop;
+                              final starSize = (isTablet || isLargeScreen)
+                                  ? ResponsiveHelper.sp(context, 15)
+                                  : ResponsiveHelper.sp(context, 14);
                               return Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: List.generate(5, (index) {
                                   if (index < promedioInt) {
-                                    return const Padding(
-                                      padding: EdgeInsets.symmetric(
+                                    return Padding(
+                                      padding: const EdgeInsets.symmetric(
                                         horizontal: 1.0,
                                       ),
                                       child: Icon(
                                         Icons.star,
-                                        size: 14,
+                                        size: starSize,
                                         color: Colors.amber,
                                       ),
                                     );
-                                  } else if (index == promedioInt &&
-                                      tieneMedia) {
-                                    return const Padding(
-                                      padding: EdgeInsets.symmetric(
+                                  } else if (index == promedioInt && tieneMedia) {
+                                    return Padding(
+                                      padding: const EdgeInsets.symmetric(
                                         horizontal: 1.0,
                                       ),
                                       child: Icon(
                                         Icons.star_half,
-                                        size: 14,
+                                        size: starSize,
                                         color: Colors.amber,
                                       ),
                                     );
@@ -1016,7 +1034,7 @@ class _RutaDestinoClienteViewState extends State<RutaDestinoClienteView> {
                                       ),
                                       child: Icon(
                                         Icons.star_border,
-                                        size: 14,
+                                        size: starSize,
                                         color: AppColores.grey400,
                                       ),
                                     );

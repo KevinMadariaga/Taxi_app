@@ -22,6 +22,17 @@
 	<string>$(FLUTTER_BUILD_NAME)</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.1011373106222-dmum67h9llcet2qngsp0lit0qo62pfi9</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>FirebaseAppDelegateProxyEnabled</key>
@@ -34,8 +45,6 @@
 	<string>La aplicación necesita acceder a tu ubicación incluso en segundo plano para mejorar la experiencia de viaje.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>La aplicación necesita acceder a tu ubicación para ofrecer servicios de taxi.</string>
-	<key>NSUserTrackingUsageDescription</key>
-	<string>Permitir el seguimiento mejora la personalización y la entrega de notificaciones relevantes.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UIBackgroundModes</key>
@@ -60,17 +69,6 @@
 		<string>UIInterfaceOrientationPortraitUpsideDown</string>
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
-	</array>
-	<key>CFBundleURLTypes</key>
-	<array>
-		<dict>
-			<key>CFBundleTypeRole</key>
-			<string>Editor</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>com.googleusercontent.apps.1011373106222-dmum67h9llcet2qngsp0lit0qo62pfi9</string>
-			</array>
-		</dict>
 	</array>
 </dict>
 </plist>

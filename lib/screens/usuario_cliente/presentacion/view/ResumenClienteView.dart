@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:taxi_app/components/boton.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/helper/responsive_helper.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/InicioClienteView.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/resumen_cliente_viewmodel.dart';
 
@@ -57,11 +58,12 @@ class _ResumenClienteViewState extends State<ResumenClienteView> {
           children: [
             Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.local_taxi,
                   color: AppColores.buttonPrimary,
+                  size: 32 * scale,
                 ),
-                SizedBox(width: 8 * scale),
+                SizedBox(width: 12 * scale),
                 Text(
                   'Valor del servicio',
                   style: TextStyle(
@@ -205,18 +207,29 @@ class _ResumenClienteViewState extends State<ResumenClienteView> {
           final size = MediaQuery.of(context).size;
           final screenWidth = size.width;
           final screenHeight = size.height;
-          final scale = (screenWidth / 375).clamp(0.9, 1.2);
+          final deviceType = screenWidth >= 1200
+              ? DeviceType.desktop
+              : screenWidth >= 600
+                  ? DeviceType.tablet
+                  : DeviceType.mobile;
+          final isTablet = deviceType == DeviceType.tablet;
+          final isLargeScreen = deviceType == DeviceType.desktop;
+          final scale = (isTablet || isLargeScreen)
+              ? (screenWidth / 375).clamp(1.2, 1.7)
+              : (screenWidth / 375).clamp(0.9, 1.2);
 
-          final double padding = 24 * scale;
-          final double imageHeight = (screenHeight * 0.22).clamp(140, 220);
-          final double buttonHeight = 52 * scale;
+          final double padding = (isTablet || isLargeScreen) ? 48 * scale : 24 * scale;
+          final double imageHeight = (isTablet || isLargeScreen)
+              ? (screenHeight * 0.28).clamp(220, 320)
+              : (screenHeight * 0.22).clamp(140, 220);
+          final double buttonHeight = (isTablet || isLargeScreen) ? 64 * scale : 52 * scale;
           final TextStyle titleStyle = TextStyle(
-            fontSize: 16 * scale,
+            fontSize: (isTablet || isLargeScreen) ? 22 * scale : 16 * scale,
             fontWeight: FontWeight.w600,
             color: AppColores.textPrimary,
           );
           final TextStyle contentStyle = TextStyle(
-            fontSize: 15 * scale,
+            fontSize: (isTablet || isLargeScreen) ? 21 * scale : 15 * scale,
             fontWeight: FontWeight.w600,
             color: AppColores.textPrimary,
           );
@@ -269,35 +282,47 @@ class _ResumenClienteViewState extends State<ResumenClienteView> {
                   child: Column(
                     children: [
                       SizedBox(height: padding * 0.25),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(
-                            Icons.check_circle,
-                            color: AppColores.success,
-                            size: 30,
-                          ),
-                          SizedBox(width: 5 * scale),
-                          Text(
-                            'Viaje completado',
-                            style: TextStyle(
-                              fontSize: 25 * scale,
-                              fontWeight: FontWeight.w700,
-                              color: AppColores.textPrimary,
+                      Center(
+                        child: Column(
+                          children: [
+                            Icon(
+                              Icons.check_circle,
+                              color: AppColores.success,
+                              size: (isTablet || isLargeScreen) ? 45 * scale : 30,
                             ),
-                          ),
-                        ],
+                            SizedBox(height: 8 * scale),
+                            Text(
+                              'Viaje completado',
+                              style: TextStyle(
+                                fontSize: (isTablet || isLargeScreen) ? 30 * scale : 25 * scale,
+                                fontWeight: FontWeight.w700,
+                                color: AppColores.textPrimary,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+
+                          ],
+                        ),
                       ),
                       SizedBox(height: padding * 0.25),
-                      Image.asset(
-                        'assets/img/taxi.png',
-                        height: imageHeight,
-                        fit: BoxFit.contain,
+                      Center(
+                        child: Image.asset(
+                          'assets/img/taxi.png',
+                          height: imageHeight,
+                          fit: BoxFit.contain,
+                        ),
                       ),
                       SizedBox(height: padding * 0.2),
-                      _buildValorCard(scale, valorServicio),
+                      _buildValorCard((isTablet || isLargeScreen) ? scale * 1.25 : scale, valorServicio),
                       SizedBox(height: padding * 0.4),
-                      _buildResumenCard(scale, titleStyle, contentStyle, vm, destinoTexto, metodoPago),
+                      Center(
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxWidth: (isTablet || isLargeScreen) ? 520 * scale : double.infinity,
+                          ),
+                          child: _buildResumenCard((isTablet || isLargeScreen) ? scale * 1.15 : scale, titleStyle, contentStyle, vm, destinoTexto, metodoPago),
+                        ),
+                      ),
                       SizedBox(height: (40 * scale) + 40),
                     ],
                   ),

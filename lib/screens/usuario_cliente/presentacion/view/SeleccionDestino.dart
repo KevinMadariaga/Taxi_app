@@ -419,9 +419,14 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
 
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    final double screenW = size.width;
+    final bool isTablet = screenW >= 1000;
+    // Fuente responsiva para TextField
+    final double textFieldFontSize = (screenW / 390 * 16).clamp(14, 22);
+    final double labelFontSize = (screenW / 390 * 12).clamp(11, 16);
     return WillPopScope(
       onWillPop: () async {
-        // Al pulsar el botón físico de retroceso, navegar a InicioClienteView
         Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const InicioClienteView()));
         return false;
       },
@@ -441,189 +446,193 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
           centerTitle: true,
         ),
         body: SafeArea(
-          child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 12.0),
-                child: Text(
-                  'Origen',
-                  style: TextStyle(fontSize: 12, color: Colors.black54),
-                ),
+          child: Center(
+            child: Container(
+              padding: EdgeInsets.symmetric(
+                horizontal: isTablet ? 64.0 : 16.0,
+                vertical: 16.0,
               ),
-              const SizedBox(height: 6),
-              TextField(
-                controller: _origenController,
-                focusNode: _origenFocus,
-                readOnly: true,
-                decoration: InputDecoration(
-                  hintText: 'Selecciona o ajusta moviendo el mapa',
-                  filled: true,
-                  fillColor: Colors.grey[50],
-                  prefixIcon: const Icon(
-                    Icons.place,
-                    color: Colors.black54,
-                  ),
-                  // Campo sólo lectura: quitar el sufijo de borrar
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(
-                      color: AppColores.buttonPrimary,
-                      width: 2,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                    child: Text(
+                      'Origen',
+                      style: TextStyle(fontSize: labelFontSize, color: Colors.black54),
                     ),
                   ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(
-                      color: AppColores.buttonPrimary,
-                      width: 2,
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: _origenController,
+                    focusNode: _origenFocus,
+                    readOnly: true,
+                    style: TextStyle(fontSize: textFieldFontSize),
+                    decoration: InputDecoration(
+                      hintText: 'Selecciona o ajusta moviendo el mapa',
+                      hintStyle: TextStyle(fontSize: textFieldFontSize * 0.95),
+                      filled: true,
+                      fillColor: Colors.grey[50],
+                      prefixIcon: const Icon(
+                        Icons.place,
+                        color: Colors.black54,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: AppColores.buttonPrimary,
+                          width: 2,
+                        ),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: AppColores.buttonPrimary,
+                          width: 2,
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: AppColores.buttonPrimary,
+                          width: 2.5,
+                        ),
+                      ),
                     ),
                   ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(
-                      color: AppColores.buttonPrimary,
-                      width: 2.5,
+                  const SizedBox(height: 8),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                    child: Text(
+                      'Destino',
+                      style: TextStyle(fontSize: labelFontSize, color: Colors.black54),
                     ),
                   ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 12.0),
-                child: Text(
-                  'Destino',
-                  style: TextStyle(fontSize: 12, color: Colors.black54),
-                ),
-              ),
-              const SizedBox(height: 6),
-              TextField(
-                controller: _destinoController,
-                focusNode: _destinoFocus,
-                autofocus: true,
-                decoration: InputDecoration(
-                  hintText: 'Seleccione un destino',
-                  filled: true,
-                  fillColor: Colors.grey[50],
-                  prefixIcon: const Icon(
-                    Icons.place,
-                    color: Colors.black54,
-                  ),
-                  suffixIcon: _destinoFocus.hasFocus
-                      ? IconButton(
-                          tooltip: 'Borrar',
-                          icon: const Icon(
-                            Icons.clear,
-                            color: Colors.black54,
-                          ),
-                          onPressed: () {
-                            _destinoController.clear();
-                            // Aquí puedes invocar la lógica para limpiar resultados
-                          },
-                        )
-                      : null,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(
-                      color: AppColores.buttonPrimary,
-                      width: 2,
-                    ),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(
-                      color: AppColores.buttonPrimary,
-                      width: 2,
-                    ),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(
-                      color: AppColores.buttonPrimary,
-                      width: 2.5,
-                    ),
-                  ),
-                ),
-                onChanged: (value) async {
-                  if (value.trim().isEmpty) {
-                    setState(() => _sugerencias = []);
-                    return;
-                  }
-                  final results = await buscarUbicacionesHelper(value);
-                  setState(() => _sugerencias = results);
-                },
-              ),
-              const SizedBox(height: 8),
-              // Ocultar botones si el usuario está escribiendo en el cuadro de texto destino
-              if (_destinoController.text.trim().isEmpty && _sugerencias.isEmpty) ...[
-                if (widget.currentLocation != null)
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton.icon(
-                      onPressed: _guardarUbicacionActualComoFavorita,
-                      icon: const Icon(Icons.star_border, color: Colors.black87),
-                      label: const Text('Guardar ubicación actual'),
-                    ),
-                  ),
-                const SizedBox(height: 4),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton.icon(
-                    onPressed: _usarUbicacionDesdeTextoCompartido,
-                    icon: const Icon(Icons.gps_fixed, color: Colors.black87),
-                    label: const Text('Pegar ubicación'),
-                  ),
-                ),
-              ],
-              const SizedBox(height: 8),
-           
-              if (_sugerencias.isNotEmpty)
-                Flexible(
-                  child: Card(
-                    margin: const EdgeInsets.only(top: 8),
-                    child: ListView.builder(
-                      shrinkWrap: true,
-                      itemCount: _sugerencias.length,
-                      itemBuilder: (context, index) {
-                        final s = _sugerencias[index];
-                        return ListTile(
-                          leading: const Icon(Icons.location_on_outlined, color: Colors.black54),
-                          title: Text(s.nombre.isNotEmpty ? s.nombre : s.direccion),
-                          subtitle: (s.direccion.isNotEmpty && s.direccion != s.nombre)
-                              ? Text(s.direccion)
-                              : null,
-                          onTap: () {
-                            // Cerrar teclado al seleccionar una ubicación
-                            FocusScope.of(context).unfocus();
-                            if (s.location == null) {
-                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Ubicación no disponible')));
-                              return;
-                            }
-                            _destinoController.text = s.nombre.isNotEmpty ? s.nombre : s.direccion;
-                            setState(() => _sugerencias = []);
-                            // Navegar a la vista de mapa mostrando la ubicación seleccionada
-                            Navigator.of(context).push(MaterialPageRoute(
-                              builder: (_) => MapaPreviewView(
-                                location: s.location!,
-                                direccion: s.direccion,
-                                origenLocation: widget.currentLocation,
-                                origenDireccion: _origenController.text,
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: _destinoController,
+                    focusNode: _destinoFocus,
+                    autofocus: true,
+                    style: TextStyle(fontSize: textFieldFontSize),
+                    decoration: InputDecoration(
+                      hintText: 'Seleccione un destino',
+                      hintStyle: TextStyle(fontSize: textFieldFontSize * 0.95),
+                      filled: true,
+                      fillColor: Colors.grey[50],
+                      prefixIcon: const Icon(
+                        Icons.place,
+                        color: Colors.black54,
+                      ),
+                      suffixIcon: _destinoFocus.hasFocus
+                          ? IconButton(
+                              tooltip: 'Borrar',
+                              icon: const Icon(
+                                Icons.clear,
+                                color: Colors.black54,
                               ),
-                            ));
-                          },
-                        );
-                      },
+                              onPressed: () {
+                                _destinoController.clear();
+                              },
+                            )
+                          : null,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: AppColores.buttonPrimary,
+                          width: 2,
+                        ),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: AppColores.buttonPrimary,
+                          width: 2,
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: AppColores.buttonPrimary,
+                          width: 2.5,
+                        ),
+                      ),
                     ),
+                    onChanged: (value) async {
+                      if (value.trim().isEmpty) {
+                        setState(() => _sugerencias = []);
+                        return;
+                      }
+                      final results = await buscarUbicacionesHelper(value);
+                      setState(() => _sugerencias = results);
+                    },
                   ),
-                ),
-            ],
+                  const SizedBox(height: 8),
+                  if (_destinoController.text.trim().isEmpty && _sugerencias.isEmpty) ...[
+                    if (widget.currentLocation != null)
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton.icon(
+                          onPressed: _guardarUbicacionActualComoFavorita,
+                          icon: const Icon(Icons.star_border, color: Colors.black87),
+                          label: const Text('Guardar ubicación actual'),
+                        ),
+                      ),
+                    const SizedBox(height: 4),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        onPressed: _usarUbicacionDesdeTextoCompartido,
+                        icon: const Icon(Icons.gps_fixed, color: Colors.black87),
+                        label: const Text('Pegar ubicación'),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 8),
+                  if (_sugerencias.isNotEmpty)
+                    Flexible(
+                      child: Card(
+                        margin: const EdgeInsets.only(top: 8),
+                        child: ListView.builder(
+                          shrinkWrap: true,
+                          itemCount: _sugerencias.length,
+                          itemBuilder: (context, index) {
+                            final s = _sugerencias[index];
+                            return ListTile(
+                              leading: const Icon(Icons.location_on_outlined, color: Colors.black54),
+                              title: Text(s.nombre.isNotEmpty ? s.nombre : s.direccion),
+                              subtitle: (s.direccion.isNotEmpty && s.direccion != s.nombre)
+                                  ? Text(s.direccion)
+                                  : null,
+                              onTap: () {
+                                FocusScope.of(context).unfocus();
+                                if (s.location == null) {
+                                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Ubicación no disponible')));
+                                  return;
+                                }
+                                _destinoController.text = s.nombre.isNotEmpty ? s.nombre : s.direccion;
+                                setState(() => _sugerencias = []);
+                                Navigator.of(context).push(MaterialPageRoute(
+                                  builder: (_) => MapaPreviewView(
+                                    location: s.location!,
+                                    direccion: s.direccion,
+                                    origenLocation: widget.currentLocation,
+                                    origenDireccion: _origenController.text,
+                                  ),
+                                ));
+                              },
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ),
         ),
       ),
-      ),
     );
+  
   }
 }
   /// Extrae latitud y longitud de un link de Google Maps con @lat,lng

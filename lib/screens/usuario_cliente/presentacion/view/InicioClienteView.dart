@@ -69,19 +69,21 @@ class _InicioClienteViewState extends State<InicioClienteView> {
     final size = MediaQuery.of(context).size;
     final double screenH = size.height;
     final double screenW = size.width;
-    final double scale = (screenW / 375).clamp(0.9, 1.15);
+    // Breakpoints para tablets grandes
+    final bool isTablet = screenW >= 1000;
+    final double scale = isTablet ? 1.25 : (screenW / 375).clamp(0.9, 1.15);
     final bool isSmallScreen = screenH < 700;
-    final double baseCarouselHeight = screenH * (isSmallScreen ? 0.22 : 0.26);
-    final double carouselHeight = baseCarouselHeight.clamp(140.0, 220.0);
-    final double mapHeight = isSmallScreen
-        ? (screenH * 0.22).clamp(110.0, 180.0)
-        : math.min(140.0, screenH * 0.16);
-    final double bottomMapSpacing = isSmallScreen
-        ? math.max(4.0, screenH * 0.006)
-        : math.max(12.0, screenH * 0.02);
-    final double labelToMapSpacing = isSmallScreen
-        ? math.max(4.0, screenH * 0.01)
-        : math.max(8.0, screenH * 0.015);
+    final double baseCarouselHeight = screenH * (isSmallScreen ? 0.22 : (isTablet ? 0.32 : 0.26));
+    final double carouselHeight = isTablet ? baseCarouselHeight.clamp(220.0, 340.0) : baseCarouselHeight.clamp(140.0, 220.0);
+    final double mapHeight = isTablet
+      ? (screenH * 0.28).clamp(220.0, 400.0)
+      : (isSmallScreen ? (screenH * 0.22).clamp(110.0, 180.0) : math.min(140.0, screenH * 0.16));
+    final double bottomMapSpacing = isTablet
+      ? math.max(24.0, screenH * 0.03)
+      : (isSmallScreen ? math.max(4.0, screenH * 0.006) : math.max(12.0, screenH * 0.02));
+    final double labelToMapSpacing = isTablet
+      ? math.max(18.0, screenH * 0.025)
+      : (isSmallScreen ? math.max(4.0, screenH * 0.01) : math.max(8.0, screenH * 0.015));
 
     return WillPopScope(
       onWillPop: _onWillPop,
@@ -96,10 +98,10 @@ class _InicioClienteViewState extends State<InicioClienteView> {
             children: [
               Padding(
                 padding: EdgeInsets.fromLTRB(
-                  16.0 * scale,
-                  12.0 * scale,
-                  16.0 * scale,
-                  18.0 * scale,
+                  isTablet ? 48.0 : 16.0 * scale,
+                  isTablet ? 32.0 : 12.0 * scale,
+                  isTablet ? 48.0 : 16.0 * scale,
+                  isTablet ? 32.0 : 18.0 * scale,
                 ),
                 child: SingleChildScrollView(
                   physics: const NeverScrollableScrollPhysics(),
@@ -107,14 +109,14 @@ class _InicioClienteViewState extends State<InicioClienteView> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildClientName(scale),
-                      SizedBox(height: 14 * scale),
+                      SizedBox(height: isTablet ? 32 : 14 * scale),
                       _buildSubtitle(scale),
-                      SizedBox(height: 18 * scale),
+                      SizedBox(height: isTablet ? 36 : 18 * scale),
                       _buildSearchBox(scale),
-                      SizedBox(height: 1 * scale),
+                      SizedBox(height: isTablet ? 8 : 1 * scale),
                       _buildFavoritos(scale),
                       SizedBox(height: carouselHeight, child: _buildCarousel()),
-                      SizedBox(height: 2 * scale),
+                      SizedBox(height: isTablet ? 8 : 2 * scale),
                       _buildLocationLabel(scale),
                       SizedBox(height: labelToMapSpacing),
                       _buildMap(mapHeight),
