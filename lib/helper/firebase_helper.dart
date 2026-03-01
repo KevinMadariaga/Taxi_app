@@ -1,18 +1,22 @@
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:taxi_app/firebase_options.dart';
 
 class FirebaseHelper {
-  /// Inicializa Firebase. Lanzará una excepción si falla.
+  /// Inicializa Firebase y Crashlytics. Lanzará una excepción si falla.
   static Future<void> initializeFirebase() async {
     try {
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
       );
-      debugPrint("Firebase Iniciado correctamente");
+      // Inicializa Crashlytics
+      FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterError;
+      await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(true);
+      debugPrint("Firebase y Crashlytics iniciados correctamente");
     } catch (e) {
-      debugPrint("Error initializing Firebase: $e");
-      throw Exception("Error initializing Firebase");
+      debugPrint("Error initializing Firebase/Crashlytics: $e");
+      throw Exception("Error initializing Firebase/Crashlytics");
     }
   }
 }

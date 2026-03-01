@@ -17,7 +17,6 @@ import 'package:taxi_app/theme/app_theme.dart';
 /// Initializes services, handles permissions, and launches the app.
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  _setupGlobalErrorHandling();
   await _initializeAppServices();
   final initialScreen = await _getInitialScreen();
   final prefs = await SharedPreferences.getInstance();
@@ -27,14 +26,6 @@ Future<void> main() async {
     prefs: prefs,
     seenOnboarding: seenOnboarding,
   ));
-}
-
-/// Configures global error handling for Flutter errors.
-void _setupGlobalErrorHandling() {
-  FlutterError.onError = (FlutterErrorDetails details) {
-    FlutterError.presentError(details);
-    // Optionally send errors to Crashlytics or another service here.
-  };
 }
 
 /// Initializes Firebase, permissions, and notifications.
@@ -49,8 +40,6 @@ Future<Widget> _getInitialScreen() async {
   final authService = AuthService();
   return await authService.determineInitialScreen();
 }
-
-// (Inicialización de Firebase movida a `lib/helpers/firebase_helper.dart`)
 
 /// Global navigator key for navigation outside widget context.
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
