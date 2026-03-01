@@ -393,9 +393,12 @@ class _InicioClienteViewState extends State<InicioClienteView> {
       if (_mapController != null) {
         await _mapController!.animateCamera(CameraUpdate.newLatLngZoom(loc, 16));
       }
+      // Guardar ubicación en Firestore al cargar la clase
       try {
         await vm.updateLocation(loc);
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('Error al guardar ubicación del cliente: $e');
+      }
     } else {
       setState(() => _isLoadingLocation = false);
     }
