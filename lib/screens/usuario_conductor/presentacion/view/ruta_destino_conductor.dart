@@ -734,7 +734,7 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView>
                           ),
                         ),
                       ),
-                    if (_obteniendoDireccion && !_terminandoDialogoMostrado)
+                    if (_obteniendoDireccion)
                       Positioned.fill(
                         child: Container(
                           color: AppColores.overlayLight,

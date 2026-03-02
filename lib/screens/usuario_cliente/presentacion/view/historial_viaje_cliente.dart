@@ -162,24 +162,18 @@ class HistorialClienteState extends State<HistorialCliente> {
                         const SizedBox(width: 4),
                         Flexible(
                           child: Text(
-                            destino,
+                            destino.toUpperCase(),
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontSize: fontSize * 0.98,
                               color: AppColores.textPrimary,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      "⏳ Tiempo estimado: $duracion min",
-                      style: TextStyle(
-                        fontSize: fontSize * 0.95,
-                        color: AppColores.textSecondary,
-                      ),
-                    ),
+
                     const SizedBox(height: 20),
 
                     // Conductor centrado
@@ -353,45 +347,27 @@ class HistorialClienteState extends State<HistorialCliente> {
                         future: destinoFuture,
                         builder: (context, snapshot) {
                           if (snapshot.connectionState == ConnectionState.waiting) {
-                            return const Text('Cargando...');
+                            return const Text('CARGANDO...', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15));
                           }
-                          final text = snapshot.data ??
+                          final text = (snapshot.data ??
                               (destinoField is Map
-                                  ? (destinoField['title']?.toString() ?? destinoField['address']?.toString() ?? 'Destino')
-                                  : (destinoField?.toString() ?? 'Destino'));
-                          return Text(text);
+                                  ? (destinoField['title']?.toString() ?? destinoField['address']?.toString() ?? 'DESTINO')
+                                  : (destinoField?.toString() ?? 'DESTINO')));
+                          return Text(
+                            text.toUpperCase(),
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                          );
                         },
                       ),
                       subtitle: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          // Mostrar la fecha del viaje
                           if (horaFin != null)
-                            Text("📅 Finalizado: ${formatoFechaHora(horaFin)}"),
-                          Text("⏱ Duración: $duracion min"),
-                          const SizedBox(height: 6),
-                          Row(
-                            children: [
-                              if (precio != '---')
-                                Text(
-                                  "\$ $precio",
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.green[700],
-                                  ),
-                                ),
-                              if (precio != '---') const SizedBox(width: 12),
-                              Row(
-                                children: List.generate(5, (i) {
-                                  final esStar = i < calificacionNum;
-                                  return Icon(
-                                    Icons.star,
-                                    size: 16,
-                                    color: esStar ? Colors.amber[600] : Colors.grey[300],
-                                  );
-                                }),
-                              ),
-                            ],
-                          ),
+                            Text(
+                              formatoFechaHora(horaFin),
+                              style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13, color: Colors.grey),
+                            ),
                         ],
                       ),
                       onTap: () => mostrarDetalle(context, data),

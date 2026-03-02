@@ -130,29 +130,22 @@ class HistorialConductorState extends State<HistorialConductor> {
                       children: [
                         Icon(
                           Icons.location_on,
-                          size: 18,
+                          size: 22,
                           color: AppColores.textSecondary,
                         ),
                         const SizedBox(width: 4),
                         Flexible(
                           child: Text(
-                            destino,
+                            destino.toUpperCase(),
                             textAlign: TextAlign.center,
                             style: TextStyle(
-                              fontSize: fontSize * 0.98,
+                              fontSize: fontSize + 5,
                               color: AppColores.textPrimary,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
                         ),
                       ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      "⏳ Tiempo estimado: $duracion min",
-                      style: TextStyle(
-                        fontSize: fontSize * 0.95,
-                        color: AppColores.textSecondary,
-                      ),
                     ),
                     const SizedBox(height: 20),
 
@@ -330,31 +323,49 @@ class HistorialConductorState extends State<HistorialConductor> {
 
               return Card(
                 margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                child: ListTile(
-                  leading: const Icon(Icons.local_taxi, color: Colors.amber),
-                  title: FutureBuilder<String>(
-                    future: destinoFuture,
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Text('Cargando...');
-                      }
-                      final text = snapshot.data ??
-                          (destinoRaw is Map
-                              ? (destinoRaw['title']?.toString() ?? destinoRaw['address']?.toString() ?? 'Destino')
-                              : (destinoRaw?.toString() ?? 'Destino'));
-                      return Text(
-                        text,
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      );
-                    },
-                  ),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (horaFin != null) Text("${formatoFechaHora(horaFin)}"),
-                    ],
-                  ),
-                  onTap: () => mostrarDetalle(context, data),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: ListTile(
+                        leading: const Icon(Icons.local_taxi, color: Colors.amber),
+                        title: FutureBuilder<String>(
+                          future: destinoFuture,
+                          builder: (context, snapshot) {
+                            if (snapshot.connectionState == ConnectionState.waiting) {
+                              return const Text('Cargando...');
+                            }
+                            final text = (snapshot.data ??
+                                (destinoRaw is Map
+                                    ? (destinoRaw['title']?.toString() ?? destinoRaw['address']?.toString() ?? 'Destino')
+                                    : (destinoRaw?.toString() ?? 'Destino')));
+                            return Text(
+                              text.toUpperCase(),
+                              style: const TextStyle(fontWeight: FontWeight.bold),
+                            );
+                          },
+                        ),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (horaFin != null) Text("${formatoFechaHora(horaFin)}"),
+                          ],
+                        ),
+                        onTap: () => mostrarDetalle(context, data),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(right: 16.0),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.attach_money, size: 18, color: Colors.green),
+                          Text(
+                            (data['valor']?.toString() ?? '-'),
+                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: Colors.green),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               );
             },

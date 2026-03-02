@@ -794,7 +794,7 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
                   unselectedItemColor: AppColores.textSecondary,
                   items: const [
                     BottomNavigationBarItem(icon: Icon(Icons.map), label: 'Mapa'),
-                    BottomNavigationBarItem(icon: Icon(Icons.list), label: 'Historial'),
+                    BottomNavigationBarItem(icon: Icon(Icons.history), label: 'Historial'),
                     BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Tú'),
                   ],
                   onTap: (index) async {

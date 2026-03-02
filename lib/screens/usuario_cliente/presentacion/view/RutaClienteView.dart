@@ -558,6 +558,27 @@ class _RutaClienteViewState extends State<RutaClienteView> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 const SizedBox(height: 8),
+                Center(
+                  child: Column(
+                    children: [
+                      Icon(
+                        Icons.cancel,
+                        color: AppColores.error,
+                        size: 48,
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'Cancelar servicio',
+                        style: TextStyle(
+                          fontSize: ResponsiveHelper.sp(context, 18),
+                          fontWeight: FontWeight.bold,
+                          color: AppColores.error,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 18),
                 Text(
                   '¿Desea cancelar el servicio?',
                   textAlign: TextAlign.center,
@@ -631,7 +652,6 @@ class _RutaClienteViewState extends State<RutaClienteView> {
               body: SafeArea(
                 child: Center(
                   child: MapLoadingWidget(
-                    message: 'Cargando mapa de la ruta...',
                   ),
                 ),
               ),
