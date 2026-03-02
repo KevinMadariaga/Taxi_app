@@ -11,7 +11,7 @@ import 'package:taxi_app/helper/responsive_helper.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/resumen_conductor_view.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/ruta_conductor_viewmodel.dart';
 import 'package:taxi_app/services/firebase_service.dart';
-import 'package:taxi_app/services/ubicacion_servicio.dart';
+import 'package:taxi_app/services/tracking_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:taxi_app/services/route_cache_service.dart';
 import 'package:taxi_app/widgets/google_maps_widget.dart';
@@ -86,12 +86,17 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView>
       try {
         _showFirstEntryNotification();
       } catch (_) {}
+      _iniciarTrackingConSegundoPlano();
     });
-    // Suscribirse al servicio de ubicación local para enviar/actualizar
-    // la ubicación en Firestore en cada movimiento del GPS.
+  }
+
+  Future<void> _iniciarTrackingConSegundoPlano() async {
     try {
-      _locationSub = UbicacionService().listenWithCallback((latlng) async {
-        try {
+      await TrackingService().iniciarEscuchaGPS(
+        distanceFilter: 10,
+        timeInterval: 10,
+        onLocationUpdate: (position) async {
+          final latlng = LatLng(position.latitude, position.longitude);
           _driverLocation = latlng;
           final uid = FirebaseAuth.instance.currentUser?.uid;
           if (uid != null) {
@@ -111,21 +116,21 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView>
             } else {
               _shortenRouteToDriver();
             }
-                final dist = _haversineDistanceMeters(
-                  _driverLocation!,
-                  _destinoLocation!,
-                );
-                _distanceToDestinationMeters = dist;
-                final puedeTerminar = dist <= 70;
+            final dist = _haversineDistanceMeters(
+              _driverLocation!,
+              _destinoLocation!,
+            );
+            _distanceToDestinationMeters = dist;
+            final puedeTerminar = dist <= 70;
             if (_puedeTerminarViaje != puedeTerminar) {
               setState(() {
                 _puedeTerminarViaje = puedeTerminar;
               });
             }
           }
-        } catch (_) {}
-        if (mounted) setState(() {});
-      }, distanceFilter: 8);
+          if (mounted) setState(() {});
+        },
+      );
     } catch (_) {}
 
   }
@@ -729,7 +734,7 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView>
                           ),
                         ),
                       ),
-                    if (_obteniendoDireccion)
+                    if (_obteniendoDireccion && !_terminandoDialogoMostrado)
                       Positioned.fill(
                         child: Container(
                           color: AppColores.overlayLight,
@@ -1033,24 +1038,21 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView>
   }
 
   Future<void> _terminarViaje() async {
+    if (_terminandoDialogoMostrado) return; // Solo permitir una acción
     try {
       await _firebaseService.finalizarViaje(widget.solicitudId);
       if (!mounted) return;
-
       // Obtener la solicitud para calcular duración y crear historial
       try {
         final solicitudSnap = await FirebaseFirestore.instance
             .collection('solicitudes')
             .doc(widget.solicitudId)
             .get();
-
         final data = solicitudSnap.data();
         if (data != null) {
           final fechaAceptacion =
               data['fecha de aceptacion conductor'] as Timestamp?;
           final completedAt = Timestamp.now();
-
-          // Calcular duración en minutos usando los timestamps
           int durationMinutes = 0;
           if (fechaAceptacion != null) {
             durationMinutes = completedAt
@@ -1058,8 +1060,6 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView>
                 .difference(fechaAceptacion.toDate())
                 .inMinutes;
           }
-
-          // Guardar fecha de terminación y duración en solicitud
           await FirebaseFirestore.instance
               .collection('solicitudes')
               .doc(widget.solicitudId)
@@ -1067,20 +1067,14 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView>
                 'fecha de terminacion': completedAt,
                 'duracion minutos': durationMinutes,
               });
-
-          // Nota: ya no se crea ni guarda un documento en 'historial viajes'.
-          // Se omite la creación del historial y la actualización de
-          // 'historial_viaje_id' en la solicitud según la nueva lógica.
         }
       } catch (e) {
         debugPrint('Error al crear historial: $e');
       }
-
       _mostrarViajeTerminado();
     } catch (e) {
       debugPrint('Error al terminar viaje: $e');
       if (!mounted) return;
-
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No se pudo finalizar el viaje')),
       );

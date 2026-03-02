@@ -344,19 +344,19 @@ class RutaConductorUsuarioViewModel {
       } catch (_) {}
     }
 
-    await _trackingService
-        .iniciarTrackingConEnvio(
-          userId: uid,
-          userType: 'conductor',
-          solicitudId: solicitudId,
-          distanceFilter: 8,
-          timeInterval: 5,
-        )
-        .then((started) {
-          _trackingActivo = started;
-        })
-        .catchError((_) {
-          _trackingActivo = false;
-        });
+      await _trackingService
+          .iniciarTrackingConEnvio(
+            userId: uid,
+            userType: 'conductor',
+            solicitudId: solicitudId,
+            distanceFilter: 10,
+            timeInterval: 10,
+          )
+          .then((started) {
+            _trackingActivo = started;
+          })
+          .catchError((_) {
+            _trackingActivo = false;
+          });
   }
 }

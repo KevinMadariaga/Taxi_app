@@ -48,6 +48,7 @@ class RutaConductorView extends StatefulWidget {
 }
 
 class _RutaConductorViewState extends State<RutaConductorView> {
+    bool _primerMovimientoDetectado = false;
   GoogleMapController? _mapController;
   Set<Polyline> _polylines = {};
   List<LatLng> _routePoints = [];
@@ -94,6 +95,9 @@ class _RutaConductorViewState extends State<RutaConductorView> {
       setState(() {
         _driverLocation = pos;
       });
+      if (!_primerMovimientoDetectado) {
+        _primerMovimientoDetectado = true;
+      }
       // Acortar ruta si ya existe, y si no hay ruta dibujada intentar obtenerla
       _shortenRouteToDriver();
       _maybeFetchRouteIfNeeded();
@@ -712,45 +716,78 @@ class _RutaConductorViewState extends State<RutaConductorView> {
     if (driver == null && client == null) return;
     if (driver != null && client == null) {
       await _mapController!.animateCamera(
-        CameraUpdate.newLatLngZoom(driver, 15.5),
+        CameraUpdate.newCameraPosition(
+          CameraPosition(target: driver, zoom: 14.0),
+        ),
       );
       return;
     }
     if (client != null && driver == null) {
       await _mapController!.animateCamera(
-        CameraUpdate.newLatLngZoom(client, 16.0),
+        CameraUpdate.newCameraPosition(
+          CameraPosition(target: client, zoom: 15),
+        ),
       );
       return;
     }
 
-    // Ambos puntos disponibles: calcular bounds
     final d = driver!;
     final c = client!;
+    final bearing = _calculateBearing(d, c);
+    final dist = _haversineDistanceMeters(d, c);
+    final zoom = dist < 200 ? 17.5 : dist < 1000 ? 16.5 : 15.5;
 
-    final southWest = LatLng(
-      math.min(d.latitude, c.latitude),
-      math.min(d.longitude, c.longitude),
-    );
-    final northEast = LatLng(
-      math.max(d.latitude, c.latitude),
-      math.max(d.longitude, c.longitude),
-    );
-
-    final bounds = LatLngBounds(southwest: southWest, northeast: northEast);
-
-    try {
-      await _mapController!.animateCamera(
-        CameraUpdate.newLatLngBounds(bounds, 80),
+    if (!_primerMovimientoDetectado) {
+      // Primer movimiento: centrar ambos marcadores
+      final southWest = LatLng(
+        math.min(d.latitude, c.latitude),
+        math.min(d.longitude, c.longitude),
       );
-    } catch (_) {
-      // En algunos dispositivos puede fallar si el mapa aún no tiene tamaño.
-      // Reintentar tras un pequeño delay.
+      final northEast = LatLng(
+        math.max(d.latitude, c.latitude),
+        math.max(d.longitude, c.longitude),
+      );
+      final bounds = LatLngBounds(southwest: southWest, northeast: northEast);
       try {
-        await Future.delayed(const Duration(milliseconds: 300));
         await _mapController!.animateCamera(
-          CameraUpdate.newLatLngBounds(bounds, 80),
+          CameraUpdate.newLatLngBounds(bounds, 100),
         );
-      } catch (_) {}
+      } catch (_) {
+        try {
+          await Future.delayed(const Duration(milliseconds: 300));
+          await _mapController!.animateCamera(
+            CameraUpdate.newLatLngBounds(bounds, 100),
+          );
+        } catch (_) {}
+      }
+    } else {
+      // Después del primer movimiento: seguir solo al conductor
+      try {
+        await _mapController!.animateCamera(
+          CameraUpdate.newCameraPosition(
+            CameraPosition(
+              target: d,
+              zoom: zoom,
+              bearing: bearing,
+              tilt: 30,
+            ),
+          ),
+        );
+      } catch (_) {
+        try {
+          await Future.delayed(const Duration(milliseconds: 300));
+          await _mapController!.animateCamera(
+            CameraUpdate.newCameraPosition(
+              CameraPosition(
+                target: d,
+                zoom: zoom,
+                bearing: bearing,
+                tilt: 30,
+              ),
+            ),
+          );
+        } catch (_) {}
+      }
     }
   }
 

@@ -290,7 +290,7 @@ class _RutaDestinoClienteViewState extends State<RutaDestinoClienteView> {
         .where((p) => p != null)
         .cast<LatLng>()
         .listen((pos) {
-          _driverLocation = pos;
+          _updateDriverLocationSmooth(pos);
           if (_driverLocation != null && _destinoLocation != null) {
             if (_routePoints.isEmpty) {
               _fetchRouteOSRM(_driverLocation!, _destinoLocation!);
@@ -399,11 +399,106 @@ class _RutaDestinoClienteViewState extends State<RutaDestinoClienteView> {
     });
   }
 
+  bool _centerOnSingle = true;
+
+  void _centerOnMarker() {
+    if (_mapController == null) return;
+    if (_centerOnSingle) {
+      // Centrar ambos marcadores y hacer zoom más cercano
+      if (_driverLocation != null && _destinoLocation != null) {
+        final bearing = _calculateBearing(_driverLocation!, _destinoLocation!);
+        final center = LatLng(
+          (_driverLocation!.latitude + _destinoLocation!.latitude) / 2,
+          (_driverLocation!.longitude + _destinoLocation!.longitude) / 2,
+        );
+        _mapController!.animateCamera(
+          CameraUpdate.newCameraPosition(
+            CameraPosition(
+              target: center,
+              zoom: 16, // Zoom más cercano
+              bearing: bearing,
+              tilt: 0,
+            ),
+          ),
+        );
+      }
+    } else {
+      // Centrar en el taxi, con perspectiva y zoom como al cargar
+      if (_driverLocation != null && _destinoLocation != null) {
+        final bearing = _calculateBearing(_driverLocation!, _destinoLocation!);
+        final dist = _haversineDistanceMeters(_driverLocation!, _destinoLocation!);
+        final zoom = _zoomForDistanceMeters(dist);
+        _mapController!.animateCamera(
+          CameraUpdate.newCameraPosition(
+            CameraPosition(
+              target: _driverLocation!,
+              zoom: zoom,
+              bearing: bearing,
+              tilt: 0,
+            ),
+          ),
+        );
+      } else {
+        final target = _driverLocation ?? _destinoLocation;
+        if (target != null) {
+          _mapController!.animateCamera(
+            CameraUpdate.newCameraPosition(
+              CameraPosition(target: target, zoom: 17),
+            ),
+          );
+        }
+      }
+    }
+    setState(() {
+      _centerOnSingle = !_centerOnSingle;
+    });
+  }
+
+  // Animación suave del marcador del taxi entre actualizaciones de ubicación
+  LatLng? _lastDriverLocation;
+  Timer? _smoothMoveTimer;
+
+  void _updateDriverLocationSmooth(LatLng newLocation) {
+    if (_lastDriverLocation == null) {
+      _lastDriverLocation = newLocation;
+      setState(() {
+        _driverLocation = newLocation;
+      });
+      return;
+    }
+    // Interpolación suave entre la última y la nueva ubicación
+    const steps = 10;
+    const durationMs = 800; // Duración total de la animación (ms)
+    final latStep = (newLocation.latitude - _lastDriverLocation!.latitude) / steps;
+    final lngStep = (newLocation.longitude - _lastDriverLocation!.longitude) / steps;
+    int currentStep = 0;
+    _smoothMoveTimer?.cancel();
+    _smoothMoveTimer = Timer.periodic(Duration(milliseconds: durationMs ~/ steps), (timer) {
+      currentStep++;
+      if (currentStep > steps) {
+        timer.cancel();
+        _lastDriverLocation = newLocation;
+        setState(() {
+          _driverLocation = newLocation;
+        });
+        return;
+      }
+      final intermediate = LatLng(
+        _lastDriverLocation!.latitude + latStep * currentStep,
+        _lastDriverLocation!.longitude + lngStep * currentStep,
+      );
+      setState(() {
+        _driverLocation = intermediate;
+      });
+    });
+  }
+
   @override
   void dispose() {
     _driverSub?.cancel();
     _estadoSub?.cancel();
     _mapController?.dispose();
+    _smoothMoveTimer?.cancel();
     super.dispose();
   }
 
@@ -837,7 +932,7 @@ class _RutaDestinoClienteViewState extends State<RutaDestinoClienteView> {
                     myLocationButtonEnabled: false,
                     compassEnabled: true,
                     markers: markers,
-                    polylines: _polylines,
+                    polylines: {},
                   ),
                   if (_etaMinutesRounded != null)
                     Positioned(
@@ -885,9 +980,23 @@ class _RutaDestinoClienteViewState extends State<RutaDestinoClienteView> {
                         ),
                       ),
                     ),
-                  // Botón flotante de seguridad (solo icono)
+                  // Botón flotante para centrar el marcador
                   Positioned(
                     right: ResponsiveHelper.wp(context, 4),
+                    bottom: ResponsiveHelper.hp(context, 2.5),
+                    child: SafeArea(
+                      child: FloatingActionButton(
+                        heroTag: 'centerMarkerFab',
+                        backgroundColor: AppColores.cardBackground,
+                        foregroundColor: AppColores.textPrimary,
+                        onPressed: _centerOnMarker,
+                        child: const Icon(Icons.center_focus_strong),
+                      ),
+                    ),
+                  ),
+                  // Botón flotante de seguridad (solo icono)
+                  Positioned(
+                    left: ResponsiveHelper.wp(context, 4),
                     bottom: ResponsiveHelper.hp(context, 2.5),
                     child: SafeArea(
                       child: FloatingActionButton(

@@ -182,6 +182,40 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
   // Preview card height: make responsive (45% of screen height)
   double get _previewHeight => MediaQuery.of(context).size.height * 0.35;
 
+  // Centrar la cámara en la perspectiva del conductor hacia el cliente al seleccionar una solicitud
+  Future<void> _centerPreviewOnConductorToClient(HomeConductorViewModel vm, PreviewSolicitud preview) async {
+    if (_mapController == null) return;
+    final s = preview.solicitud;
+    final client = LatLng(s.ubicacionInicial.latitude, s.ubicacionInicial.longitude);
+    final driver = vm.currentLocation;
+    if (driver != null) {
+      final bearing = _calculateBearing(driver, client);
+      await _mapController!.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(
+            target: driver,
+            zoom: 16,
+            bearing: bearing,
+            tilt: 0,
+          ),
+        ),
+      );
+    } else {
+      await _mapController?.animateCamera(CameraUpdate.newLatLngZoom(client, 16));
+    }
+  }
+
+  // Utilidad para calcular el bearing
+  double _calculateBearing(LatLng from, LatLng to) {
+    final lat1 = from.latitude * math.pi / 180;
+    final lat2 = to.latitude * math.pi / 180;
+    final dLon = (to.longitude - from.longitude) * math.pi / 180;
+    final y = math.sin(dLon) * math.cos(lat2);
+    final x = math.cos(lat1) * math.sin(lat2) - math.sin(lat1) * math.cos(lat2) * math.cos(dLon);
+    final brng = math.atan2(y, x);
+    return (brng * 180 / math.pi + 360) % 360;
+  }
+
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider<HomeConductorViewModel>(
@@ -514,11 +548,20 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
                                         : const <Circle>{},
                                     onMapCreated: (controller) async {
                                       _mapController = controller;
-                                      if (vm.currentLocation != null) {
-                                        try {
-                                          await _mapController!.animateCamera(CameraUpdate.newLatLngZoom(vm.currentLocation!, 16));
-                                          _hasCentered = true;
-                                        } catch (_) {}
+                                      if (vm.currentLocation != null && preview != null) {
+                                        final driver = vm.currentLocation!;
+                                        final client = LatLng(preview.solicitud.ubicacionInicial.latitude, preview.solicitud.ubicacionInicial.longitude);
+                                        final bearing = _calculateBearing(driver, client);
+                                        await _mapController!.animateCamera(
+                                          CameraUpdate.newCameraPosition(
+                                            CameraPosition(
+                                              target: driver,
+                                              zoom: 16,
+                                              bearing: bearing,
+                                              tilt: 0,
+                                            ),
+                                          ),
+                                        );
                                       }
                                     },
                                   );
@@ -636,8 +679,8 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
                                                             if (vm.currentLocation != null) {
                                                               final driver = vm.currentLocation!;
                                                               final client = LatLng(s.ubicacionInicial.latitude, s.ubicacionInicial.longitude);
-                                                              await _animateToInclude(driver, client);
-                                                              // Try to fetch a routed polyline (OSRM) for better trazability
+                                                              await _centerPreviewOnConductorToClient(vm, preview);
+                                                              // Try to fetch a routed polyline (OSRM) for mejor trazabilidad
                                                               _fetchRouteOSRM(s.id, driver, client, vm);
                                                             } else {
                                                               await _mapController?.animateCamera(CameraUpdate.newLatLngZoom(LatLng(s.ubicacionInicial.latitude, s.ubicacionInicial.longitude), 16));

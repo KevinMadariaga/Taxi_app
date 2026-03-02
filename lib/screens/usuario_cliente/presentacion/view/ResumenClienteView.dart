@@ -349,6 +349,7 @@ class _ResumenClienteViewState extends State<ResumenClienteView> {
   ) {
     final TextEditingController comentarioController = TextEditingController();
 
+    bool _accionEnProgreso = false;
     return showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -457,20 +458,24 @@ class _ResumenClienteViewState extends State<ResumenClienteView> {
                           SizedBox(width: 12 * scale),
                           Flexible(
                             child: ElevatedButton(
-                              onPressed: () async {
-                                if (vm.calificacion > 0) {
-                                  await vm.enviarCalificacion();
-                                  if (context.mounted) {
-                                    Navigator.of(context).pushAndRemoveUntil(
-                                      MaterialPageRoute(
-                                        builder: (_) =>
-                                            const InicioClienteView(),
-                                      ),
-                                      (route) => false,
-                                    );
-                                  }
-                                }
-                              },
+                              onPressed: _accionEnProgreso
+                                  ? null
+                                  : () async {
+                                      if (vm.calificacion > 0) {
+                                        setState(() {
+                                          _accionEnProgreso = true;
+                                        });
+                                        await vm.enviarCalificacion();
+                                        if (context.mounted) {
+                                          Navigator.of(context).pushAndRemoveUntil(
+                                            MaterialPageRoute(
+                                              builder: (_) => InicioClienteView(key: UniqueKey()),
+                                            ),
+                                            (route) => false,
+                                          );
+                                        }
+                                      }
+                                    },
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppColores.buttonPrimary,
                                 padding: EdgeInsets.symmetric(
