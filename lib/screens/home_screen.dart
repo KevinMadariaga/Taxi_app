@@ -4,6 +4,7 @@ import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/services/auth_service.dart';
 import '../services/google_sign_in_service.dart';
 import 'register_screen.dart';
+import 'package:awesome_snackbar_content/awesome_snackbar_content.dart';
 
 class HomeView extends StatefulWidget {
   const HomeView({super.key});
@@ -87,6 +88,21 @@ class _HomeViewState extends State<HomeView> {
       // Guardar rol detectado en la sesión
       await authService.saveUserSession(role: role, isLoggedIn: true);
 
+      // Mostrar snackbar de bienvenida
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          elevation: 0,
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: Colors.transparent,
+          content: AwesomeSnackbarContent(
+            title: '¡Bienvenido!',
+            message: 'Has iniciado sesión exitosamente.',
+            contentType: ContentType.success,
+            color: AppColores.primary,
+          ),
+        ),
+      );
+
       final next = await authService.determineInitialScreen();
 
       if (!mounted) return;
@@ -153,6 +169,20 @@ class _HomeViewState extends State<HomeView> {
 
       // Guardar rol detectado en la sesión
       await AuthService().saveUserSession(role: role, isLoggedIn: true);
+
+      // Mostrar snackbar de bienvenida
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          elevation: 0,
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: Colors.transparent,
+          content: AwesomeSnackbarContent(
+            title: '¡Bienvenido!',
+            message: 'Has iniciado sesión exitosamente.',
+            contentType: ContentType.success,
+          ),
+        ),
+      );
 
       final next = await AuthService().determineInitialScreen();
 

@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../components/social_icon_button.dart';
 import '../services/google_sign_in_service.dart';
 import 'usuario_cliente/presentacion/view/InicioClienteView.dart';
+import 'package:awesome_snackbar_content/awesome_snackbar_content.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -34,8 +35,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
             'createdAt': FieldValue.serverTimestamp(),
           });
         }
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Registro con Google exitoso.')));
-          Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const InicioClienteView()));
+        // Registro exitoso
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            elevation: 0,
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: Colors.transparent,
+            content: AwesomeSnackbarContent(
+              title: '¡Registro completado!',
+              message: 'Tu cuenta ha sido creada exitosamente.',
+              contentType: ContentType.success,
+            ),
+          ),
+        );
+        Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const InicioClienteView()));
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al registrar con Google: $e')));
       } finally {

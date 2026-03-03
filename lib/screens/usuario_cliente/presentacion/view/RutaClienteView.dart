@@ -1,3 +1,4 @@
+
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -736,13 +737,77 @@ class _RutaClienteViewState extends State<RutaClienteView> {
               conductorRatingFallback != null ||
               conductorName != null;
 
+          // Mantener el marcador del conductor sobre la ruta pintada
+          LatLng? adjustedDriverLocation;
+          final routePoints = vm.routePoints;
+          // Obtener posición del conductor desde el marcador
+          LatLng? conductorPos;
+          for (final m in vm.markers) {
+            if (m.markerId.value == 'conductor') {
+              conductorPos = m.position;
+              break;
+            }
+          }
+          if (routePoints.isNotEmpty && conductorPos != null) {
+            double minDist = double.infinity;
+            int closestIdx = 0;
+            for (int i = 0; i < routePoints.length; i++) {
+              final d = _haversineDistanceMeters(conductorPos, routePoints[i]);
+              if (d < minDist) {
+                minDist = d;
+                closestIdx = i;
+              }
+            }
+            adjustedDriverLocation = routePoints[closestIdx];
+            // Si el conductor se desvía más de 30 metros, recalcular la ruta
+            LatLng? destinoPos;
+            for (final m in vm.markers) {
+              if (m.markerId.value == 'cliente') {
+                destinoPos = m.position;
+                break;
+              }
+            }
+            if (minDist > 30 && destinoPos != null) {
+              // No usar await, solo disparar el recálculo
+              vm.fetchRouteOSRM(conductorPos, destinoPos, 'cliente_conductor');
+            }
+            // Recortar la polilínea cada 10 metros directamente aquí
+            if (routePoints.isNotEmpty) {
+              double accumulated = 0.0;
+              int startIdx = 0;
+              for (int i = 0; i < routePoints.length - 1; i++) {
+                accumulated += _haversineDistanceMeters(routePoints[i], routePoints[i + 1]);
+                if (accumulated >= 10) {
+                  startIdx = i;
+                  break;
+                }
+              }
+              final remaining = routePoints.sublist(startIdx);
+              final newPolys = Set<Polyline>.from(vm.polylines);
+              newPolys.removeWhere((p) => p.polylineId.value == 'route');
+              if (remaining.length >= 2) {
+                newPolys.add(
+                  Polyline(
+                    polylineId: const PolylineId('route'),
+                    color: AppColores.primary,
+                    width: 5,
+                    points: remaining,
+                  ),
+                );
+              }
+              vm.polylines = newPolys;
+              vm.routePoints = remaining;
+            }
+          }
+
           final markers = vm.markers.map((m) {
             if (m.markerId.value == 'cliente' && _clientIcon != null) {
               return m.copyWith(iconParam: _clientIcon);
             }
-            if (m.markerId.value == 'conductor' && _taxiIcon != null) {
+            if (m.markerId.value == 'conductor' && _taxiIcon != null && adjustedDriverLocation != null) {
               return m.copyWith(
                 iconParam: _taxiIcon,
+                positionParam: adjustedDriverLocation,
                 rotationParam: _vm.conductorBearing ?? 0.0,
                 anchorParam: const Offset(0.5, 0.5),
                 flatParam: true,

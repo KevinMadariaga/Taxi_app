@@ -20,6 +20,17 @@ import 'package:taxi_app/services/firebase_service.dart';
 import 'package:taxi_app/services/route_cache_service.dart';
 
 class RutaClienteViewModel extends ChangeNotifier {
+      /// Método público para recalcular la ruta desde la vista
+      Future<void> fetchRouteOSRM(LatLng origin, LatLng dest, String polyId) async {
+        await _fetchRouteOSRM(origin, dest, polyId);
+      }
+
+      /// Setter público para actualizar los puntos de la ruta desde la vista
+      set routePoints(List<LatLng> points) {
+        _lastRoutePoints = points;
+      }
+    /// Getter público para los puntos de la ruta
+    List<LatLng> get routePoints => _lastRoutePoints ?? [];
   final String solicitudId;
   final String? conductorId;
   final String? conductorName;

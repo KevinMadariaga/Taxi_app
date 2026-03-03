@@ -16,6 +16,7 @@ import 'package:taxi_app/helper/responsive_helper.dart';
 import 'package:taxi_app/helper/session_helper.dart';
 import 'package:taxi_app/screens/home_screen.dart';
 import 'package:taxi_app/models/AuthModel.dart';
+import 'package:animated_snack_bar/animated_snack_bar.dart';
 
 class PaginaPerfilUsuario extends StatefulWidget {
   final String tipoUsuario; // 'cliente' o 'conductor'
@@ -839,6 +840,12 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
                                   if (!mounted) return;
                                   if (!parentContext.mounted) return;
                                   Navigator.of(parentContext).pop();
+                                  // Mostrar snackbar personalizado
+                                  AnimatedSnackBar.material(
+                                    'Datos guardados correctamente.',
+                                    type: AnimatedSnackBarType.success,
+                                    duration: const Duration(seconds: 3),
+                                  ).show(parentContext);
                                 },
                           label: const Text('Guardar'),
                           style: ElevatedButton.styleFrom(

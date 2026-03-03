@@ -90,18 +90,143 @@ class _RutaConductorViewState extends State<RutaConductorView> {
     _restoreCacheAndNotifyConductor();
     _initFromSolicitud();
     _listenChatMessages();
-    _driverPosSub = _viewModel.listenPosicionConductor().listen((pos) {
+  // Recorta la polilínea cada 10 metros desde la posición actual del conductor
+  void shortenRouteToDriverCustom(int closestIdx) {
+    if (_routePoints.isEmpty || _driverLocation == null) return;
+    final dest = _clientLocation ?? widget.clientLocation;
+    if (dest != null) {
+      final distToDest = _haversineDistanceMeters(_driverLocation!, dest);
+      if (distToDest < 35) {
+        setState(() {
+          _routePoints = [];
+          _polylines = _polylines
+              .where((p) => p.polylineId.value != 'route')
+              .toSet();
+        });
+        return;
+      }
+    }
+
+    // Recortar cada 10 metros
+    int startIdx = closestIdx;
+    double accumulated = 0.0;
+    for (int i = closestIdx; i < _routePoints.length - 1; i++) {
+      accumulated += _haversineDistanceMeters(_routePoints[i], _routePoints[i + 1]);
+      if (accumulated >= 10) {
+        startIdx = i;
+        break;
+      }
+    }
+    final remaining = _routePoints.sublist(startIdx);
+
+    setState(() {
+      final newPolys = Set<Polyline>.from(_polylines);
+      newPolys.removeWhere((p) => p.polylineId.value == 'route');
+      if (remaining.length >= 2) {
+        newPolys.add(
+          Polyline(
+            polylineId: const PolylineId('route'),
+            color: AppColores.primary,
+            width: 5,
+            points: remaining,
+          ),
+        );
+      }
+      _polylines = newPolys;
+      _routePoints = remaining;
+    });
+  }
+
+    _driverPosSub = _viewModel.listenPosicionConductor().listen((pos) async {
       if (!mounted) return;
+      LatLng adjustedPos = pos;
+      // Si hay ruta, buscar el punto más cercano en la polilínea
+      double minDist = double.infinity;
+      int closestIdx = 0;
+      if (_routePoints.isNotEmpty) {
+        for (int i = 0; i < _routePoints.length; i++) {
+          final d = _haversineDistanceMeters(pos, _routePoints[i]);
+          if (d < minDist) {
+            minDist = d;
+            closestIdx = i;
+          }
+        }
+        adjustedPos = _routePoints[closestIdx];
+      }
+
+      // Si el conductor se desvía más de 30 metros de la ruta, recalcular la ruta
+      if (minDist > 30 && _clientLocation != null) {
+        await _fetchRouteOSRM(pos, _clientLocation!);
+        // Recalcular el punto más cercano en la nueva ruta
+        minDist = double.infinity;
+        closestIdx = 0;
+        for (int i = 0; i < _routePoints.length; i++) {
+          final d = _haversineDistanceMeters(pos, _routePoints[i]);
+          if (d < minDist) {
+            minDist = d;
+            closestIdx = i;
+          }
+        }
+        adjustedPos = _routePoints[closestIdx];
+      }
+
       setState(() {
-        _driverLocation = pos;
+        _driverLocation = adjustedPos;
       });
       if (!_primerMovimientoDetectado) {
         _primerMovimientoDetectado = true;
       }
-      // Acortar ruta si ya existe, y si no hay ruta dibujada intentar obtenerla
-      _shortenRouteToDriver();
+      // Acortar ruta cada 10 metros para mantener la polilínea marcada y evitar que el marcador se adelante
+      shortenRouteToDriverCustom(closestIdx);
       _maybeFetchRouteIfNeeded();
     }, onError: (_) {});
+
+  // Recorta la polilínea cada 10 metros desde la posición actual del conductor
+  void _shortenRouteToDriverCustom(int closestIdx) {
+    if (_routePoints.isEmpty || _driverLocation == null) return;
+    final dest = _clientLocation ?? widget.clientLocation;
+    if (dest != null) {
+      final distToDest = _haversineDistanceMeters(_driverLocation!, dest);
+      if (distToDest < 35) {
+        setState(() {
+          _routePoints = [];
+          _polylines = _polylines
+              .where((p) => p.polylineId.value != 'route')
+              .toSet();
+        });
+        return;
+      }
+    }
+
+    // Recortar cada 10 metros
+    int startIdx = closestIdx;
+    double accumulated = 0.0;
+    for (int i = closestIdx; i < _routePoints.length - 1; i++) {
+      accumulated += _haversineDistanceMeters(_routePoints[i], _routePoints[i + 1]);
+      if (accumulated >= 10) {
+        startIdx = i;
+        break;
+      }
+    }
+    final remaining = _routePoints.sublist(startIdx);
+
+    setState(() {
+      final newPolys = Set<Polyline>.from(_polylines);
+      newPolys.removeWhere((p) => p.polylineId.value == 'route');
+      if (remaining.length >= 2) {
+        newPolys.add(
+          Polyline(
+            polylineId: const PolylineId('route'),
+            color: AppColores.primary,
+            width: 5,
+            points: remaining,
+          ),
+        );
+      }
+      _polylines = newPolys;
+      _routePoints = remaining;
+    });
+  }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _viewModel.init(context);
     });
