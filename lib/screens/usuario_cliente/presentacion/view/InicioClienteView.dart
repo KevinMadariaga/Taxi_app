@@ -75,16 +75,7 @@ class _InicioClienteViewState extends State<InicioClienteView> {
     final bool isSmallScreen = screenH < 700;
     final double baseCarouselHeight = screenH * (isSmallScreen ? 0.22 : (isTablet ? 0.32 : 0.26));
     final double carouselHeight = isTablet ? baseCarouselHeight.clamp(220.0, 340.0) : baseCarouselHeight.clamp(140.0, 220.0);
-    final double mapHeight = isTablet
-      ? (screenH * 0.28).clamp(220.0, 400.0)
-      : (isSmallScreen ? (screenH * 0.22).clamp(110.0, 180.0) : math.min(140.0, screenH * 0.16));
-    final double bottomMapSpacing = isTablet
-      ? math.max(24.0, screenH * 0.03)
-      : (isSmallScreen ? math.max(4.0, screenH * 0.006) : math.max(12.0, screenH * 0.02));
-    final double labelToMapSpacing = isTablet
-      ? math.max(18.0, screenH * 0.025)
-      : (isSmallScreen ? math.max(4.0, screenH * 0.01) : math.max(8.0, screenH * 0.015));
-
+    // Se elimina el mapa y sus espacios
     return WillPopScope(
       onWillPop: _onWillPop,
       child: Scaffold(
@@ -108,7 +99,7 @@ class _InicioClienteViewState extends State<InicioClienteView> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildClientName(scale),
+                      _buildSaludoYNombre(scale),
                       SizedBox(height: isTablet ? 32 : 14 * scale),
                       _buildSubtitle(scale),
                       SizedBox(height: isTablet ? 36 : 18 * scale),
@@ -117,10 +108,11 @@ class _InicioClienteViewState extends State<InicioClienteView> {
                       _buildFavoritos(scale),
                       SizedBox(height: carouselHeight, child: _buildCarousel()),
                       SizedBox(height: isTablet ? 8 : 2 * scale),
-                      _buildLocationLabel(scale),
-                      SizedBox(height: labelToMapSpacing),
-                      _buildMap(mapHeight),
-                      SizedBox(height: bottomMapSpacing),
+                      // Se elimina el label y el mapa
+                      // _buildLocationLabel(scale),
+                      // SizedBox(height: labelToMapSpacing),
+                      // _buildMap(mapHeight),
+                      // SizedBox(height: bottomMapSpacing),
                     ],
                   ),
                 ),
@@ -172,18 +164,18 @@ class _InicioClienteViewState extends State<InicioClienteView> {
         ),
         child: Row(
           children: [
-            const Icon(Icons.search, color: AppColores.textSecondary),
+            const Icon(Icons.search, color: AppColores.buttonPrimary),
             SizedBox(width: 12 * scale),
             Expanded(
               child: Text(
-                '¿A dónde vas?',
+                '¿A dónde vamos?',
                 style: TextStyle(
-                  color: AppColores.textSecondary,
+                  color: AppColores.primary, // Cambiado el color aquí
                   fontSize: 15 * scale,
                 ),
               ),
             ),
-            const Icon(Icons.chevron_right, color: AppColores.textSecondary),
+            const Icon(Icons.chevron_right, color: AppColores.buttonPrimary),
           ],
         ),
       ),
@@ -512,7 +504,7 @@ class _InicioClienteViewState extends State<InicioClienteView> {
     return false;
   }
 
-  Widget _buildClientName(double scale) {
+  Widget _buildSaludoYNombre(double scale) {
     final rawName = vm.clientName.trim();
     String firstName = rawName;
     if (rawName.isNotEmpty) {
@@ -524,15 +516,28 @@ class _InicioClienteViewState extends State<InicioClienteView> {
     final double fontSize = (26 * scale).clamp(20.0, 30.0);
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: 12.0 * scale),
-      child: Text(
-        firstName.toUpperCase(),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          fontSize: fontSize,
-          fontWeight: FontWeight.w800,
-          color: AppColores.textPrimary,
-        ),
+      child: Row(
+        children: [
+          Text(
+            'Hola',
+            style: TextStyle(
+              fontSize: fontSize,
+              fontWeight: FontWeight.w800,
+              color: AppColores.textPrimary,
+            ),
+          ),
+          SizedBox(width: 10 * scale),
+          Text(
+            firstName.toUpperCase(),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: fontSize,
+              fontWeight: FontWeight.w800,
+              color: AppColores.textPrimary,
+            ),
+          ),
+        ],
       ),
     );
   }

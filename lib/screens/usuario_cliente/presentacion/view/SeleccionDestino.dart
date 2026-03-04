@@ -38,9 +38,10 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
     if (widget.currentLocation != null) {
       _setOrigenDesdeCoordenadas(widget.currentLocation!);
     }
-    // Abrir teclado en el campo destino al entrar en la vista
+    // Abrir teclado en el campo destino al entrar en la vista y seleccionar todo el texto
     WidgetsBinding.instance.addPostFrameCallback((_) {
       FocusScope.of(context).requestFocus(_destinoFocus);
+      _destinoController.selection = TextSelection(baseOffset: 0, extentOffset: _destinoController.text.length);
     });
   }
 
@@ -439,7 +440,7 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
               Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const InicioClienteView()));
             },
           ),
-          title: const Text('Destino'),
+          title: const Text('¿A donde vamos?', style: TextStyle(color: Colors.black87)),
           backgroundColor: Colors.white,
           foregroundColor: Colors.black87,
           elevation: 0,
@@ -463,42 +464,53 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
                     ),
                   ),
                   const SizedBox(height: 6),
-                  TextField(
-                    controller: _origenController,
-                    focusNode: _origenFocus,
-                    readOnly: true,
-                    style: TextStyle(fontSize: textFieldFontSize),
-                    decoration: InputDecoration(
-                      hintText: 'Selecciona o ajusta moviendo el mapa',
-                      hintStyle: TextStyle(fontSize: textFieldFontSize * 0.95),
-                      filled: true,
-                      fillColor: Colors.grey[50],
-                      prefixIcon: const Icon(
-                        Icons.place,
-                        color: Colors.black54,
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(
-                          color: AppColores.buttonPrimary,
-                          width: 2,
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _origenController,
+                          focusNode: _origenFocus,
+                          readOnly: true,
+                          style: TextStyle(fontSize: textFieldFontSize),
+                          decoration: InputDecoration(
+                            hintText: 'Selecciona o ajusta moviendo el mapa',
+                            hintStyle: TextStyle(fontSize: textFieldFontSize * 0.95),
+                            filled: true,
+                            fillColor: Colors.grey[50],
+                            prefixIcon: const Icon(
+                              Icons.place,
+                              color: Colors.black54,
+                            ),
+                            suffixIcon: IconButton(
+                              icon: const Icon(Icons.star_border, color: Colors.amber),
+                              tooltip: 'Guardar ubicación',
+                              onPressed: _guardarUbicacionActualComoFavorita,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: AppColores.buttonPrimary,
+                                width: 2,
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: AppColores.buttonPrimary,
+                                width: 2,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: AppColores.buttonPrimary,
+                                width: 2.5,
+                              ),
+                            ),
+                          ),
                         ),
                       ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(
-                          color: AppColores.buttonPrimary,
-                          width: 2,
-                        ),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(
-                          color: AppColores.buttonPrimary,
-                          width: 2.5,
-                        ),
-                      ),
-                    ),
+                    ],
                   ),
                   const SizedBox(height: 8),
                   Padding(
@@ -509,122 +521,472 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
                     ),
                   ),
                   const SizedBox(height: 6),
-                  TextField(
-                    controller: _destinoController,
-                    focusNode: _destinoFocus,
-                    autofocus: true,
-                    style: TextStyle(fontSize: textFieldFontSize),
-                    decoration: InputDecoration(
-                      hintText: 'Seleccione un destino',
-                      hintStyle: TextStyle(fontSize: textFieldFontSize * 0.95),
-                      filled: true,
-                      fillColor: Colors.grey[50],
-                      prefixIcon: const Icon(
-                        Icons.place,
-                        color: Colors.black54,
-                      ),
-                      suffixIcon: _destinoFocus.hasFocus
-                          ? IconButton(
-                              tooltip: 'Borrar',
-                              icon: const Icon(
-                                Icons.clear,
-                                color: Colors.black54,
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _destinoController,
+                          focusNode: _destinoFocus,
+                          autofocus: true,
+                          style: TextStyle(fontSize: textFieldFontSize),
+                          decoration: InputDecoration(
+                            hintText: 'Seleccione un destino',
+                            hintStyle: TextStyle(fontSize: textFieldFontSize * 0.95),
+                            filled: true,
+                            fillColor: Colors.grey[50],
+                            prefixIcon: const Icon(
+                              Icons.place,
+                              color: Colors.black54,
+                            ),
+                            suffixIcon: _destinoFocus.hasFocus
+                                ? IconButton(
+                                    tooltip: 'Borrar',
+                                    icon: const Icon(
+                                      Icons.clear,
+                                      color: Colors.black54,
+                                    ),
+                                    onPressed: () {
+                                      _destinoController.clear();
+                                      setState(() {
+                                        _sugerencias = [];
+                                      });
+                                    },
+                                  )
+                                : null,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: AppColores.buttonPrimary,
+                                width: 2,
                               ),
-                              onPressed: () {
-                                _destinoController.clear();
-                              },
-                            )
-                          : null,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(
-                          color: AppColores.buttonPrimary,
-                          width: 2,
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: AppColores.buttonPrimary,
+                                width: 2,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: AppColores.buttonPrimary,
+                                width: 2.5,
+                              ),
+                            ),
+                          ),
+                          onChanged: (value) async {
+                            if (value.trim().isEmpty) {
+                              setState(() => _sugerencias = []);
+                              return;
+                            }
+                            final results = await buscarUbicacionesHelper(value);
+                            setState(() => _sugerencias = results);
+                          },
                         ),
+                        
                       ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(
-                          color: AppColores.buttonPrimary,
-                          width: 2,
-                        ),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(
-                          color: AppColores.buttonPrimary,
-                          width: 2.5,
-                        ),
-                      ),
-                    ),
-                    onChanged: (value) async {
-                      if (value.trim().isEmpty) {
-                        setState(() => _sugerencias = []);
-                        return;
-                      }
-                      final results = await buscarUbicacionesHelper(value);
-                      setState(() => _sugerencias = results);
-                    },
+                      
+                    ],
+                    
                   ),
-                  const SizedBox(height: 8),
-                  if (_destinoController.text.trim().isEmpty && _sugerencias.isEmpty) ...[
-                    if (widget.currentLocation != null)
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: TextButton.icon(
-                          onPressed: _guardarUbicacionActualComoFavorita,
-                          icon: const Icon(Icons.star_border, color: Colors.black87),
-                          label: const Text('Guardar ubicación actual'),
-                        ),
-                      ),
-                    const SizedBox(height: 4),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton.icon(
-                        onPressed: _usarUbicacionDesdeTextoCompartido,
-                        icon: const Icon(Icons.gps_fixed, color: Colors.black87),
-                        label: const Text('Pegar ubicación'),
-                      ),
-                    ),
-                  ],
                   const SizedBox(height: 8),
                   if (_sugerencias.isNotEmpty)
                     Flexible(
-                      child: Card(
-                        margin: const EdgeInsets.only(top: 8),
-                        child: ListView.builder(
-                          shrinkWrap: true,
-                          itemCount: _sugerencias.length,
-                          itemBuilder: (context, index) {
-                            final s = _sugerencias[index];
-                            return ListTile(
-                              leading: const Icon(Icons.location_on_outlined, color: Colors.black54),
-                              title: Text(s.nombre.isNotEmpty ? s.nombre : s.direccion),
-                              subtitle: (s.direccion.isNotEmpty && s.direccion != s.nombre)
-                                  ? Text(s.direccion)
-                                  : null,
-                              onTap: () {
-                                FocusScope.of(context).unfocus();
-                                if (s.location == null) {
-                                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Ubicación no disponible')));
-                                  return;
-                                }
-                                _destinoController.text = s.nombre.isNotEmpty ? s.nombre : s.direccion;
-                                setState(() => _sugerencias = []);
-                                Navigator.of(context).push(MaterialPageRoute(
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: _sugerencias.length,
+                        itemBuilder: (context, index) {
+                          final s = _sugerencias[index];
+                          return InkWell(
+                            onTap: () {
+                              FocusScope.of(context).unfocus();
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
                                   builder: (_) => MapaPreviewView(
-                                    location: s.location!,
+                                    location: s.location ?? LatLng(0, 0),
                                     direccion: s.direccion,
                                     origenLocation: widget.currentLocation,
                                     origenDireccion: _origenController.text,
                                   ),
-                                ));
+                                ),
+                              );
+                            },
+                            child: Card(
+                              margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                                side: BorderSide(color: Colors.amber.shade200, width: 1.2),
+                              ),
+                              elevation: 2.5,
+                              child: Container(
+                                constraints: const BoxConstraints(minHeight: 72),
+                                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 18),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    const Icon(Icons.location_on_outlined, color: Colors.black54, size: 28),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            s.nombre.isNotEmpty ? s.nombre : s.direccion,
+                                            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 17),
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                          if (s.direccion.isNotEmpty && s.direccion != s.nombre)
+                                            Padding(
+                                              padding: const EdgeInsets.only(top: 2.0),
+                                              child: Text(
+                                                s.direccion,
+                                                style: const TextStyle(fontSize: 15, color: Colors.black54),
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  if (_sugerencias.isEmpty)
+                    SizedBox(height: screenW * 0.04),
+                  if (_sugerencias.isEmpty)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        GestureDetector(
+                          onTap: () {
+                            showModalBottomSheet(
+                              context: context,
+                              isScrollControlled: true,
+                              backgroundColor: Colors.white,
+                              shape: const RoundedRectangleBorder(
+                                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                              ),
+                              builder: (ctx) {
+                                return Padding(
+                                  padding: EdgeInsets.only(
+                                    left: 0,
+                                    right: 0,
+                                    top: 0,
+                                    bottom: 0,
+                                  ),
+                                  child: Container(
+                                    width: double.infinity,
+                                    height: MediaQuery.of(ctx).size.height,
+                                    color: Colors.white,
+                                    child: SingleChildScrollView(
+                                      padding: EdgeInsets.only(
+                                        left: 16.0,
+                                        right: 16.0,
+                                        top: MediaQuery.of(ctx).padding.top + 72.0,
+                                        bottom: MediaQuery.of(ctx).viewInsets.bottom,
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Icon(Icons.home, color: Colors.black54, size: 28),
+                                              SizedBox(width: 10),
+                                              Expanded(
+                                                child: TextField(
+                                                  autofocus: true,
+                                                  decoration: InputDecoration(
+                                                    hintText: '¿Dónde vives?',
+                                                    filled: true,
+                                                    fillColor: Colors.grey[100],
+                                                    border: OutlineInputBorder(
+                                                      borderRadius: BorderRadius.circular(18),
+                                                      borderSide: BorderSide.none,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                              TextButton(
+                                                onPressed: () => Navigator.of(ctx).pop(),
+                                                child: Text('Cancelar', style: TextStyle(color: Colors.black54)),
+                                              ),
+                                            ],
+                                          ),
+                                          SizedBox(height: 18),
+                                          Divider(thickness: 1, color: Colors.grey[300]),
+                                          SizedBox(height: 10),
+                                          ListTile(
+                                            leading: Icon(Icons.gps_fixed, color: Colors.black54),
+                                            title: Text('Señalar la ubicación en el mapa'),
+                                          ),
+                                          ListTile(
+                                            leading: Icon(Icons.add, color: Colors.black54),
+                                            title: Text('Agregar ubicación'),
+                                          ),
+                                          ListTile(
+                                            leading: Icon(Icons.edit, color: Colors.black54),
+                                            title: Text('Editar ubicación'),
+                                          ),
+                                          ListTile(
+                                            leading: Icon(Icons.notes, color: Colors.black54),
+                                            title: Text('Otros comentarios'),
+                                          ),
+                                          SizedBox(height: 40),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                );
                               },
                             );
                           },
+                          child: Row(
+                            children: [
+                              Icon(Icons.home, color: Colors.amber, size: 28),
+                              SizedBox(width: 6),
+                              Text('Casa', style: TextStyle(fontSize: 16, color: Colors.black87, fontWeight: FontWeight.w500)),
+                              Icon(Icons.chevron_right, color: Colors.grey[400], size: 20),
+                            ],
+                          ),
                         ),
-                      ),
+                        GestureDetector(
+                          onTap: () {
+                            showModalBottomSheet(
+                              context: context,
+                              isScrollControlled: true,
+                              backgroundColor: Colors.white,
+                              shape: const RoundedRectangleBorder(
+                                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                              ),
+                              builder: (ctx) {
+                                return Padding(
+                                  padding: EdgeInsets.only(
+                                    left: 0,
+                                    right: 0,
+                                    top: 0,
+                                    bottom: 0,
+                                  ),
+                                  child: Container(
+                                    width: double.infinity,
+                                    height: MediaQuery.of(ctx).size.height,
+                                    color: Colors.white,
+                                    child: SingleChildScrollView(
+                                      padding: EdgeInsets.only(
+                                        left: 16.0,
+                                        right: 16.0,
+                                        top: MediaQuery.of(ctx).padding.top + 18.0,
+                                        bottom: MediaQuery.of(ctx).viewInsets.bottom,
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Icon(Icons.work, color: Colors.black54, size: 28),
+                                              SizedBox(width: 10),
+                                              Expanded(
+                                                child: TextField(
+                                                  autofocus: true,
+                                                  decoration: InputDecoration(
+                                                    hintText: '¿Dónde trabajas?',
+                                                    filled: true,
+                                                    fillColor: Colors.grey[100],
+                                                    border: OutlineInputBorder(
+                                                      borderRadius: BorderRadius.circular(18),
+                                                      borderSide: BorderSide.none,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                              TextButton(
+                                                onPressed: () => Navigator.of(ctx).pop(),
+                                                child: Text('Cancelar', style: TextStyle(color: Colors.black54)),
+                                              ),
+                                            ],
+                                          ),
+                                          SizedBox(height: 18),
+                                          Divider(thickness: 1, color: Colors.grey[300]),
+                                          SizedBox(height: 10),
+                                          ListTile(
+                                            leading: Icon(Icons.gps_fixed, color: Colors.black54),
+                                            title: Text('Señalar la ubicación en el mapa'),
+                                          ),
+                                          ListTile(
+                                            leading: Icon(Icons.add, color: Colors.black54),
+                                            title: Text('Agregar ubicación'),
+                                          ),
+                                          ListTile(
+                                            leading: Icon(Icons.edit, color: Colors.black54),
+                                            title: Text('Editar ubicación'),
+                                          ),
+                                          ListTile(
+                                            leading: Icon(Icons.notes, color: Colors.black54),
+                                            title: Text('Otros comentarios'),
+                                          ),
+                                          SizedBox(height: 40),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                            );
+                          },
+                          child: Row(
+                            children: [
+                              Icon(Icons.work, color: Colors.amber, size: 28),
+                              SizedBox(width: 6),
+                              Text('Trabajo', style: TextStyle(fontSize: 16, color: Colors.black87, fontWeight: FontWeight.w500)),
+                              Icon(Icons.chevron_right, color: Colors.grey[400], size: 20),
+                            ],
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: () {
+                            showModalBottomSheet(
+                              context: context,
+                              isScrollControlled: true,
+                              backgroundColor: Colors.white,
+                              shape: const RoundedRectangleBorder(
+                                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                              ),
+                              builder: (ctx) {
+                                return Padding(
+                                  padding: EdgeInsets.only(
+                                    left: 0,
+                                    right: 0,
+                                    top: 0,
+                                    bottom: 0,
+                                  ),
+                                  child: Container(
+                                    width: double.infinity,
+                                    height: MediaQuery.of(ctx).size.height,
+                                    color: Colors.white,
+                                    child: SingleChildScrollView(
+                                      padding: EdgeInsets.only(
+                                        left: 16.0,
+                                        right: 16.0,
+                                        top: MediaQuery.of(ctx).padding.top + 18.0,
+                                        bottom: MediaQuery.of(ctx).viewInsets.bottom,
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Icon(Icons.star, color: Colors.black54, size: 28),
+                                              SizedBox(width: 10),
+                                              Expanded(
+                                                child: TextField(
+                                                  autofocus: true,
+                                                  decoration: InputDecoration(
+                                                    hintText: 'Favoritos',
+                                                    filled: true,
+                                                    fillColor: Colors.grey[100],
+                                                    border: OutlineInputBorder(
+                                                      borderRadius: BorderRadius.circular(18),
+                                                      borderSide: BorderSide.none,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                              TextButton(
+                                                onPressed: () => Navigator.of(ctx).pop(),
+                                                child: Text('Cancelar', style: TextStyle(color: Colors.black54)),
+                                              ),
+                                            ],
+                                          ),
+                                          SizedBox(height: 18),
+                                          Divider(thickness: 1, color: Colors.grey[300]),
+                                          SizedBox(height: 10),
+                                          ListTile(
+                                            leading: Icon(Icons.gps_fixed, color: Colors.black54),
+                                            title: Text('Señalar la ubicación en el mapa'),
+                                          ),
+                                          ListTile(
+                                            leading: Icon(Icons.add, color: Colors.black54),
+                                            title: Text('Agregar ubicación'),
+                                          ),
+                                          ListTile(
+                                            leading: Icon(Icons.edit, color: Colors.black54),
+                                            title: Text('Editar ubicación'),
+                                          ),
+                                          ListTile(
+                                            leading: Icon(Icons.notes, color: Colors.black54),
+                                            title: Text('Otros comentarios'),
+                                          ),
+                                          SizedBox(height: 40),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                            );
+                          },
+                          child: Row(
+                            children: [
+                              Icon(Icons.star, color: Colors.amber, size: 28),
+                              SizedBox(width: 6),
+                              Text('Favoritos', style: TextStyle(fontSize: 16, color: Colors.black87, fontWeight: FontWeight.w500)),
+                              Icon(Icons.chevron_right, color: Colors.grey[400], size: 20),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
+                  SizedBox(height: 16),
+                  Divider(thickness: 1, color: Colors.grey[300]),
+                  const SizedBox(height: 8),
+                  // Sección de acciones debajo del divider
+                  Row(
+                    children: [
+                      Icon(Icons.add, color: Colors.black54),
+                      SizedBox(width: 8),
+                      Text('Agregar ubicación', style: TextStyle(fontSize: 16, color: Colors.black87)),
+                      Spacer(),
+                    ],
+                  ),
+                  SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Icon(Icons.edit, color: Colors.black54),
+                      SizedBox(width: 8),
+                      Text('Editar ubicación', style: TextStyle(fontSize: 16, color: Colors.black87)),
+                      Spacer(),
+                    ],
+                  ),
+                  SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Icon(Icons.notes, color: Colors.black54),
+                      SizedBox(width: 8),
+                      Text('Otros comentarios', style: TextStyle(fontSize: 16, color: Colors.black87)),
+                      Spacer(),
+                    ],
+                  ),
+                  SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Icon(Icons.gps_fixed, color: Colors.black87),
+                      SizedBox(width: 8),
+                      TextButton(
+                        onPressed: _usarUbicacionDesdeTextoCompartido,
+                        child: Text('Pegar ubicación', style: TextStyle(fontSize: 16, color: Colors.black87)),
+                      ),
+                      Spacer(),
+                    ],
+                  ),
+                  
+
                 ],
               ),
             ),
