@@ -14,9 +14,12 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:provider/provider.dart';
 import 'package:taxi_app/helper/responsive_helper.dart';
 import 'package:taxi_app/helper/session_helper.dart';
+import 'package:taxi_app/screens/cambiar_contrasena_screen.dart';
+import 'package:taxi_app/screens/eliminar_cuenta_screen.dart';
 import 'package:taxi_app/screens/home_screen.dart';
 import 'package:taxi_app/models/AuthModel.dart';
 import 'package:animated_snack_bar/animated_snack_bar.dart';
+import 'package:taxi_app/viewmodels/perfil_viewmodel.dart';
 
 class PaginaPerfilUsuario extends StatefulWidget {
   final String tipoUsuario; // 'cliente' o 'conductor'
@@ -914,19 +917,39 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
 
     return Card(
       margin: EdgeInsets.symmetric(vertical: ResponsiveHelper.hp(context, 0.8)),
-      child: ListTile(
-        leading: Icon(icon, color: AppColores.primary, size: iconSize),
-        title: Text(
-          title,
-          style: const TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: titleFontSize,
-          ),
-        ),
-        subtitle: Text(value, style: const TextStyle(fontSize: valueFontSize)),
-        contentPadding: EdgeInsets.symmetric(
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 56),
+        padding: EdgeInsets.symmetric(
           horizontal: ResponsiveHelper.wp(context, 4),
-          vertical: ResponsiveHelper.hp(context, 1),
+          vertical: ResponsiveHelper.hp(context, 1.5),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: AppColores.primary, size: iconSize),
+            SizedBox(width: 12),
+            Expanded(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: titleFontSize,
+                    ),
+                  ),
+                  Flexible(
+                    child: Text(
+                      value,
+                      textAlign: TextAlign.right,
+                      style: const TextStyle(fontSize: valueFontSize),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -973,6 +996,12 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
   @override
   Widget build(BuildContext context) {
     final nombre = (userData?['nombre'] ?? 'Usuario').toString();
+
+    // Instanciar el viewmodel para censurar correo y teléfono
+    final perfilViewModel = PerfilViewModel(
+      correo: userData?['correo']?.toString(),
+      telefono: userData?['telefono']?.toString(),
+    );
 
     // Tamaños base estándar
     const double appBarFontSize = 20.0;
@@ -1072,25 +1101,196 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
                       SizedBox(height: ResponsiveHelper.hp(context, 1)),
                       // Conductor connection toggle moved to driver home view
                       SizedBox(height: ResponsiveHelper.hp(context, 1)),
-                      _buildInfoCard(
-                        Icons.email,
-                        'Correo',
-                        userData?['correo'] ?? 'Sin correo',
-                      ),
-                      _buildInfoCard(
-                        Icons.phone,
-                        'Teléfono',
-                        userData?['telefono'] ?? 'Sin número',
-                      ),
-                      if (widget.tipoUsuario == 'conductor')
+                      // Cards para ambos tipos de usuario
+                      if (widget.tipoUsuario == 'conductor') ...[
+                        _buildVehiclePhotoCard(),
+                        SizedBox(height: ResponsiveHelper.hp(context, 0.4)),
                         _buildInfoCard(
                           Icons.local_taxi,
                           'Placa',
                           userData?['placa'] ?? 'Sin placa registrada',
                         ),
-                      if (widget.tipoUsuario == 'conductor')
-                        _buildVehiclePhotoCard(),
-                      SizedBox(height: ResponsiveHelper.hp(context, 3)),
+                        SizedBox(height: ResponsiveHelper.hp(context, 0.4)),
+                        _buildInfoCard(
+                          Icons.email,
+                          'Correo',
+                          perfilViewModel.correoCensurado,
+                        ),
+                        SizedBox(height: ResponsiveHelper.hp(context, 0.4)),
+                        _buildInfoCard(
+                          Icons.phone,
+                          'Teléfono',
+                          perfilViewModel.telefonoCensurado,
+                        ),
+                        SizedBox(height: ResponsiveHelper.hp(context, 0.4)),
+                        // Cards de acción juntos y con mismo espacio
+                        Column(
+                          children: [
+                            Card(
+                              margin: EdgeInsets.symmetric(vertical: ResponsiveHelper.hp(context, 0.4)),
+                              child: InkWell(
+                                onTap: () {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => const CambiarContrasenaScreen(),
+                                    ),
+                                  );
+                                },
+                                child: Container(
+                                  constraints: const BoxConstraints(minHeight: 56),
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: ResponsiveHelper.wp(context, 4),
+                                    vertical: ResponsiveHelper.hp(context, 1.5),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.lock, color: AppColores.primary, size: 24.0),
+                                      SizedBox(width: 12),
+                                      Expanded(
+                                        child: Text(
+                                          'Cambiar contraseña',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 16.0,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                            SizedBox(height: ResponsiveHelper.hp(context, 0.8)),
+                            Card(
+                              margin: EdgeInsets.symmetric(vertical: ResponsiveHelper.hp(context, 0.4)),
+                              child: InkWell(
+                                onTap: () {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => const EliminarCuentaScreen(),
+                                    ),
+                                  );
+                                },
+                                child: Container(
+                                  constraints: const BoxConstraints(minHeight: 56),
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: ResponsiveHelper.wp(context, 4),
+                                    vertical: ResponsiveHelper.hp(context, 1.5),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.delete, color: Colors.red, size: 24.0),
+                                      SizedBox(width: 12),
+                                      Expanded(
+                                        child: Text(
+                                          'Eliminar cuenta',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 16.0,
+                                            color: Colors.red,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                            SizedBox(height: ResponsiveHelper.hp(context, 1.2)),
+                          ],
+                        ),
+                      ]
+                      else ...[
+                        _buildInfoCard(
+                          Icons.email,
+                          'Correo',
+                          perfilViewModel.correoCensurado,
+                        ),
+                        SizedBox(height: ResponsiveHelper.hp(context, 0.4)),
+                        _buildInfoCard(
+                          Icons.phone,
+                          'Teléfono',
+                          perfilViewModel.telefonoCensurado,
+                        ),
+                        SizedBox(height: ResponsiveHelper.hp(context, 0.4)),
+                        // Cards de acción juntos y con mismo espacio
+                        Column(
+                          children: [
+                            Card(
+                              margin: EdgeInsets.symmetric(vertical: ResponsiveHelper.hp(context, 0.4)),
+                              child: InkWell(
+                                onTap: () {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => const CambiarContrasenaScreen(),
+                                    ),
+                                  );
+                                },
+                                child: Container(
+                                  constraints: const BoxConstraints(minHeight: 56),
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: ResponsiveHelper.wp(context, 4),
+                                    vertical: ResponsiveHelper.hp(context, 1.5),
+                                  ),
+                                  child: Row(
+                                    
+                                    children: [
+                                      Icon(Icons.lock, color: AppColores.primary, size: 24.0),
+                                      SizedBox(width: 12),
+                                      Expanded(
+                                        child: Text(
+                                          'Cambiar contraseña',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 16.0,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                            SizedBox(height: ResponsiveHelper.hp(context, 0.8)),
+                            Card(
+                              margin: EdgeInsets.symmetric(vertical: ResponsiveHelper.hp(context, 0.4)),
+                              child: InkWell(
+                                onTap: () {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => const EliminarCuentaScreen(),
+                                    ),
+                                  );
+                                },
+                                child: Container(
+                                  constraints: const BoxConstraints(minHeight: 56),
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: ResponsiveHelper.wp(context, 4),
+                                    vertical: ResponsiveHelper.hp(context, 1.5),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.delete, color: Colors.red, size: 24.0),
+                                      SizedBox(width: 12),
+                                      Expanded(
+                                        child: Text(
+                                          'Eliminar cuenta',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 16.0,
+                                            color: Colors.red,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                            SizedBox(height: ResponsiveHelper.hp(context, 1.2)),
+                          ],
+                        ),
+                      ],
                       Row(
                         children: [
                           Expanded(
