@@ -8,7 +8,10 @@ import 'package:http/http.dart' as http;
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/MapaClienteModel.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/model/location_model.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/view/DetailsSolicitud.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/MapaPreviewView.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/view/SeleccionaUbicacionEnMapaView.dart';
 import 'InicioClienteView.dart';
 
 
@@ -23,6 +26,192 @@ class DestinoSeleccionView extends StatefulWidget {
 }
 
 class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
+    Future<void> _seleccionarYGuardarUbicacion(String tipo) async {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+      if (tipo == 'Favorito') {
+        // Mostrar desplegable de favoritos guardados y opción de agregar
+        final snapshot = await FirebaseFirestore.instance
+            .collection('ubicaciones')
+            .where('userId', isEqualTo: user.uid)
+            .where('tipo', isEqualTo: 'Favorito')
+            .get();
+        final favoritos = snapshot.docs;
+        showModalBottomSheet(
+          context: context,
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          builder: (ctx) {
+            return Padding(
+              padding: const EdgeInsets.only(top: 24, left: 16, right: 16, bottom: 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Favoritos guardados', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                  const SizedBox(height: 12),
+                  ...favoritos.map((doc) {
+                    final data = doc.data();
+                    final geopoint = data['ubicacion'] as GeoPoint?;
+                    final nombre = (data['nombre'] ?? 'Favorito') as String;
+                    if (geopoint == null) return const SizedBox();
+                    return ListTile(
+                      leading: const Icon(Icons.star, color: Colors.amber),
+                      title: Text(nombre),
+                      subtitle: Text(data['direccion'] ?? ''),
+                      onTap: () {
+                        Navigator.of(ctx).pop();
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => MapPreview(
+                              origen: LocationModel(
+                                position: widget.currentLocation ?? LatLng(0, 0),
+                                title: 'Tu ubicación',
+                              ),
+                              destino: LocationModel(
+                                position: LatLng(geopoint.latitude, geopoint.longitude),
+                                title: nombre,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  }).toList(),
+                  const Divider(),
+                  ListTile(
+                    leading: const Icon(Icons.add, color: Colors.black54),
+                    title: const Text('Agregar nuevo favorito'),
+                    onTap: () async {
+                      Navigator.of(ctx).pop();
+                      final LatLng ubicacionInicial = widget.currentLocation ?? LatLng(0, 0);
+                      final resultado = await Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => SeleccionaUbicacionEnMapaView(
+                            ubicacionInicial: ubicacionInicial,
+                            titulo: 'Selecciona ubicación de Favorito',
+                          ),
+                        ),
+                      );
+                      if (resultado is LatLng) {
+                        // Solicitar nombre personalizado
+                        String nombreFavorito = '';
+                        await showDialog(
+                          context: context,
+                          builder: (dctx) {
+                            return AlertDialog(
+                              title: const Text('Nombre del favorito'),
+                              content: TextField(
+                                autofocus: true,
+                                decoration: const InputDecoration(hintText: 'Ej. Colegio, Gimnasio'),
+                                onChanged: (value) => nombreFavorito = value,
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.of(dctx).pop(),
+                                  child: const Text('Cancelar'),
+                                ),
+                                TextButton(
+                                  onPressed: () => Navigator.of(dctx).pop(),
+                                  child: const Text('Guardar'),
+                                ),
+                              ],
+                            );
+                          },
+                        );
+                        if (nombreFavorito.trim().isEmpty) nombreFavorito = 'Favorito';
+                        await _guardarUbicacionPersonalizada('Favorito', resultado, nombreFavorito);
+                      }
+                    },
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+        return;
+      }
+      // Casa y Trabajo: lógica anterior
+      if (tipo == 'Casa' || tipo == 'Trabajo') {
+        final snapshot = await FirebaseFirestore.instance
+            .collection('ubicaciones')
+            .where('userId', isEqualTo: user.uid)
+            .where('tipo', isEqualTo: tipo)
+            .limit(1)
+            .get();
+        if (snapshot.docs.isNotEmpty) {
+          final data = snapshot.docs.first.data();
+          final geopoint = data['ubicacion'] as GeoPoint?;
+          final nombre = (data['nombre'] ?? tipo) as String;
+          if (geopoint != null) {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => MapPreview(
+                  origen: LocationModel(
+                    position: widget.currentLocation ?? LatLng(0, 0),
+                    title: 'Tu ubicación',
+                  ),
+                  destino: LocationModel(
+                    position: LatLng(geopoint.latitude, geopoint.longitude),
+                    title: nombre,
+                  ),
+                ),
+              ),
+            );
+            return;
+          }
+        }
+      }
+      // Si no existe, seleccionar y guardar como antes
+      final LatLng ubicacionInicial = widget.currentLocation ?? LatLng(0, 0);
+      final resultado = await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => SeleccionaUbicacionEnMapaView(
+            ubicacionInicial: ubicacionInicial,
+            titulo: 'Selecciona ubicación de $tipo',
+          ),
+        ),
+      );
+      if (resultado is LatLng) {
+        await _guardarUbicacionPersonalizada(tipo, resultado, tipo);
+      }
+    }
+
+    Future<void> _guardarUbicacionPersonalizada(String tipo, LatLng loc, [String? nombrePersonalizado]) async {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No se pudo guardar: usuario no autenticado')),
+        );
+        return;
+      }
+      String direccion = '';
+      try {
+        final placemarks = await placemarkFromCoordinates(loc.latitude, loc.longitude);
+        if (placemarks.isNotEmpty) {
+          final p = placemarks.first;
+          direccion = [p.street, p.subLocality, p.locality, p.administrativeArea]
+              .where((s) => (s ?? '').isNotEmpty).join(', ');
+        }
+      } catch (_) {}
+      if (direccion.isEmpty) {
+        direccion = '${loc.latitude.toStringAsFixed(6)}, ${loc.longitude.toStringAsFixed(6)}';
+      }
+      await FirebaseFirestore.instance.collection('ubicaciones').add({
+        'userId': user.uid,
+        'nombre': nombrePersonalizado ?? tipo,
+        'direccion': direccion,
+        'ubicacion': GeoPoint(loc.latitude, loc.longitude),
+        'createdAt': FieldValue.serverTimestamp(),
+        'tipo': tipo,
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Ubicación guardada como "${nombrePersonalizado ?? tipo}"')),
+      );
+    }
   final TextEditingController _origenController = TextEditingController();
   final TextEditingController _destinoController = TextEditingController();
   final FocusNode _origenFocus = FocusNode();
@@ -592,70 +781,107 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
                   ),
                   const SizedBox(height: 8),
                   if (_sugerencias.isNotEmpty)
-                    Flexible(
+                    Expanded(
                       child: ListView.builder(
-                        shrinkWrap: true,
-                        itemCount: _sugerencias.length,
+                        padding: EdgeInsets.zero,
+                        itemCount: _sugerencias.length + 2,
                         itemBuilder: (context, index) {
-                          final s = _sugerencias[index];
-                          return InkWell(
-                            onTap: () {
-                              FocusScope.of(context).unfocus();
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => MapaPreviewView(
-                                    location: s.location ?? LatLng(0, 0),
-                                    direccion: s.direccion,
-                                    origenLocation: widget.currentLocation,
-                                    origenDireccion: _origenController.text,
+                          if (index < _sugerencias.length) {
+                            final s = _sugerencias[index];
+                            return InkWell(
+                              onTap: () {
+                                FocusScope.of(context).unfocus();
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => MapaPreviewView(
+                                      location: s.location ?? LatLng(0, 0),
+                                      direccion: s.direccion,
+                                      origenLocation: widget.currentLocation,
+                                      origenDireccion: _origenController.text,
+                                    ),
+                                  ),
+                                );
+                              },
+                              child: Card(
+                                margin: EdgeInsets.symmetric(
+                                  vertical: 4,
+                                  horizontal: MediaQuery.of(context).size.width * 0.02,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(MediaQuery.of(context).size.width * 0.025),
+                                  side: BorderSide(color: Colors.amber.shade200, width: 1.0),
+                                ),
+                                elevation: 1.5,
+                                child: Container(
+                                  constraints: BoxConstraints(minHeight: MediaQuery.of(context).size.width * 0.11),
+                                  padding: EdgeInsets.symmetric(
+                                    vertical: MediaQuery.of(context).size.width * 0.015,
+                                    horizontal: MediaQuery.of(context).size.width * 0.03,
+                                  ),
+                                  child: Row(
+                                    crossAxisAlignment: CrossAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.location_on_outlined, color: Colors.black54, size: MediaQuery.of(context).size.width * 0.055),
+                                      SizedBox(width: MediaQuery.of(context).size.width * 0.02),
+                                      Expanded(
+                                        child: Column(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              s.nombre.isNotEmpty ? s.nombre : s.direccion,
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: MediaQuery.of(context).size.width * 0.036,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            if (s.direccion.isNotEmpty && s.direccion != s.nombre)
+                                              Padding(
+                                                padding: EdgeInsets.only(top: MediaQuery.of(context).size.width * 0.005),
+                                                child: Text(
+                                                  s.direccion,
+                                                  style: TextStyle(
+                                                    fontSize: MediaQuery.of(context).size.width * 0.031,
+                                                    color: Colors.black54,
+                                                  ),
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                              );
-                            },
-                            child: Card(
-                              margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                                side: BorderSide(color: Colors.amber.shade200, width: 1.2),
                               ),
-                              elevation: 2.5,
-                              child: Container(
-                                constraints: const BoxConstraints(minHeight: 72),
-                                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 18),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: [
-                                    const Icon(Icons.location_on_outlined, color: Colors.black54, size: 28),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            s.nombre.isNotEmpty ? s.nombre : s.direccion,
-                                            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 17),
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                          if (s.direccion.isNotEmpty && s.direccion != s.nombre)
-                                            Padding(
-                                              padding: const EdgeInsets.only(top: 2.0),
-                                              child: Text(
-                                                s.direccion,
-                                                style: const TextStyle(fontSize: 15, color: Colors.black54),
-                                                maxLines: 2,
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                            );
+                          } else if (index == _sugerencias.length) {
+                            return Column(
+                              children: [
+                                const Divider(thickness: 1, color: Colors.grey),
+                              ],
+                            );
+                          } else {
+                            // Último elemento: botón 'Pegar ubicación' con padding inferior igual al teclado
+                            final bottomPadding = MediaQuery.of(context).viewInsets.bottom;
+                            return Padding(
+                              padding: EdgeInsets.fromLTRB(16.0, 8.0, 16.0, bottomPadding > 0 ? bottomPadding : 16.0),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.gps_fixed, color: Colors.black87),
+                                  SizedBox(width: 8),
+                                  TextButton(
+                                    onPressed: _usarUbicacionDesdeTextoCompartido,
+                                    child: Text('Pegar ubicación', style: TextStyle(fontSize: 16, color: Colors.black87)),
+                                  ),
+                                  Spacer(),
+                                ],
                               ),
-                            ),
-                          );
+                            );
+                          }
                         },
                       ),
                     ),
@@ -666,88 +892,7 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
                         GestureDetector(
-                          onTap: () {
-                            showModalBottomSheet(
-                              context: context,
-                              isScrollControlled: true,
-                              backgroundColor: Colors.white,
-                              shape: const RoundedRectangleBorder(
-                                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-                              ),
-                              builder: (ctx) {
-                                return Padding(
-                                  padding: EdgeInsets.only(
-                                    left: 0,
-                                    right: 0,
-                                    top: 0,
-                                    bottom: 0,
-                                  ),
-                                  child: Container(
-                                    width: double.infinity,
-                                    height: MediaQuery.of(ctx).size.height,
-                                    color: Colors.white,
-                                    child: SingleChildScrollView(
-                                      padding: EdgeInsets.only(
-                                        left: 16.0,
-                                        right: 16.0,
-                                        top: MediaQuery.of(ctx).padding.top + 72.0,
-                                        bottom: MediaQuery.of(ctx).viewInsets.bottom,
-                                      ),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
-                                            children: [
-                                              Icon(Icons.home, color: Colors.black54, size: 28),
-                                              SizedBox(width: 10),
-                                              Expanded(
-                                                child: TextField(
-                                                  autofocus: true,
-                                                  decoration: InputDecoration(
-                                                    hintText: '¿Dónde vives?',
-                                                    filled: true,
-                                                    fillColor: Colors.grey[100],
-                                                    border: OutlineInputBorder(
-                                                      borderRadius: BorderRadius.circular(18),
-                                                      borderSide: BorderSide.none,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                              TextButton(
-                                                onPressed: () => Navigator.of(ctx).pop(),
-                                                child: Text('Cancelar', style: TextStyle(color: Colors.black54)),
-                                              ),
-                                            ],
-                                          ),
-                                          SizedBox(height: 18),
-                                          Divider(thickness: 1, color: Colors.grey[300]),
-                                          SizedBox(height: 10),
-                                          ListTile(
-                                            leading: Icon(Icons.gps_fixed, color: Colors.black54),
-                                            title: Text('Señalar la ubicación en el mapa'),
-                                          ),
-                                          ListTile(
-                                            leading: Icon(Icons.add, color: Colors.black54),
-                                            title: Text('Agregar ubicación'),
-                                          ),
-                                          ListTile(
-                                            leading: Icon(Icons.edit, color: Colors.black54),
-                                            title: Text('Editar ubicación'),
-                                          ),
-                                          ListTile(
-                                            leading: Icon(Icons.notes, color: Colors.black54),
-                                            title: Text('Otros comentarios'),
-                                          ),
-                                          SizedBox(height: 40),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              },
-                            );
-                          },
+                          onTap: () => _seleccionarYGuardarUbicacion('Casa'),
                           child: Row(
                             children: [
                               Icon(Icons.home, color: Colors.amber, size: 28),
@@ -758,88 +903,7 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
                           ),
                         ),
                         GestureDetector(
-                          onTap: () {
-                            showModalBottomSheet(
-                              context: context,
-                              isScrollControlled: true,
-                              backgroundColor: Colors.white,
-                              shape: const RoundedRectangleBorder(
-                                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-                              ),
-                              builder: (ctx) {
-                                return Padding(
-                                  padding: EdgeInsets.only(
-                                    left: 0,
-                                    right: 0,
-                                    top: 0,
-                                    bottom: 0,
-                                  ),
-                                  child: Container(
-                                    width: double.infinity,
-                                    height: MediaQuery.of(ctx).size.height,
-                                    color: Colors.white,
-                                    child: SingleChildScrollView(
-                                      padding: EdgeInsets.only(
-                                        left: 16.0,
-                                        right: 16.0,
-                                        top: MediaQuery.of(ctx).padding.top + 18.0,
-                                        bottom: MediaQuery.of(ctx).viewInsets.bottom,
-                                      ),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
-                                            children: [
-                                              Icon(Icons.work, color: Colors.black54, size: 28),
-                                              SizedBox(width: 10),
-                                              Expanded(
-                                                child: TextField(
-                                                  autofocus: true,
-                                                  decoration: InputDecoration(
-                                                    hintText: '¿Dónde trabajas?',
-                                                    filled: true,
-                                                    fillColor: Colors.grey[100],
-                                                    border: OutlineInputBorder(
-                                                      borderRadius: BorderRadius.circular(18),
-                                                      borderSide: BorderSide.none,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                              TextButton(
-                                                onPressed: () => Navigator.of(ctx).pop(),
-                                                child: Text('Cancelar', style: TextStyle(color: Colors.black54)),
-                                              ),
-                                            ],
-                                          ),
-                                          SizedBox(height: 18),
-                                          Divider(thickness: 1, color: Colors.grey[300]),
-                                          SizedBox(height: 10),
-                                          ListTile(
-                                            leading: Icon(Icons.gps_fixed, color: Colors.black54),
-                                            title: Text('Señalar la ubicación en el mapa'),
-                                          ),
-                                          ListTile(
-                                            leading: Icon(Icons.add, color: Colors.black54),
-                                            title: Text('Agregar ubicación'),
-                                          ),
-                                          ListTile(
-                                            leading: Icon(Icons.edit, color: Colors.black54),
-                                            title: Text('Editar ubicación'),
-                                          ),
-                                          ListTile(
-                                            leading: Icon(Icons.notes, color: Colors.black54),
-                                            title: Text('Otros comentarios'),
-                                          ),
-                                          SizedBox(height: 40),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              },
-                            );
-                          },
+                          onTap: () => _seleccionarYGuardarUbicacion('Trabajo'),
                           child: Row(
                             children: [
                               Icon(Icons.work, color: Colors.amber, size: 28),
@@ -850,88 +914,7 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
                           ),
                         ),
                         GestureDetector(
-                          onTap: () {
-                            showModalBottomSheet(
-                              context: context,
-                              isScrollControlled: true,
-                              backgroundColor: Colors.white,
-                              shape: const RoundedRectangleBorder(
-                                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-                              ),
-                              builder: (ctx) {
-                                return Padding(
-                                  padding: EdgeInsets.only(
-                                    left: 0,
-                                    right: 0,
-                                    top: 0,
-                                    bottom: 0,
-                                  ),
-                                  child: Container(
-                                    width: double.infinity,
-                                    height: MediaQuery.of(ctx).size.height,
-                                    color: Colors.white,
-                                    child: SingleChildScrollView(
-                                      padding: EdgeInsets.only(
-                                        left: 16.0,
-                                        right: 16.0,
-                                        top: MediaQuery.of(ctx).padding.top + 18.0,
-                                        bottom: MediaQuery.of(ctx).viewInsets.bottom,
-                                      ),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
-                                            children: [
-                                              Icon(Icons.star, color: Colors.black54, size: 28),
-                                              SizedBox(width: 10),
-                                              Expanded(
-                                                child: TextField(
-                                                  autofocus: true,
-                                                  decoration: InputDecoration(
-                                                    hintText: 'Favoritos',
-                                                    filled: true,
-                                                    fillColor: Colors.grey[100],
-                                                    border: OutlineInputBorder(
-                                                      borderRadius: BorderRadius.circular(18),
-                                                      borderSide: BorderSide.none,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                              TextButton(
-                                                onPressed: () => Navigator.of(ctx).pop(),
-                                                child: Text('Cancelar', style: TextStyle(color: Colors.black54)),
-                                              ),
-                                            ],
-                                          ),
-                                          SizedBox(height: 18),
-                                          Divider(thickness: 1, color: Colors.grey[300]),
-                                          SizedBox(height: 10),
-                                          ListTile(
-                                            leading: Icon(Icons.gps_fixed, color: Colors.black54),
-                                            title: Text('Señalar la ubicación en el mapa'),
-                                          ),
-                                          ListTile(
-                                            leading: Icon(Icons.add, color: Colors.black54),
-                                            title: Text('Agregar ubicación'),
-                                          ),
-                                          ListTile(
-                                            leading: Icon(Icons.edit, color: Colors.black54),
-                                            title: Text('Editar ubicación'),
-                                          ),
-                                          ListTile(
-                                            leading: Icon(Icons.notes, color: Colors.black54),
-                                            title: Text('Otros comentarios'),
-                                          ),
-                                          SizedBox(height: 40),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              },
-                            );
-                          },
+                          onTap: () => _seleccionarYGuardarUbicacion('Favorito'),
                           child: Row(
                             children: [
                               Icon(Icons.star, color: Colors.amber, size: 28),
@@ -943,48 +926,48 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
                         ),
                       ],
                     ),
-                  SizedBox(height: 16),
-                  Divider(thickness: 1, color: Colors.grey[300]),
-                  const SizedBox(height: 8),
-                  // Sección de acciones debajo del divider
-                  Row(
-                    children: [
-                      Icon(Icons.add, color: Colors.black54),
-                      SizedBox(width: 8),
-                      Text('Agregar ubicación', style: TextStyle(fontSize: 16, color: Colors.black87)),
-                      Spacer(),
-                    ],
-                  ),
-                  SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Icon(Icons.edit, color: Colors.black54),
-                      SizedBox(width: 8),
-                      Text('Editar ubicación', style: TextStyle(fontSize: 16, color: Colors.black87)),
-                      Spacer(),
-                    ],
-                  ),
-                  SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Icon(Icons.notes, color: Colors.black54),
-                      SizedBox(width: 8),
-                      Text('Otros comentarios', style: TextStyle(fontSize: 16, color: Colors.black87)),
-                      Spacer(),
-                    ],
-                  ),
-                  SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Icon(Icons.gps_fixed, color: Colors.black87),
-                      SizedBox(width: 8),
-                      TextButton(
-                        onPressed: _usarUbicacionDesdeTextoCompartido,
-                        child: Text('Pegar ubicación', style: TextStyle(fontSize: 16, color: Colors.black87)),
-                      ),
-                      Spacer(),
-                    ],
-                  ),
+                  // SizedBox(height: 16),
+                  // Divider(thickness: 1, color: Colors.grey[300]),
+                  // const SizedBox(height: 8),
+                  // // Sección de acciones debajo del divider
+                  // Row(
+                  //   children: [
+                  //     Icon(Icons.add, color: Colors.black54),
+                  //     SizedBox(width: 8),
+                  //     Text('Agregar ubicación', style: TextStyle(fontSize: 16, color: Colors.black87)),
+                  //     Spacer(),
+                  //   ],
+                  // ),
+                  // SizedBox(height: 12),
+                  // Row(
+                  //   children: [
+                  //     Icon(Icons.edit, color: Colors.black54),
+                  //     SizedBox(width: 8),
+                  //     Text('Editar ubicación', style: TextStyle(fontSize: 16, color: Colors.black87)),
+                  //     Spacer(),
+                  //   ],
+                  // ),
+                  // SizedBox(height: 12),
+                  // Row(
+                  //   children: [
+                  //     Icon(Icons.notes, color: Colors.black54),
+                  //     SizedBox(width: 8),
+                  //     Text('Otros comentarios', style: TextStyle(fontSize: 16, color: Colors.black87)),
+                  //     Spacer(),
+                  //   ],
+                  // ),
+                  // SizedBox(height: 12),
+                  // Row(
+                  //   children: [
+                  //     Icon(Icons.gps_fixed, color: Colors.black87),
+                  //     SizedBox(width: 8),
+                  //     TextButton(
+                  //       onPressed: _usarUbicacionDesdeTextoCompartido,
+                  //       child: Text('Pegar ubicación', style: TextStyle(fontSize: 16, color: Colors.black87)),
+                  //     ),
+                  //     Spacer(),
+                  //   ],
+                  // ),
                   
 
                 ],

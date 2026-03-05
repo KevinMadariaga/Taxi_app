@@ -335,7 +335,9 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView>
             closestIdx = i;
           }
         }
-        adjustedPos = _routePoints[closestIdx];
+          if (closestIdx >= 0 && closestIdx < _routePoints.length) {
+            adjustedPos = _routePoints[closestIdx];
+          }
       }
 
       // Si el conductor se desvía más de 30 metros de la ruta, recalcular la ruta
@@ -351,7 +353,9 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView>
             closestIdx = i;
           }
         }
-        adjustedPos = _routePoints[closestIdx];
+        if (closestIdx >= 0 && closestIdx < _routePoints.length) {
+          adjustedPos = _routePoints[closestIdx];
+        }
       }
 
       _driverLocation = adjustedPos;
