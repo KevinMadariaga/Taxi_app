@@ -5,11 +5,13 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:geocoding/geocoding.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/view/MapaPreviewView.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/historial_viaje_cliente.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/SeleccionDestino.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/DetailsSolicitud.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/location_model.dart';
 import 'package:taxi_app/widgets/google_maps_widget.dart';
+import 'package:taxi_app/helper/map_helper.dart';
 import 'dart:async';
 import 'package:taxi_app/widgets/perfil.dart';
 import 'package:taxi_app/services/ubicacion_servicio.dart';
@@ -25,6 +27,37 @@ class InicioClienteView extends StatefulWidget {
 }
 
 class _InicioClienteViewState extends State<InicioClienteView> {
+        // --- Listener de conductores conectados ---
+
+        Future<void> _loadTaxiIcon() async {
+          _taxiIcon = await MapHelper.loadMarkerIcon('assets/img/carito.png', size: Size(50, 50));
+          setState(() {});
+          _fetchConductoresMarkers();
+        }
+
+        void _fetchConductoresMarkers() {
+          _conductoresSub?.cancel();
+          _conductoresSub = FirebaseFirestore.instance.collection('conductores_conectados').snapshots().listen((snapshot) {
+            final markers = <Marker>{};
+            for (final doc in snapshot.docs) {
+              final data = doc.data();
+              if (data['ubicacion'] is GeoPoint) {
+                final geo = data['ubicacion'] as GeoPoint;
+                markers.add(Marker(
+                  markerId: MarkerId(doc.id),
+                  position: LatLng(geo.latitude, geo.longitude),
+                  icon: _taxiIcon ?? BitmapDescriptor.defaultMarker,
+                  infoWindow: InfoWindow(title: 'Taxi disponible'),
+                ));
+              }
+            }
+            setState(() {
+              _conductoresMarkers = markers;
+            });
+          });
+        }
+      // --- Listener de conductores conectados ---
+    StreamSubscription<QuerySnapshot>? _conductoresSub;
   // --- Variables ---
   late InicioClienteViewModel vm;
   final UbicacionService _ubicacionService = UbicacionService();
@@ -35,6 +68,8 @@ class _InicioClienteViewState extends State<InicioClienteView> {
   bool _isLoadingLocation = true;
   final PageController _carouselController = PageController(viewportFraction: 0.98);
   int _carouselPage = 0;
+    Set<Marker> _conductoresMarkers = {};
+    BitmapDescriptor? _taxiIcon;
 
   // Configuración visual
   final double _cardScale = 1.0;
@@ -53,6 +88,8 @@ class _InicioClienteViewState extends State<InicioClienteView> {
     vm.init();
     _isLoadingLocation = true;
     _loadCurrentLocation();
+      _loadTaxiIcon();
+      // _fetchConductoresMarkers() se llama dentro de _loadTaxiIcon para asegurar que el icono esté cargado antes de crear los marcadores
   }
 
   @override
@@ -60,6 +97,7 @@ class _InicioClienteViewState extends State<InicioClienteView> {
     _carouselController.dispose();
     vm.removeListener(_vmListener);
     vm.dispose();
+    _conductoresSub?.cancel();
     super.dispose();
   }
 
@@ -80,10 +118,7 @@ class _InicioClienteViewState extends State<InicioClienteView> {
       onWillPop: _onWillPop,
       child: Scaffold(
         backgroundColor: AppColores.background,
-        appBar: AppBar(
-          backgroundColor: AppColores.background,
-          automaticallyImplyLeading: false,
-        ),
+        // AppBar eliminado
         body: SafeArea(
           child: Stack(
             children: [
@@ -108,11 +143,10 @@ class _InicioClienteViewState extends State<InicioClienteView> {
                       _buildFavoritos(scale),
                       SizedBox(height: carouselHeight, child: _buildCarousel()),
                       SizedBox(height: isTablet ? 8 : 2 * scale),
-                      // Se elimina el label y el mapa
-                      // _buildLocationLabel(scale),
-                      // SizedBox(height: labelToMapSpacing),
-                      // _buildMap(mapHeight),
-                      // SizedBox(height: bottomMapSpacing),
+                      _buildLocationLabel(scale),
+                      SizedBox(height: isTablet ? 12 : 8 * scale),
+                      _buildMap(carouselHeight),
+                      SizedBox(height: isTablet ? 18 : 10 * scale),
                     ],
                   ),
                 ),
@@ -250,7 +284,36 @@ class _InicioClienteViewState extends State<InicioClienteView> {
     return Padding(
       padding: EdgeInsets.only(right: 8.0 * scale),
       child: GestureDetector(
-        onTap: _navigateToDestinoSeleccion,
+        onTap: () async {
+          if (label == 'Casa') {
+            // Buscar ubicación guardada de casa en favoritos
+            final user = FirebaseAuth.instance.currentUser;
+            if (user != null) {
+              final snapshot = await FirebaseFirestore.instance
+                  .collection('ubicaciones')
+                  .where('userId', isEqualTo: user.uid)
+                  .where('nombre', isEqualTo: 'Casa')
+                  .limit(1)
+                  .get();
+              if (snapshot.docs.isNotEmpty) {
+                final data = snapshot.docs.first.data();
+                final geo = data['ubicacion'] as GeoPoint;
+                final direccion = (data['direccion'] ?? '') as String;
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => MapaPreviewView(
+                      location: LatLng(geo.latitude, geo.longitude),
+                      direccion: direccion,
+                    ),
+                  ),
+                );
+                return;
+              }
+            }
+          }
+          // Si no es 'Casa' o no existe, navega a selección normal
+          _navigateToDestinoSeleccion();
+        },
         child: Container(
           padding: EdgeInsets.symmetric(horizontal: 12 * scale, vertical: 6 * scale),
           decoration: BoxDecoration(
@@ -303,6 +366,7 @@ class _InicioClienteViewState extends State<InicioClienteView> {
             myLocationEnabled: true,
             myLocationButtonEnabled: false,
             compassEnabled: false,
+              markers: _conductoresMarkers,
             onMapCreated: (controller) async {
               _mapController = controller;
               if (_currentLocation != null) {
@@ -513,22 +577,26 @@ class _InicioClienteViewState extends State<InicioClienteView> {
         firstName = parts.first;
       }
     }
+    // Formatear: primera letra mayúscula, resto minúscula
+    String formattedName = firstName.isNotEmpty
+        ? firstName[0].toUpperCase() + firstName.substring(1).toLowerCase()
+        : '';
     final double fontSize = (26 * scale).clamp(20.0, 30.0);
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: 12.0 * scale),
       child: Row(
         children: [
           Text(
-            'Hola',
+            'Hola,',
             style: TextStyle(
               fontSize: fontSize,
               fontWeight: FontWeight.w800,
               color: AppColores.textPrimary,
             ),
           ),
-          SizedBox(width: 10 * scale),
+          SizedBox(width: 2 * scale),
           Text(
-            firstName.toUpperCase(),
+            formattedName,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(

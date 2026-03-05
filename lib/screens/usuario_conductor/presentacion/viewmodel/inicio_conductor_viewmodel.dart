@@ -14,6 +14,17 @@ import 'package:taxi_app/services/tracking_service.dart';
 import 'package:taxi_app/services/notification_service.dart';
 
 class HomeConductorViewModel extends ChangeNotifier {
+    // Variables de estado y colecciones faltantes
+    PreviewSolicitud? selectedPreview;
+    bool isMapExpanded = false;
+    final Map<String, List<LatLng>> routePoints = {};
+    final Set<Polyline> routePolylines = {};
+    final Set<Marker> extraMarkers = {};
+    bool isConnected = false;
+    final Set<String> _knownPendingIds = {};
+    final StreamController<String> _newSolicitudController = StreamController<String>.broadcast();
+    Stream<String> get onNewSolicitud => _newSolicitudController.stream;
+    StreamSubscription<DocumentSnapshot>? _conductorSub;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseService _firebaseService = FirebaseService();
   final TrackingService _trackingService = TrackingService();
@@ -34,24 +45,7 @@ class HomeConductorViewModel extends ChangeNotifier {
   final List<SolicitudItem> solicitudes = [];
   StreamSubscription<QuerySnapshot>? _sub;
 
-  // UI state for HomeConductor screen
-  PreviewSolicitud? selectedPreview;
-  bool isMapExpanded = false;
-
-  // Stream to notify UI about newly arrived pending solicitudes
-  final StreamController<String> _newSolicitudController = StreamController<String>.broadcast();
-  Stream<String> get onNewSolicitud => _newSolicitudController.stream;
-  final Set<String> _knownPendingIds = {};
-
-  // Route and marker state for selected solicitud
-  final Map<String, List<LatLng>> routePoints = {};
-  final Set<Polyline> routePolylines = {};
-  final Set<Marker> extraMarkers = {};
-  StreamSubscription<DocumentSnapshot>? _conductorSub;
-  bool isConnected = false;
-
-  HomeConductorViewModel();
-
+  // Método de inicialización principal
   Future<void> init() async {
     isLoading = true;
     loadingLocation = true;
@@ -69,6 +63,8 @@ class HomeConductorViewModel extends ChangeNotifier {
   }
 
   Future<void> _loadProfile() async {
+    // Guardar ubicación apenas ingresa a la clase
+    await _loadLocation();
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
@@ -85,13 +81,13 @@ class HomeConductorViewModel extends ChangeNotifier {
           final snap = await _firestore.collection('conductor').doc(uid).get();
           if (snap.exists) {
             final data = snap.data();
-              nameFromDb = data?['nombre']?.toString();
-              plate = data?['placa']?.toString();
-              // Preferir la foto almacenada en Firestore si existe
-              final fotoFromDb = data?['fotoUrl'] ?? data?['foto'] ?? data?['photoUrl'];
-              if (fotoFromDb != null && fotoFromDb.toString().trim().isNotEmpty) {
-                photoUrl = fotoFromDb.toString().trim();
-              }
+            nameFromDb = data?['nombre']?.toString();
+            plate = data?['placa']?.toString();
+            // Preferir la foto almacenada en Firestore si existe
+            final fotoFromDb = data?['fotoUrl'] ?? data?['foto'] ?? data?['photoUrl'];
+            if (fotoFromDb != null && fotoFromDb.toString().trim().isNotEmpty) {
+              photoUrl = fotoFromDb.toString().trim();
+            }
             if (nameFromDb != null && nameFromDb!.trim().isNotEmpty) {
               displayName = nameFromDb!.trim();
             }
@@ -110,7 +106,6 @@ class HomeConductorViewModel extends ChangeNotifier {
       final position = await _trackingService.obtenerUbicacionActual();
       if (position != null) {
         currentLocation = LatLng(position.latitude, position.longitude);
-        
         // Guardar ubicación en Firebase
         final uid = FirebaseAuth.instance.currentUser?.uid;
         if (uid != null && uid.isNotEmpty) {
@@ -119,6 +114,11 @@ class HomeConductorViewModel extends ChangeNotifier {
               conductorId: uid,
               position: currentLocation!,
             );
+            // Guardar SIEMPRE en conductores_conectados al obtener ubicación
+            await FirebaseFirestore.instance.collection('conductores_conectados').doc(uid).set({
+              'ubicacion': GeoPoint(currentLocation!.latitude, currentLocation!.longitude),
+              'timestamp': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true));
           } catch (e) {
             debugPrint('Error guardando ubicación del conductor: $e');
           }

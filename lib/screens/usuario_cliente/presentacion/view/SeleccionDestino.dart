@@ -910,6 +910,40 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
                       children: [
                         GestureDetector(
                           onTap: () async {
+                            final user = FirebaseAuth.instance.currentUser;
+                            if (user == null) return;
+                            final snapshot = await FirebaseFirestore.instance
+                                .collection('ubicaciones')
+                                .where('userId', isEqualTo: user.uid)
+                                .where('tipo', isEqualTo: 'Casa')
+                                .limit(1)
+                                .get();
+                            if (snapshot.docs.isNotEmpty) {
+                              // Ya existe la ubicación de Casa, navegar directo a MapaPreviewView
+                              final data = snapshot.docs.first.data();
+                              final geopoint = data['ubicacion'] as GeoPoint?;
+                              final direccion = data['direccion'] as String? ?? '';
+                              if (geopoint != null) {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => MapaPreviewView(
+                                      location: LatLng(geopoint.latitude, geopoint.longitude),
+                                      direccion: direccion,
+                                      origenLocation: widget.currentLocation,
+                                      origenDireccion: _origenController.text,
+                                    ),
+                                  ),
+                                );
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('No se pudo obtener la ubicación de Casa.'),
+                                  ),
+                                );
+                              }
+                              return;
+                            }
+                            // Si no existe, mostrar la modal para registrar Casa
                             final result = await showModalBottomSheet<String>(
                               context: context,
                               isScrollControlled: true,
@@ -1047,6 +1081,40 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
                         ),
                         GestureDetector(
                           onTap: () async {
+                            final user = FirebaseAuth.instance.currentUser;
+                            if (user == null) return;
+                            final snapshot = await FirebaseFirestore.instance
+                                .collection('ubicaciones')
+                                .where('userId', isEqualTo: user.uid)
+                                .where('tipo', isEqualTo: 'Trabajo')
+                                .limit(1)
+                                .get();
+                            if (snapshot.docs.isNotEmpty) {
+                              // Ya existe la ubicación de Trabajo, navegar directo a MapaPreviewView
+                              final data = snapshot.docs.first.data();
+                              final geopoint = data['ubicacion'] as GeoPoint?;
+                              final direccion = data['direccion'] as String? ?? '';
+                              if (geopoint != null) {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => MapaPreviewView(
+                                      location: LatLng(geopoint.latitude, geopoint.longitude),
+                                      direccion: direccion,
+                                      origenLocation: widget.currentLocation,
+                                      origenDireccion: _origenController.text,
+                                    ),
+                                  ),
+                                );
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('No se pudo obtener la ubicación de Trabajo.'),
+                                  ),
+                                );
+                              }
+                              return;
+                            }
+                            // Si no existe, mostrar la modal para registrar Trabajo
                             final result = await showModalBottomSheet<String>(
                               context: context,
                               isScrollControlled: true,
