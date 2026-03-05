@@ -72,7 +72,16 @@ class _SeleccionaUbicacionEnMapaViewState extends State<SeleccionaUbicacionEnMap
     final double mapHeight = size.height * 0.55;
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.titulo ?? 'Selecciona ubicación'),
+        title: Builder(
+          builder: (context) {
+            final screenW = MediaQuery.of(context).size.width;
+            final double titleFontSize = (screenW / 390 * 18).clamp(15, 26);
+            return Text(
+              widget.titulo ?? 'Selecciona ubicación',
+              style: TextStyle(fontSize: titleFontSize, color: Colors.black87),
+            );
+          },
+        ),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black87,
         elevation: 0,
@@ -83,43 +92,49 @@ class _SeleccionaUbicacionEnMapaViewState extends State<SeleccionaUbicacionEnMap
           children: [
             SizedBox(height: 12),
             Center(
-              child: SizedBox(
-                height: mapHeight,
-                width: double.infinity,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.black, width: 1),
-                      ),
-                      clipBehavior: Clip.antiAlias,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: GoogleMap(
-                          initialCameraPosition: CameraPosition(
-                            target: _center,
-                            zoom: 16,
+              child: Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: MediaQuery.of(context).size.width * 0.04,
+                  vertical: MediaQuery.of(context).size.height * 0.01,
+                ),
+                child: SizedBox(
+                  height: mapHeight,
+                  width: double.infinity,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.black, width: 1),
+                        ),
+                        clipBehavior: Clip.antiAlias,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: GoogleMap(
+                            initialCameraPosition: CameraPosition(
+                              target: _center,
+                              zoom: 16,
+                            ),
+                            onMapCreated: _onMapCreated,
+                            onCameraMove: _onCameraMove,
+                            myLocationEnabled: true,
+                            myLocationButtonEnabled: true,
                           ),
-                          onMapCreated: _onMapCreated,
-                          onCameraMove: _onCameraMove,
-                          myLocationEnabled: true,
-                          myLocationButtonEnabled: true,
                         ),
                       ),
-                    ),
-                    IgnorePointer(
-                      child: Transform.translate(
-                        offset: const Offset(0, -18),
-                        child: const Icon(
-                          Icons.place,
-                          size: 48,
-                          color: Color(0xFFFFCA44),
+                      IgnorePointer(
+                        child: Transform.translate(
+                          offset: const Offset(0, -18),
+                          child: const Icon(
+                            Icons.place,
+                            size: 48,
+                            color: Color(0xFFFFCA44),
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),

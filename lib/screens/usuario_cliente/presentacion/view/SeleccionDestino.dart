@@ -1,4 +1,3 @@
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -90,7 +89,7 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
                         MaterialPageRoute(
                           builder: (_) => SeleccionaUbicacionEnMapaView(
                             ubicacionInicial: ubicacionInicial,
-                            titulo: 'Selecciona ubicación de Favorito',
+                            titulo: 'Selecciona ubicación Favorito',
                           ),
                         ),
                       );
@@ -209,7 +208,25 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
       });
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Ubicación guardada como "${nombrePersonalizado ?? tipo}"')),
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.greenAccent, size: 26),
+              SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Ubicación guardada como "${nombrePersonalizado ?? tipo}"',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16, color: AppColores.textPrimary),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: Colors.white,
+          behavior: SnackBarBehavior.floating,
+          elevation: 8,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          duration: const Duration(milliseconds: 1800),
+        ),
       );
     }
   final TextEditingController _origenController = TextEditingController();
@@ -892,7 +909,133 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
                         GestureDetector(
-                          onTap: () => _seleccionarYGuardarUbicacion('Casa'),
+                          onTap: () async {
+                            final result = await showModalBottomSheet<String>(
+                              context: context,
+                              isScrollControlled: true,
+                              backgroundColor: Colors.transparent,
+                              builder: (ctx) {
+                                final double topPadding = MediaQuery.of(context).padding.top + kToolbarHeight;
+                                final double screenH = MediaQuery.of(context).size.height;
+                                final double screenW = MediaQuery.of(context).size.width;
+                                final double horizontalPadding = (screenW * 0.05).clamp(12.0, 32.0);
+                                return Padding(
+                                  padding: EdgeInsets.only(top: topPadding),
+                                  child: Container(
+                                    height: screenH - topPadding,
+                                    decoration: const BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.only(
+                                        topLeft: Radius.circular(20),
+                                        topRight: Radius.circular(20),
+                                      ),
+                                    ),
+                                    child: Stack(
+                                      children: [
+                                        Positioned(
+                                          top: 8,
+                                          right: 8,
+                                          child: IconButton(
+                                            icon: const Icon(Icons.close, color: Colors.black54, size: 28),
+                                            tooltip: 'Cerrar',
+                                            onPressed: () => Navigator.of(ctx).pop(),
+                                          ),
+                                        ),
+                                        Padding(
+                                          padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 16.0),
+                                          child: Column(
+                                            mainAxisAlignment: MainAxisAlignment.start,
+                                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                                            children: [
+                                              SizedBox(height: 32),
+                                              Text('Agrega ubicación de casa', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                                              const SizedBox(height: 12),
+                                              ListTile(
+                                                leading: Container(
+                                                  decoration: BoxDecoration(
+                                                    shape: BoxShape.circle,
+                                                  ),
+                                                  padding: const EdgeInsets.all(6),
+                                                  child: const Icon(Icons.location_on, color: AppColores.buttonPrimary, size: 24),
+                                                ),
+                                                title: const Text('Señalar la ubicación en el mapa', style: TextStyle(fontWeight: FontWeight.w400, fontSize: 17)),
+                                                onTap: () => Navigator.of(ctx).pop('mapa'),
+                                                contentPadding: EdgeInsets.symmetric(horizontal: horizontalPadding * 0.2),
+                                                horizontalTitleGap: 16,
+                                              ),
+                                              ListTile(
+                                                leading: Container(
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.grey.shade100,
+                                                    shape: BoxShape.circle,
+                                                  ),
+                                                  padding: const EdgeInsets.all(6),
+                                                  child: const Icon(Icons.add, color: Colors.grey, size: 22),
+                                                ),
+                                                title: const Text('Agregar ubicación', style: TextStyle(fontWeight: FontWeight.w400, fontSize: 17, color: Colors.grey)),
+                                                enabled: false,
+                                                contentPadding: EdgeInsets.symmetric(horizontal: horizontalPadding * 0.2),
+                                                horizontalTitleGap: 16,
+                                              ),
+                                              ListTile(
+                                                leading: Container(
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.grey.shade100,
+                                                    shape: BoxShape.circle,
+                                                  ),
+                                                  padding: const EdgeInsets.all(6),
+                                                  child: const Icon(Icons.edit, color: Colors.grey, size: 22),
+                                                ),
+                                                title: const Text('Editar ubicación', style: TextStyle(fontWeight: FontWeight.w400, fontSize: 17, color: Colors.grey)),
+                                                enabled: false,
+                                                contentPadding: EdgeInsets.symmetric(horizontal: horizontalPadding * 0.2),
+                                                horizontalTitleGap: 16,
+                                              ),
+                                              ListTile(
+                                                leading: Container(
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.grey.shade100,
+                                                    shape: BoxShape.circle,
+                                                  ),
+                                                  padding: const EdgeInsets.all(6),
+                                                  child: const Icon(Icons.notes, color: Colors.grey, size: 22),
+                                                ),
+                                                title: const Text('Otros comentarios', style: TextStyle(fontWeight: FontWeight.w400, fontSize: 17, color: Colors.grey)),
+                                                enabled: false,
+                                                contentPadding: EdgeInsets.symmetric(horizontal: horizontalPadding * 0.2),
+                                                horizontalTitleGap: 16,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                            );
+                            if (result == 'mapa') {
+                              _seleccionarYGuardarUbicacion('Casa');
+                            } else if (result != null) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    result == 'agregar'
+                                        ? 'Funcionalidad para agregar ubicación próximamente'
+                                        : result == 'editar'
+                                            ? 'Funcionalidad para editar ubicación próximamente'
+                                            : 'Funcionalidad de comentarios próximamente',
+                                    style: const TextStyle(color: Colors.black),
+                                  ),
+                                  backgroundColor: Colors.white,
+                                  behavior: SnackBarBehavior.floating,
+                                  elevation: 8,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                  duration: const Duration(milliseconds: 1800),
+                                ),
+                              );
+                            }
+                          },
                           child: Row(
                             children: [
                               Icon(Icons.home, color: Colors.amber, size: 28),
@@ -903,7 +1046,133 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
                           ),
                         ),
                         GestureDetector(
-                          onTap: () => _seleccionarYGuardarUbicacion('Trabajo'),
+                          onTap: () async {
+                            final result = await showModalBottomSheet<String>(
+                              context: context,
+                              isScrollControlled: true,
+                              backgroundColor: Colors.transparent,
+                              builder: (ctx) {
+                                final double topPadding = MediaQuery.of(context).padding.top + kToolbarHeight;
+                                final double screenH = MediaQuery.of(context).size.height;
+                                final double screenW = MediaQuery.of(context).size.width;
+                                final double horizontalPadding = (screenW * 0.05).clamp(12.0, 32.0);
+                                return Padding(
+                                  padding: EdgeInsets.only(top: topPadding),
+                                  child: Container(
+                                    height: screenH - topPadding,
+                                    decoration: const BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.only(
+                                        topLeft: Radius.circular(20),
+                                        topRight: Radius.circular(20),
+                                      ),
+                                    ),
+                                    child: Stack(
+                                      children: [
+                                        Positioned(
+                                          top: 8,
+                                          right: 8,
+                                          child: IconButton(
+                                            icon: const Icon(Icons.close, color: Colors.black54, size: 28),
+                                            tooltip: 'Cerrar',
+                                            onPressed: () => Navigator.of(ctx).pop(),
+                                          ),
+                                        ),
+                                        Padding(
+                                          padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 16.0),
+                                          child: Column(
+                                            mainAxisAlignment: MainAxisAlignment.start,
+                                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                                            children: [
+                                              SizedBox(height: 32),
+                                              Text('Agrega ubicación de trabajo', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                                              const SizedBox(height: 12),
+                                              ListTile(
+                                                leading: Container(
+                                                  decoration: BoxDecoration(
+                                                    shape: BoxShape.circle,
+                                                  ),
+                                                  padding: const EdgeInsets.all(6),
+                                                  child: const Icon(Icons.location_on, color: AppColores.buttonPrimary, size: 24),
+                                                ),
+                                                title: const Text('Señalar la ubicación en el mapa', style: TextStyle(fontWeight: FontWeight.w400, fontSize: 17)),
+                                                onTap: () => Navigator.of(ctx).pop('mapa'),
+                                                contentPadding: EdgeInsets.symmetric(horizontal: horizontalPadding * 0.2),
+                                                horizontalTitleGap: 16,
+                                              ),
+                                              ListTile(
+                                                leading: Container(
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.grey.shade100,
+                                                    shape: BoxShape.circle,
+                                                  ),
+                                                  padding: const EdgeInsets.all(6),
+                                                  child: const Icon(Icons.add, color: Colors.grey, size: 22),
+                                                ),
+                                                title: const Text('Agregar ubicación', style: TextStyle(fontWeight: FontWeight.w400, fontSize: 17, color: Colors.grey)),
+                                                enabled: false,
+                                                contentPadding: EdgeInsets.symmetric(horizontal: horizontalPadding * 0.2),
+                                                horizontalTitleGap: 16,
+                                              ),
+                                              ListTile(
+                                                leading: Container(
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.grey.shade100,
+                                                    shape: BoxShape.circle,
+                                                  ),
+                                                  padding: const EdgeInsets.all(6),
+                                                  child: const Icon(Icons.edit, color: Colors.grey, size: 22),
+                                                ),
+                                                title: const Text('Editar ubicación', style: TextStyle(fontWeight: FontWeight.w400, fontSize: 17, color: Colors.grey)),
+                                                enabled: false,
+                                                contentPadding: EdgeInsets.symmetric(horizontal: horizontalPadding * 0.2),
+                                                horizontalTitleGap: 16,
+                                              ),
+                                              ListTile(
+                                                leading: Container(
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.grey.shade100,
+                                                    shape: BoxShape.circle,
+                                                  ),
+                                                  padding: const EdgeInsets.all(6),
+                                                  child: const Icon(Icons.notes, color: Colors.grey, size: 22),
+                                                ),
+                                                title: const Text('Otros comentarios', style: TextStyle(fontWeight: FontWeight.w400, fontSize: 17, color: Colors.grey)),
+                                                enabled: false,
+                                                contentPadding: EdgeInsets.symmetric(horizontal: horizontalPadding * 0.2),
+                                                horizontalTitleGap: 16,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                            );
+                            if (result == 'mapa') {
+                              _seleccionarYGuardarUbicacion('Trabajo');
+                            } else if (result != null) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    result == 'agregar'
+                                        ? 'Funcionalidad para agregar ubicación próximamente'
+                                        : result == 'editar'
+                                            ? 'Funcionalidad para editar ubicación próximamente'
+                                            : 'Funcionalidad de comentarios próximamente',
+                                    style: const TextStyle(color: Colors.black),
+                                  ),
+                                  backgroundColor: Colors.white,
+                                  behavior: SnackBarBehavior.floating,
+                                  elevation: 8,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                  duration: const Duration(milliseconds: 1800),
+                                ),
+                              );
+                            }
+                          },
                           child: Row(
                             children: [
                               Icon(Icons.work, color: Colors.amber, size: 28),
@@ -914,7 +1183,206 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
                           ),
                         ),
                         GestureDetector(
-                          onTap: () => _seleccionarYGuardarUbicacion('Favorito'),
+                          onTap: () async {
+                            final user = FirebaseAuth.instance.currentUser;
+                            if (user == null) return;
+                            final snapshot = await FirebaseFirestore.instance
+                                .collection('ubicaciones')
+                                .where('userId', isEqualTo: user.uid)
+                                .where('tipo', isEqualTo: 'Favorito')
+                                .get();
+                            final favoritos = snapshot.docs;
+                            final double topPadding = MediaQuery.of(context).padding.top + kToolbarHeight;
+                            final double screenH = MediaQuery.of(context).size.height;
+                            final double screenW = MediaQuery.of(context).size.width;
+                            final double horizontalPadding = (screenW * 0.05).clamp(12.0, 32.0);
+                            await showModalBottomSheet(
+                              context: context,
+                              isScrollControlled: true,
+                              backgroundColor: Colors.transparent,
+                              builder: (ctx) {
+                                return Padding(
+                                  padding: EdgeInsets.only(top: topPadding),
+                                  child: Container(
+                                    height: screenH - topPadding,
+                                    decoration: const BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.only(
+                                        topLeft: Radius.circular(20),
+                                        topRight: Radius.circular(20),
+                                      ),
+                                    ),
+                                    child: Stack(
+                                      children: [
+                                        Positioned(
+                                          top: 8,
+                                          right: 8,
+                                          child: IconButton(
+                                            icon: const Icon(Icons.close, color: Colors.black54, size: 28),
+                                            tooltip: 'Cerrar',
+                                            onPressed: () => Navigator.of(ctx).pop(),
+                                          ),
+                                        ),
+                                        Padding(
+                                          padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 16.0),
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              SizedBox(height: 32),
+                                              Text('Favoritos guardados', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                                              const SizedBox(height: 12),
+                                              if (favoritos.isEmpty) ...[
+                                                const Divider(),
+                                                SizedBox(height: 8),
+                                                ListTile(
+                                                  leading: Container(
+                                                    decoration: BoxDecoration(
+                                                      color: Colors.grey.shade100,
+                                                      shape: BoxShape.circle,
+                                                    ),
+                                                    padding: const EdgeInsets.all(6),
+                                                    child: const Icon(Icons.add, color: Colors.black54, size: 22),
+                                                  ),
+                                                  title: const Text('Agregar nuevo favorito', style: TextStyle(fontWeight: FontWeight.w400, fontSize: 17)),
+                                                  onTap: () async {
+                                                    Navigator.of(ctx).pop();
+                                                    final LatLng ubicacionInicial = widget.currentLocation ?? LatLng(0, 0);
+                                                    final resultado = await Navigator.of(context).push(
+                                                      MaterialPageRoute(
+                                                        builder: (_) => SeleccionaUbicacionEnMapaView(
+                                                          ubicacionInicial: ubicacionInicial,
+                                                          titulo: 'Selecciona ubicación Favorito',
+                                                        ),
+                                                      ),
+                                                    );
+                                                    if (resultado is LatLng) {
+                                                      String nombreFavorito = '';
+                                                      await showDialog(
+                                                        context: context,
+                                                        builder: (dctx) {
+                                                          return AlertDialog(
+                                                            title: const Text('Nombre del favorito'),
+                                                            content: TextField(
+                                                              onChanged: (value) => nombreFavorito = value,
+                                                            ),
+                                                            actions: [
+                                                              TextButton(
+                                                                onPressed: () => Navigator.of(dctx).pop(),
+                                                                child: const Text('Cancelar'),
+                                                              ),
+                                                              TextButton(
+                                                                onPressed: () => Navigator.of(dctx).pop(),
+                                                                child: const Text('Guardar'),
+                                                              ),
+                                                            ],
+                                                          );
+                                                        },
+                                                      );
+                                                      if (nombreFavorito.trim().isEmpty) nombreFavorito = 'Favorito';
+                                                      await _guardarUbicacionPersonalizada('Favorito', resultado, nombreFavorito);
+                                                    }
+                                                  },
+                                                ),
+                                                SizedBox(height: 8),
+                                              ] else ...[
+                                                Expanded(
+                                                  child: ListView(
+                                                    padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom + 8),
+                                                    children: [
+                                                      ...favoritos.map((doc) {
+                                                        final data = doc.data();
+                                                        final geopoint = data['ubicacion'] as GeoPoint?;
+                                                        final nombre = (data['nombre'] ?? 'Favorito') as String;
+                                                        if (geopoint == null) return const SizedBox();
+                                                        return ListTile(
+                                                          leading: const Icon(Icons.star, color: Colors.amber),
+                                                          title: Text(nombre),
+                                                          subtitle: Text(data['direccion'] ?? ''),
+                                                          onTap: () {
+                                                            Navigator.of(ctx).pop();
+                                                            Navigator.of(context).push(
+                                                              MaterialPageRoute(
+                                                                builder: (_) => MapPreview(
+                                                                  origen: LocationModel(
+                                                                    position: widget.currentLocation ?? LatLng(0, 0),
+                                                                    title: 'Tu ubicación',
+                                                                  ),
+                                                                  destino: LocationModel(
+                                                                    position: geopoint != null ? LatLng(geopoint.latitude, geopoint.longitude) : LatLng(0, 0),
+                                                                    title: nombre,
+                                                                  ),
+                                                                ),
+                                                              ),
+                                                            );
+                                                          },
+                                                        );
+                                                      }).toList(),
+                                                    ],
+                                                  ),
+                                                ),
+                                                const Divider(),
+                                                SizedBox(height: 8),
+                                                ListTile(
+                                                  leading: Container(
+                                                    decoration: BoxDecoration(
+                                                      color: Colors.grey.shade100,
+                                                      shape: BoxShape.circle,
+                                                    ),
+                                                    padding: const EdgeInsets.all(6),
+                                                    child: const Icon(Icons.add, color: Colors.black54, size: 22),
+                                                  ),
+                                                  title: const Text('Agregar nuevo favorito', style: TextStyle(fontWeight: FontWeight.w400, fontSize: 17)),
+                                                  onTap: () async {
+                                                    Navigator.of(ctx).pop();
+                                                    final LatLng ubicacionInicial = widget.currentLocation ?? LatLng(0, 0);
+                                                    final resultado = await Navigator.of(context).push(
+                                                      MaterialPageRoute(
+                                                        builder: (_) => SeleccionaUbicacionEnMapaView(
+                                                          ubicacionInicial: ubicacionInicial,
+                                                          titulo: 'Selecciona ubicación Favorito',
+                                                        ),
+                                                      ),
+                                                    );
+                                                    if (resultado is LatLng) {
+                                                      String nombreFavorito = '';
+                                                      await showDialog(
+                                                        context: context,
+                                                        builder: (dctx) {
+                                                          return AlertDialog(
+                                                            title: const Text('Nombre del favorito'),
+                                                            content: TextField(
+                                                              onChanged: (value) => nombreFavorito = value,
+                                                            ),
+                                                            actions: [
+                                                              TextButton(
+                                                                onPressed: () => Navigator.of(dctx).pop(),
+                                                                child: const Text('Cancelar'),
+                                                              ),
+                                                              TextButton(
+                                                                onPressed: () => Navigator.of(dctx).pop(),
+                                                                child: const Text('Guardar'),
+                                                              ),
+                                                            ],
+                                                          );
+                                                        },
+                                                      );
+                                                      if (nombreFavorito.trim().isEmpty) nombreFavorito = 'Favorito';
+                                                      await _guardarUbicacionPersonalizada('Favorito', resultado, nombreFavorito);
+                                                    }
+                                                  },
+                                                ),
+                                                SizedBox(height: 8),
+                                              ],
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                            );
+                          },
                           child: Row(
                             children: [
                               Icon(Icons.star, color: Colors.amber, size: 28),
