@@ -130,7 +130,6 @@ class _InicioClienteViewState extends State<InicioClienteView> {
                   isTablet ? 32.0 : 18.0 * scale,
                 ),
                 child: SingleChildScrollView(
-                  physics: const NeverScrollableScrollPhysics(),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -183,14 +182,8 @@ class _InicioClienteViewState extends State<InicioClienteView> {
         decoration: BoxDecoration(
           color: AppColores.surface,
           borderRadius: BorderRadius.circular(30),
-          border: Border.all(color: AppColores.grey200, width: 1),
-          boxShadow: const [
-            BoxShadow(
-              color: AppColores.borderSubtle,
-              blurRadius: 12,
-              offset: Offset(0, 6),
-            ),
-          ],
+          border: Border.all(color: AppColores.buttonPrimary, width: 2),
+          boxShadow: [],
         ),
         padding: EdgeInsets.symmetric(
           vertical: 14 * scale,
@@ -202,9 +195,9 @@ class _InicioClienteViewState extends State<InicioClienteView> {
             SizedBox(width: 12 * scale),
             Expanded(
               child: Text(
-                '¿A dónde vamos?',
+                'Busca taxi',
                 style: TextStyle(
-                  color: AppColores.primary, // Cambiado el color aquí
+                  color: AppColores.primary,
                   fontSize: 15 * scale,
                 ),
               ),

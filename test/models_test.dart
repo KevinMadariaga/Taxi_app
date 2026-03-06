@@ -9,6 +9,7 @@ void main() {
     test('RegistroClienteModel puede instanciarse', () {
       final model = RegistroClienteModel(
         nombre: 'Test',
+        apellido: 'app',
         telefono: '123456789',
         correo: 'test@email.com',
         password: '123456',

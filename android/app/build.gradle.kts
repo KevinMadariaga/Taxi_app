@@ -9,6 +9,17 @@ plugins {
 }
 
 android {
+        packaging {
+            resources {
+                excludes += setOf(
+                    "META-INF/DEPENDENCIES",
+                    "META-INF/LICENSE",
+                    "META-INF/LICENSE.txt",
+                    "META-INF/NOTICE",
+                    "META-INF/NOTICE.txt"
+                )
+            }
+        }
     namespace = "com.taxiya.taxiapp"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
@@ -58,4 +69,5 @@ flutter {
 dependencies {
     // Required for core library desugaring
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+    implementation("org.apache.httpcomponents:httpclient:4.5.13")
 }

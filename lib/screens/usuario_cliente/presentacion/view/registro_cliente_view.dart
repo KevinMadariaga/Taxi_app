@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:taxi_app/core/app_colores.dart';
@@ -8,6 +9,7 @@ import '../../../../data/models/viewmodels/registro_cliente_viewmodel.dart';
 import '../../../../data/models/registro_cliente_model.dart';
 import 'package:taxi_app/components/boton.dart';
 import 'package:taxi_app/widgets/floating_loader.dart';
+import 'package:animated_snack_bar/animated_snack_bar.dart';
 import 'package:image_picker/image_picker.dart';
 
 
@@ -20,6 +22,7 @@ class RegistroClienteView extends StatefulWidget {
 
 class _RegistroClienteViewState extends State<RegistroClienteView> {
   final _nombreController = TextEditingController();
+  final _apellidoController = TextEditingController();
   final _telefonoController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -33,6 +36,7 @@ class _RegistroClienteViewState extends State<RegistroClienteView> {
   @override
   void dispose() {
     _nombreController.dispose();
+    _apellidoController.dispose();
     _telefonoController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
@@ -41,20 +45,64 @@ class _RegistroClienteViewState extends State<RegistroClienteView> {
   }
 
   Future<void> _onRegister(BuildContext context) async {
+    if (_nombreController.text.trim().isEmpty ||
+        _apellidoController.text.trim().isEmpty ||
+        _telefonoController.text.trim().isEmpty ||
+        _emailController.text.trim().isEmpty ||
+        _passwordController.text.isEmpty ||
+        _confirmPasswordController.text.isEmpty) {
+      AnimatedSnackBar.material(
+        'Todos los campos son obligatorios',
+        type: AnimatedSnackBarType.error,
+        duration: const Duration(seconds: 2),
+      ).show(context);
+      return;
+    }
+
     if (!_formKey.currentState!.validate()) return;
 
-    final vm = Provider.of<RegistroClienteViewModel>(context, listen: false);
+    // Validar que teléfono solo tenga números
+    if (!RegExp(r'^\d{10,}$').hasMatch(_telefonoController.text.trim())) {
+      AnimatedSnackBar.material(
+        'El número de teléfono solo debe contener números y tener al menos 10 dígitos',
+        type: AnimatedSnackBarType.error,
+        duration: const Duration(seconds: 2),
+      ).show(context);
+      return;
+    }
+
+    // Validar que el correo no esté registrado
+    final firestore = Provider.of<RegistroClienteViewModel>(context, listen: false);
+    final email = _emailController.text.trim();
+    final emailExists = await FirebaseFirestore.instance
+        .collection('cliente')
+        .where('correo', isEqualTo: email)
+        .get();
+    if (emailExists.docs.isNotEmpty) {
+      AnimatedSnackBar.material(
+        'El correo ya está registrado',
+        type: AnimatedSnackBarType.error,
+        duration: const Duration(seconds: 2),
+      ).show(context);
+      return;
+    }
+
     final model = RegistroClienteModel(
       nombre: _nombreController.text.trim(),
+      apellido: _apellidoController.text.trim(),
       telefono: _telefonoController.text.trim(),
       correo: _emailController.text.trim(),
       password: _passwordController.text,
     );
     try {
-      final error = await vm.register(model, _profileImage);
+      final error = await firestore.register(model, _profileImage);
       if (!mounted) return;
       if (error != null) {
-        _showDialog(context, 'Error', error);
+        AnimatedSnackBar.material(
+          error,
+          type: AnimatedSnackBarType.error,
+          duration: const Duration(seconds: 2),
+        ).show(context);
         return;
       }
 
@@ -73,7 +121,11 @@ class _RegistroClienteViewState extends State<RegistroClienteView> {
       );
     } catch (e) {
       if (!mounted) return;
-      _showDialog(context, 'Error inesperado', e.toString());
+      AnimatedSnackBar.material(
+        'Error inesperado: ${e.toString()}',
+        type: AnimatedSnackBarType.error,
+        duration: const Duration(seconds: 2),
+      ).show(context);
     }
   }
 
@@ -98,6 +150,23 @@ class _RegistroClienteViewState extends State<RegistroClienteView> {
     final width = MediaQuery.of(context).size.width;
     final height = MediaQuery.of(context).size.height;
     final fontSize = width * 0.045;
+    final inputDecoration = InputDecoration(
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: BorderSide(color: Colors.grey.shade300, width: 1.2),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: BorderSide(color: Colors.grey.shade300, width: 1.2),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: BorderSide(color: AppColores.buttonPrimary, width: 2),
+      ),
+      contentPadding: EdgeInsets.symmetric(vertical: width * 0.018, horizontal: width * 0.03),
+      fillColor: Colors.white,
+      filled: true,
+    );
 
     return ChangeNotifierProvider(
       create: (_) => RegistroClienteViewModel(),
@@ -121,11 +190,19 @@ class _RegistroClienteViewState extends State<RegistroClienteView> {
                           SizedBox(
                             width: width * 0.24,
                             height: width * 0.24,
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
+                            child: ClipOval(
                               child: _profileImage != null
                                   ? Image.file(_profileImage!, fit: BoxFit.cover)
-                                  : Image.asset('assets/img/taxi.png', fit: BoxFit.cover),
+                                  : Container(
+                                      color: Colors.grey.shade200,
+                                      child: Center(
+                                        child: Icon(
+                                          Icons.person,
+                                          size: width * 0.13,
+                                          color: Colors.grey.shade500,
+                                        ),
+                                      ),
+                                    ),
                             ),
                           ),
                           Positioned(
@@ -161,15 +238,25 @@ class _RegistroClienteViewState extends State<RegistroClienteView> {
 
                     TextFormField(
                       controller: _nombreController,
-                      style: TextStyle(fontSize: fontSize),
-                      decoration: InputDecoration(
-                        labelText: 'Nombre Completo',
-                        labelStyle: TextStyle(fontSize: fontSize),
+                      style: TextStyle(fontSize: fontSize, color: AppColores.textPrimary),
+                      decoration: inputDecoration.copyWith(
+                        labelText: 'Nombre',
                         prefixIcon: const Icon(Icons.person),
-                        border: const OutlineInputBorder(),
                       ),
                       validator: (value) => value == null || value.isEmpty
-                          ? 'Ingrese su nombre completo'
+                          ? 'Ingrese su nombre'
+                          : null,
+                    ),
+                    SizedBox(height: height * 0.02),
+                    TextFormField(
+                      controller: _apellidoController,
+                      style: TextStyle(fontSize: fontSize, color: AppColores.textPrimary),
+                      decoration: inputDecoration.copyWith(
+                        labelText: 'Apellido',
+                        prefixIcon: const Icon(Icons.person_outline),
+                      ),
+                      validator: (value) => value == null || value.isEmpty
+                          ? 'Ingrese su apellido'
                           : null,
                     ),
                     SizedBox(height: height * 0.02),
@@ -177,12 +264,10 @@ class _RegistroClienteViewState extends State<RegistroClienteView> {
                     TextFormField(
                       controller: _telefonoController,
                       keyboardType: TextInputType.phone,
-                      style: TextStyle(fontSize: fontSize),
-                      decoration: InputDecoration(
+                      style: TextStyle(fontSize: fontSize, color: AppColores.textPrimary),
+                      decoration: inputDecoration.copyWith(
                         labelText: 'Número de Teléfono',
-                        labelStyle: TextStyle(fontSize: fontSize),
                         prefixIcon: const Icon(Icons.phone),
-                        border: const OutlineInputBorder(),
                       ),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
@@ -199,12 +284,10 @@ class _RegistroClienteViewState extends State<RegistroClienteView> {
                     TextFormField(
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
-                      style: TextStyle(fontSize: fontSize),
-                      decoration: InputDecoration(
+                      style: TextStyle(fontSize: fontSize, color: AppColores.textPrimary),
+                      decoration: inputDecoration.copyWith(
                         labelText: 'Correo Electrónico',
-                        labelStyle: TextStyle(fontSize: fontSize),
                         prefixIcon: const Icon(Icons.email),
-                        border: const OutlineInputBorder(),
                       ),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
@@ -221,10 +304,10 @@ class _RegistroClienteViewState extends State<RegistroClienteView> {
                     TextFormField(
                       controller: _passwordController,
                       obscureText: !_isPasswordVisible,
-                      decoration: InputDecoration(
+                      style: TextStyle(fontSize: fontSize, color: AppColores.textPrimary),
+                      decoration: inputDecoration.copyWith(
                         labelText: 'Contraseña',
                         prefixIcon: const Icon(Icons.lock),
-                        border: const OutlineInputBorder(),
                         suffixIcon: IconButton(
                           icon: Icon(
                             _isPasswordVisible
@@ -251,10 +334,10 @@ class _RegistroClienteViewState extends State<RegistroClienteView> {
                     TextFormField(
                       controller: _confirmPasswordController,
                       obscureText: !_isConfirmPasswordVisible,
-                      decoration: InputDecoration(
+                      style: TextStyle(fontSize: fontSize, color: AppColores.textPrimary),
+                      decoration: inputDecoration.copyWith(
                         labelText: 'Confirmar Contraseña',
                         prefixIcon: const Icon(Icons.lock_outline),
-                        border: const OutlineInputBorder(),
                         suffixIcon: IconButton(
                           icon: Icon(
                             _isConfirmPasswordVisible
@@ -288,6 +371,83 @@ class _RegistroClienteViewState extends State<RegistroClienteView> {
                             height: 50,
                             fontSize: fontSize,
                           ),
+
+                    // Divider y registro con Gmail
+                    SizedBox(height: height * 0.03),
+                    Row(
+                      children: [
+                        Expanded(child: Divider(color: Colors.grey, thickness: 1)),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                          child: Text(
+                            'O regístrate con',
+                            style: TextStyle(color: Colors.grey, fontSize: fontSize),
+                          ),
+                        ),
+                        Expanded(child: Divider(color: Colors.grey, thickness: 1)),
+                      ],
+                    ),
+                    SizedBox(height: height * 0.02),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        InkWell(
+                          onTap: () {
+                            // Aquí deberías llamar al método de registro con Google
+                            // Por ejemplo: vm.registerWithGoogle(context);
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.grey.shade300),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.grey.withOpacity(0.08),
+                                  blurRadius: 4,
+                                  offset: Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Image.asset('assets/img/icon_google.png', width: 28, height: 28),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 18),
+                        InkWell(
+                          onTap: () {
+                            // Aquí deberías llamar al método de registro con Apple
+                            // Por ejemplo: vm.registerWithApple(context);
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.grey.shade300),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.grey.withOpacity(0.08),
+                                  blurRadius: 4,
+                                  offset: Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.apple, size: 28, color: Colors.black),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),

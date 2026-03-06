@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:crypto/crypto.dart';
+import 'dart:convert';
 
 class CambiarContrasenaScreen extends StatefulWidget {
   const CambiarContrasenaScreen({Key? key}) : super(key: key);
@@ -10,6 +13,12 @@ class CambiarContrasenaScreen extends StatefulWidget {
 }
 
 class _CambiarContrasenaScreenState extends State<CambiarContrasenaScreen> {
+    // Método para encriptar la contraseña igual que en el registro
+    String _encryptPassword(String password) {
+      final bytes = utf8.encode(password);
+      final digest = sha256.convert(bytes);
+      return digest.toString();
+    }
   final TextEditingController actualController = TextEditingController();
   final TextEditingController nuevaController = TextEditingController();
   bool _verActual = false;
@@ -121,14 +130,39 @@ class _CambiarContrasenaScreenState extends State<CambiarContrasenaScreen> {
                   final actual = actualController.text.trim();
                   final nueva = nuevaController.text.trim();
                   try {
-                    // Reautenticación con la contraseña actual
+                    // 1. Consultar la contraseña encriptada en Firestore
+                    final clienteDoc = await FirebaseFirestore.instance
+                        .collection('cliente')
+                        .doc(user.uid)
+                        .get();
+                    final firestorePassword = clienteDoc.data()?['contraseña'] as String?;
+                    if (firestorePassword == null) {
+                      throw Exception('No se encontró la contraseña en la base de datos.');
+                    }
+                    // 2. Encriptar la contraseña actual ingresada y comparar
+                    final actualEncriptada = _encryptPassword(actual);
+                    if (actualEncriptada != firestorePassword) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('La contraseña actual es incorrecta.')),
+                        );
+                      }
+                      return;
+                    }
+                    // 3. Reautenticación con la contraseña actual
                     final cred = EmailAuthProvider.credential(
                       email: user.email ?? '',
                       password: actual,
                     );
                     await user.reauthenticateWithCredential(cred);
-                    // Actualizar la contraseña
+                    // 4. Actualizar la contraseña en Auth
                     await user.updatePassword(nueva);
+                    // 5. Guardar la nueva contraseña encriptada en Firestore
+                    final nuevaEncriptada = _encryptPassword(nueva);
+                    await FirebaseFirestore.instance
+                        .collection('cliente')
+                        .doc(user.uid)
+                        .update({'contraseña': nuevaEncriptada});
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Contraseña actualizada correctamente')),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/view/registro_cliente_view.dart';
 import 'package:taxi_app/services/auth_service.dart';
 import '../services/google_sign_in_service.dart';
 import 'register_screen.dart';
@@ -315,10 +316,7 @@ class _HomeViewState extends State<HomeView> {
                       onTap: _loginWithGoogle,
                     ),
                     const SizedBox(width: 24),
-                    _SocialIconButton(
-                      asset: 'assets/img/icon_facebook.png',
-                      onTap: () {}, // Aquí puedes implementar el login de Facebook
-                    ),
+
                   ],
                 ),
                 const SizedBox(height: 24),
@@ -330,7 +328,7 @@ class _HomeViewState extends State<HomeView> {
                       onTap: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (_) => const RegisterScreen()),
+                          MaterialPageRoute(builder: (_) => const RegistroClienteView()),
                         );
                       },
                       child: Text(
