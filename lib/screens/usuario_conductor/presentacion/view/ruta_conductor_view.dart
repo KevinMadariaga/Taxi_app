@@ -19,7 +19,6 @@ import 'package:taxi_app/widgets/google_maps_widget.dart';
 import 'package:taxi_app/widgets/map_loading_widget.dart';
 import 'package:taxi_app/helper/responsive_helper.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:taxi_app/screens/usuario_conductor/presentacion/view/inicio_conductor_view.dart';
 
 class RutaConductorView extends StatefulWidget {
   final String solicitudId;
@@ -182,51 +181,6 @@ class _RutaConductorViewState extends State<RutaConductorView> {
     }, onError: (_) {});
 
   // Recorta la polilínea cada 10 metros desde la posición actual del conductor
-  void _shortenRouteToDriverCustom(int closestIdx) {
-    if (_routePoints.isEmpty || _driverLocation == null) return;
-    final dest = _clientLocation ?? widget.clientLocation;
-    if (dest != null) {
-      final distToDest = _haversineDistanceMeters(_driverLocation!, dest);
-      if (distToDest < 35) {
-        setState(() {
-          _routePoints = [];
-          _polylines = _polylines
-              .where((p) => p.polylineId.value != 'route')
-              .toSet();
-        });
-        return;
-      }
-    }
-
-    // Recortar cada 10 metros
-    int startIdx = closestIdx;
-    double accumulated = 0.0;
-    for (int i = closestIdx; i < _routePoints.length - 1; i++) {
-      accumulated += _haversineDistanceMeters(_routePoints[i], _routePoints[i + 1]);
-      if (accumulated >= 10) {
-        startIdx = i;
-        break;
-      }
-    }
-    final remaining = _routePoints.sublist(startIdx);
-
-    setState(() {
-      final newPolys = Set<Polyline>.from(_polylines);
-      newPolys.removeWhere((p) => p.polylineId.value == 'route');
-      if (remaining.length >= 2) {
-        newPolys.add(
-          Polyline(
-            polylineId: const PolylineId('route'),
-            color: AppColores.primary,
-            width: 5,
-            points: remaining,
-          ),
-        );
-      }
-      _polylines = newPolys;
-      _routePoints = remaining;
-    });
-  }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _viewModel.init(context);
     });
@@ -431,10 +385,6 @@ class _RutaConductorViewState extends State<RutaConductorView> {
     // Limpia cache de la solicitud cancelada (el estado "cancelado" ya viene desde Firestore)
     RouteCacheService.clearSolicitud(widget.solicitudId);
 
-    // Mostrar pantalla intermedia de 3 segundos y luego volver al inicio
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const LoaderSolicitudCanceladaConductorView()),
-    );
   }
 
   void _listenChatMessages() {
@@ -496,24 +446,15 @@ class _RutaConductorViewState extends State<RutaConductorView> {
     return (brng * 180 / math.pi + 360) % 360;
   }
 
-  double _zoomForDistanceMeters(double meters) {
-    if (meters < 200) return 18;
-    if (meters < 500) return 17;
-    if (meters < 1000) return 16;
-    if (meters < 2000) return 15;
-    if (meters < 5000) return 14;
-    if (meters < 10000) return 13;
-    return 12;
-  }
 
   Future<void> _sendChatMessage() async {
     final texto = _chatController.text.trim();
     if (texto.isEmpty) return;
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
     try {
       await _chatService.sendMessage(
         solicitudId: widget.solicitudId,
-        senderId: uid ?? '',
+        senderId: uid,
         texto: texto,
       );
       _chatController.clear();
@@ -916,78 +857,6 @@ class _RutaConductorViewState extends State<RutaConductorView> {
     }
   }
 
-  void _shortenRouteToDriver() {
-    try {
-      if (_routePoints.isEmpty || _driverLocation == null) return;
-
-      // Si muy cerca del destino, limpiar la polilínea
-      final dest = _clientLocation ?? widget.clientLocation;
-      if (dest != null) {
-        final distToDest = _haversineDistanceMeters(_driverLocation!, dest);
-        if (distToDest < 35) {
-          setState(() {
-            _routePoints = [];
-            _polylines = _polylines
-                .where((p) => p.polylineId.value != 'route')
-                .toSet();
-          });
-          return;
-        }
-      }
-
-      // Buscar el punto más cercano en la ruta
-      int closestIdx = 0;
-      double minDist = double.infinity;
-      for (int i = 0; i < _routePoints.length; i++) {
-        final d = _haversineDistanceMeters(_driverLocation!, _routePoints[i]);
-        if (d < minDist) {
-          minDist = d;
-          closestIdx = i;
-        }
-      }
-
-      if (closestIdx <= _lastRouteCutIndex) return; // no avanzar corte
-      _lastRouteCutIndex = closestIdx;
-
-      final startIdx = (closestIdx - 1).clamp(0, _routePoints.length - 1);
-      final remaining = _routePoints.sublist(startIdx);
-
-      setState(() {
-        final newPolys = Set<Polyline>.from(_polylines);
-        newPolys.removeWhere((p) => p.polylineId.value == 'route');
-        if (remaining.length >= 2) {
-          newPolys.add(
-            Polyline(
-              polylineId: const PolylineId('route'),
-              color: AppColores.primary,
-              width: 5,
-              points: remaining,
-            ),
-          );
-        }
-        _polylines = newPolys;
-        _routePoints = remaining;
-      });
-
-      // Reorientar cámara hacia el siguiente punto con zoom dinámico
-      if (_mapController != null && _routePoints.length >= 2) {
-        final nextPoint = _routePoints[1];
-        final bearing = _calculateBearing(_driverLocation!, nextPoint);
-        final dist = _haversineDistanceMeters(_driverLocation!, nextPoint);
-        final zoom = _zoomForDistanceMeters(dist);
-        _mapController!.animateCamera(
-          CameraUpdate.newCameraPosition(
-            CameraPosition(
-              target: _driverLocation!,
-              zoom: zoom,
-              bearing: bearing,
-              tilt: 0,
-            ),
-          ),
-        );
-      }
-    } catch (_) {}
-  }
 
   Future<void> _abrirGoogleMapsExternamente() async {
     try {
@@ -1063,9 +932,6 @@ class _RutaConductorViewState extends State<RutaConductorView> {
       ),
     };
 
-    // No añadimos un marcador personalizado para el conductor aquí.
-    // Dejamos que el propio Google Maps muestre el 'my-location' (punto azul)
-    // usando `myLocationEnabled: true` en el widget del mapa.
 
     // Calcular distancia actual del conductor al cliente (en metros)
     final double _distanceToClient = _driverLocation == null
@@ -1367,8 +1233,6 @@ class _RutaConductorViewState extends State<RutaConductorView> {
                 ],
               ),
             ),
-
-            
           ],
         ),
       ),
@@ -1377,150 +1241,3 @@ class _RutaConductorViewState extends State<RutaConductorView> {
   }
 }
 
-/// Pantalla intermedia que muestra un loader mientras
-/// se prepara la ruta del conductor hacia el cliente.
-class RutaConductorLoadingView extends StatefulWidget {
-  final String solicitudId;
-  final LatLng clientLocation;
-  final String? clientName;
-  final String? clientAddress;
-  final LatLng? driverLocation;
-
-  const RutaConductorLoadingView({
-    Key? key,
-    required this.solicitudId,
-    required this.clientLocation,
-    this.clientName,
-    this.clientAddress,
-    this.driverLocation,
-  }) : super(key: key);
-
-  @override
-  State<RutaConductorLoadingView> createState() => _RutaConductorLoadingViewState();
-}
-
-class _RutaConductorLoadingViewState extends State<RutaConductorLoadingView> {
-  @override
-  void initState() {
-    super.initState();
-    _goToRouteAfterDelay();
-  }
-
-  void _goToRouteAfterDelay() {
-    Future.delayed(const Duration(seconds: 7), () {
-      if (!mounted) return;
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => RutaConductorView(
-            solicitudId: widget.solicitudId,
-            clientLocation: widget.clientLocation,
-            clientName: widget.clientName,
-            clientAddress: widget.clientAddress,
-            driverLocation: widget.driverLocation,
-          ),
-        ),
-      );
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      backgroundColor: AppColores.background,
-      body: SafeArea(
-        child: Center(
-          child: MapLoadingWidget(
-            message: 'Cargando mapa de la ruta...',
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Pantalla intermedia para el conductor que muestra un loader
-/// de "Volviendo atrás..." y luego regresa a la pantalla anterior.
-class LoaderVolviendoAtrasConductorView extends StatefulWidget {
-  const LoaderVolviendoAtrasConductorView({Key? key}) : super(key: key);
-
-  @override
-  State<LoaderVolviendoAtrasConductorView> createState() => _LoaderVolviendoAtrasConductorViewState();
-}
-
-class LoaderSolicitudCanceladaConductorView extends StatefulWidget {
-  const LoaderSolicitudCanceladaConductorView({Key? key}) : super(key: key);
-
-  @override
-  State<LoaderSolicitudCanceladaConductorView> createState() => _LoaderSolicitudCanceladaConductorViewState();
-}
-
-class _LoaderSolicitudCanceladaConductorViewState extends State<LoaderSolicitudCanceladaConductorView> {
-  @override
-  void initState() {
-    super.initState();
-    _goBackAfterDelay();
-  }
-
-  void _goBackAfterDelay() {
-    Future.delayed(const Duration(seconds: 3), () {
-      if (!mounted) return;
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const HomeConductorMapView()),
-        (route) => false,
-      );
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      backgroundColor: AppColores.background,
-      body: SafeArea(
-        child: Center(
-          child: MapLoadingWidget(
-            message: 'Solicitud cancelada',
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _LoaderVolviendoAtrasConductorViewState extends State<LoaderVolviendoAtrasConductorView> {
-  @override
-  void initState() {
-    super.initState();
-    _goBackAfterDelay();
-  }
-
-  void _goBackAfterDelay() {
-    Future.delayed(const Duration(seconds: 5), () {
-      if (!mounted) return;
-      try {
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const HomeConductorMapView()),
-          (route) => false,
-        );
-      } catch (_) {
-        // En caso de error con el Navigator, intentar un pop seguro como fallback
-        try {
-          if (Navigator.of(context).canPop()) Navigator.of(context).pop();
-        } catch (_) {}
-      }
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      backgroundColor: AppColores.background,
-      body: SafeArea(
-        child: Center(
-          child: MapLoadingWidget(
-            message: 'Volviendo atrás... Solicitud a sido cancelada'
-          ),
-        ),
-      ),
-    );
-  }
-}

@@ -183,7 +183,7 @@ class FirebaseService {
   }) async {
     try {
       await _firestore.collection('solicitudes').doc(solicitudId).update({
-        'status': nuevoEstado,
+        'estado': nuevoEstado,
         'updatedAt': FieldValue.serverTimestamp(),
       });
     } catch (e) {
@@ -216,7 +216,7 @@ class FirebaseService {
   Future<void> iniciarViaje(String solicitudId) async {
     try {
       await _firestore.collection('solicitudes').doc(solicitudId).update({
-        'status': 'en_progreso',
+        'estado': 'en_progreso',
         'startedAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
@@ -231,7 +231,7 @@ class FirebaseService {
   Future<void> finalizarViaje(String solicitudId) async {
     try {
       await _firestore.collection('solicitudes').doc(solicitudId).update({
-        'status': 'completado',
+        'estado': 'completado',
         'completedAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
@@ -251,7 +251,7 @@ class FirebaseService {
   }) async {
     try {
       final updateData = {
-        'status': 'cancelado',
+        'estado': 'cancelado',
         'cancelledAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       };
@@ -281,7 +281,7 @@ class FirebaseService {
   }) async {
     try {
       final updateData = {
-        'status': 'asignado',
+        'estado': 'asignado',
         'conductorId': conductorId,
         'assignedAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),

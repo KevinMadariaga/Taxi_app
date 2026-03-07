@@ -188,7 +188,7 @@ class HomeConductorViewModel extends ChangeNotifier {
     // reducir el volumen de datos descargados.
     _sub = _firestore
         .collection('solicitudes')
-        .where('status', whereIn: ['buscando', 'pending', 'pendiente'])
+        .where('estado', whereIn: ['buscando', 'pending', 'pendiente'])
         .snapshots()
         .listen((snap) {
       _handleSolicitudesQuerySnapshot(snap);

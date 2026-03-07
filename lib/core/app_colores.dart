@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 /// Colores de la aplicación (paleta principal para la app de taxi)
 class AppColores {
   // Marca / primarios
-  static const Color primary = Colores.amarillo; // color principal (CTA)
+  static const Color primary = Color(0xFFFACC00); // color principal (CTA)
   static const Color secondary = Colores.azul; // color secundario/acento
 
   // Superficies y fondos

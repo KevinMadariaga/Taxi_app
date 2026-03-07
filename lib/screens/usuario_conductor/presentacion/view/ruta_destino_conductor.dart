@@ -1120,6 +1120,12 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView>
   Future<void> _terminarViaje() async {
     if (_terminandoDialogoMostrado) return; // Solo permitir una acción
     try {
+      // Cambia el estado a 'completado'
+      await FirebaseFirestore.instance
+          .collection('solicitudes')
+          .doc(widget.solicitudId)
+          .update({'estado': 'completado'});
+
       await _firebaseService.finalizarViaje(widget.solicitudId);
       if (!mounted) return;
       // Obtener la solicitud para calcular duración y crear historial
@@ -1233,11 +1239,12 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView>
       },
     );
 
+    final solicitudId = widget.solicitudId;
     Future.delayed(const Duration(seconds: 3), () {
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(
-          builder: (_) => ResumenConductorView(solicitudId: widget.solicitudId),
+          builder: (_) => ResumenConductorView(solicitudId: solicitudId),
         ),
         (route) => false,
       );

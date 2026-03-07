@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/screens/usuario_conductor/presentacion/view/RutaConductorView.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/historial_viaje_conductor.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/preview_solicitud.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/inicio_conductor_viewmodel.dart';
@@ -629,7 +630,7 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
                                                               try {
                                                                 if (!snap.exists) {
                                                                   // treated as cancelled/removed
-                                                                      await _closePreview(vm);
+                                                                  await _closePreview(vm);
                                                                   return;
                                                                 }
 
@@ -638,13 +639,13 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
                                                                 if (st is String) {
                                                                   final sLower = st.toLowerCase();
                                                                   // Cancelado: cerrar preview
-                                                                  if (sLower.contains('cancel') || sLower.contains('anulad')) {
+                                                                  if (sLower.contains('cancelado') || sLower.contains('anulad')) {
                                                                     await _closePreview(vm);
                                                                     return;
                                                                   }
 
-                                                                  // Asignado: cerrar preview y navegar a la ruta (con loader). Evitar navegaciones duplicadas.
-                                                                  if (sLower.contains('asign')) {
+                                                                  // Asignado: cerrar preview y navegar a la ruta. Evitar navegaciones duplicadas.
+                                                                  if (sLower.contains('asignado')) {
                                                                     if (_navigatingToRuta) return;
                                                                     _navigatingToRuta = true;
                                                                     await _closePreview(vm);
@@ -652,21 +653,14 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
                                                                     if (!mounted) return;
                                                                     final navCtx = this.context;
                                                                     try {
-                                                                      // Show a loading screen for 5 seconds so the route view can prepare
                                                                       await Navigator.of(navCtx).push(
-                                                                        MaterialPageRoute(
-                                                                          builder: (_) => RutaConductorLoadingView(
-                                                                            solicitudId: s.id,
-                                                                            clientLocation: LatLng(
-                                                                              s.ubicacionInicial.latitude,
-                                                                              s.ubicacionInicial.longitude,
+                                                                          MaterialPageRoute(
+                                                                            builder: (_) => RutaConductor(
+                                                                              idSolicitud: s.id,
+                                                                            
                                                                             ),
-                                                                            clientName: s.nombreCliente,
-                                                                            clientAddress: s.direccion,
-                                                                            driverLocation: vm.currentLocation,
                                                                           ),
-                                                                        ),
-                                                                      );
+                                                                        );
                                                                     } catch (_) {}
 
                                                                     _navigatingToRuta = false;
@@ -764,7 +758,7 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
                                     .collection('solicitudes')
                                     .doc(s.id)
                                     .update({
-                                  'status': 'asignado',
+                                  'estado': 'asignado',
                                   'conductor': {
                                     'id': uid,
                                     'nombre': vm.displayName,

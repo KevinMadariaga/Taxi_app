@@ -36,7 +36,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView> {
       if (!snap.exists) return;
       final data = snap.data();
       if (data == null) return;
-      final status = data['status'] ?? data['estado'];
+      final status = data['estado'];
       if (status != null && status.toString() == 'asignado' && !_assignedHandled) {
         _assignedHandled = true;
         // Try to fetch conductor info (la notificación se mostrará luego, justo antes de abrir la ruta)
@@ -96,7 +96,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView> {
         // Si la eliminación falla, dejar el registro marcado como cancelado
         try {
           await docRef.update({
-            'status': 'cancelado',
+            'estado': 'cancelado',
             'cancelledAt': FieldValue.serverTimestamp(),
           });
         } catch (_) {}

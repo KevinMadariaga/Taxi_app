@@ -359,7 +359,7 @@ class MapapreviewViewModel extends ChangeNotifier {
         },
         'metodo_pago': metodoPago,
         'valor': valorServicio,
-        'status': 'buscando',
+        'estado': 'buscando',
         'creacion de solicitud': FieldValue.serverTimestamp(),
       };
 

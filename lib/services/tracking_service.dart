@@ -23,6 +23,8 @@ class TrackingService {
   Position? _lastPosition;
   bool _isTracking = false;
 
+  DateTime? _lastSentTime;
+
   TrackingService({FirebaseService? firebaseService})
       : _firebaseService = firebaseService ?? FirebaseService();
 
@@ -51,6 +53,14 @@ class TrackingService {
     if (_isTracking) {
       developer.log('⚠️ TrackingService: El tracking ya está activo.', name: _loggerName, level: 900);
       return false;
+    }
+    
+    // ✔ VERIFICAR SI EL GPS ESTA ACTIVADO
+  bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+
+    if (!serviceEnabled) {
+      await Geolocator.openLocationSettings();
+      throw Exception("Activa el GPS para continuar");
     }
 
     // Verificar permisos de ubicación
@@ -81,10 +91,40 @@ class TrackingService {
       _positionSubscription = Geolocator.getPositionStream(
         locationSettings: locationSettings,
       ).listen(
-        (Position position) {
-          _lastPosition = position;
-          onLocationUpdate?.call(position);
-        },
+          (Position position) {
+
+            // FILTRO DE PRECISIÓN GPS
+            if (position.accuracy > 30) {
+              developer.log(
+                "⚠️ Ubicación descartada por baja precisión (${position.accuracy}m)",
+                name: _loggerName,
+              );
+              return;
+            }
+
+            // NUEVO: FILTRO DE SALTO GPS
+            if (_lastPosition != null) {
+
+              final distancia = Geolocator.distanceBetween(
+                _lastPosition!.latitude,
+                _lastPosition!.longitude,
+                position.latitude,
+                position.longitude,
+              );
+
+              if (distancia > 200) {
+                developer.log(
+                  "⚠️ Salto GPS descartado: $distancia metros",
+                  name: _loggerName,
+                );
+                return;
+              }
+            }
+
+            _lastPosition = position;
+
+            onLocationUpdate?.call(position);
+          },
         onError: (error) {
           developer.log('❌ Error en tracking GPS: $error', name: _loggerName, level: 1000);
         },
@@ -145,13 +185,49 @@ class TrackingService {
       distanceFilter: distanceFilter,
       timeInterval: timeInterval,
       onLocationUpdate: (position) async {
-        await enviarUbicacion(
-          userId: userId,
-          userType: userType,
-          position: position,
-          solicitudId: solicitudId,
-        );
-      },
+
+        // NUEVO: evitar enviar si no se movió realmente
+        if (_lastPosition != null) {
+
+          final distancia = Geolocator.distanceBetween(
+            _lastPosition!.latitude,
+            _lastPosition!.longitude,
+            position.latitude,
+            position.longitude,
+          );
+
+          if (distancia < 5) {
+            return;
+          }
+        }
+
+        // CONTROL DE FRECUENCIA
+        if (_lastSentTime != null &&
+            DateTime.now().difference(_lastSentTime!).inSeconds < 5) {
+          return;
+        }
+
+        _lastSentTime = DateTime.now();
+
+        try {
+
+          await enviarUbicacion(
+            userId: userId,
+            userType: userType,
+            position: position,
+            solicitudId: solicitudId,
+          );
+
+        } catch (e) {
+
+          developer.log(
+            "❌ Error enviando ubicación (reintentará): $e",
+            name: _loggerName,
+          );
+
+        }
+
+      }
     );
   }
 
@@ -228,7 +304,7 @@ class TrackingService {
   Future<void> dispose() async {
     await detenerTracking();
     _lastPosition = null;
-    developer.log('🧹 TrackingService: Recursos liberados.', name: _loggerName, level: 800);
+    developer.log(' TrackingService: Recursos liberados.', name: _loggerName, level: 800);
   }
 
   // ============================================================================

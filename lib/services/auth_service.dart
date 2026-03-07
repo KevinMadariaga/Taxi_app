@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -8,9 +9,12 @@ import 'package:taxi_app/screens/home_screen.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/InicioClienteView.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/RutaClienteView.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/RutaDestinoClienteView.dart';
+import 'package:taxi_app/screens/usuario_conductor/presentacion/view/RutaConductorView.dart';
+import 'package:taxi_app/screens/usuario_conductor/presentacion/view/RutaDestinoView.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/inicio_conductor_view.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/ruta_conductor_view.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/ruta_destino_conductor.dart';
+import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/RutaDestinoViewModel.dart';
 import 'package:taxi_app/services/route_cache_service.dart';
 
 /// Servicio que maneja la verificación de sesión y redirección
@@ -222,9 +226,9 @@ class AuthService {
             }
           } catch (_) {}
 
-          return RutaDestinoConductorView(
-            solicitudId: solicitudId,
-            destinoLocation: destino,
+          return ChangeNotifierProvider(
+            create: (_) => RutaDestinoViewModel(),
+            child: RutaDestino(idSolicitud: solicitudId),
           );
         }
         // Try to restore cached route data to preserve UI state after reload (non in-progress)
@@ -235,17 +239,14 @@ class AuthService {
             if (cache.clientLat != null && cache.clientLng != null) {
               clientLoc = LatLng(cache.clientLat!, cache.clientLng!);
             }
-            return RutaConductorView(
-              solicitudId: solicitudId,
-              clientLocation: clientLoc,
-              clientName: cache.clientName,
-              clientAddress: cache.clientAddress,
+            return RutaConductor(
+              idSolicitud: solicitudId,
             );
           }
         } catch (_) {}
 
-        return RutaConductorView(
-          solicitudId: solicitudId,
+        return RutaConductor(
+          idSolicitud: solicitudId,
         );
       }
 

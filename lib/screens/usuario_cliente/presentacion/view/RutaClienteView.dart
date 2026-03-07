@@ -852,6 +852,8 @@ class _RutaClienteViewState extends State<RutaClienteView> {
     Set<Marker> markers,
   ) {
     final width = MediaQuery.of(context).size.width;
+    // Print para ver cuántos puntos carga la polyline
+    print("📍 Puntos polyline cargados: "+vm.routePoints.length.toString());
     return Padding(
       padding: EdgeInsets.zero,
       child: Stack(

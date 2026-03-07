@@ -453,7 +453,7 @@ class RutaClienteViewModel extends ChangeNotifier {
         }
 
         final estado =
-            (data['status'] ?? data['estado'] ?? '').toString().toLowerCase();
+            (data['estado'] ?? '').toString().toLowerCase();
 
         markers = newMarkers;
         initialTarget = center;
@@ -575,8 +575,8 @@ class RutaClienteViewModel extends ChangeNotifier {
         await RouteCacheService.clearSolicitud(solicitudId);
       } catch (_) {}
 
-      // 3) Dar tiempo (2s) para que el conductor escuche el estado "cancelado"
-      await Future.delayed(const Duration(seconds: 2));
+      // 3) Dar tiempo (3s) para que el conductor escuche el estado "cancelado"
+      await Future.delayed(const Duration(seconds: 3));
 
       // 4) Eliminar el documento de la solicitud en Firestore
       try {

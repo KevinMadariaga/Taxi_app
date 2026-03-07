@@ -38,14 +38,14 @@ class RutaConductorUsuarioViewModel {
 
   /// Inicializa notificaciones y comienza a escuchar cambios en la solicitud.
   Future<void> init(BuildContext context) async {
+    debugPrint('[ViewModel] Inicializando notificaciones...');
     await _notificacionesServicio.init();
 
     try {
-      // Verificar si ya había una solicitud activa guardada en sesión
+      debugPrint('[ViewModel] Obteniendo solicitud activa de sesión...');
       final activeId = await SessionHelper.getActiveSolicitud();
 
-      // Consultar estado actual de la solicitud en Firestore para detectar
-      // reanudaciones aunque la sesión no lo tenga guardado aún.
+      debugPrint('[ViewModel] Consultando estado actual de la solicitud en Firestore...');
       String? estadoLower;
       try {
         final snap = await FirebaseFirestore.instance
@@ -55,8 +55,15 @@ class RutaConductorUsuarioViewModel {
         final data = snap.data();
         if (data != null && data['estado'] != null) {
           estadoLower = data['estado'].toString().toLowerCase();
+          debugPrint('[ViewModel] Estado actual de la solicitud: $estadoLower');
         }
-      } catch (_) {}
+        // Log de datos del cliente
+        if (data != null && data['cliente'] != null) {
+          debugPrint('[ViewModel] Datos del cliente obtenidos: ${data['cliente']}');
+        }
+      } catch (e) {
+        debugPrint('[ViewModel] Error consultando estado: $e');
+      }
 
       final bool esEnCamino =
           estadoLower == 'en camino' ||
@@ -64,30 +71,34 @@ class RutaConductorUsuarioViewModel {
           estadoLower == 'en_ruta';
 
       if (activeId != null && activeId == solicitudId) {
-        // La solicitud ya estaba marcada como activa en sesión: reanudación clara
+        debugPrint('[ViewModel] Reanudación de solicitud activa.');
         await _notificacionesServicio.showTripNotification(
           title: 'Solicitud activa',
           body: 'Continúa el servicio',
         );
       } else if (activeId == null && esEnCamino) {
-        // La sesión no lo tenía guardado, pero el estado actual ya es "en camino":
-        // tratarlo como reanudación para evitar mostrar "Cliente asignado" otra vez.
+        debugPrint('[ViewModel] Estado es "en camino", marcando como activa en sesión.');
         try {
           await SessionHelper.setActiveSolicitud(solicitudId);
-        } catch (_) {}
+        } catch (e) {
+          debugPrint('[ViewModel] Error marcando solicitud activa: $e');
+        }
         await _notificacionesServicio.showTripNotification(
           title: 'Solicitud activa',
           body: 'Continúa el servicio',
         );
       } else {
-        // Primera vez que se asigna el cliente para esta solicitud
+        debugPrint('[ViewModel] Primera vez que se asigna el cliente para esta solicitud.');
         await _notificacionesServicio.showNotification(
           title: 'Cliente asignado',
           body: 'Viaja a recogerlo.',
         );
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[ViewModel] Error en init: $e');
+    }
 
+    debugPrint('[ViewModel] Iniciando tracking de ubicación...');
     await _iniciarTrackingUbicacion();
     // Do not use the provided BuildContext inside async listeners —
     // delegate UI navigation/transition to the optional callback
@@ -115,6 +126,7 @@ class RutaConductorUsuarioViewModel {
                 rawConductor['longitude'] ??
                 rawConductor['longitud']);
             if (lat != null && lng != null) {
+              debugPrint('[ViewModel] Posición del conductor actualizada: $lat, $lng');
               return LatLng((lat as num).toDouble(), (lng as num).toDouble());
             }
           }
@@ -128,6 +140,7 @@ class RutaConductorUsuarioViewModel {
   Future<void> notifyNewChatMessage(String texto) async {
     final body = texto.trim();
     if (body.isEmpty) return;
+    debugPrint('[ViewModel] Nuevo mensaje de chat recibido: $body');
     await _notificacionesServicio.showNotification(
       title: 'Cliente',
       body: body,
@@ -142,6 +155,7 @@ class RutaConductorUsuarioViewModel {
       try {
         if (estado == null) return;
         final estadoLower = estado.toLowerCase();
+        debugPrint('[ViewModel] Estado de la solicitud actualizado: $estadoLower');
 
         // Persistir la solicitud activa como en la ruta del cliente
         try {
@@ -151,6 +165,7 @@ class RutaConductorUsuarioViewModel {
               estadoLower == 'en camino' ||
               estadoLower == 'on_route' ||
               estadoLower == 'en_ruta') {
+            debugPrint('[ViewModel] Marcando solicitud como activa en sesión...');
             SessionHelper.setActiveSolicitud(solicitudId);
             // Persistir en cache mínimo para restaurar UI
             try {
@@ -199,6 +214,7 @@ class RutaConductorUsuarioViewModel {
                                       ubic['direccion'] ??
                                       ubic['title'])
                                   ?.toString();
+                          debugPrint('[ViewModel] Cliente: $clientName, Dirección: $clientAddress, Lat: $clientLat, Lng: $clientLng');
                         }
                       }
                       try {
@@ -212,10 +228,15 @@ class RutaConductorUsuarioViewModel {
                             clientLng: clientLng,
                           ),
                         );
-                      } catch (_) {}
+                        debugPrint('[ViewModel] Cache de ruta guardado para solicitud $solicitudId');
+                      } catch (e) {
+                        debugPrint('[ViewModel] Error guardando cache de ruta: $e');
+                      }
                     }
                   });
-            } catch (_) {}
+            } catch (e) {
+              debugPrint('[ViewModel] Error persistiendo cache: $e');
+            }
           }
 
           // Si el estado cambia a "en camino" (o equivalentes) y aún
@@ -225,12 +246,15 @@ class RutaConductorUsuarioViewModel {
                   estadoLower == 'en_ruta') &&
               !_enCaminoNotificado) {
             _enCaminoNotificado = true;
+            debugPrint('[ViewModel] Notificando continuación del viaje...');
             try {
               _notificacionesServicio.showTripNotification(
                 title: 'Continúa el viaje',
                 body: 'Continúa el viaje, lleva el cliente a su destino.',
               );
-            } catch (_) {}
+            } catch (e) {
+              debugPrint('[ViewModel] Error notificando continuación del viaje: $e');
+            }
           }
 
           // Limpiar cuando finaliza o se cancela
@@ -242,14 +266,21 @@ class RutaConductorUsuarioViewModel {
               estadoLower == 'terminada' ||
               estadoLower == 'completado' ||
               estadoLower == 'completada') {
+            debugPrint('[ViewModel] Limpiando solicitud activa y cache...');
             SessionHelper.clearActiveSolicitud();
             try {
               RouteCacheService.clearSolicitud(solicitudId);
-            } catch (_) {}
+              debugPrint('[ViewModel] Cache de ruta limpiado para solicitud $solicitudId');
+            } catch (e) {
+              debugPrint('[ViewModel] Error limpiando cache: $e');
+            }
           }
-        } catch (_) {}
+        } catch (e) {
+          debugPrint('[ViewModel] Error en persistencia de estado: $e');
+        }
 
         if (estadoLower == 'cancelado' || estadoLower == 'cancelada') {
+          debugPrint('[ViewModel] Solicitud cancelada, ejecutando callback y notificando...');
           // Delegate UI navigation/transition to the view via callback.
           // ViewModels should not operate on BuildContext directly because
           // async listeners may fire when the UI has been disposed.
@@ -257,7 +288,9 @@ class RutaConductorUsuarioViewModel {
             _cancelHandled = true;
             try {
               onSolicitudCancelada!();
-            } catch (_) {}
+            } catch (e) {
+              debugPrint('[ViewModel] Error ejecutando callback de cancelación: $e');
+            }
           }
 
           // Notificación en barra del sistema
@@ -266,7 +299,9 @@ class RutaConductorUsuarioViewModel {
             body: 'El cliente canceló la solicitud.',
           );
         }
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('[ViewModel] Error en listener de estado: $e');
+      }
     });
   }
 
@@ -284,11 +319,15 @@ class RutaConductorUsuarioViewModel {
   /// "Ya llegué" para actualizar el estado en Firestore.
   Future<void> marcarEnCamino() async {
     try {
+      debugPrint('[ViewModel] Marcando solicitud $solicitudId como "en camino"...');
       await FirebaseFirestore.instance
           .collection('solicitudes')
           .doc(solicitudId)
           .update({'estado': 'en camino'});
-    } catch (_) {}
+      debugPrint('[ViewModel] Estado actualizado a "en camino" para solicitud $solicitudId');
+    } catch (e) {
+      debugPrint('[ViewModel] Error marcando "en camino": $e');
+    }
   }
 
   /// Persist minimal route cache for restoration after app restart.
@@ -323,16 +362,20 @@ class RutaConductorUsuarioViewModel {
   /// Inicia tracking GPS y guarda la ubicación del conductor en Firestore mientras se mueve.
   Future<void> _iniciarTrackingUbicacion() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return;
+    if (uid == null) {
+      debugPrint('[ViewModel] UID de conductor no disponible, abortando tracking.');
+      return;
+    }
 
-    // Asegurar permisos de segundo plano para tracking continuo
+    debugPrint('[ViewModel] Solicitando permisos de ubicación en segundo plano...');
     await PermissionsHelper.requestBackgroundLocationPermission();
 
-    // Sembrar ubicación inicial para que Firestore tenga el último punto antes de empezar el stream
+    debugPrint('[ViewModel] Obteniendo ubicación inicial del conductor...');
     final posInicial = await _trackingService.obtenerUbicacionActual();
     if (posInicial != null) {
       try {
         final latLng = LatLng(posInicial.latitude, posInicial.longitude);
+        debugPrint('[ViewModel] Ubicación inicial: ${latLng.latitude}, ${latLng.longitude}');
         await _firebaseService.guardarUbicacionConductor(
           conductorId: uid,
           position: latLng,
@@ -341,22 +384,28 @@ class RutaConductorUsuarioViewModel {
           solicitudId: solicitudId,
           position: latLng,
         );
-      } catch (_) {}
+        debugPrint('[ViewModel] Ubicación inicial guardada en Firestore.');
+      } catch (e) {
+        debugPrint('[ViewModel] Error guardando ubicación inicial: $e');
+      }
     }
 
-      await _trackingService
-          .iniciarTrackingConEnvio(
-            userId: uid,
-            userType: 'conductor',
-            solicitudId: solicitudId,
-            distanceFilter: 10,
-            timeInterval: 10,
-          )
-          .then((started) {
-            _trackingActivo = started;
-          })
-          .catchError((_) {
-            _trackingActivo = false;
-          });
+    debugPrint('[ViewModel] Iniciando tracking continuo de ubicación...');
+    await _trackingService
+        .iniciarTrackingConEnvio(
+          userId: uid,
+          userType: 'conductor',
+          solicitudId: solicitudId,
+          distanceFilter: 10,
+          timeInterval: 10,
+        )
+        .then((started) {
+          _trackingActivo = started;
+          debugPrint('[ViewModel] Tracking activo: $started');
+        })
+        .catchError((e) {
+          _trackingActivo = false;
+          debugPrint('[ViewModel] Error iniciando tracking: $e');
+        });
   }
 }

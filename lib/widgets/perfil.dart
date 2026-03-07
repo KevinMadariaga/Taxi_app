@@ -20,6 +20,7 @@ import 'package:taxi_app/screens/home_screen.dart';
 import 'package:taxi_app/models/AuthModel.dart';
 import 'package:animated_snack_bar/animated_snack_bar.dart';
 import 'package:taxi_app/data/models/viewmodels/perfil_viewmodel.dart';
+import 'package:taxi_app/screens/usuario_conductor/presentacion/view/RutaConductorView.dart';
 import 'package:taxi_app/widgets/editar_perfil.dart';
 
 class PaginaPerfilUsuario extends StatefulWidget {
@@ -765,7 +766,7 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
                                 onTap: () {
                                   Navigator.of(context).push(
                                     MaterialPageRoute(
-                                      builder: (_) => const EliminarCuentaScreen(),
+                                      builder: (_) => const EliminarCuentaScreen()
                                     ),
                                   );
                                 },

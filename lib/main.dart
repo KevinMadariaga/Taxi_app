@@ -8,6 +8,7 @@ import 'package:taxi_app/screens/introductorio_screen.dart';
 import 'package:taxi_app/screens/usuario_cliente/data/Auth.dart';
 import 'package:taxi_app/screens/usuario_cliente/data/firebaseDB.dart';
 import 'package:taxi_app/models/AuthModel.dart';
+import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/RutaConductorViewModel.dart';
 import 'package:taxi_app/services/auth_service.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:taxi_app/services/notificacion_servicio.dart';
@@ -68,6 +69,9 @@ class MyApp extends StatelessWidget {
                   FirebaseDataSource(),
                 ),
               ),
+            ),
+            ChangeNotifierProvider(
+              create: (_) => RutaConductorViewModel(),
             ),
             // Add more ViewModels here as needed
           ],
