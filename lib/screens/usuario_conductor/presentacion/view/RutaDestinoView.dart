@@ -535,7 +535,7 @@ if (_mapController != null &&
             polylines: polylines,
             circles: _circles,
             myLocationEnabled: true,
-            myLocationButtonEnabled: true,
+            //myLocationButtonEnabled: true,
             onMapCreated: (controller) {
               _mapController = controller;
               // No llamar _fitMarkers aquí, se llama tras obtener ubicación
@@ -558,97 +558,118 @@ if (_mapController != null &&
   Widget _infoRow() {
 
     final vm = Provider.of<RutaDestinoViewModel>(context);
-
-    // Calcular mensajes pendientes (no leídos) usando readBy
     final conductorId = vm.conductorId ?? '';
     final mensajesPendientes = vm.mensajes.where((m) =>
       m.senderId != conductorId &&
       (!(m.readBy[conductorId] ?? false))
     ).length;
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColores.background, // Light background color
-        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.18),
-            blurRadius: 18,
-            offset: Offset(0, -6),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 8, bottom: 4),
-            child: Center(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.route, color: AppColores.primary, size: 24),
-                  const SizedBox(width: 8),
-                  const Text(
-                    'Ruta al destino',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          CircleAvatar(
+            radius: 40,
+            backgroundColor: AppColores.primary,
+            backgroundImage: vm.fotoCliente.isNotEmpty
+                ? CachedNetworkImageProvider(vm.fotoCliente)
+                : null,
+            child: vm.fotoCliente.isEmpty
+                ? const Icon(Icons.person, color: Colors.white)
+                : null,
           ),
-          Divider(),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                CircleAvatar(
-                  radius: 40,
-                  backgroundColor: AppColores.primary,
-                  backgroundImage: vm.fotoCliente.isNotEmpty
-                      ? CachedNetworkImageProvider(vm.fotoCliente)
-                      : null,
-                  child: vm.fotoCliente.isEmpty
-                      ? const Icon(Icons.person, color: Colors.white)
-                      : null,
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        vm.nombreCliente.isNotEmpty
-                            ? vm.nombreCliente.substring(0, 1).toUpperCase() + vm.nombreCliente.substring(1).toLowerCase()
-                          : "Cliente",
-                        style: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w500,
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final screenW = constraints.maxWidth;
+                    double nameFont = 25;
+                    double addressFont = 18;
+                    double spacing = 6;
+                    if (screenW >= 1000) {
+                      nameFont = 32;
+                      addressFont = 22;
+                      spacing = 12;
+                    } else if (screenW < 350) {
+                      nameFont = 18;
+                      addressFont = 14;
+                      spacing = 4;
+                    } else if (screenW < 500) {
+                      nameFont = 20;
+                      addressFont = 15;
+                      spacing = 5;
+                    }
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          vm.nombreCliente.isNotEmpty
+                              ? vm.nombreCliente.substring(0, 1).toUpperCase() + vm.nombreCliente.substring(1).toLowerCase()
+                              : "Cliente",
+                          style: TextStyle(
+                            fontSize: nameFont,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        vm.direccionDestino,
-                        style: const TextStyle(
-                          color: Colors.grey,
-                          fontSize: 18,
+                        SizedBox(height: spacing),
+                        Text(
+                          vm.direccionDestino,
+                          style: TextStyle(
+                            color: Colors.grey,
+                            fontSize: addressFont,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
+                      ],
+                    );
+                  },
                 ),
               ],
             ),
           ),
+          // Stack(
+          //   children: [
+          //     IconButton(
+          //       icon: Image.asset(
+          //         'assets/img/icon_location.png',
+          //         width: 40,
+          //         height: 40,
+          //       ),
+          //       onPressed: () async {
+          //         for (final m in vm.mensajes) {
+          //           if (m.senderId != conductorId && !(m.readBy[conductorId] ?? false)) {
+          //             await vm.chatService.markMessageRead(
+          //               solicitudId: widget.idSolicitud,
+          //               messageId: m.id,
+          //               userId: conductorId,
+          //             );
+          //           }
+          //         }
+          //         if (_ubicacionConductor != null && vm.latDestino != null && vm.lngDestino != null) {
+          //           final origen = '${_ubicacionConductor!.latitude},${_ubicacionConductor!.longitude}';
+          //           final destino = '${vm.latDestino},${vm.lngDestino}';
+          //           final url = 'https://www.google.com/maps/dir/?api=1&origin=$origen&destination=$destino&travelmode=driving';
+          //           try {
+          //             await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+          //           } catch (e) {
+          //             debugPrint('No se pudo abrir Google Maps: $e');
+          //           }
+          //         } else {
+          //           ScaffoldMessenger.of(context).showSnackBar(
+          //             SnackBar(content: Text('Ubicación no disponible')),
+          //           );
+          //         }
+          //       },
+          //     ),
+          //   ],
+          // ),
         ],
       ),
     );
@@ -658,11 +679,36 @@ if (_mapController != null &&
   Widget _bottomButtons() {
 
     bool _terminarViajePressed = false;
+    final size = MediaQuery.of(context).size;
+    final double screenW = size.width;
+    double buttonFontSize = 18;
+    double buttonPaddingV = 18;
+    double buttonIconSize = 22;
+    double buttonBorderRadius = 16;
+    double buttonSpacing = 8;
+    if (screenW >= 1000) {
+      buttonFontSize = 24;
+      buttonPaddingV = 28;
+      buttonIconSize = 32;
+      buttonBorderRadius = 24;
+      buttonSpacing = 16;
+    } else if (screenW < 350) {
+      buttonFontSize = 14;
+      buttonPaddingV = 10;
+      buttonIconSize = 16;
+      buttonBorderRadius = 10;
+      buttonSpacing = 4;
+    } else if (screenW < 500) {
+      buttonFontSize = 16;
+      buttonPaddingV = 14;
+      buttonIconSize = 18;
+      buttonBorderRadius = 12;
+      buttonSpacing = 6;
+    }
     return SafeArea(
       child: Container(
-        color: AppColores.background,
         child: Padding(
-          padding: const EdgeInsets.all(25),
+          padding: const EdgeInsets.all(8),
           child: Row(
             children: [
               Expanded(
@@ -670,9 +716,9 @@ if (_mapController != null &&
                   style: OutlinedButton.styleFrom(
                     side: BorderSide(color: AppColores.primary, width: 2),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(buttonBorderRadius),
                     ),
-                    padding: const EdgeInsets.symmetric(vertical: 18),
+                    padding: EdgeInsets.symmetric(vertical: buttonPaddingV),
                     backgroundColor: AppColores.background,
                   ),
                   onPressed: () async {
@@ -695,21 +741,24 @@ if (_mapController != null &&
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.map, color: AppColores.primary),
-                      const SizedBox(width: 8),
-                      Text(
-                        "Mapa",
-                        style: TextStyle(
-                          color: AppColores.primary,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 18,
+                      Icon(Icons.map, color: AppColores.primary, size: buttonIconSize),
+                      SizedBox(width: buttonSpacing),
+                      Flexible(
+                        child: Text(
+                          "Mapa",
+                          style: TextStyle(
+                            color: AppColores.primary,
+                            fontWeight: FontWeight.w600,
+                            fontSize: buttonFontSize,
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ],
                   ),
                 ),
               ),
-              const SizedBox(width: 20),
+              SizedBox(width: screenW >= 1000 ? 32 : screenW < 350 ? 8 : 20),
               Expanded(
                 child: StatefulBuilder(
                   builder: (context, setState) {
@@ -717,9 +766,9 @@ if (_mapController != null &&
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColores.primary,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(buttonBorderRadius),
                         ),
-                        padding: const EdgeInsets.symmetric(vertical: 18),
+                        padding: EdgeInsets.symmetric(vertical: buttonPaddingV),
                         elevation: 0,
                       ),
                       onPressed: _terminarViajePressed
@@ -729,21 +778,24 @@ if (_mapController != null &&
                                 _terminarViajePressed = true;
                               });
                               try {
+                                final fechaHoraFinalizacion = DateTime.now();
                                 await FirebaseFirestore.instance
                                     .collection('solicitudes')
                                     .doc(widget.idSolicitud)
-                                    .update({'estado': 'completado'});
+                                    .update({
+                                      'estado': 'completado',
+                                      'fecha de terminacion': fechaHoraFinalizacion,
+                                    });
                                 await RutaDestinoViewModel.mostrarNotificacion(
                                   'Viaje terminado',
                                   'El viaje ha finalizado correctamente.'
                                 );
-                                showDialog(
+                                // Mostrar loader y navegar solo una vez
+                                await showDialog(
                                   context: context,
                                   barrierDismissible: false,
                                   builder: (_) => const LoaderSolicitudCompletada(),
                                 );
-                                await Future.delayed(const Duration(seconds: 2));
-                                Navigator.of(context).pop();
                                 Navigator.of(context).pushReplacement(
                                   MaterialPageRoute(
                                     builder: (_) => ResumenConductorView(solicitudId: widget.idSolicitud),
@@ -762,14 +814,17 @@ if (_mapController != null &&
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.check, color: Colors.white),
-                          const SizedBox(width: 8),
-                          Text(
-                            "Terminar viaje",
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 18,
+                          Icon(Icons.check, color: Colors.white, size: buttonIconSize),
+                          SizedBox(width: buttonSpacing),
+                          Flexible(
+                            child: Text(
+                              "Terminar viaje",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                                fontSize: buttonFontSize,
+                              ),
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         ],
@@ -798,21 +853,68 @@ if (_mapController != null &&
           Column(
             mainAxisSize: MainAxisSize.max,
             children: [
-              // Mapa ocupa el 60% de la pantalla
-              SizedBox(
-                height: MediaQuery.of(context).size.height * 0.60,
+              Flexible(
+                flex: 2,
                 child: _mapWidget(context),
               ),
-              // Info del cliente ocupa el 20%
-              SizedBox(
-                height: MediaQuery.of(context).size.height * 0.20,
-                child: _infoRow(),
-              ),
-              // Botones ocupan el resto
-              Expanded(
-                child: Align(
-                  alignment: Alignment.bottomCenter,
-                  child: _bottomButtons(),
+              Flexible(
+                flex: 1,
+                child: Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.18),
+                        blurRadius: 18,
+                        offset: Offset(0, -6),
+                      ),
+                    ],
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.max,
+                      children: [
+                        Center(
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.route, color: AppColores.buttonPrimary, size: 26),
+                              const SizedBox(width: 8),
+                              Text(
+                                "Ruta al Destino",
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Divider(),
+                        Expanded(
+                          child: SingleChildScrollView(
+                            child: Column(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(vertical: 0, horizontal: 5),
+                                  child: _infoRow(),
+                                ),
+                                const SizedBox(height: 4),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(vertical: 0, horizontal: 4),
+                                  child: _bottomButtons(),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -850,7 +952,7 @@ if (_mapController != null &&
           // Botón flotante abajo a la izquierda del mapa: muestra kilómetros
           Positioned(
             left: 24,
-            bottom: MediaQuery.of(context).size.height * 0.38,
+            bottom: MediaQuery.of(context).size.height * 0.35,
             child: FloatingActionButton.extended(
               heroTag: "fab_distancia",
               backgroundColor: Colors.white,
@@ -870,7 +972,7 @@ if (_mapController != null &&
           // Posiciona el botón flotante abajo a la derecha del mapa
           Positioned(
             right: 24,
-            bottom: MediaQuery.of(context).size.height * 0.38, // Siempre encima del mapa
+            bottom: MediaQuery.of(context).size.height * 0.35, // Siempre encima del mapa
             child: FloatingActionButton(
               heroTag: "fab_centrar",
               backgroundColor: AppColores.buttonPrimary,

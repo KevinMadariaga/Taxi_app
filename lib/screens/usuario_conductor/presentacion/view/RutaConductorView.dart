@@ -34,6 +34,7 @@ class _RutaConductorState extends State<RutaConductor> {
 
   final TextEditingController _chatController = TextEditingController();
   final ScrollController _chatScrollController = ScrollController();
+  final FocusNode _chatFocusNode = FocusNode();
 
   GoogleMapController? _mapController;
 
@@ -92,6 +93,7 @@ class _RutaConductorState extends State<RutaConductor> {
   void dispose() {
     _chatController.dispose();
     _chatScrollController.dispose();
+    _chatFocusNode.dispose();
     _positionStream?.cancel();
     super.dispose();
   }
@@ -332,147 +334,158 @@ if (_mapController != null &&
           if (_chatScrollController.hasClients && vm.mensajes.isNotEmpty) {
             _chatScrollController.jumpTo(_chatScrollController.position.maxScrollExtent);
           }
+          // Solicita el foco al TextField cuando se abre el chat
+          _chatFocusNode.requestFocus();
         });
         return SafeArea(
-          child: Container(
-            height: MediaQuery.of(context).size.height * 0.60,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColores.background,
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Center(
-                        child: const Text(
-                          "Chat con el cliente",
-                          style: TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
-                              color: AppColores.textPrimary),
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close, color: AppColores.textPrimary),
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                      },
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Expanded(
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(vertical: 8),
-                    decoration: BoxDecoration(
-                      color: const Color.fromARGB(255, 194, 189, 151),
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    child: ListView.builder(
-                      controller: _chatScrollController,
-                      itemCount: vm.mensajes.length,
-                      itemBuilder: (context, index) {
-                        final msg = vm.mensajes[index];
-                        final esMio = msg.senderId == vm.conductorId;
-                        return Container(
-                          margin: EdgeInsets.only(
-                            top: 10,
-                            bottom: 10,
-                            left: esMio ? 60 : 16,
-                            right: esMio ? 16 : 60,
-                          ),
-                          child: Align(
-                            alignment: esMio
-                                ? Alignment.centerRight
-                                : Alignment.centerLeft,
-                            child: Container(
-                              constraints: BoxConstraints(
-                                maxWidth: MediaQuery.of(context).size.width * 0.68,
-                                minWidth: 60,
-                              ),
-                              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 18),
-                              decoration: BoxDecoration(
-                                color: esMio ? AppColores.primary : Colors.white,
-                                borderRadius: BorderRadius.circular(22),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.07),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      msg.texto,
-                                      style: TextStyle(
-                                        color: esMio ? Colors.black : Colors.black,
-                                        fontSize: 17,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    msg.timestamp != null ? _formatHora(msg.timestamp!) : '',
-                                    style: TextStyle(
-                                      color: Colors.grey.shade600,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                ],
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return AnimatedPadding(
+                duration: const Duration(milliseconds: 200),
+                padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+                child: Container(
+                  height: MediaQuery.of(context).size.height * 0.60,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColores.background,
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Center(
+                              child: const Text(
+                                "Chat con el cliente",
+                                style: TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColores.textPrimary),
                               ),
                             ),
                           ),
-                        );
-                      },
-                    ),
+                          IconButton(
+                            icon: const Icon(Icons.close, color: AppColores.textPrimary),
+                            onPressed: () {
+                              Navigator.of(context).pop();
+                            },
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Expanded(
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(vertical: 8),
+                          decoration: BoxDecoration(
+                            color: const Color.fromARGB(255, 194, 189, 151),
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                          child: ListView.builder(
+                            controller: _chatScrollController,
+                            itemCount: vm.mensajes.length,
+                            itemBuilder: (context, index) {
+                              final msg = vm.mensajes[index];
+                              final esMio = msg.senderId == vm.conductorId;
+                              return Container(
+                                margin: EdgeInsets.only(
+                                  top: 10,
+                                  bottom: 10,
+                                  left: esMio ? 60 : 16,
+                                  right: esMio ? 16 : 60,
+                                ),
+                                child: Align(
+                                  alignment: esMio
+                                      ? Alignment.centerRight
+                                      : Alignment.centerLeft,
+                                  child: Container(
+                                    constraints: BoxConstraints(
+                                      maxWidth: MediaQuery.of(context).size.width * 0.68,
+                                      minWidth: 60,
+                                    ),
+                                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 18),
+                                    decoration: BoxDecoration(
+                                      color: esMio ? AppColores.primary : Colors.white,
+                                      borderRadius: BorderRadius.circular(22),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.07),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      crossAxisAlignment: CrossAxisAlignment.end,
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            msg.texto,
+                                            style: TextStyle(
+                                              color: esMio ? Colors.black : Colors.black,
+                                              fontSize: 17,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          msg.timestamp != null ? _formatHora(msg.timestamp!) : '',
+                                          style: TextStyle(
+                                            color: Colors.grey.shade600,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                      const Divider(),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: AppColores.primary, width: 1.2),
+                              ),
+                              child: TextField(
+                                controller: _chatController,
+                                focusNode: _chatFocusNode,
+                                decoration: const InputDecoration(
+                                    hintText: "Escribe un mensaje...",
+                                    border: InputBorder.none,
+                                    contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14)),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            decoration: BoxDecoration(
+                              color: AppColores.primary,
+                              shape: BoxShape.circle,
+                            ),
+                            child: IconButton(
+                              icon: const Icon(
+                                Icons.send,
+                                color: Colors.white,
+                              ),
+                              onPressed: () => _sendMessage(vm),
+                            ),
+                          )
+                        ],
+                      )
+                    ],
                   ),
                 ),
-                const Divider(),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: AppColores.primary, width: 1.2),
-                        ),
-                        child: TextField(
-                          controller: _chatController,
-                          decoration: const InputDecoration(
-                              hintText: "Escribe un mensaje...",
-                              border: InputBorder.none,
-                              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14)),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: AppColores.primary,
-                        shape: BoxShape.circle,
-                      ),
-                      child: IconButton(
-                        icon: const Icon(
-                          Icons.send,
-                          color: Colors.white,
-                        ),
-                        onPressed: () => _sendMessage(vm),
-                      ),
-                    )
-                  ],
-                )
-              ],
-            ),
+              );
+            },
           ),
         );
       },
@@ -543,7 +556,7 @@ if (_mapController != null &&
             polylines: polylines,
             circles: _circles,
             myLocationEnabled: true,
-            myLocationButtonEnabled: true,
+            //myLocationButtonEnabled: true,
             onMapCreated: (controller) {
               _mapController = controller;
               // No llamar _fitMarkers aquí, se llama tras obtener ubicación
@@ -566,20 +579,26 @@ if (_mapController != null &&
   Widget _infoRow() {
 
     final vm = Provider.of<RutaConductorViewModel>(context);
-
-    // Calcular mensajes pendientes (no leídos) usando readBy
     final conductorId = vm.conductorId ?? '';
     final mensajesPendientes = vm.mensajes.where((m) =>
       m.senderId != conductorId &&
       (!(m.readBy[conductorId] ?? false))
     ).length;
+    final size = MediaQuery.of(context).size;
+    final double screenW = size.width;
+    final bool isTablet = screenW >= 1000;
+    final double avatarRadius = isTablet ? 60 : 40;
+    final double padding = isTablet ? 32 : 16;
+    final double spacing = isTablet ? 24 : 16;
+    final double nameFontSize = isTablet ? 32 : 25;
+    final double addressFontSize = isTablet ? 22 : 18;
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(padding),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           CircleAvatar(
-            radius: 40,
+            radius: avatarRadius,
             backgroundColor: AppColores.primary,
             backgroundImage: vm.fotoCliente.isNotEmpty
                 ? CachedNetworkImageProvider(vm.fotoCliente)
@@ -588,30 +607,56 @@ if (_mapController != null &&
                 ? const Icon(Icons.person, color: Colors.white)
                 : null,
           ),
-          const SizedBox(width: 16),
+          SizedBox(width: spacing),
           Expanded(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  vm.nombreCliente.isNotEmpty ? vm.nombreCliente : "Cliente",
-                  style: const TextStyle(
-                    fontSize: 25,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  vm.direccionCliente,
-                  style: const TextStyle(
-                    color: Colors.grey,
-                    fontSize: 18,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final screenW = constraints.maxWidth;
+                    double nameFont = 25;
+                    double addressFont = 18;
+                    double spacing = 6;
+                    if (screenW >= 1000) {
+                      nameFont = 32;
+                      addressFont = 22;
+                      spacing = 12;
+                    } else if (screenW < 350) {
+                      nameFont = 18;
+                      addressFont = 14;
+                      spacing = 4;
+                    } else if (screenW < 500) {
+                      nameFont = 20;
+                      addressFont = 15;
+                      spacing = 5;
+                    }
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          vm.nombreCliente.isNotEmpty ? vm.nombreCliente : "Cliente",
+                          style: TextStyle(
+                            fontSize: nameFont,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        SizedBox(height: spacing),
+                        Text(
+                          vm.direccionCliente,
+                          style: TextStyle(
+                            color: Colors.grey,
+                            fontSize: addressFont,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    );
+                  },
                 ),
               ],
             ),
@@ -620,12 +665,11 @@ if (_mapController != null &&
             children: [
               IconButton(
                 icon: Image.asset(
-                  'assets/img/icon_location.png', // Asegúrate de tener la imagen en assets/img/
-                  width: 40,
-                  height: 40,                
+                  'assets/img/icon_location.png',
+                  width: avatarRadius * 0.8,
+                  height: avatarRadius * 0.8,
                 ),
                 onPressed: () async {
-                  final conductorId = vm.conductorId ?? '';
                   for (final m in vm.mensajes) {
                     if (m.senderId != conductorId && !(m.readBy[conductorId] ?? false)) {
                       await vm.chatService.markMessageRead(
@@ -635,12 +679,10 @@ if (_mapController != null &&
                       );
                     }
                   }
-                  // Abrir Google Maps con ruta desde ubicación actual a la del cliente
                   if (_ubicacionConductor != null && vm.latCliente != null && vm.lngCliente != null) {
                     final origen = '${_ubicacionConductor!.latitude},${_ubicacionConductor!.longitude}';
                     final destino = '${vm.latCliente},${vm.lngCliente}';
                     final url = 'https://www.google.com/maps/dir/?api=1&origin=$origen&destination=$destino&travelmode=driving';
-                    // Usa url_launcher para abrir el enlace
                     try {
                       await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
                     } catch (e) {
@@ -648,7 +690,7 @@ if (_mapController != null &&
                     }
                   } else {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Ubicación no disponible')), // Mensaje de error
+                      SnackBar(content: Text('Ubicación no disponible')),
                     );
                   }
                 },
@@ -663,11 +705,18 @@ if (_mapController != null &&
 
   Widget _bottomButtons() {
 
+    final size = MediaQuery.of(context).size;
+    final double screenW = size.width;
+    final bool isTablet = screenW >= 1000;
+    final double buttonFontSize = isTablet ? 22 : 16;
+    final double buttonPaddingV = isTablet ? 24 : 12;
+    final double buttonIconSize = isTablet ? 32 : 22;
+    final double buttonBorderRadius = isTablet ? 24 : 16;
     return SafeArea(
       child: LayoutBuilder(
         builder: (context, constraints) {
           return Padding(
-            padding: const EdgeInsets.all(8),
+            padding: EdgeInsets.all(isTablet ? 20 : 8),
             child: Row(
               children: [
                 Flexible(
@@ -685,10 +734,10 @@ if (_mapController != null &&
                             style: OutlinedButton.styleFrom(
                               side: BorderSide(color: AppColores.primary, width: 2),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
+                                borderRadius: BorderRadius.circular(buttonBorderRadius),
                               ),
                               padding: EdgeInsets.symmetric(
-                                vertical: constraints.maxHeight > 60 ? 18 : 10,
+                                vertical: buttonPaddingV,
                               ),
                               backgroundColor: Colors.white,
                             ),
@@ -706,21 +755,22 @@ if (_mapController != null &&
                                 context: context,
                                 isScrollControlled: true,
                                 backgroundColor: Colors.white,
+                                useSafeArea: true,
                                 builder: (_) => _chatSheet(),
                               );
                             },
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(Icons.chat, color: AppColores.primary),
-                                const SizedBox(width: 8),
+                                Icon(Icons.chat, color: AppColores.primary, size: buttonIconSize),
+                                SizedBox(width: isTablet ? 16 : 8),
                                 Flexible(
                                   child: Text(
                                     "Chat",
                                     style: TextStyle(
                                       color: AppColores.primary,
                                       fontWeight: FontWeight.w600,
-                                      fontSize: constraints.maxHeight > 60 ? 18 : 15,
+                                      fontSize: buttonFontSize,
                                     ),
                                     overflow: TextOverflow.ellipsis,
                                   ),
@@ -733,21 +783,21 @@ if (_mapController != null &&
                               right: 0,
                               top: 0,
                               child: Container(
-                                padding: const EdgeInsets.all(4),
+                                padding: EdgeInsets.all(isTablet ? 6 : 4),
                                 decoration: BoxDecoration(
                                   color: Colors.red,
                                   shape: BoxShape.circle,
                                 ),
-                                constraints: const BoxConstraints(
-                                  minWidth: 20,
-                                  minHeight: 20,
+                                constraints: BoxConstraints(
+                                  minWidth: isTablet ? 28 : 20,
+                                  minHeight: isTablet ? 28 : 20,
                                 ),
                                 child: Center(
                                   child: Text(
                                     mensajesPendientes.toString(),
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       color: Colors.white,
-                                      fontSize: 12,
+                                      fontSize: isTablet ? 16 : 12,
                                       fontWeight: FontWeight.bold,
                                     ),
                                   ),
@@ -759,61 +809,74 @@ if (_mapController != null &&
                     },
                   ),
                 ),
-                const SizedBox(width: 12),
+                SizedBox(width: isTablet ? 24 : 12),
                 Flexible(
                   flex: 1,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColores.primary,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      padding: EdgeInsets.symmetric(
-                        vertical: constraints.maxHeight > 60 ? 18 : 10,
-                      ),
-                      elevation: 0,
-                    ),
-                    onPressed: () async {
-                      final vm = Provider.of<RutaConductorViewModel>(context, listen: false);
-                      try {
-                        await FirebaseFirestore.instance
-                            .collection('solicitudes')
-                            .doc(widget.idSolicitud)
-                            .update({'estado': 'en camino'});
-                      } catch (e) {
-                        debugPrint('Error al cambiar estado: $e');
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('No se pudo cambiar el estado')),
-                        );
-                        return;
-                      }
-                      Navigator.of(context).pushReplacement(
-                        MaterialPageRoute(
-                          builder: (_) => ChangeNotifierProvider(
-                            create: (_) => RutaDestinoViewModel(),
-                            child: RutaDestino(idSolicitud: widget.idSolicitud),
+                  child: StatefulBuilder(
+                    builder: (context, setState) {
+                      bool _yaLleguePressed = false;
+                      return ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColores.primary,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(buttonBorderRadius),
                           ),
+                          padding: EdgeInsets.symmetric(
+                            vertical: buttonPaddingV,
+                          ),
+                          elevation: 0,
+                        ),
+                        onPressed: _yaLleguePressed
+                            ? null
+                            : () async {
+                                setState(() {
+                                  _yaLleguePressed = true;
+                                });
+                                final vm = Provider.of<RutaConductorViewModel>(context, listen: false);
+                                try {
+                                  await FirebaseFirestore.instance
+                                      .collection('solicitudes')
+                                      .doc(widget.idSolicitud)
+                                      .update({'estado': 'en camino'});
+                                } catch (e) {
+                                  debugPrint('Error al cambiar estado: $e');
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('No se pudo cambiar el estado')),
+                                  );
+                                  setState(() {
+                                    _yaLleguePressed = false;
+                                  });
+                                  return;
+                                }
+                                Navigator.of(context).pushReplacement(
+                                  MaterialPageRoute(
+                                    builder: (_) => ChangeNotifierProvider(
+                                      create: (_) => RutaDestinoViewModel(),
+                                      child: RutaDestino(idSolicitud: widget.idSolicitud),
+                                    ),
+                                  ),
+                                );
+                              },
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.check, color: Colors.white, size: buttonIconSize),
+                            SizedBox(width: isTablet ? 16 : 8),
+                            Flexible(
+                              child: Text(
+                                "Ya llegue",
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: buttonFontSize,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
                         ),
                       );
                     },
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.check, color: Colors.white),
-                        const SizedBox(width: 8),
-                        Flexible(
-                          child: Text(
-                            "Ya llegue",
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600,
-                              fontSize: constraints.maxHeight > 60 ? 18 : 15,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
                   ),
                 ),
               ],
@@ -828,76 +891,85 @@ if (_mapController != null &&
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       appBar: PreferredSize(
         preferredSize: Size.fromHeight(0),
         child: Container(),
       ),
       body: Stack(
         children: [
+          // ...existing code...
           Column(
             mainAxisSize: MainAxisSize.max,
             children: [
-              // Mapa ocupa el 65% de la pantalla
-              SizedBox(
-                height: MediaQuery.of(context).size.height * 0.60,
+              Flexible(
+                flex: 2,
                 child: _mapWidget(context),
               ),
-              // Card encima del mapa con infoRow y botones
-              Container(
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.18),
-                      blurRadius: 18,
-                      offset: Offset(0, -6),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-                      child: Column(
-                        children: [
-                          Center(
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.route, color: AppColores.buttonPrimary, size: 26),
-                                const SizedBox(width: 8),
-                                Text(
-                                  "Ruta al cliente",
-                                  style: TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.black,
-                                  ),
+              Flexible(
+                flex: 1,
+                child: Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.18),
+                        blurRadius: 18,
+                        offset: Offset(0, -6),
+                      ),
+                    ],
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.max,
+                      children: [
+                        Center(
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.route, color: AppColores.buttonPrimary, size: 26),
+                              const SizedBox(width: 8),
+                              Text(
+                                "Ruta al cliente",
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black,
                                 ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Divider(),
+                        Expanded(
+                          child: SingleChildScrollView(
+                            child: Column(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(vertical: 0, horizontal: 5),
+                                  child: _infoRow(),
+                                ),
+                                const SizedBox(height: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(vertical: 0, horizontal: 4),
+                                  child: _bottomButtons(),
+                                ),
+                                const SizedBox(height: 16), // Espacio extra debajo de los botones
                               ],
                             ),
                           ),
-                          Divider(),
-                          Container(
-                            padding: const EdgeInsets.symmetric(vertical: 0, horizontal: 5),
-                            child: _infoRow(),
-                          ),
-                          const SizedBox(height: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(vertical: 0, horizontal: 4),
-                            child: _bottomButtons(),
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
             ],
           ),
-          // Posiciona el tiempo estimado de llegada encima del mapa
+          // ...existing code...
           Positioned(
             top: 18,
             left: 0,
@@ -927,10 +999,10 @@ if (_mapController != null &&
               ),
             ),
           ),
-          // Botón flotante abajo a la izquierda del mapa: muestra kilómetros
+          // ...existing code...
           Positioned(
             left: 24,
-            bottom: MediaQuery.of(context).size.height * 0.38,
+            bottom: MediaQuery.of(context).size.height * 0.35,
             child: FloatingActionButton.extended(
               heroTag: "fab_distancia",
               backgroundColor: Colors.white,
@@ -947,10 +1019,10 @@ if (_mapController != null &&
               elevation: 2,
             ),
           ),
-          // Posiciona el botón flotante abajo a la derecha del mapa
+          // ...existing code...
           Positioned(
             right: 24,
-            bottom: MediaQuery.of(context).size.height * 0.38, // Más alto
+            bottom: MediaQuery.of(context).size.height * 0.35, // Más alto
             child: FloatingActionButton(
               heroTag: "fab_centrar",
               backgroundColor: AppColores.buttonPrimary,
@@ -969,7 +1041,7 @@ if (_mapController != null &&
               },
             ),
           ),
-          
+          // ...existing code...
         ],
       ),
     );

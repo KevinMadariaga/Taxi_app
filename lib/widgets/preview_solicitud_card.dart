@@ -94,6 +94,7 @@ class _PreviewSolicitudCardState extends State<PreviewSolicitudCard> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
             Row(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(Icons.local_taxi, color: AppColores.textSecondary, size: ResponsiveHelper.sp(context, 20)),
                 SizedBox(width: ResponsiveHelper.wp(context, 2.5)),
@@ -101,10 +102,9 @@ class _PreviewSolicitudCardState extends State<PreviewSolicitudCard> {
                   'Solicitud seleccionada',
                   style: TextStyle(fontWeight: FontWeight.w700, fontSize: ResponsiveHelper.sp(context, 17)),
                 ),
-                
               ],
             ),
-            SizedBox(height: ResponsiveHelper.hp(context, 1.8)),
+            SizedBox(height: ResponsiveHelper.hp(context, 2)),
             Row(
               children: [
                 Expanded(
@@ -191,11 +191,16 @@ class _PreviewSolicitudCardState extends State<PreviewSolicitudCard> {
                       ),
                     ),
                     Padding(
-                      padding: EdgeInsets.symmetric(horizontal: ResponsiveHelper.wp(context, 5), vertical: ResponsiveHelper.hp(context, 0.1)),
+                      padding: EdgeInsets.only(
+                        left: ResponsiveHelper.wp(context, 5),
+                        right: ResponsiveHelper.wp(context, 2),
+                        top: ResponsiveHelper.hp(context, 0.1),
+                        bottom: ResponsiveHelper.hp(context, 0.1),
+                      ),
                       child: Text(
                         'Pagará con:',
                         style: TextStyle(
-                          fontSize: ResponsiveHelper.sp(context, 14),
+                          fontSize: ResponsiveHelper.sp(context, 12),
                           color: AppColores.textPrimary,
                           fontWeight: FontWeight.bold,
                         ),
@@ -219,7 +224,12 @@ class _PreviewSolicitudCardState extends State<PreviewSolicitudCard> {
                       ),
                     ),
                     Padding(
-                      padding: EdgeInsets.symmetric(horizontal: ResponsiveHelper.wp(context, 4)),
+                      padding: EdgeInsets.only(
+                        left: ResponsiveHelper.wp(context, 4),
+                        right: 0,
+                        top: ResponsiveHelper.hp(context, 0.1),
+                        bottom: ResponsiveHelper.hp(context, 0.1),
+                      ),
                       child: Builder(builder: (context) {
                         final metodo = (preview.paymentMethod ?? '').toLowerCase();
                         IconData icon = Icons.payment;
@@ -231,16 +241,20 @@ class _PreviewSolicitudCardState extends State<PreviewSolicitudCard> {
                         return Row(
                           children: [
                             Icon(icon, color: AppColores.primary, size: ResponsiveHelper.sp(context, 16)),
-                            SizedBox(width: ResponsiveHelper.wp(context, 1.6)),
-                            Expanded(
-                              child: Text(
-                                _formatMetodoPreview(preview.paymentMethod),
-                                style: TextStyle(
-                                  fontSize: ResponsiveHelper.sp(context, 14),
-                                  color: AppColores.textPrimary,
+                            SizedBox(width: 3),
+                            Flexible(
+                              fit: FlexFit.tight,
+                              child: Align(
+                                alignment: Alignment.centerRight,
+                                child: Text(
+                                  _formatMetodoPreview(preview.paymentMethod),
+                                  style: TextStyle(
+                                    fontSize: ResponsiveHelper.sp(context, 14),
+                                    color: AppColores.textPrimary,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                           ],
@@ -278,8 +292,6 @@ class _PreviewSolicitudCardState extends State<PreviewSolicitudCard> {
                 ),
               ],
             ),
-                    // Espacio mínimo y responsivo entre los botones y el mapa
-                    SizedBox(height: ResponsiveHelper.hp(context, 1.2)),
                   ],
                 ),
               ),

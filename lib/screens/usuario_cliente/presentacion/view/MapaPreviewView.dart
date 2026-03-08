@@ -326,8 +326,7 @@ class _MapaPreviewViewState extends State<MapaPreviewView> {
                         ),
                       ),
                     ),
-                    Flexible(
-                      fit: FlexFit.loose,
+                    Expanded(
                       child: SingleChildScrollView(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
