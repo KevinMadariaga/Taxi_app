@@ -4,10 +4,15 @@ import 'package:taxi_app/screens/usuario_cliente/presentacion/view/InicioCliente
 
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'dart:async';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/RutaClienteView.dart';
-import 'package:taxi_app/services/notificacion_servicio.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/view/pruebas/prueba.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/view/pruebas/pruebaviewmodel.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/RutaClienteViewModel.dart';
+import 'package:taxi_app/widgets/LoaderPreparandoRuta.dart';
+
+import 'dart:async';
 import 'package:taxi_app/widgets/map_loading_widget.dart';
+import 'package:provider/provider.dart';
 
 class BuscandoTaxiView extends StatefulWidget {
   final String? solicitudId;
@@ -39,42 +44,29 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView> {
       final status = data['estado'];
       if (status != null && status.toString() == 'asignado' && !_assignedHandled) {
         _assignedHandled = true;
-        // Try to fetch conductor info (la notificación se mostrará luego, justo antes de abrir la ruta)
-        try {
-          final conductorId = (data['conductor'] is Map ? (data['conductor']['id'] ?? data['conductorId'] ?? data['driverId']) : (data['conductorId'] ?? data['driverId']))?.toString();
-          String? nombre;
-          String? telefono;
-          if (conductorId != null && conductorId.isNotEmpty) {
-            final doc = await FirebaseFirestore.instance.collection('conductor').doc(conductorId).get();
-            final cd = doc.data();
-            nombre = cd?['nombre']?.toString();
-            telefono = cd?['telefono']?.toString();
-          }
-          if (!mounted) return;
-          // Reemplazar pantalla "Buscando taxi" por pantalla de loader
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-              builder: (_) => LoaderMapaView(
-                solicitudId: id,
-                conductorId: conductorId,
-                conductorName: nombre,
-                conductorPhone: telefono,
-              ),
-            ),
-          );
-        } catch (_) {
-          if (!mounted) return;
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-              builder: (_) => LoaderMapaView(
-                solicitudId: id,
-                conductorId: null,
-                conductorName: null,
-                conductorPhone: null,
-              ),
-            ),
-          );
-        }
+        // Mostrar LoaderPreparandoRuta primero
+        await Navigator.of(context).pushReplacement(
+          PageRouteBuilder(
+            opaque: false,
+            pageBuilder: (context, animation, secondaryAnimation) {
+              Future.delayed(const Duration(seconds: 5), () {
+                if (Navigator.of(context).canPop()) {
+                  Navigator.of(context).pop();
+                  Navigator.of(context).pushReplacement(
+                    MaterialPageRoute(
+                      builder: (_) => ChangeNotifierProvider(
+                        create: (_) => Rutaclienteviewmodel(),
+                        child: RutaCliente(idSolicitud: id),
+                      ),
+                    ),
+                  );
+                }
+              });
+              return LoaderPreparandoRuta();
+            },
+            transitionDuration: const Duration(milliseconds: 300),
+          ),
+        );
       }
     });
   }
@@ -193,26 +185,14 @@ class _LoaderMapaViewState extends State<LoaderMapaView> {
   }
 
   void _goToRouteAfterDelay() async {
-    Future.delayed(const Duration(seconds: 5), () async {
+    Future.delayed(const Duration(seconds: 2), () async {
       if (!mounted) return;
-      // Mostrar notificación justo al abrir la ruta del cliente
-      try {
-        final nombre = widget.conductorName;
-        await NotificacionesServicio.instance.showAssignmentNotification(
-          title: 'Conductor asignado',
-          body: nombre != null && nombre.isNotEmpty
-              ? '$nombre está en camino'
-              : 'Se asignó un conductor',
-        );
-      } catch (_) {}
-
+      // Navegar directamente a RutaClientePrueba envuelta en ChangeNotifierProvider
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
-          builder: (_) => RutaClienteView(
-            solicitudId: widget.solicitudId,
-            conductorId: widget.conductorId,
-            conductorName: widget.conductorName,
-            conductorPhone: widget.conductorPhone,
+          builder: (_) => ChangeNotifierProvider(
+            create: (_) => PruebaViewModel(),
+            child: PruebaCliente(idSolicitud: widget.solicitudId), // Elimina el '!' porque solicitudId no puede ser null aquí
           ),
         ),
       );
@@ -224,9 +204,7 @@ class _LoaderMapaViewState extends State<LoaderMapaView> {
     return const Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
-        child: Center(
-          child: MapLoadingWidget(),
-        ),
+        child: MapLoadingWidget(),
       ),
     );
   }

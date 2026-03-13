@@ -37,7 +37,7 @@ class RutaConductorViewModel extends ChangeNotifier {
             userId: uid,
             userType: 'conductor',
             solicitudId: solicitudId,
-            distanceFilter: 10,
+            distanceFilter: 1, // 1 metro para pruebas
             timeInterval: 10,
           );
           debugPrint('[ViewModel] Tracking de ubicación iniciado.');
@@ -83,10 +83,12 @@ class RutaConductorViewModel extends ChangeNotifier {
           barrierDismissible: false,
           builder: (_) => const LoaderSolicitudCancelada(),
         );
+        // Cargar la clase en segundo plano
+        final homeConductorWidget = HomeConductorMapView();
         await Future.delayed(const Duration(seconds: 2));
         Navigator.of(context).pop(); // Cierra el loader
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => HomeConductorMapView()),
+          MaterialPageRoute(builder: (_) => homeConductorWidget),
         );
       }
     });
@@ -373,8 +375,5 @@ static Future<void> mostrarNotificacion(String titulo, String cuerpo) async {
     platformChannelSpecifics,
   );
 }
-
-// Inicializa notificaciones en el main o en el initState del ViewModel
-// RutaConductorViewModel.inicializarNotificaciones();
 
 }

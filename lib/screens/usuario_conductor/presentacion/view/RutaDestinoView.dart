@@ -1,16 +1,16 @@
-
 import 'dart:async';
 import 'dart:math' as Math;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/resumen_conductor_view.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/RutaDestinoViewModel.dart';
 import 'package:taxi_app/services/DireccionesServicio.dart';
-import 'package:taxi_app/utils/Mapa.dart';
+import 'package:taxi_app/services/background_tracking_service.dart';
 import 'package:taxi_app/widgets/LoaderCompletado.dart';
-import 'package:taxi_app/widgets/google_maps_widget.dart';
+import 'package:taxi_app/widgets/MapaGoogle.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:provider/provider.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/RutaConductorViewModel.dart';
@@ -31,7 +31,9 @@ class RutaDestino extends StatefulWidget {
   State<RutaDestino> createState() => _RutaDestinoState();
 }
 
-class _RutaDestinoState extends State<RutaDestino> {
+class _RutaDestinoState extends State<RutaDestino> with WidgetsBindingObserver {
+    bool _isPaused = false;
+  // El servicio background ahora se inicia solo desde el ViewModel y solo si no está corriendo
 
   final TextEditingController _chatController = TextEditingController();
   final ScrollController _chatScrollController = ScrollController();
@@ -54,15 +56,32 @@ class _RutaDestinoState extends State<RutaDestino> {
 
     List<LatLng> _polylinePoints = [];
     bool _loadingPolyline = false;
+    LatLng? _ubicacionInicialConductor;
+    // Calcula los bounds de la polyline para ajustar la cámara
+    LatLngBounds? _calcularBoundsPolyline(List<LatLng> points) {
+      if (points.isEmpty) return null;
+      double minLat = points.first.latitude;
+      double maxLat = points.first.latitude;
+      double minLng = points.first.longitude;
+      double maxLng = points.first.longitude;
+      for (final p in points) {
+        if (p.latitude < minLat) minLat = p.latitude;
+        if (p.latitude > maxLat) maxLat = p.latitude;
+        if (p.longitude < minLng) minLng = p.longitude;
+        if (p.longitude > maxLng) maxLng = p.longitude;
+      }
+      return LatLngBounds(
+        southwest: LatLng(minLat, minLng),
+        northeast: LatLng(maxLat, maxLng),
+      );
+    }
 
   @override
   void initState() {
     super.initState();
-
+    WidgetsBinding.instance.addObserver(this);
     // Inicializa notificaciones locales
     RutaConductorViewModel.inicializarNotificaciones();
-
-    // Mostrar notificación local al iniciar la clase
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await RutaDestinoViewModel.mostrarNotificacion(
         'Continúa el servicio',
@@ -82,21 +101,63 @@ class _RutaDestinoState extends State<RutaDestino> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _chatController.dispose();
     _chatScrollController.dispose();
     _positionStream?.cancel();
     super.dispose();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.paused) {
+      debugPrint(' 🚀[LOG] RutaDestinoView: onPaused');
+      _isPaused = true;
+        // Iniciar servicio de background y obtener ubicación
+        _iniciarTrackingBackground();
+    } else if (state == AppLifecycleState.resumed) {
+      debugPrint(' 🚀 [LOG] RutaDestinoView: onResumed');
+      _isPaused = false;
+    }
+  }
+
+    Future<void> _iniciarTrackingBackground() async {
+      try {
+        debugPrint('🚀 [LOG] Iniciando tracking background desde onPaused');
+        await initializeBackgroundService();
+        await startBackgroundTrackingService();
+      } catch (e) {
+        debugPrint('Error iniciando tracking background: $e');
+      }
+    }
+
   Future<void> _obtenerUbicacionConductor() async {
     setState(() { _loadingUbicacion = true; });
     try {
       final position = await Geolocator.getCurrentPosition(
           desiredAccuracy: LocationAccuracy.high);
+      final nuevaUbicacion = LatLng(position.latitude, position.longitude);
+      if (!mounted) return;
       setState(() {
-        _ubicacionConductor = LatLng(position.latitude, position.longitude);
+        _ubicacionConductor = nuevaUbicacion;
         _loadingUbicacion = false;
+        if (_ubicacionInicialConductor == null) {
+          _ubicacionInicialConductor = _ubicacionConductor;
+        }
       });
+      // Actualizar en Firestore (solicitudes -> conductor -> ubicacion)
+      await FirebaseFirestore.instance
+        .collection('solicitudes')
+        .doc(widget.idSolicitud)
+        .update({
+          'conductor.ubicacion': {
+            'lat': nuevaUbicacion.latitude,
+            'lng': nuevaUbicacion.longitude,
+          }
+        });
+      if (!mounted) return;
+      setState(() { });
       // Centrar ambos marcadores y ajustar zoom
       _fitMarkers();
 
@@ -116,6 +177,15 @@ class _RutaDestinoState extends State<RutaDestino> {
           );
           if (polyline != null && polyline.isNotEmpty) {
             _polylinePoints = _decodePolyline(polyline);
+              // Ajusta la cámara para mostrar la polyline completa
+              if (_mapController != null && _polylinePoints.isNotEmpty) {
+                final bounds = _calcularBoundsPolyline(_polylinePoints);
+                if (bounds != null) {
+                  await _mapController!.animateCamera(
+                    CameraUpdate.newLatLngBounds(bounds, 80),
+                  );
+                }
+              }
           } else {
             _polylinePoints = [];
           }
@@ -138,44 +208,104 @@ void _escucharMovimientoConductor() {
   _positionStream = Geolocator.getPositionStream(
     locationSettings: const LocationSettings(
       accuracy: LocationAccuracy.high,
-      distanceFilter: 15, // Actualiza cada 15 metros de movimiento
+      distanceFilter: 1, // Actualiza cada 15 metros de movimiento
     ),
-  ).listen((Position position) {
+  ).listen((Position position) async {
 
-    final nuevaUbicacion =
-        LatLng(position.latitude, position.longitude);
+    final nuevaUbicacion = LatLng(position.latitude, position.longitude);
 
+    if (!mounted) return;
     setState(() {
       _ubicacionConductor = nuevaUbicacion;
     });
 
-if (_mapController != null &&
-    _polylinePoints.isNotEmpty) {
-
-  LatLng siguientePunto = _polylinePoints[0];
-
-  _bearing = Mapa.calcularBearing(
-    _ubicacionConductor!.latitude,
-    _ubicacionConductor!.longitude,
-    siguientePunto.latitude,
-    siguientePunto.longitude,
-  );
-
-  _mapController!.animateCamera(
-    CameraUpdate.newCameraPosition(
-      CameraPosition(
-        target: nuevaUbicacion,
-        zoom: 17,
-        tilt: 45,
-        bearing: _bearing,
-      ),
-        ),
-      );
+    debugPrint('[LOG] Ubicación extraída del GPS: lat=${nuevaUbicacion.latitude}, lng=${nuevaUbicacion.longitude}');
+    if (_isPaused) {
+      debugPrint('[LOG] [onPaused] Ubicación obtenida: lat=${nuevaUbicacion.latitude}, lng=${nuevaUbicacion.longitude}');
     }
 
+    // Guardar ubicación obtenida y fecha en Firestore (igual que en RutaConductorView)
+    try {
+      final fechaEnvio = DateTime.now().toIso8601String();
+      await FirebaseFirestore.instance
+        .collection('solicitudes')
+        .doc(widget.idSolicitud)
+        .update({
+          'conductor.ubicacion': {
+            'lat': nuevaUbicacion.latitude,
+            'lng': nuevaUbicacion.longitude,
+            'fecha': fechaEnvio,
+          }
+        });
+      debugPrint('[LOG] Ubicación guardada en base de datos: lat=${nuevaUbicacion.latitude}, lng=${nuevaUbicacion.longitude}, fecha=$fechaEnvio');
+    } catch (e) {
+      debugPrint('Error guardando ubicación obtenida: $e');
+    }
+
+    // Ajusta la cámara para mostrar la polyline completa al mover el conductor
+    if (_mapController != null && _polylinePoints.isNotEmpty) {
+      final bounds = _calcularBoundsPolyline(_polylinePoints);
+      if (bounds != null && mounted) {
+        _mapController!.animateCamera(
+          CameraUpdate.newLatLngBounds(bounds, 80),
+        );
+      }
+    }
+
+    // Si el conductor se desvía más de 50 metros de la polyline, solicita nueva ruta
+    if (_polylinePoints.isNotEmpty && _ubicacionConductor != null) {
+      double minDist = double.infinity;
+      for (final p in _polylinePoints) {
+        final dist = Geolocator.distanceBetween(
+          _ubicacionConductor!.latitude,
+          _ubicacionConductor!.longitude,
+          p.latitude,
+          p.longitude,
+        );
+        if (dist < minDist) minDist = dist;
+      }
+      if (minDist > 50) {
+        _solicitarNuevaPolyline();
+      }
+    }
   });
 
 }
+ Future<void> _solicitarNuevaPolyline() async {
+    final vm = Provider.of<RutaDestinoViewModel>(context, listen: false);
+    if (_ubicacionConductor != null && vm.latDestino != null && vm.lngDestino != null) {
+      if (!mounted) return;
+      setState(() { _loadingPolyline = true; });
+      try {
+        final direcciones = Direcciones();
+        String? polyline = await direcciones.getPolyline(
+          _ubicacionConductor!.latitude,
+          _ubicacionConductor!.longitude,
+          vm.latDestino!,
+          vm.lngDestino!
+        );
+        if (polyline != null && polyline.isNotEmpty) {
+          _polylinePoints = _decodePolyline(polyline);
+          // Ajusta la cámara para mostrar la polyline completa
+          if (_mapController != null && _polylinePoints.isNotEmpty) {
+            final bounds = _calcularBoundsPolyline(_polylinePoints);
+            if (bounds != null) {
+              await _mapController!.animateCamera(
+                CameraUpdate.newLatLngBounds(bounds, 80),
+              );
+            }
+          }
+        } else {
+          _polylinePoints = [];
+        }
+      } catch (e) {
+        _polylinePoints = [];
+        debugPrint('Error obteniendo polyline: $e');
+      }
+      if (!mounted) return;
+      setState(() { _loadingPolyline = false; });
+    }
+  }
 
 
   List<LatLng> _decodePolyline(String encoded) {
@@ -224,6 +354,7 @@ if (_mapController != null &&
     final vm = Provider.of<RutaDestinoViewModel>(context, listen: false);
     if (_ubicacionConductor == null || vm.latDestino == null || vm.lngDestino == null) return;
     final destino = LatLng(vm.latDestino!, vm.lngDestino!);
+    // Centrar ambos marcadores usando bounds
     final bounds = LatLngBounds(
       southwest: LatLng(
         Math.min(_ubicacionConductor!.latitude, destino.latitude),
@@ -237,6 +368,17 @@ if (_mapController != null &&
     _mapController!.animateCamera(
       CameraUpdate.newLatLngBounds(bounds, 80),
     );
+}
+
+// Calcula el bearing entre dos puntos (en grados)
+double _calcularBearing(double lat1, double lng1, double lat2, double lng2) {
+  double dLon = (lng2 - lng1) * (3.141592653589793 / 180.0);
+  double y = Math.sin(dLon) * Math.cos(lat2 * (3.141592653589793 / 180.0));
+  double x = Math.cos(lat1 * (3.141592653589793 / 180.0)) * Math.sin(lat2 * (3.141592653589793 / 180.0)) -
+      Math.sin(lat1 * (3.141592653589793 / 180.0)) * Math.cos(lat2 * (3.141592653589793 / 180.0)) * Math.cos(dLon);
+  double bearing = Math.atan2(y, x);
+  bearing = bearing * (180.0 / 3.141592653589793);
+  return (bearing + 360.0) % 360.0;
 
   }
 
@@ -479,17 +621,17 @@ if (_mapController != null &&
     }
     final target = _ubicacionConductor ?? destinoLatLng ?? _initialTarget;
     final markers = <Marker>{
-      // Marcador del conductor
-      if (_ubicacionConductor != null)
-        Marker(
-          markerId: const MarkerId('conductor'),
-          position: _ubicacionConductor!,
-          rotation: _bearing,
-          anchor: const Offset(0.5, 0.5),
-          flat: true,
-          infoWindow: const InfoWindow(title: 'Tú'),
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
-        ),
+      // // Marcador del conductor
+      // if (_ubicacionConductor != null)
+      //   Marker(
+      //     markerId: const MarkerId('conductor'),
+      //     position: _ubicacionConductor!,
+      //     rotation: _bearing,
+      //     anchor: const Offset(0.5, 0.5),
+      //     flat: true,
+      //     infoWindow: const InfoWindow(title: 'Tú'),
+      //     icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+      //   ),
       // Marcador del destino
       if (destinoLatLng != null)
         Marker(
@@ -528,13 +670,13 @@ if (_mapController != null &&
       height: MediaQuery.of(context).size.height * 0.70,
       child: Stack(
         children: [
-          AppGoogleMap(
+          Mapagoogle(
             initialTarget: target,
             initialZoom: _initialZoom,
             markers: markers,
             polylines: polylines,
             circles: _circles,
-            myLocationEnabled: true,
+          
             //myLocationButtonEnabled: true,
             onMapCreated: (controller) {
               _mapController = controller;
@@ -786,6 +928,7 @@ if (_mapController != null &&
                                       'estado': 'completado',
                                       'fecha de terminacion': fechaHoraFinalizacion,
                                     });
+                                await finalizarViaje(); // Detener servicio background
                                 await RutaDestinoViewModel.mostrarNotificacion(
                                   'Viaje terminado',
                                   'El viaje ha finalizado correctamente.'
@@ -839,6 +982,12 @@ if (_mapController != null &&
       ),
     );
 
+  }
+
+  /// Finaliza el servicio background cuando el viaje se completa
+  Future<void> finalizarViaje() async {
+    final service = FlutterBackgroundService();
+    service.invoke("stop"); // Quitar await
   }
 
   @override

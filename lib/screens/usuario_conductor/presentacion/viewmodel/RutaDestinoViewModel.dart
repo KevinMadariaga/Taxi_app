@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
@@ -11,6 +12,7 @@ import 'package:taxi_app/helper/session_helper.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/chat_message.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/RutaDestinoView.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/resumen_conductor_view.dart';
+import 'package:taxi_app/services/background_tracking_service.dart';
 import 'package:taxi_app/services/chat_service.dart';
 import 'package:taxi_app/services/firebase_service.dart';
 import 'package:taxi_app/services/route_cache_service.dart';
@@ -18,8 +20,8 @@ import 'package:taxi_app/services/tracking_service.dart';
 import 'package:taxi_app/widgets/LoaderCompletado.dart';
 
 class RutaDestinoViewModel extends ChangeNotifier {
-        final FirebaseService _firebaseService;
-        final TrackingService _trackingService;
+        late final FirebaseService _firebaseService;
+        late final TrackingService _trackingService;
 
         RutaDestinoViewModel({FirebaseService? firebaseService, TrackingService? trackingService})
             : _firebaseService = firebaseService ?? FirebaseService(),
@@ -55,6 +57,8 @@ class RutaDestinoViewModel extends ChangeNotifier {
         debugPrint('[RutaDestinoViewModel] Error guardando ubicación inicial: $e');
       }
     }
+    // Iniciar servicio en background (solo si no está corriendo)
+    await startBackgroundTrackingService();
 
     debugPrint('[RutaDestinoViewModel] Iniciando tracking continuo de ubicación...');
     await _trackingService
@@ -102,16 +106,21 @@ class RutaDestinoViewModel extends ChangeNotifier {
         try {
           await RouteCacheService.clearSolicitud(solicitudId);
         } catch (_) {}
+        // Detener servicio en background
+        final service = FlutterBackgroundService();
+        service.invoke("stop");
         // Mostrar loader completada
         showDialog(
           context: context,
           barrierDismissible: false,
           builder: (_) => const LoaderSolicitudCompletada(),
         );
+        // Cargar la clase en segundo plano
+        final resumenConductorWidget = ResumenConductorView(solicitudId: solicitudId);
         await Future.delayed(const Duration(seconds: 2));
         Navigator.of(context).pop(); // Cierra el loader
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => ResumenConductorView(solicitudId: solicitudId),),
+          MaterialPageRoute(builder: (_) => resumenConductorWidget),
         );
       }
     });

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:provider/provider.dart';
 import 'package:taxi_app/helper/firebase_helper.dart';
@@ -8,9 +9,11 @@ import 'package:taxi_app/screens/introductorio_screen.dart';
 import 'package:taxi_app/screens/usuario_cliente/data/Auth.dart';
 import 'package:taxi_app/screens/usuario_cliente/data/firebaseDB.dart';
 import 'package:taxi_app/models/AuthModel.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/RutaClienteDestinoViewModel.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/RutaConductorViewModel.dart';
 import 'package:taxi_app/services/auth_service.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:taxi_app/services/background_tracking_service.dart';
 import 'package:taxi_app/services/notificacion_servicio.dart';
 import 'package:taxi_app/theme/app_theme.dart';
  
@@ -18,7 +21,14 @@ import 'package:taxi_app/theme/app_theme.dart';
 /// Initializes services, handles permissions, and launches the app.
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.dark,
+    ),
+  );
   await _initializeAppServices();
+  await initializeBackgroundService();
   final initialScreen = await _getInitialScreen();
   final prefs = await SharedPreferences.getInstance();
   final seenOnboarding = prefs.getBool('seenOnboarding') ?? false;
@@ -72,6 +82,9 @@ class MyApp extends StatelessWidget {
             ),
             ChangeNotifierProvider(
               create: (_) => RutaConductorViewModel(),
+            ),
+            ChangeNotifierProvider(
+              create: (_) => Rutaclientedestinoviewmodel(),
             ),
             // Add more ViewModels here as needed
           ],

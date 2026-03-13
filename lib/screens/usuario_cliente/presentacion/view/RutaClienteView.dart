@@ -1,1395 +1,1076 @@
 
+
 import 'dart:async';
-import 'dart:math' as math;
+import 'dart:math' as Math;
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:taxi_app/components/boton.dart';
-
-import 'package:taxi_app/core/app_colores.dart';
-import 'package:taxi_app/helper/responsive_helper.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/model/chat_message.dart';
-import 'package:taxi_app/services/chat_service.dart';
-import 'package:taxi_app/widgets/google_maps_widget.dart';
-import 'package:taxi_app/widgets/map_loading_widget.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/InicioClienteView.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/view/RutaDestinoClienteView.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/ruta_cliente_viewmodel.dart';
-import 'package:taxi_app/services/route_cache_service.dart';
-import 'package:taxi_app/services/notificacion_servicio.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/RutaClienteViewModel.dart';
+import 'package:taxi_app/services/DireccionesServicio.dart';
+import 'package:taxi_app/widgets/LoaderCancelado.dart';
+import 'package:taxi_app/widgets/MapaGoogle.dart';
+import 'package:taxi_app/widgets/universal_chat_widget.dart';
+import 'package:taxi_app/core/app_colores.dart';
 
-class RutaClienteView extends StatefulWidget {
-  final String solicitudId;
-  final String? conductorId;
-  final String? conductorName;
-  final String? conductorPhone;
 
-  const RutaClienteView({
-    super.key,
-    required this.solicitudId,
-    this.conductorId,
-    this.conductorName,
-    this.conductorPhone,
-  });
+class RutaCliente extends StatefulWidget {
+  final String idSolicitud;
+  const RutaCliente({Key? key, required this.idSolicitud}) : super(key: key);
 
   @override
-  State<RutaClienteView> createState() => _RutaClienteViewState();
+  State<RutaCliente> createState() => _RutaClienteState();
 }
 
-class _RutaClienteViewState extends State<RutaClienteView> {
+class _RutaClienteState extends State<RutaCliente> with WidgetsBindingObserver {
+
+    String? _tiempoEstimadoTexto;
+    Future<void> _actualizarTiempoEstimado() async {
+      if (_conductorLatLng != null) {
+        final vm = Provider.of<Rutaclienteviewmodel>(context, listen: false);
+        LatLng? clienteLatLng = (vm.latCliente != null && vm.lngCliente != null)
+            ? LatLng(vm.latCliente!, vm.lngCliente!)
+            : null;
+        if (clienteLatLng != null) {
+          final direcciones = Direcciones();
+          int? segundos = await direcciones.getEstimatedDuration(
+            _conductorLatLng!.latitude,
+            _conductorLatLng!.longitude,
+            clienteLatLng.latitude,
+            clienteLatLng.longitude,
+          );
+          setState(() {
+            if (segundos != null) {
+              final minutos = (segundos / 60).ceil();
+              _tiempoEstimadoTexto = minutos > 1 ? "$minutos min" : "1 min";
+            } else {
+              _tiempoEstimadoTexto = null;
+            }
+          });
+        }
+      }
+    }
+
+    LatLng? _conductorLatLng;
+    StreamSubscription? _conductorLocationSub;
+    Timer? _animacionMarcadorTimer;
+
+  List<LatLng> _polylinePoints = [];
+
+
+  Future<void> _obtenerPolyline(LatLng origen, LatLng destino) async {
+    try {
+      final direcciones = Direcciones();
+      String? polyline = await direcciones.getPolyline(
+        origen.latitude,
+        origen.longitude,
+        destino.latitude,
+        destino.longitude,
+      );
+      if (polyline != null && polyline.isNotEmpty) {
+        _polylinePoints = _decodePolyline(polyline);
+      } else {
+        _polylinePoints = [];
+      }
+    } catch (e) {
+      _polylinePoints = [];
+    }
+  }
+
+  List<LatLng> _decodePolyline(String encoded) {
+    List<LatLng> points = [];
+    int index = 0, len = encoded.length;
+    int lat = 0, lng = 0;
+    while (index < len) {
+      int b, shift = 0, result = 0;
+      do {
+        b = encoded.codeUnitAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      int dlat = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
+      lat += dlat;
+      shift = 0;
+      result = 0;
+      do {
+        b = encoded.codeUnitAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      int dlng = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
+      lng += dlng;
+      points.add(LatLng(lat / 1E5, lng / 1E5));
+    }
+    return points;
+  }
+
+
   GoogleMapController? _mapController;
-  BitmapDescriptor? _taxiIcon;
-  BitmapDescriptor? _clientIcon;
-  late RutaClienteViewModel _vm;
-  final ChatService _chatService = ChatService();
-  final TextEditingController _chatController = TextEditingController();
-  final ScrollController _chatScrollController = ScrollController();
-  final FocusNode _chatFocusNode = FocusNode();
-  bool _isChatOpen = false;
-  bool _handledCancelNavigation = false;
-  bool _handledDestinoNavigation = false;
-  RouteCacheData? _routeCache;
-  bool _initializing = true;
-  bool _initializationScheduled = false;
-  late DateTime _initStart;
 
   @override
   void initState() {
     super.initState();
-    _initStart = DateTime.now();
-    _vm = RutaClienteViewModel(
-      solicitudId: widget.solicitudId,
-      conductorId: widget.conductorId,
-      conductorName: widget.conductorName,
-      conductorPhone: widget.conductorPhone,
-    );
-    _vm.init();
-    _loadTaxiIcon();
-    _loadClientIcon();
-    _restoreCacheAndNotifyCliente();
-  }
-
-  Future<void> _restoreCacheAndNotifyCliente() async {
-    try {
-      final cache = await RouteCacheService.loadForSolicitud(
-        widget.solicitudId,
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final vm = Provider.of<Rutaclienteviewmodel>(context, listen: false);
+      vm.inicializarNotificaciones();
+      await vm.mostrarNotificacion(
+        'Conductor asignado',
+        'Vendrá pronto a recogerte.',
       );
-      if (!mounted) return;
-      if (cache != null) {
-        setState(() {
-          _routeCache = cache;
-        });
-        WidgetsBinding.instance.addPostFrameCallback((_) async {
-          await NotificacionesServicio.instance.showTripNotification(
-            title: 'Solicitud activa',
-            body: 'Continúa el servicio',
-          );
-        });
-      }
-    } catch (_) {}
-  }
+      vm.cargarDatosConductorYUbicacionCliente(widget.idSolicitud);
+      vm.iniciarChat(widget.idSolicitud);
+      vm.escucharEstadoSolicitud(widget.idSolicitud, context);
+      LatLng? prevClienteLatLng;
+      LatLng? prevConductorLatLng;
+      vm.addListener(() {
+        if (_mapController != null) {
+          LatLng? clienteLatLng =
+              (vm.latCliente != null && vm.lngCliente != null)
+              ? LatLng(vm.latCliente!, vm.lngCliente!)
+              : null;
+          LatLng? conductorLatLng =
+              (vm.latConductor != null && vm.lngConductor != null)
+              ? LatLng(vm.latConductor!, vm.lngConductor!)
+              : null;
+          // Solo actualizar polyline si ambos existen
+          if (clienteLatLng != null && conductorLatLng != null) {
+            _obtenerPolyline(conductorLatLng, clienteLatLng);
+          }
+        }
+      });
+    });
 
-  double _haversineDistanceMeters(LatLng a, LatLng b) {
-    const R = 6371000.0; // metros
-    final dLat = (b.latitude - a.latitude) * math.pi / 180.0;
-    final dLon = (b.longitude - a.longitude) * math.pi / 180.0;
-    final lat1 = a.latitude * math.pi / 180.0;
-    final lat2 = b.latitude * math.pi / 180.0;
-    final h =
-        math.sin(dLat / 2) * math.sin(dLat / 2) +
-        math.cos(lat1) *
-            math.cos(lat2) *
-            math.sin(dLon / 2) *
-            math.sin(dLon / 2);
-    final c = 2 * math.atan2(math.sqrt(h), math.sqrt(1 - h));
-    return R * c;
-  }
-
-  double _zoomForDistanceMeters(double meters) {
-    if (meters < 200) return 18;
-    if (meters < 500) return 17;
-    if (meters < 1000) return 16;
-    if (meters < 2000) return 15;
-    if (meters < 5000) return 14;
-    if (meters < 10000) return 13;
-    return 12;
+    // Escuchar ubicación del conductor en tiempo real desde Firestore
+    _conductorLocationSub = FirebaseFirestore.instance
+      .collection('solicitudes')
+      .doc(widget.idSolicitud)
+      .snapshots()
+      .listen((doc) {
+        final ubicacion = doc.data()?['conductor']?['ubicacion'];
+        if (ubicacion != null) {
+          final lat = ubicacion['lat'] ?? 0.0;
+          final lng = ubicacion['lng'] ?? 0.0;
+          final fecha = ubicacion['fecha'] ?? '';
+          setState(() {
+            _conductorLatLng = LatLng(lat, lng);
+          });
+          // Animar marcador y cámara
+          _animarMarcadorConductorSuave(_conductorLatLng!);
+          if (_mapController != null) {
+            _mapController!.animateCamera(
+              CameraUpdate.newLatLng(_conductorLatLng!),
+            );
+          }
+        }
+      });
   }
 
   @override
   void dispose() {
-    _vm.dispose();
-    _chatController.dispose();
-    _chatScrollController.dispose();
-    _chatFocusNode.dispose();
+    WidgetsBinding.instance.removeObserver(this);
+    _animacionMarcadorTimer?.cancel();
+    _conductorLocationSub?.cancel();
     super.dispose();
   }
 
-  void _maybeCompleteInitialization(RutaClienteViewModel vm) {
-    if (!_initializing || _initializationScheduled) return;
-    if (vm.loading) return;
-
-    const minDuration = Duration(seconds: 3);
-    final elapsed = DateTime.now().difference(_initStart);
-    final remaining = elapsed >= minDuration
-        ? Duration.zero
-        : minDuration - elapsed;
-
-    _initializationScheduled = true;
-    Future.delayed(remaining, () {
-      if (!mounted) return;
-      setState(() {
-        _initializing = false;
-      });
-    });
-  }
-
-  Future<void> _loadTaxiIcon() async {
-    try {
-      final dpr = WidgetsBinding
-          .instance
-          .platformDispatcher
-          .views
-          .first
-          .devicePixelRatio;
-      final icon = await BitmapDescriptor.asset(
-        ImageConfiguration(size: const Size(30, 50), devicePixelRatio: dpr),
-        'assets/img/taxi_icon.png',
-      );
-      if (!mounted) return;
-      setState(() {
-        _taxiIcon = icon;
-      });
-    } catch (_) {
-      // si falla, se mantiene el marcador por defecto
-    }
-  }
-
-  Future<void> _loadClientIcon() async {
-    try {
-      final dpr = WidgetsBinding
-          .instance
-          .platformDispatcher
-          .views
-          .first
-          .devicePixelRatio;
-      final icon = await BitmapDescriptor.asset(
-        ImageConfiguration(size: const Size(30, 50), devicePixelRatio: dpr),
-        'assets/img/map_pin_red.png',
-      );
-      if (!mounted) return;
-      setState(() {
-        _clientIcon = icon;
-      });
-    } catch (_) {
-      // si falla, se mantiene el marcador por defecto
-    }
-  }
-
-  Future<void> _sendChatMessage() async {
-    final texto = _chatController.text.trim();
-    if (texto.isEmpty) return;
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    try {
-      await _chatService.sendMessage(
-        solicitudId: widget.solicitudId,
-        senderId: uid ?? '',
-        texto: texto,
-      );
-      _chatController.clear();
-      await Future.delayed(const Duration(milliseconds: 60));
-      if (_chatScrollController.hasClients) {
-        _chatScrollController.animateTo(
-          _chatScrollController.position.maxScrollExtent + 24,
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOutCubic,
-        );
-      }
-    } catch (_) {}
-  }
-
-  Future<void> _openChatSheet() async {
-    // Al abrir el chat, limpiar el indicador de "nuevo mensaje" en el VM
-    _vm.clearNewChatFlag();
-    setState(() {
-      _isChatOpen = true;
-    });
-
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) {
-        final viewInsets = MediaQuery.of(ctx).viewInsets;
-        final keyboardOpen = viewInsets.bottom > 0;
-        final initialSize = keyboardOpen ? 0.9 : 0.55;
-        final minSize = keyboardOpen ? 0.6 : 0.35;
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
-          if (_chatFocusNode.canRequestFocus) {
-            _chatFocusNode.requestFocus();
-          }
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      // Al volver a la app, solo actualizar la posición del marcador del conductor
+      final vm = Provider.of<Rutaclienteviewmodel>(context, listen: false);
+      vm.cargarDatosConductorYUbicacionCliente(widget.idSolicitud);
+      // Si hay nueva ubicación, solo mover el marcador
+      LatLng? nuevaLatLng = (vm.latConductor != null && vm.lngConductor != null)
+          ? LatLng(vm.latConductor!, vm.lngConductor!)
+          : null;
+      if (nuevaLatLng != null) {
+        setState(() {
+          _conductorLatLng = nuevaLatLng;
         });
-        return Padding(
-          padding: EdgeInsets.only(bottom: viewInsets.bottom),
-          child: DraggableScrollableSheet(
-            initialChildSize: initialSize,
-            minChildSize: minSize,
-            maxChildSize: 0.95,
-            builder: (_, controller) {
-              return Container(
-                decoration: const BoxDecoration(
-                  color: AppColores.sheetBackground,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-                  boxShadow: [
-                    BoxShadow(blurRadius: 16, color: AppColores.borderSubtle),
-                  ],
-                ),
-                padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        const Expanded(
-                          child: Text(
-                            'Chat con tu conductor',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.close),
-                          onPressed: () {
-                            FocusScope.of(ctx).unfocus();
-                            Navigator.of(ctx).pop();
-                          },
-                        ),
-                      ],
+      }
+    }
+    // Puedes agregar lógica en onPause si lo necesitas
+  }
+  // Animación suave para mover el marcador del conductor
+  void _animarMarcadorConductorSuave(LatLng nuevaLatLng) {
+    _animacionMarcadorTimer?.cancel();
+    final inicio = _conductorLatLng ?? nuevaLatLng;
+    final destino = nuevaLatLng;
+    const pasos = 30;
+    const duracion = Duration(milliseconds: 20);
+    int pasoActual = 0;
+    _animacionMarcadorTimer = Timer.periodic(duracion, (timer) {
+      if (pasoActual >= pasos) {
+        timer.cancel();
+        _conductorLatLng = destino;
+        setState(() {});
+        return;
+      }
+      double lat = inicio.latitude + (destino.latitude - inicio.latitude) * pasoActual / pasos;
+      double lng = inicio.longitude + (destino.longitude - inicio.longitude) * pasoActual / pasos;
+      LatLng nuevaPos = LatLng(lat, lng);
+      _conductorLatLng = nuevaPos;
+      _centrarAmbosMarcadores();
+      _actualizarTiempoEstimado();
+      setState(() {});
+      pasoActual++;
+    });
+
+  }
+
+  // Centra ambos marcadores (cliente y conductor) en pantalla
+  void _centrarAmbosMarcadores() {
+    final vm = Provider.of<Rutaclienteviewmodel>(context, listen: false);
+    LatLng? clienteLatLng = (vm.latCliente != null && vm.lngCliente != null)
+        ? LatLng(vm.latCliente!, vm.lngCliente!)
+        : null;
+    LatLng? conductorLatLng = _conductorLatLng;
+    if (_mapController != null && clienteLatLng != null && conductorLatLng != null) {
+      // Calcular bounds para ambos marcadores
+      LatLngBounds bounds = LatLngBounds(
+        southwest: LatLng(
+          clienteLatLng.latitude < conductorLatLng.latitude ? clienteLatLng.latitude : conductorLatLng.latitude,
+          clienteLatLng.longitude < conductorLatLng.longitude ? clienteLatLng.longitude : conductorLatLng.longitude,
+        ),
+        northeast: LatLng(
+          clienteLatLng.latitude > conductorLatLng.latitude ? clienteLatLng.latitude : conductorLatLng.latitude,
+          clienteLatLng.longitude > conductorLatLng.longitude ? clienteLatLng.longitude : conductorLatLng.longitude,
+        ),
+      );
+      // Mostrar polyline
+      if (_polylinePoints.isEmpty) {
+        _obtenerPolyline(conductorLatLng, clienteLatLng);
+      }
+      // Calcular bearing del cliente hacia el conductor
+      double bearing = _calcularBearing(
+        clienteLatLng.latitude,
+        clienteLatLng.longitude,
+        conductorLatLng.latitude,
+        conductorLatLng.longitude,
+      );
+      // Centrar la cámara para que ambos marcadores sean visibles, con bearing
+      _mapController!.animateCamera(
+        CameraUpdate.newLatLngBounds(bounds, 120),
+      );
+      // Opcional: animar luego la perspectiva del cliente
+      Future.delayed(const Duration(milliseconds: 400), () {
+        double distancia = _calcularDistancia(clienteLatLng, conductorLatLng);
+        double zoom = _zoomPorDistancia(distancia);
+        _mapController!.animateCamera(
+          CameraUpdate.newCameraPosition(
+            CameraPosition(
+              target: clienteLatLng,
+              zoom: zoom,
+              bearing: bearing,
+              tilt: 0,
+            ),
+          ),
+        );
+      });
+      _actualizarTiempoEstimado();
+    }
+  }
+
+//animacion de camara desde la perspectiva del cliente mirando al conductor
+  void _animarCamaraPerspectiva(LatLng conductorLatLng) {
+    if (_mapController == null) return;
+    final vm = Provider.of<Rutaclienteviewmodel>(context, listen: false);
+    LatLng? clienteLatLng = (vm.latCliente != null && vm.lngCliente != null)
+        ? LatLng(vm.latCliente!, vm.lngCliente!)
+        : null;
+    if (clienteLatLng == null) return;
+
+    // Calcular bearing desde el cliente hacia el conductor
+    double bearing = _calcularBearing(
+      clienteLatLng.latitude,
+      clienteLatLng.longitude,
+      conductorLatLng.latitude,
+      conductorLatLng.longitude,
+    );
+
+    // Calcular zoom dinámico según distancia
+    double distancia = _calcularDistancia(clienteLatLng, conductorLatLng);
+    double zoom = _zoomPorDistancia(distancia);
+
+    // Animar la cámara desde la perspectiva del cliente mirando al conductor
+    _mapController!.animateCamera(
+      CameraUpdate.newCameraPosition(
+        CameraPosition(
+          target: clienteLatLng,
+          zoom: zoom,
+          bearing: bearing,
+          tilt: 45,
+        ),
+      ),
+    );
+  }
+
+  double _calcularBearing(double lat1, double lng1, double lat2, double lng2) {
+    double dLon = (lng2 - lng1) * (3.141592653589793 / 180.0);
+    double y = Math.sin(dLon) * Math.cos(lat2 * (3.141592653589793 / 180.0));
+    double x = Math.cos(lat1 * (3.141592653589793 / 180.0)) * Math.sin(lat2 * (3.141592653589793 / 180.0)) -
+        Math.sin(lat1 * (3.141592653589793 / 180.0)) * Math.cos(lat2 * (3.141592653589793 / 180.0)) * Math.cos(dLon);
+    double bearing = Math.atan2(y, x);
+    bearing = bearing * (180.0 / 3.141592653589793);
+    return (bearing + 360.0) % 360.0;
+  }
+
+  double _calcularDistancia(LatLng a, LatLng b) {
+    const R = 6371.0; // Radio de la Tierra en km
+    double dLat = (b.latitude - a.latitude) * (3.141592653589793 / 180.0);
+    double dLon = (b.longitude - a.longitude) * (3.141592653589793 / 180.0);
+    double lat1 = a.latitude * (3.141592653589793 / 180.0);
+    double lat2 = b.latitude * (3.141592653589793 / 180.0);
+    double aVal = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.sin(dLon / 2) * Math.sin(dLon / 2) * Math.cos(lat1) * Math.cos(lat2);
+    double c = 2 * Math.atan2(Math.sqrt(aVal), Math.sqrt(1 - aVal));
+    return R * c * 1000; // metros
+  }
+
+  double _zoomPorDistancia(double distancia) {
+    // Zoom adaptativo: más cerca, más zoom (valores aumentados)
+    if (distancia < 100) return 20.0;
+    if (distancia < 300) return 19.0;
+    if (distancia < 800) return 18.0;
+    if (distancia < 2000) return 17.0;
+    if (distancia < 5000) return 16.0;
+    return 15.0;
+  }
+
+
+  @override
+  Widget build(BuildContext context) {
+    // Cambiar a variable de estado para alternar entre vistas
+    bool mostrarSoloCliente = false;
+    return WillPopScope(
+      onWillPop: () async => false,
+      child: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: Brightness.dark,
+        ),
+        child: Scaffold(
+          backgroundColor: Colors.white,
+          resizeToAvoidBottomInset: false,
+          body: Consumer<Rutaclienteviewmodel>(
+            builder: (context, vm, _) {
+              final size = MediaQuery.of(context).size;
+              final double screenW = size.width;
+              final bool isTablet = screenW >= 1000;
+              LatLng? clienteLatLng =
+                  (vm.latCliente != null && vm.lngCliente != null)
+                  ? LatLng(vm.latCliente!, vm.lngCliente!)
+                  : null;
+              LatLng? conductorLatLng = _conductorLatLng ?? ((vm.latConductor != null && vm.lngConductor != null)
+                  ? LatLng(vm.latConductor!, vm.lngConductor!)
+                  : null);
+              final markers = <Marker>{
+                if (mostrarSoloCliente && clienteLatLng != null)
+                  // ignore: dead_code
+                  Marker(
+                    markerId: const MarkerId('cliente'),
+                    position: clienteLatLng,
+                    infoWindow: const InfoWindow(title: 'Cliente'),
+                    icon: BitmapDescriptor.defaultMarkerWithHue(
+                      BitmapDescriptor.hueGreen,
                     ),
-                    const SizedBox(height: 8),
-                    Expanded(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: AppColores.grey100,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColores.borderSubtle),
+                  ),
+                if (!mostrarSoloCliente && conductorLatLng != null)
+                  Marker(
+                    markerId: const MarkerId('conductor'),
+                    position: conductorLatLng,
+                    infoWindow: const InfoWindow(title: 'Conductor'),
+                    icon: BitmapDescriptor.defaultMarkerWithHue(
+                      BitmapDescriptor.hueAzure,
+                    ),
+                  ),
+                if (!mostrarSoloCliente && clienteLatLng != null)
+                  Marker(
+                    markerId: const MarkerId('cliente'),
+                    position: clienteLatLng,
+                    infoWindow: const InfoWindow(title: 'Cliente'),
+                    icon: BitmapDescriptor.defaultMarkerWithHue(
+                      BitmapDescriptor.hueGreen,
+                    ),
+                  ),
+              };
+              return Column(
+                children: [
+                  // Mapa ocupa la parte superior
+                  Expanded(
+                    flex: 2,
+                    child: Stack(
+                      children: [
+                        _MapWidget(
+                          markers: markers,
+                          conductorLatLng: conductorLatLng,
+                          clienteLatLng: clienteLatLng,
+                          mapControllerSetter: (controller) =>
+                              _mapController = controller,
                         ),
-                        child: StreamBuilder<List<ChatMessage>>(
-                          stream: _chatService.listenMessages(
-                            widget.solicitudId,
-                          ),
-                          initialData: const [],
-                          builder: (context, snapshot) {
-                            final mensajes =
-                                snapshot.data ?? const <ChatMessage>[];
-                            final uid =
-                                FirebaseAuth.instance.currentUser?.uid ?? '';
-                            WidgetsBinding.instance.addPostFrameCallback((_) {
-                              if (_chatScrollController.hasClients) {
-                                _chatScrollController.jumpTo(
-                                  _chatScrollController
-                                      .position
-                                      .maxScrollExtent,
-                                );
-                              }
-                            });
-                            if (mensajes.isEmpty) {
-                              return const Center(
-                                child: Text(
-                                  'Aún no hay mensajes.\nEscribe el primero.',
-                                  textAlign: TextAlign.center,
+                        if (_tiempoEstimadoTexto != null)
+                          Positioned(
+                            top: 55,
+                            left: 0,
+                            right: 0,
+                            child: Center(
+                              child: Container(
+                                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(16),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.12),
+                                      blurRadius: 8,
+                                      offset: Offset(0, 2),
+                                    ),
+                                  ],
                                 ),
-                              );
-                            }
-                            return ListView.builder(
-                              controller: _chatScrollController,
-                              padding: const EdgeInsets.all(8),
-                              itemCount: mensajes.length,
-                              itemBuilder: (_, i) {
-                                final m = mensajes[i];
-                                final esMio = m.senderId == uid;
-                                final ts = m.timestamp;
-                                final hhmm = ts != null
-                                    ? '${ts.hour.toString().padLeft(2, '0')}:${ts.minute.toString().padLeft(2, '0')}'
-                                    : '';
-                                return Align(
-                                  alignment: esMio
-                                      ? Alignment.centerRight
-                                      : Alignment.centerLeft,
-                                  child: Container(
-                                    margin: const EdgeInsets.symmetric(
-                                      vertical: 4,
-                                    ),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 8,
-                                    ),
-                                    constraints: const BoxConstraints(
-                                      maxWidth: 280,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: esMio
-                                          ? AppColores.primary
-                                          : AppColores.surface,
-                                      borderRadius: BorderRadius.circular(16),
-                                      boxShadow: const [
-                                        BoxShadow(
-                                          color: AppColores.borderSubtle,
-                                          blurRadius: 2,
-                                          offset: Offset(0, 1),
-                                        ),
-                                      ],
-                                      border: Border.all(
-                                        color: AppColores.borderSubtle,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.timer, color: AppColores.primary),
+                                    SizedBox(width: 8),
+                                    Text(
+                                      'Tiempo estimado: $_tiempoEstimadoTexto',
+                                      style: TextStyle(
+                                        color: AppColores.textPrimary,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 18,
                                       ),
                                     ),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Text(
-                                          m.texto,
-                                          style: const TextStyle(
-                                            fontSize: 14,
-                                            color: AppColores.textPrimary,
-                                          ),
-                                        ),
-                                        if (hhmm.isNotEmpty) ...[
-                                          const SizedBox(height: 4),
-                                          Align(
-                                            alignment: Alignment.bottomRight,
-                                            child: Text(
-                                              hhmm,
-                                              style: const TextStyle(
-                                                fontSize: 11,
-                                                color: AppColores.textSecondary,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                  ),
-                                );
-                              },
-                            );
-                          },
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  // Card ocupa la parte inferior
+                  Expanded(
+                    flex: 1,
+                    child: Container(
+                      margin: EdgeInsets.only(top: isTablet ? 16 : 8),
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.only(
+                          topLeft: Radius.circular(isTablet ? 24 : 16),
+                          topRight: Radius.circular(isTablet ? 24 : 16),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.08),
+                            blurRadius: 12,
+                            offset: Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(horizontal: isTablet ? 24 : 12, vertical: isTablet ? 24 : 12),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _infoRow(),
+                            SizedBox(height: isTablet ? 12 : 8),
+                            _bottomButtons(),
+                          ],
                         ),
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _chatController,
-                            focusNode: _chatFocusNode,
-                            minLines: 1,
-                            maxLines: 4,
-                            decoration: const InputDecoration(
-                              hintText: 'Escribe un mensaje...',
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.all(
-                                  Radius.circular(20),
-                                ),
-                              ),
-                              contentPadding: EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 8,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.send,
-                            color: AppColores.primary,
-                          ),
-                          onPressed: _sendChatMessage,
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               );
             },
           ),
-        );
-      },
+        ),
+      ),
     );
-
-    if (mounted) {
-      setState(() {
-        _isChatOpen = false;
-      });
-      FocusScope.of(context).unfocus();
-    }
   }
-
-  void _onMapCreated(GoogleMapController controller) async {
-    _mapController = controller;
-    await Future.delayed(const Duration(milliseconds: 50));
-    _fitBoundsToMarkers();
-  }
-
-  Future<void> _fitBoundsToMarkers() async {
-    try {
-      if (_mapController == null) return;
-      // Intentar centrar ambos marcadores (cliente + conductor) si están disponibles
-      LatLng? clientePos;
-      LatLng? conductorPos;
-      for (final m in _vm.markers) {
-        if (m.markerId.value == 'cliente') clientePos = m.position;
-        if (m.markerId.value == 'conductor') conductorPos = m.position;
-      }
-
-      if (clientePos != null && conductorPos != null) {
-        final center = LatLng(
-          (clientePos.latitude + conductorPos.latitude) / 2,
-          (clientePos.longitude + conductorPos.longitude) / 2,
-        );
-
-        final distanceMeters = _haversineDistanceMeters(
-          clientePos,
-          conductorPos,
-        );
-        final zoom = _zoomForDistanceMeters(distanceMeters);
-        // Orientar la cámara desde el cliente hacia el conductor
-        final bearing = _calculateBearing(clientePos, conductorPos);
-        try {
-          await _mapController!.animateCamera(
-            CameraUpdate.newCameraPosition(
-              CameraPosition(
-                target: center,
-                zoom: zoom,
-                bearing: bearing,
-                tilt: 0.0,
-              ),
-            ),
-          );
-          return;
-        } catch (_) {
-          // Fallback a LatLngBounds si falla
-          try {
-            final bounds = LatLngBounds(
-              southwest: LatLng(
-                math.min(clientePos.latitude, conductorPos.latitude),
-                math.min(clientePos.longitude, conductorPos.longitude),
-              ),
-              northeast: LatLng(
-                math.max(clientePos.latitude, conductorPos.latitude),
-                math.max(clientePos.longitude, conductorPos.longitude),
-              ),
-            );
-            await _mapController!.animateCamera(
-              CameraUpdate.newLatLngBounds(bounds, 120),
-            );
-            return;
-          } catch (_) {}
-        }
-      }
-
-      // Si no tenemos ambos marcadores, usar los bounds provistos por el ViewModel
-      final bounds = _vm.cameraBounds;
-      if (bounds == null) return;
-      // Calcular distancia aproximada usando la diagonal del bounds
-      final sw = bounds.southwest;
-      final ne = bounds.northeast;
-      final diagonalMeters = _haversineDistanceMeters(sw, ne);
-      // Centrar y ajustar zoom de manera que ambos marcadores queden visibles
-      final center = LatLng(
-        (sw.latitude + ne.latitude) / 2,
-        (sw.longitude + ne.longitude) / 2,
-      );
-
-      // Ajuste leve para compensar que la diagonal es mayor que la distancia real
-      final zoom = _zoomForDistanceMeters(diagonalMeters / 1.5);
-      try {
-        await _mapController!.animateCamera(
-          CameraUpdate.newCameraPosition(
-            CameraPosition(
-              target: center,
-              zoom: zoom,
-              // Usar bearing calculado en el ViewModel si está disponible
-              bearing: _vm.initialBearing ?? 0.0,
-              tilt: 0.0,
-            ),
-          ),
-        );
-      } catch (_) {
-        // Fallback a bounds si falla la animación con CameraPosition
-        try {
-          await _mapController!.animateCamera(
-            CameraUpdate.newLatLngBounds(bounds, 160),
-          );
-        } catch (_) {}
-      }
-    } catch (_) {}
-  }
-
-  double _calculateBearing(LatLng from, LatLng to) {
-    final lat1 = from.latitude * (math.pi / 180);
-    final lat2 = to.latitude * (math.pi / 180);
-    final dLon = (to.longitude - from.longitude) * (math.pi / 180);
-    final y = math.sin(dLon) * math.cos(lat2);
-    final x =
-        math.cos(lat1) * math.sin(lat2) -
-        math.sin(lat1) * math.cos(lat2) * math.cos(dLon);
-    final brng = math.atan2(y, x);
-    return (brng * 180 / math.pi + 360) % 360;
-  }
-
-  Future<void> _showCancelConfirmDialog() async {
-    await showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+  // Mosstrar información del conductor y vehículo en un card debajo del mapa
+  Widget _infoRow() {
+    final vm = Provider.of<Rutaclienteviewmodel>(context);
+    final size = MediaQuery.of(context).size;
+    final double screenW = size.width;
+    final bool isTablet = screenW >= 1000;
+    final double paddingH = isTablet ? 32 : screenW < 350 ? 6 : 12;
+    final double paddingV = isTablet ? 24 : screenW < 350 ? 4 : 8;
+    final double avatarRadius = isTablet ? 60 : screenW < 350 ? 22 : 40;
+    final double spacing = isTablet ? 24 : screenW < 350 ? 6 : 12;
+    final double nameFontSize = isTablet ? 32 : screenW < 350 ? 12 : 18;
+    final double placaFontSize = isTablet ? 22 : screenW < 350 ? 10 : 15;
+    final double imageW = isTablet ? 160 : screenW < 350 ? 60 : 100;
+    final double imageH = isTablet ? 120 : screenW < 350 ? 40 : 70;
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(horizontal: paddingH, vertical: paddingV),
+      decoration: BoxDecoration(
+        color: AppColores.surface,
+        borderRadius: BorderRadius.circular(isTablet ? 24 : screenW < 350 ? 8 : 12),
+      ),
+      child: SingleChildScrollView(
+        physics: const NeverScrollableScrollPhysics(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(height: spacing / 2),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                const SizedBox(height: 8),
-                Center(
-                  child: Column(
-                    children: [
-                      Icon(
-                        Icons.cancel,
-                        color: AppColores.error,
-                        size: 48,
+                Column(
+                  children: [
+                    Padding(
+                      padding: EdgeInsets.all(isTablet ? 12 : screenW < 350 ? 2 : 6),
+                      child: CircleAvatar(
+                        radius: avatarRadius,
+                        backgroundColor: AppColores.primary,
+                        backgroundImage: vm.fotoConductor.isNotEmpty
+                            ? NetworkImage(vm.fotoConductor)
+                            : null,
+                        child: vm.fotoConductor.isEmpty
+                            ? const Icon(Icons.person, color: Colors.white)
+                            : null,
                       ),
-                      const SizedBox(height: 10),
-                      Text(
-                        'Cancelar servicio',
+                    ),
+                    SizedBox(height: spacing / 2),
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: isTablet ? 16 : 8, vertical: isTablet ? 6 : 2),
+                      child: Text(
+                        vm.nombreConductor.isNotEmpty
+                            ? vm.nombreConductor
+                            : 'Conductor',
                         style: TextStyle(
-                          fontSize: ResponsiveHelper.sp(context, 18),
+                          fontSize: nameFontSize,
                           fontWeight: FontWeight.bold,
-                          color: AppColores.error,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(
+                  width: isTablet ? 48 : screenW < 350 ? 8 : size.width * 0.12,
+                ),
+                if (vm.fotoVehiculo.isNotEmpty)
+                  Column(
+                    children: [
+                      Padding(
+                        padding: EdgeInsets.all(isTablet ? 10 : screenW < 350 ? 2 : 5),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(isTablet ? 18 : screenW < 350 ? 6 : 12),
+                          child: Image.network(
+                            vm.fotoVehiculo,
+                            width: imageW,
+                            height: imageH,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      ),
+                      SizedBox(height: spacing / 2),
+                      Padding(
+                        padding: EdgeInsets.symmetric(horizontal: isTablet ? 16 : 8, vertical: isTablet ? 6 : 2),
+                        child: Text(
+                          vm.placaVehiculo.isNotEmpty
+                              ? vm.placaVehiculo
+                              : 'Placa no disponible',
+                          style: TextStyle(
+                            fontSize: placaFontSize,
+                            color: AppColores.textPrimary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          textAlign: TextAlign.center,
                         ),
                       ),
                     ],
                   ),
-                ),
-                const SizedBox(height: 18),
-                Text(
-                  '¿Desea cancelar el servicio?',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: ResponsiveHelper.sp(context, 16),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 18),
-                Row(
-                  children: [
-                    Expanded(
-                      child: CustomButton(
-                        text: 'Cancelar',
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                        },
-                        color: AppColores.grey300,
-                        textColor: AppColores.textPrimary,
-                        fontSize: ResponsiveHelper.sp(context, 14),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: CustomButton(
-                        text: 'Aceptar',
-                        onPressed: () async {
-                          Navigator.of(context).pop();
-                          await _cancelSolicitudFromRoute();
-                        },
-                        color: AppColores.primary,
-                        textColor: AppColores.textWhite,
-                        fontSize: ResponsiveHelper.sp(context, 14),
-                      ),
-                    ),
-                  ],
-                ),
               ],
             ),
-          ),
-        );
-      },
+          ],
+        ),
+      ),
     );
   }
 
-  Future<void> _cancelSolicitudFromRoute() async {
-    final ok = await _vm.cancelSolicitudFromRoute();
-    if (!mounted) return;
-    if (ok) {
-      try {
-        await RouteCacheService.clearSolicitud(widget.solicitudId);
-      } catch (_) {}
+    // Botones de chat y cancelar
+    Widget _bottomButtons() {
+      final vm = Provider.of<Rutaclienteviewmodel>(context);
+      int mensajesPendientes = vm.mensajesPendientes;
+      final double screenW = MediaQuery.of(context).size.width;
+      final bool isTablet = screenW >= 1000;
+      final double paddingH = isTablet ? 32 : screenW < 350 ? 6 : 16;
+      final double paddingV = isTablet ? 24 : screenW < 350 ? 4 : 8;
+      final double buttonFontSize = isTablet ? 22 : screenW < 350 ? 13 : 18;
+      final double buttonIconSize = isTablet ? 32 : screenW < 350 ? 18 : 24;
+      final double buttonBorderRadius = isTablet ? 24 : screenW < 350 ? 8 : 12;
+      final double spacing = isTablet ? 24 : screenW < 350 ? 6 : 16;
+      return Container(
+        padding: EdgeInsets.symmetric(horizontal: paddingH, vertical: paddingV),
+        decoration: BoxDecoration(
+          color: AppColores.surface,
+          borderRadius: BorderRadius.circular(buttonBorderRadius),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Expanded(
+              child: ChatButton(
+                mensajesPendientes: mensajesPendientes,
+                buttonIconSize: buttonIconSize,
+                buttonFontSize: buttonFontSize,
+                spacing: spacing,
+                isTablet: isTablet,
+                solicitudId: widget.idSolicitud,
+              ),
+            ),
+            SizedBox(width: spacing),
+            Expanded(
+              child: CancelButton(
+                buttonIconSize: buttonIconSize,
+                buttonFontSize: buttonFontSize,
+                buttonBorderRadius: buttonBorderRadius,
+                paddingV: paddingV,
+                solicitudId: widget.idSolicitud,
+              ),
+            ),
+          ],
+        ),
+      );
     }
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(ok ? 'Solicitud cancelada' : 'Error al cancelar')),
-    );
+
   }
+
+  class ChatButton extends StatefulWidget {
+    final int mensajesPendientes;
+    final double buttonIconSize;
+    final double buttonFontSize;
+    final double spacing;
+    final bool isTablet;
+    final String solicitudId;
+    const ChatButton({
+      required this.mensajesPendientes,
+      required this.buttonIconSize,
+      required this.buttonFontSize,
+      required this.spacing,
+      required this.isTablet,
+      required this.solicitudId,
+    });
+
+    @override
+    State<ChatButton> createState() => _ChatButtonState();
+  }
+
+  class _ChatButtonState extends State<ChatButton> {
+    bool chatAbierto = false;
+    bool dialogMostrado = false;
+
+    void limpiarMensajesPendientes(BuildContext context) async {
+      final vm = Provider.of<Rutaclienteviewmodel>(context, listen: false);
+      final usuarioId = vm.usuarioId;
+      for (final m in vm.mensajes) {
+        if (usuarioId != null &&
+            m.senderId != usuarioId &&
+            !(m.readBy[usuarioId] ?? false)) {
+          await vm.chatService.markMessageRead(
+            solicitudId: widget.solicitudId,
+            messageId: m.id,
+            userId: usuarioId,
+          );
+        }
+      }
+    }
+
+    @override
+    Widget build(BuildContext context) {
+      return Stack(
+        clipBehavior: Clip.none,
+        children: [
+          SizedBox(
+            height: widget.isTablet ? 70 : widget.spacing < 8 ? 40 : 56,
+            child: OutlinedButton(
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(
+                  color: AppColores.primary,
+                  width: 2.5,
+                ),
+                backgroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 0,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              onPressed: () {
+                if (chatAbierto || dialogMostrado) return;
+                setState(() {
+                  chatAbierto = true;
+                  dialogMostrado = true;
+                });
+                limpiarMensajesPendientes(context);
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (context) {
+                    return Dialog(
+                      insetPadding: EdgeInsets.zero,
+                      backgroundColor: Colors.transparent,
+                      child: SafeArea(
+                        child: Container(
+                          width: double.infinity,
+                          height: MediaQuery.of(context).size.height,
+                          color: Colors.white,
+                          child: UniversalChatWidget(
+                            solicitudId: widget.solicitudId,
+                            chatTitle: 'Chat con el conductor',
+                            backgroundColor: Colors.white,
+                            myMessageColor: AppColores.primary,
+                            otherMessageColor: Colors.grey.shade200,
+                            sendButtonColor: AppColores.primary,
+                            autoFocus: true,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ).then((_) {
+                  setState(() {
+                    chatAbierto = false;
+                    dialogMostrado = false;
+                  });
+                });
+              },
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.chat,
+                    color: AppColores.primary,
+                    size: widget.buttonIconSize,
+                  ),
+                  SizedBox(width: widget.spacing / 2),
+                  Text(
+                    'Chat',
+                    style: TextStyle(
+                      color: AppColores.primary,
+                      fontWeight: FontWeight.w600,
+                      fontSize: widget.buttonFontSize,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (widget.mensajesPendientes > 0)
+            Positioned(
+              right: 0,
+              top: widget.isTablet ? -12 : widget.spacing < 8 ? -4 : -8,
+              child: Container(
+                padding: EdgeInsets.all(widget.isTablet ? 10 : widget.spacing < 8 ? 3 : 6),
+                decoration: BoxDecoration(
+                  color: Colors.red,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: widget.isTablet ? 3 : 2),
+                ),
+                constraints: BoxConstraints(
+                  minWidth: widget.isTablet ? 36 : widget.spacing < 8 ? 14 : 24,
+                  minHeight: widget.isTablet ? 36 : widget.spacing < 8 ? 14 : 24,
+                ),
+                child: Center(
+                  child: Text(
+                    widget.mensajesPendientes.toString(),
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: widget.isTablet ? 22 : widget.spacing < 8 ? 8 : 14,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      );
+    }
+  }
+
+  class CancelButton extends StatelessWidget {
+    final double buttonIconSize;
+    final double buttonFontSize;
+    final double buttonBorderRadius;
+    final double paddingV;
+    final String solicitudId;
+    const CancelButton({
+      required this.buttonIconSize,
+      required this.buttonFontSize,
+      required this.buttonBorderRadius,
+      required this.paddingV,
+      required this.solicitudId,
+    });
+
+    @override
+    Widget build(BuildContext context) {
+      final vm = Provider.of<Rutaclienteviewmodel>(context);
+      return ElevatedButton.icon(
+        icon: Icon(Icons.cancel, color: Colors.white, size: buttonIconSize),
+        label: Text(
+          'Cancelar',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+            fontSize: buttonFontSize,
+          ),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColores.primary,
+          padding: EdgeInsets.symmetric(vertical: paddingV * 2),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(buttonBorderRadius),
+          ),
+        ),
+        onPressed: () async {
+          await vm.cancelarSolicitud(solicitudId);
+          if (!context.mounted) return;
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (_) => const LoaderSolicitudCancelada(),
+          );
+          await Future.delayed(const Duration(seconds: 2));
+          // Eliminar la solicitud de Firestore
+          try {
+            await FirebaseFirestore.instance
+              .collection('solicitudes')
+              .doc(solicitudId)
+              .delete();
+          } catch (e) {
+            debugPrint('Error eliminando solicitud cancelada: $e');
+          }
+          await Future.delayed(const Duration(seconds: 1));
+          if (!context.mounted) return;
+          Navigator.of(context).pop(); // Cierra el loader
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (context) => InicioClienteView()),
+            (route) => false,
+          );
+        },
+      );
+    }
+  }
+
+class _MapWidget extends StatelessWidget {
+  final Set<Marker> markers;
+  final LatLng? conductorLatLng;
+  final LatLng? clienteLatLng;
+  final Function(GoogleMapController) mapControllerSetter;
+  const _MapWidget({
+    required this.markers,
+    required this.conductorLatLng,
+    required this.clienteLatLng,
+    required this.mapControllerSetter,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider<RutaClienteViewModel>.value(
-      value: _vm,
-      child: Consumer<RutaClienteViewModel>(
-        builder: (context, vm, _) {
-          _maybeCompleteInitialization(vm);
+    final LatLng initialTarget = _getInitialTarget();
+    final Set<Polyline> polylines = _getPolylines(context);
+    return Stack(
+      children: [
+        Mapagoogle(
+          initialTarget: initialTarget,
+          initialZoom: 15.0,
+          markers: markers,
+          polylines: polylines,
+          circles: {},
+          //myLocationEnabled: true,
+          onMapCreated: (controller) {
+            mapControllerSetter(controller);
+            _animateCameraToBounds(controller);
+          },
+        ),
+        _CenterConductorButton(
+          conductorLatLng: conductorLatLng,
+          clienteLatLng: clienteLatLng,
+        ),
+      ],
+    );
+  }
 
-          if (_initializing) {
-            return const Scaffold(
-              backgroundColor: AppColores.background,
-              body: SafeArea(
-                child: Center(
-                  child: MapLoadingWidget(
+  LatLng _getInitialTarget() {
+    if (conductorLatLng != null && clienteLatLng != null) {
+      return LatLng(
+        (conductorLatLng!.latitude + clienteLatLng!.latitude) / 2,
+        (conductorLatLng!.longitude + clienteLatLng!.longitude) / 2,
+      );
+    }
+    return conductorLatLng ?? clienteLatLng ?? const LatLng(8.2595534, -73.353469);
+  }
+
+  Set<Polyline> _getPolylines(BuildContext context) {
+    final state = context.findAncestorStateOfType<_RutaClienteState>();
+    if (state != null && state._polylinePoints.isNotEmpty) {
+      return {
+        Polyline(
+          polylineId: const PolylineId('google_route'),
+          points: state._polylinePoints,
+          color: AppColores.primary,
+          width: 5,
+        )
+      };
+    } else if (conductorLatLng != null && clienteLatLng != null) {
+      return {
+        Polyline(
+          polylineId: const PolylineId('ruta_conductor_cliente'),
+          points: [conductorLatLng!, clienteLatLng!],
+          color: AppColores.primary,
+          width: 5,
+        )
+      };
+    }
+    return {};
+  }
+
+  void _animateCameraToBounds(GoogleMapController controller) {
+    if (conductorLatLng != null && clienteLatLng != null) {
+      final bounds = LatLngBounds(
+        southwest: LatLng(
+          conductorLatLng!.latitude < clienteLatLng!.latitude
+              ? conductorLatLng!.latitude
+              : clienteLatLng!.latitude,
+          conductorLatLng!.longitude < clienteLatLng!.longitude
+              ? conductorLatLng!.longitude
+              : clienteLatLng!.longitude,
+        ),
+        northeast: LatLng(
+          conductorLatLng!.latitude > clienteLatLng!.latitude
+              ? conductorLatLng!.latitude
+              : clienteLatLng!.latitude,
+          conductorLatLng!.longitude > clienteLatLng!.longitude
+              ? conductorLatLng!.longitude
+              : clienteLatLng!.longitude,
+        ),
+      );
+      Future.delayed(const Duration(milliseconds: 300), () {
+        controller.animateCamera(CameraUpdate.newLatLngBounds(bounds, 80));
+      });
+    }
+  }
+}
+
+class _CenterConductorButton extends StatelessWidget {
+  final LatLng? conductorLatLng;
+  final LatLng? clienteLatLng;
+  const _CenterConductorButton({
+    required this.conductorLatLng,
+    required this.clienteLatLng,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      bottom: 16,
+      right: 16,
+      child: FloatingActionButton(
+        heroTag: 'fab_centrar_conductor',
+        backgroundColor: AppColores.primary,
+        child: const Icon(Icons.person_pin_circle, color: Colors.white),
+        onPressed: () {
+          final mapState = context.findAncestorStateOfType<_RutaClienteState>();
+          if (mapState?._mapController != null && conductorLatLng != null && clienteLatLng != null) {
+            LatLngBounds bounds = LatLngBounds(
+              southwest: LatLng(
+                clienteLatLng!.latitude < conductorLatLng!.latitude ? clienteLatLng!.latitude : conductorLatLng!.latitude,
+                clienteLatLng!.longitude < conductorLatLng!.longitude ? clienteLatLng!.longitude : conductorLatLng!.longitude,
+              ),
+              northeast: LatLng(
+                clienteLatLng!.latitude > conductorLatLng!.latitude ? clienteLatLng!.latitude : conductorLatLng!.latitude,
+                clienteLatLng!.longitude > conductorLatLng!.longitude ? clienteLatLng!.longitude : conductorLatLng!.longitude,
+              ),
+            );
+            double bearing = mapState!._calcularBearing(
+              clienteLatLng!.latitude,
+              clienteLatLng!.longitude,
+              conductorLatLng!.latitude,
+              conductorLatLng!.longitude,
+            );
+            mapState._mapController!.animateCamera(
+              CameraUpdate.newCameraPosition(
+                CameraPosition(
+                  target: LatLng(
+                    (clienteLatLng!.latitude + conductorLatLng!.latitude) / 2,
+                    (clienteLatLng!.longitude + conductorLatLng!.longitude) / 2,
                   ),
+                  zoom: 16,
+                  bearing: bearing,
+                  tilt: 0,
                 ),
               ),
             );
           }
-
-          if (vm.cancelStatusHandled && !_handledCancelNavigation) {
-            _handledCancelNavigation = true;
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (!mounted) return;
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute(
-                  builder: (_) => const LoaderVolviendoAtrasView(),
-                ),
-              );
-            });
-          }
-
-          if (vm.goToDestino && !_handledDestinoNavigation) {
-            _handledDestinoNavigation = true;
-            vm.consumeGoToDestino();
-            WidgetsBinding.instance.addPostFrameCallback((_) async {
-              if (!mounted) return;
-              LatLng? destino;
-              // Buscar marcador de destino si existe
-              destino = null;
-              for (final m in vm.markers) {
-                if (m.markerId.value == 'destino') {
-                  destino = m.position;
-                  break;
-                }
-              }
-              if (destino == null) {
-                // Si no está en los marcadores, leer desde Firestore
-                try {
-                  final snap = await FirebaseFirestore.instance
-                      .collection('solicitudes')
-                      .doc(widget.solicitudId)
-                      .get();
-                  final data = snap.data();
-                  if (data != null && data['destino'] != null) {
-                    final rawDestino = data['destino'];
-                    final lat = rawDestino['lat'] ?? rawDestino['latitude'] ?? rawDestino['latitud'];
-                    final lng = rawDestino['lng'] ?? rawDestino['longitude'] ?? rawDestino['longitud'];
-                    if (lat != null && lng != null) {
-                      destino = LatLng((lat as num).toDouble(), (lng as num).toDouble());
-                    }
-                  }
-                } catch (_) {}
-              }
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute(
-                  builder: (_) => RutaDestinoClienteView(
-                    solicitudId: widget.solicitudId,
-                    destinoLocation: destino,
-                  ),
-                ),
-              );
-            });
-          }
-
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) {
-              _fitBoundsToMarkers();
-            }
-          });
-
-          final conductorPhotoUrl =
-              vm.conductorPhotoUrl ?? _routeCache?.conductorPhotoUrl;
-          final conductorVehiclePhotoUrl =
-              vm.conductorVehiclePhotoUrl ??
-              _routeCache?.conductorVehiclePhotoUrl;
-          final conductorPlate =
-              vm.conductorPlate ?? _routeCache?.conductorPlate;
-          final conductorName =
-              vm.conductorDisplayName ?? _routeCache?.conductorName;
-          final conductorRatingFallback =
-              vm.conductorRating ?? _routeCache?.conductorRating;
-          final hasConductorInfo =
-              conductorPlate != null ||
-              conductorPhotoUrl != null ||
-              conductorRatingFallback != null ||
-              conductorName != null;
-
-          // Mantener el marcador del conductor sobre la ruta pintada
-          LatLng? adjustedDriverLocation;
-          final routePoints = vm.routePoints;
-          // Obtener posición del conductor desde el marcador
-          LatLng? conductorPos;
-          for (final m in vm.markers) {
-            if (m.markerId.value == 'conductor') {
-              conductorPos = m.position;
-              break;
-            }
-          }
-          if (routePoints.isNotEmpty && conductorPos != null) {
-            double minDist = double.infinity;
-            int closestIdx = 0;
-            for (int i = 0; i < routePoints.length; i++) {
-              final d = _haversineDistanceMeters(conductorPos, routePoints[i]);
-              if (d < minDist) {
-                minDist = d;
-                closestIdx = i;
-              }
-            }
-            adjustedDriverLocation = routePoints[closestIdx];
-            // Si el conductor se desvía más de 30 metros, recalcular la ruta
-            LatLng? destinoPos;
-            for (final m in vm.markers) {
-              if (m.markerId.value == 'cliente') {
-                destinoPos = m.position;
-                break;
-              }
-            }
-            if (minDist > 30 && destinoPos != null) {
-              // No usar await, solo disparar el recálculo
-              vm.fetchRouteOSRM(conductorPos, destinoPos, 'cliente_conductor');
-            }
-            // Recortar la polilínea cada 10 metros directamente aquí
-            if (routePoints.isNotEmpty) {
-              double accumulated = 0.0;
-              int startIdx = 0;
-              for (int i = 0; i < routePoints.length - 1; i++) {
-                accumulated += _haversineDistanceMeters(routePoints[i], routePoints[i + 1]);
-                if (accumulated >= 10) {
-                  startIdx = i;
-                  break;
-                }
-              }
-              final remaining = routePoints.sublist(startIdx);
-              final newPolys = Set<Polyline>.from(vm.polylines);
-              newPolys.removeWhere((p) => p.polylineId.value == 'route');
-              if (remaining.length >= 2) {
-                newPolys.add(
-                  Polyline(
-                    polylineId: const PolylineId('route'),
-                    color: AppColores.primary,
-                    width: 5,
-                    points: remaining,
-                  ),
-                );
-              }
-              vm.polylines = newPolys;
-              vm.routePoints = remaining;
-            }
-          }
-
-          final markers = vm.markers.map((m) {
-            if (m.markerId.value == 'cliente' && _clientIcon != null) {
-              return m.copyWith(iconParam: _clientIcon);
-            }
-            if (m.markerId.value == 'conductor' && _taxiIcon != null && adjustedDriverLocation != null) {
-              return m.copyWith(
-                iconParam: _taxiIcon,
-                positionParam: adjustedDriverLocation,
-                rotationParam: _vm.conductorBearing ?? 0.0,
-                anchorParam: const Offset(0.5, 0.5),
-                flatParam: true,
-              );
-            }
-            return m;
-          }).toSet();
-
-          return WillPopScope(
-            onWillPop: () async => false,
-            child: Scaffold(
-              resizeToAvoidBottomInset: false,
-              body: SafeArea(
-                top: true,
-                bottom: true,
-                child: Column(
-                  children: [
-                    Expanded(child: _buildMapSection(context, vm, markers)),
-                    _buildBottomCard(
-                      context,
-                      vm,
-                      hasConductorInfo,
-                      conductorPhotoUrl,
-                      conductorName,
-                      conductorRatingFallback,
-                      conductorVehiclePhotoUrl,
-                      conductorPlate,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
         },
       ),
     );
   }
-
-  Widget _buildMapSection(
-    BuildContext context,
-    RutaClienteViewModel vm,
-    Set<Marker> markers,
-  ) {
-    final width = MediaQuery.of(context).size.width;
-    // Print para ver cuántos puntos carga la polyline
-    print("📍 Puntos polyline cargados: "+vm.routePoints.length.toString());
-    return Padding(
-      padding: EdgeInsets.zero,
-      child: Stack(
-        children: [
-          Container(
-            width: width,
-            margin: EdgeInsets.zero,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppColores.grey300),
-            ),
-            clipBehavior: Clip.hardEdge,
-            child: vm.loading
-                ? const Center(child: CircularProgressIndicator())
-                : (markers.isEmpty
-                      ? Center(
-                          child: Icon(
-                            Icons.map,
-                            size: ResponsiveHelper.sp(context, 36),
-                            color: AppColores.grey300,
-                          ),
-                        )
-                      : AppGoogleMap(
-                          initialTarget: vm.initialTarget,
-                          initialZoom: vm.zoom,
-                          onMapCreated: _onMapCreated,
-                          markers: markers,
-                          polylines: vm.polylines,
-                          myLocationEnabled: false,
-                          myLocationButtonEnabled: false,
-                          compassEnabled: true,
-                        )),
-          ),
-          if (vm.etaMinutesRounded != null)
-            Align(
-              alignment: Alignment.topCenter,
-              child: Container(
-                margin: const EdgeInsets.only(top: 25),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColores.cardBackground,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.15),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.access_time,
-                      size: ResponsiveHelper.sp(context, 16),
-                      color: AppColores.textPrimary,
-                    ),
-                    SizedBox(width: ResponsiveHelper.wp(context, 2)),
-                    Text(
-                      'Llega en aprox. ${vm.etaMinutesRounded} min',
-                      style: TextStyle(
-                        fontSize: ResponsiveHelper.sp(context, 16),
-                        fontWeight: FontWeight.w600,
-                        color: AppColores.textPrimary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBottomCard(
-    BuildContext context,
-    RutaClienteViewModel vm,
-    bool hasConductorInfo,
-    String? conductorPhotoUrl,
-    String? conductorName,
-    double? conductorRatingFallback,
-    String? conductorVehiclePhotoUrl,
-    String? conductorPlate,
-  ) {
-    return Container(
-      margin: EdgeInsets.only(bottom: ResponsiveHelper.hp(context, 1)),
-      constraints: BoxConstraints(minHeight: ResponsiveHelper.hp(context, 18)),
-      decoration: BoxDecoration(
-        color: AppColores.cardBackground,
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(24),
-          topRight: Radius.circular(24),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 10,
-            offset: const Offset(0, -2),
-          ),
-        ],
-      ),
-      padding: EdgeInsets.only(
-        left: ResponsiveHelper.wp(context, 6),
-        right: ResponsiveHelper.wp(context, 6),
-        top: ResponsiveHelper.hp(context, 2),
-        bottom:
-            ResponsiveHelper.hp(context, 2) + ResponsiveHelper.hp(context, 0.8),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          hasConductorInfo
-              ? _buildConductorInfo(
-                  context,
-                  vm,
-                  conductorPhotoUrl,
-                  conductorName,
-                  conductorRatingFallback,
-                  conductorVehiclePhotoUrl,
-                  conductorPlate,
-                )
-              : _buildConductorPlaceholder(context),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildConductorInfo(
-    BuildContext context,
-    RutaClienteViewModel vm,
-    String? conductorPhotoUrl,
-    String? conductorName,
-    double? conductorRatingFallback,
-    String? conductorVehiclePhotoUrl,
-    String? conductorPlate,
-  ) {
-    return Column(
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            _buildConductorAvatar(
-              context,
-              vm,
-              conductorPhotoUrl,
-              conductorName,
-              conductorRatingFallback,
-            ),
-            const SizedBox(width: 16),
-            if (conductorPlate != null)
-              _buildVehicleInfo(
-                context,
-                conductorVehiclePhotoUrl,
-                conductorPlate,
-              ),
-          ],
-        ),
-        SizedBox(height: ResponsiveHelper.hp(context, 2)),
-        Row(
-          children: [
-            Expanded(child: _buildChatButton(context, vm)),
-            SizedBox(width: ResponsiveHelper.wp(context, 3)),
-            Expanded(child: _buildCancelButton(context)),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildConductorAvatar(
-    BuildContext context,
-    RutaClienteViewModel vm,
-    String? photoUrl,
-    String? name,
-    double? ratingFallback,
-  ) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        CircleAvatar(
-          radius: ResponsiveHelper.sp(context, 34),
-          backgroundColor: AppColores.grey200,
-          backgroundImage: photoUrl != null ? NetworkImage(photoUrl) : null,
-          child: photoUrl == null
-              ? Icon(
-                  Icons.person,
-                  size: ResponsiveHelper.sp(context, 22),
-                  color: AppColores.textPrimary,
-                )
-              : null,
-        ),
-        SizedBox(height: ResponsiveHelper.hp(context, 0.6)),
-        if (name != null)
-          Text(
-            name.toUpperCase(),
-            style: TextStyle(
-              fontSize: ResponsiveHelper.sp(context, 14),
-              fontWeight: FontWeight.w700,
-              color: Colores.negro,
-            ),
-          ),
-        SizedBox(height: ResponsiveHelper.hp(context, 0.3)),
-        _buildConductorRating(context, vm, ratingFallback),
-      ],
-    );
-  }
-
-  Widget _buildConductorRating(
-    BuildContext context,
-    RutaClienteViewModel vm,
-    double? ratingFallback,
-  ) {
-    if (vm.conductorId != null) {
-      return StreamBuilder<DocumentSnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('conductor')
-            .doc(vm.conductorId)
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.hasData && snapshot.data!.exists) {
-            final data = snapshot.data!.data() as Map<String, dynamic>?;
-            final promedio =
-                (data?['calificacion_promedio'] as num?)?.toDouble() ?? 0.0;
-            return _buildStars(context, promedio);
-          }
-          return _buildStars(context, ratingFallback ?? 0.0);
-        },
-      );
-    }
-    return _buildStars(context, ratingFallback ?? 0.0);
-  }
-
-  Widget _buildStars(BuildContext context, double promedio) {
-    if (promedio <= 0) return const SizedBox.shrink();
-    final promedioInt = promedio.toInt();
-    final tieneMedia = (promedio - promedioInt) >= 0.5;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: List.generate(5, (index) {
-        if (index < promedioInt) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 1.0),
-            child: Icon(
-              Icons.star,
-              size: ResponsiveHelper.sp(context, 12),
-              color: AppColores.primary,
-            ),
-          );
-        } else if (index == promedioInt && tieneMedia) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 1.0),
-            child: Icon(
-              Icons.star_half,
-              size: ResponsiveHelper.sp(context, 12),
-              color: AppColores.primary,
-            ),
-          );
-        } else {
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 1.0),
-            child: Icon(
-              Icons.star_border,
-              size: ResponsiveHelper.sp(context, 12),
-              color: AppColores.grey400,
-            ),
-          );
-        }
-      }),
-    );
-  }
-
-  Widget _buildVehicleInfo(
-    BuildContext context,
-    String? vehiclePhotoUrl,
-    String plate,
-  ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (vehiclePhotoUrl != null)
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: Image.network(
-              vehiclePhotoUrl,
-              height: ResponsiveHelper.hp(context, 8),
-              width: ResponsiveHelper.wp(context, 30),
-              fit: BoxFit.cover,
-              errorBuilder: (c, e, s) => Image.asset(
-                'assets/img/carrito.png',
-                height: ResponsiveHelper.hp(context, 10),
-                fit: BoxFit.contain,
-              ),
-            ),
-          )
-        else
-          Image.asset(
-            'assets/img/carrito.png',
-            height: ResponsiveHelper.hp(context, 8),
-            fit: BoxFit.contain,
-          ),
-        Text(
-          plate,
-          style: TextStyle(
-            fontSize: ResponsiveHelper.sp(context, 14),
-            fontWeight: FontWeight.w700,
-            color: Colores.negro,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildChatButton(BuildContext context, RutaClienteViewModel vm) {
-    return ElevatedButton.icon(
-      onPressed: _openChatSheet,
-      icon: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Icon(
-            Icons.chat_bubble_outline,
-            size: ResponsiveHelper.sp(context, 16),
-          ),
-          if (vm.hasNewChat && !_isChatOpen)
-            Positioned(
-              right: -ResponsiveHelper.wp(context, 1),
-              top: -ResponsiveHelper.hp(context, 0.6),
-              child: Container(
-                width: ResponsiveHelper.sp(context, 6),
-                height: ResponsiveHelper.sp(context, 6),
-                decoration: const BoxDecoration(
-                  color: AppColores.error,
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ),
-        ],
-      ),
-      label: Text(
-        'Chat',
-        style: TextStyle(fontSize: ResponsiveHelper.sp(context, 14)),
-      ),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: AppColores.surface,
-        foregroundColor: AppColores.primary,
-        side: const BorderSide(color: AppColores.primary),
-        padding: EdgeInsets.symmetric(
-          vertical: ResponsiveHelper.hp(context, 1.2),
-        ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
-  }
-
-  Widget _buildCancelButton(BuildContext context) {
-    return ElevatedButton.icon(
-      onPressed: _showCancelConfirmDialog,
-      icon: Icon(Icons.cancel, size: ResponsiveHelper.sp(context, 16)),
-      label: Text(
-        'Cancelar',
-        style: TextStyle(fontSize: ResponsiveHelper.sp(context, 14)),
-      ),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: AppColores.primary,
-        foregroundColor: AppColores.background,
-        padding: EdgeInsets.symmetric(
-          vertical: ResponsiveHelper.hp(context, 1.2),
-        ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
-  }
-
-  Widget _buildConductorPlaceholder(BuildContext context) {
-    return Column(
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircleAvatar(
-                  radius: ResponsiveHelper.sp(context, 34),
-                  backgroundColor: AppColores.grey200,
-                  child: Icon(
-                    Icons.person,
-                    size: ResponsiveHelper.sp(context, 22),
-                    color: AppColores.textWhiteMuted,
-                  ),
-                ),
-                SizedBox(height: ResponsiveHelper.hp(context, 0.6)),
-                Container(
-                  width: ResponsiveHelper.wp(context, 34),
-                  height: ResponsiveHelper.hp(context, 2.2),
-                  decoration: BoxDecoration(
-                    color: AppColores.grey200,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                ),
-                SizedBox(height: ResponsiveHelper.hp(context, 0.6)),
-                Container(
-                  width: ResponsiveHelper.wp(context, 20),
-                  height: ResponsiveHelper.hp(context, 1.6),
-                  decoration: BoxDecoration(
-                    color: AppColores.grey200,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(width: 16),
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: ResponsiveHelper.wp(context, 30),
-                  height: ResponsiveHelper.hp(context, 8),
-                  decoration: BoxDecoration(
-                    color: AppColores.grey200,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                SizedBox(height: ResponsiveHelper.hp(context, 0.6)),
-                Container(
-                  width: ResponsiveHelper.wp(context, 20),
-                  height: ResponsiveHelper.hp(context, 1.8),
-                  decoration: BoxDecoration(
-                    color: AppColores.grey200,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-        SizedBox(height: ResponsiveHelper.hp(context, 2)),
-        Row(
-          children: [
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: null,
-                icon: Icon(
-                  Icons.chat_bubble_outline,
-                  size: ResponsiveHelper.sp(context, 16),
-                ),
-                label: Text(
-                  'Chat',
-                  style: TextStyle(fontSize: ResponsiveHelper.sp(context, 14)),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColores.grey200,
-                  foregroundColor: AppColores.textWhite,
-                  padding: EdgeInsets.symmetric(
-                    vertical: ResponsiveHelper.hp(context, 1.2),
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-            ),
-            SizedBox(width: ResponsiveHelper.wp(context, 3)),
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: null,
-                icon: Icon(
-                  Icons.cancel,
-                  size: ResponsiveHelper.sp(context, 16),
-                ),
-                label: Text(
-                  'Cancelar',
-                  style: TextStyle(fontSize: ResponsiveHelper.sp(context, 14)),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColores.grey200,
-                  foregroundColor: AppColores.textWhite,
-                  padding: EdgeInsets.symmetric(
-                    vertical: ResponsiveHelper.hp(context, 1.2),
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
 }
-
-/// Pantalla intermedia que muestra un loader mientras se regresa
-/// automáticamente a la vista de inicio del cliente.
-class LoaderVolviendoAtrasView extends StatefulWidget {
-  const LoaderVolviendoAtrasView({super.key});
-
-  @override
-  State<LoaderVolviendoAtrasView> createState() =>
-      _LoaderVolviendoAtrasViewState();
-}
-
-class _LoaderVolviendoAtrasViewState extends State<LoaderVolviendoAtrasView> {
-  @override
-  void initState() {
-    super.initState();
-    _goBackAfterDelay();
-  }
-
-  void _goBackAfterDelay() {
-    Future.delayed(const Duration(seconds: 5), () {
-      if (!mounted) return;
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const InicioClienteView()),
-        (route) => false,
-      );
-    });
-  }
+// ignore: unused_element
+class _ActionButtonsWidget extends StatelessWidget {
+  final Rutaclienteviewmodel vm;
+  final String solicitudId;
+  final GoogleMapController? mapController;
+  final LatLng? clienteLatLng;
+  final LatLng? conductorLatLng;
+  const _ActionButtonsWidget({
+    required this.vm,
+    required this.solicitudId,
+    required this.mapController,
+    required this.clienteLatLng,
+    required this.conductorLatLng,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      backgroundColor: AppColores.background,
-      body: SafeArea(
-        child: Center(child: MapLoadingWidget(message: 'Volviendo atrás...')),
+    final double screenW = MediaQuery.of(context).size.width;
+    final bool isTablet = screenW >= 1000;
+    final double paddingH = isTablet ? 32 : screenW < 350 ? 6 : 16;
+    final double paddingV = isTablet ? 24 : screenW < 350 ? 4 : 8;
+    final double buttonFontSize = isTablet ? 22 : screenW < 350 ? 13 : 18;
+    final double buttonIconSize = isTablet ? 32 : screenW < 350 ? 18 : 24;
+    final double buttonBorderRadius = isTablet ? 24 : screenW < 350 ? 8 : 12;
+    final double spacing = isTablet ? 24 : screenW < 350 ? 6 : 16;
+    int mensajesPendientes = vm.mensajesPendientes;
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: paddingH, vertical: paddingV),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Expanded(
+            child: ChatButton(
+              mensajesPendientes: mensajesPendientes,
+              buttonIconSize: buttonIconSize,
+              buttonFontSize: buttonFontSize,
+              spacing: spacing,
+              isTablet: isTablet,
+              solicitudId: solicitudId,
+            ),
+          ),
+          SizedBox(width: spacing),
+          Expanded(
+            child: CancelButton(
+              buttonIconSize: buttonIconSize,
+              buttonFontSize: buttonFontSize,
+              buttonBorderRadius: buttonBorderRadius,
+              paddingV: paddingV,
+              solicitudId: solicitudId,
+            ),
+          ),
+        ],
       ),
     );
   }
 }
-
-// Using shared CustomYellowButton from widgets/custom_yellow_button.dart

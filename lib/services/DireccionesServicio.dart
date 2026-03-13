@@ -62,4 +62,37 @@ class Direcciones {
     }
 
   }
+
+  /// Obtiene el tiempo estimado (en segundos) entre dos ubicaciones usando Google Directions API.
+  Future<int?> getEstimatedDuration(
+      double originLat,
+      double originLng,
+      double destLat,
+      double destLng
+      ) async {
+    final url =
+        "https://maps.googleapis.com/maps/api/directions/json"
+        "?origin=$originLat,$originLng"
+        "&destination=$destLat,$destLng"
+        "&mode=driving"
+        "&key=$apiKey";
+    try {
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data["status"] == "OK" && data["routes"].isNotEmpty) {
+          final legs = data["routes"][0]["legs"];
+          if (legs != null && legs.isNotEmpty) {
+            final duration = legs[0]["duration"];
+            if (duration != null && duration["value"] != null) {
+              return duration["value"] as int; // segundos
+            }
+          }
+        }
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
 }

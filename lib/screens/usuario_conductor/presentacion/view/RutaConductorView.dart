@@ -2,14 +2,18 @@
 import 'dart:async';
 import 'dart:math' as Math;
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:taxi_app/helper/permisos_helper.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/RutaDestinoView.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/RutaDestinoViewModel.dart';
 import 'package:taxi_app/services/DireccionesServicio.dart';
+import 'package:taxi_app/services/background_tracking_service.dart';
 import 'package:taxi_app/utils/Mapa.dart';
-import 'package:taxi_app/widgets/google_maps_widget.dart';
+import 'package:taxi_app/widgets/MapaGoogle.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:provider/provider.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/RutaConductorViewModel.dart';
@@ -30,7 +34,33 @@ class RutaConductor extends StatefulWidget {
   State<RutaConductor> createState() => _RutaConductorState();
 }
 
-class _RutaConductorState extends State<RutaConductor> {
+class _RutaConductorState extends State<RutaConductor> with WidgetsBindingObserver {
+    // Verifica conexión a internet
+    Future<bool> _tieneConexionInternet() async {
+      try {
+        final connectivity = await Connectivity().checkConnectivity();
+        return connectivity != ConnectivityResult.none;
+      } catch (e) {
+        debugPrint('[LOG] Error verificando conexión: $e');
+        return false;
+      }
+    }
+  // Detiene el tracking de ubicación en segundo plano
+  Future<void> detenerTrackingBackground() async {
+    try {
+      debugPrint('[LOG] Deteniendo tracking background (al volver a la clase)');
+      FlutterBackgroundService().invoke('stop');
+    } catch (e) {
+      debugPrint('Error deteniendo tracking background: $e');
+    }
+  }
+
+    bool _chatModalAbierto = false;
+    DateTime? _fechaUbicacionObtenida;
+  Future<void> aceptarViaje() async {
+    final service = FlutterBackgroundService();
+    await service.startService();
+  }
 
   final TextEditingController _chatController = TextEditingController();
   final ScrollController _chatScrollController = ScrollController();
@@ -58,14 +88,14 @@ class _RutaConductorState extends State<RutaConductor> {
   @override
   void initState() {
     super.initState();
-
-    // Inicializa notificaciones locales
+    WidgetsBinding.instance.addObserver(this);
     RutaConductorViewModel.inicializarNotificaciones();
-
-    // Notificación local al iniciar la clase y tracking GPS
+    // Al ingresar a la clase, detener tracking background si estaba activo
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      debugPrint('[LOG] Volviendo a la clase RutaConductor');
+      await detenerTrackingBackground();
+      // No iniciar tracking background ni aceptarViaje aquí
       final vm = Provider.of<RutaConductorViewModel>(context, listen: false);
-      // Verifica si es la primera vez que se ingresa a la clase
       final primeraVez = await vm.esPrimeraVezClase(widget.idSolicitud);
       if (primeraVez) {
         await RutaConductorViewModel.mostrarNotificacion(
@@ -78,19 +108,31 @@ class _RutaConductorState extends State<RutaConductor> {
           'Continúa el servicio.'
         );
       }
-      // Guardar el idSolicitud en cache al ingresar a la clase
       await vm.guardarSolicitudActiva(widget.idSolicitud);
       await vm.cargarDatosCliente(widget.idSolicitud);
       vm.iniciarChat(widget.idSolicitud);
       vm.escucharEstadoSolicitud(widget.idSolicitud, context);
       await _obtenerUbicacionConductor();
-      // Inicia tracking GPS en segundo plano para enviar ubicación en tiempo real
       await vm.iniciarTrackingUbicacion(widget.idSolicitud);
     });
   }
 
+        // Inicia el tracking de ubicación en segundo plano
+      Future<void> iniciarTrackingBackground() async {
+        try {
+          debugPrint('[LOG] Iniciando tracking background');
+          await PermissionsHelper.requestLocationPermission();
+          await initializeBackgroundService();
+          await startBackgroundTrackingService();
+        } catch (e) {
+          debugPrint('Error iniciando tracking background: $e');
+        }
+      }
+      
+
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _chatController.dispose();
     _chatScrollController.dispose();
     _chatFocusNode.dispose();
@@ -98,7 +140,62 @@ class _RutaConductorState extends State<RutaConductor> {
     super.dispose();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      debugPrint('[LOG] App en background, iniciando tracking segundo plano');
+      iniciarTrackingBackground();
+    } else if (state == AppLifecycleState.resumed) {
+      debugPrint('[LOG] App en foreground, deteniendo tracking segundo plano');
+      detenerTrackingBackground();
+      _actualizarUbicacionConductorEnFirestoreConConexion();
+    }
+  }
+
+  // Actualiza ubicación solo si hay conexión, reintenta si falla
+  Future<void> _actualizarUbicacionConductorEnFirestoreConConexion() async {
+    final tieneConexion = await _tieneConexionInternet();
+    if (!tieneConexion) {
+      debugPrint('[LOG] Sin conexión, reintentando en 5s...');
+      Future.delayed(const Duration(seconds: 5), () {
+        _actualizarUbicacionConductorEnFirestoreConConexion();
+      });
+      return;
+    }
+    await _actualizarUbicacionConductorEnFirestore();
+  }
+
+  Future<void> _actualizarUbicacionConductorEnFirestore() async {
+    try {
+      final position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      final nuevaUbicacion = LatLng(position.latitude, position.longitude);
+      if (!mounted) return;
+      setState(() {
+        _ubicacionConductor = nuevaUbicacion;
+      });
+      await FirebaseFirestore.instance
+        .collection('solicitudes')
+        .doc(widget.idSolicitud)
+        .update({
+          'conductor.ubicacion': {
+            'lat': nuevaUbicacion.latitude,
+            'lng': nuevaUbicacion.longitude,
+          }
+        });
+      if (!mounted) return;
+      setState(() {
+      });
+    } catch (e) {
+      debugPrint('Error actualizando ubicación al reanudar: $e');
+      if (!mounted) return;
+      setState(() {
+      });
+    }
+  }
+
   Future<void> _obtenerUbicacionConductor() async {
+    if (!mounted) return;
     setState(() { _loadingUbicacion = true; });
     try {
       final position = await Geolocator.getCurrentPosition(
@@ -107,7 +204,7 @@ class _RutaConductorState extends State<RutaConductor> {
         _ubicacionConductor = LatLng(position.latitude, position.longitude);
         _loadingUbicacion = false;
       });
-      // Centrar ambos marcadores y ajustar zoom
+      // Centrar ambos marcadores y ajustar zoom (no centrar solo el conductor)
       _fitMarkers();
 
       _escucharMovimientoConductor();
@@ -115,6 +212,7 @@ class _RutaConductorState extends State<RutaConductor> {
       // Obtener polyline de Google Directions API
       final vm = Provider.of<RutaConductorViewModel>(context, listen: false);
       if (_ubicacionConductor != null && vm.latCliente != null && vm.lngCliente != null) {
+        if (!mounted) return;
         setState(() { _loadingPolyline = true; });
         try {
           final direcciones = Direcciones();
@@ -134,8 +232,11 @@ class _RutaConductorState extends State<RutaConductor> {
           debugPrint('Error obteniendo polyline: $e');
         }
         setState(() { _loadingPolyline = false; });
+        if (!mounted) return;
+        setState(() { _loadingPolyline = false; });
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() { _loadingUbicacion = false; });
       debugPrint('Error obteniendo ubicación: $e');
     }
@@ -148,41 +249,71 @@ void _escucharMovimientoConductor() {
   _positionStream = Geolocator.getPositionStream(
     locationSettings: const LocationSettings(
       accuracy: LocationAccuracy.high,
-      distanceFilter: 15, // Actualiza cada 15 metros de movimiento
+      distanceFilter: 1, // Actualiza cada 15 metros de movimiento
     ),
-  ).listen((Position position) {
+  ).listen((Position position) async {
 
-    final nuevaUbicacion =
-        LatLng(position.latitude, position.longitude);
+    final nuevaUbicacion = LatLng(position.latitude, position.longitude);
 
+    if (!mounted) return;
     setState(() {
       _ubicacionConductor = nuevaUbicacion;
+      _fechaUbicacionObtenida = DateTime.now();
     });
 
-if (_mapController != null &&
-    _polylinePoints.isNotEmpty) {
+    // Guardar ubicación obtenida y fecha en Firestore
+    try {
+      final fechaEnvio = _fechaUbicacionObtenida?.toIso8601String() ?? DateTime.now().toIso8601String();
+      await FirebaseFirestore.instance
+        .collection('solicitudes')
+        .doc(widget.idSolicitud)
+        .update({
+          'conductor.ubicacion': {
+            'lat': nuevaUbicacion.latitude,
+            'lng': nuevaUbicacion.longitude,
+            'fecha': fechaEnvio,
+          }
+        });
+      // Leer la ubicación enviada desde Firestore para mostrarla en la modal
+      final doc = await FirebaseFirestore.instance
+        .collection('solicitudes')
+        .doc(widget.idSolicitud)
+        .get();
+      final ubicacionEnviada = doc.data()?['conductor']?['ubicacion'];
+      if (ubicacionEnviada != null) {
+        if (!mounted) return;
+        setState(() {
+        });
+      }
+    } catch (e) {
+      debugPrint('Error guardando ubicación obtenida: $e');
+    }
 
-  LatLng siguientePunto = _polylinePoints[0];
-
-  _bearing = Mapa.calcularBearing(
-    _ubicacionConductor!.latitude,
-    _ubicacionConductor!.longitude,
-    siguientePunto.latitude,
-    siguientePunto.longitude,
-  );
-
-  _mapController!.animateCamera(
-    CameraUpdate.newCameraPosition(
-      CameraPosition(
-        target: nuevaUbicacion,
-        zoom: 17,
-        tilt: 45,
-        bearing: _bearing,
-      ),
+    if (_mapController != null && _polylinePoints.isNotEmpty) {
+      LatLng siguientePunto = _polylinePoints[0];
+      _bearing = Mapa.calcularBearing(
+        _ubicacionConductor!.latitude,
+        _ubicacionConductor!.longitude,
+        siguientePunto.latitude,
+        siguientePunto.longitude,
+      );
+      _mapController!.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(
+            target: nuevaUbicacion,
+            zoom: 17,
+            tilt: 0,
+            bearing: _bearing,
+          ),
         ),
       );
     }
 
+    Future.delayed(const Duration(milliseconds: 1200), () {
+      if (!mounted) return;
+      setState(() {
+      });
+    });
   });
 
 }
@@ -233,25 +364,28 @@ if (_mapController != null &&
 
     final vm = Provider.of<RutaConductorViewModel>(context, listen: false);
 
-    if (_ubicacionConductor == null ||
-        vm.latCliente == null ||
-        vm.lngCliente == null) return;
+    if (_ubicacionConductor == null || vm.latCliente == null || vm.lngCliente == null) return;
 
     final cliente = LatLng(vm.latCliente!, vm.lngCliente!);
 
-    final bounds = LatLngBounds(
-      southwest: LatLng(
-        Math.min(_ubicacionConductor!.latitude, cliente.latitude),
-        Math.min(_ubicacionConductor!.longitude, cliente.longitude),
-      ),
-      northeast: LatLng(
-        Math.max(_ubicacionConductor!.latitude, cliente.latitude),
-        Math.max(_ubicacionConductor!.longitude, cliente.longitude),
-      ),
+    // Calcular bearing del conductor hacia el cliente
+    final bearing = Mapa.calcularBearing(
+      _ubicacionConductor!.latitude,
+      _ubicacionConductor!.longitude,
+      cliente.latitude,
+      cliente.longitude,
     );
 
+    // Centrar la cámara en el conductor, mirando hacia el cliente
     _mapController!.animateCamera(
-      CameraUpdate.newLatLngBounds(bounds, 80),
+      CameraUpdate.newCameraPosition(
+        CameraPosition(
+          target: _ubicacionConductor!,
+          zoom: 16,
+          tilt: 0,
+          bearing: bearing,
+        ),
+      ),
     );
 
   }
@@ -304,7 +438,7 @@ if (_mapController != null &&
             }
           }
 
-// Calcula el tiempo estimado de llegada
+  // Calcula el tiempo estimado de llegada
   String _tiempoEstimadoLlegada() {
     final vm = Provider.of<RutaConductorViewModel>(context, listen: false);
     // Si no hay ubicaciones, muestra vacío
@@ -511,16 +645,16 @@ if (_mapController != null &&
           position: clienteLatLng,
           infoWindow: const InfoWindow(title: 'Cliente'),
         ),
-      if (_ubicacionConductor != null)
-        Marker(
-          markerId: const MarkerId('conductor'),
-          position: _ubicacionConductor!,
-          rotation: _bearing,
-          anchor: const Offset(0.5, 0.5),
-          flat: true,
-          infoWindow: const InfoWindow(title: 'Tú'),
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
-        ),
+      // if (_ubicacionConductor != null)
+      //   Marker(
+      //     markerId: const MarkerId('conductor'),
+      //     position: _ubicacionConductor!,
+      //     rotation: _bearing,
+      //     anchor: const Offset(0.5, 0.5),
+      //     flat: true,
+      //     // infoWindow: const InfoWindow(title: 'Tú'),
+      //     // icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+      //   ),
     };
     final polylines = <Polyline>{
     
@@ -549,13 +683,13 @@ if (_mapController != null &&
       height: MediaQuery.of(context).size.height * 0.70,
       child: Stack(
         children: [
-          AppGoogleMap(
+          Mapagoogle(
             initialTarget: target,
             initialZoom: _initialZoom,
             markers: markers,
             polylines: polylines,
             circles: _circles,
-            myLocationEnabled: true,
+            //myLocationEnabled: true,
             //myLocationButtonEnabled: true,
             onMapCreated: (controller) {
               _mapController = controller;
@@ -741,24 +875,32 @@ if (_mapController != null &&
                               ),
                               backgroundColor: Colors.white,
                             ),
-                            onPressed: () async {
-                              for (final m in vm.mensajes) {
-                                if (m.senderId != conductorId && !(m.readBy[conductorId] ?? false)) {
-                                  await vm.chatService.markMessageRead(
-                                    solicitudId: widget.idSolicitud,
-                                    messageId: m.id,
-                                    userId: conductorId,
-                                  );
-                                }
-                              }
-                              showModalBottomSheet(
-                                context: context,
-                                isScrollControlled: true,
-                                backgroundColor: Colors.white,
-                                useSafeArea: true,
-                                builder: (_) => _chatSheet(),
-                              );
-                            },
+                            onPressed: _chatModalAbierto
+                                ? null
+                                : () async {
+                                    setState(() {
+                                      _chatModalAbierto = true;
+                                    });
+                                    for (final m in vm.mensajes) {
+                                      if (m.senderId != conductorId && !(m.readBy[conductorId] ?? false)) {
+                                        await vm.chatService.markMessageRead(
+                                          solicitudId: widget.idSolicitud,
+                                          messageId: m.id,
+                                          userId: conductorId,
+                                        );
+                                      }
+                                    }
+                                    await showModalBottomSheet(
+                                      context: context,
+                                      isScrollControlled: true,
+                                      backgroundColor: Colors.white,
+                                      useSafeArea: true,
+                                      builder: (_) => _chatSheet(),
+                                    );
+                                    setState(() {
+                                      _chatModalAbierto = false;
+                                    });
+                                  },
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [

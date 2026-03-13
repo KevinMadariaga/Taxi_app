@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:taxi_app/components/boton.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/inicio_conductor_view.dart';
+import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/inicio_conductor_viewmodel.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/resumen_conductor_viewmodel.dart';
 
 class ResumenConductorView extends StatelessWidget {
@@ -265,7 +266,10 @@ class ResumenConductorView extends StatelessWidget {
                 onPressed: () {
                   Navigator.of(context).pushAndRemoveUntil(
                     MaterialPageRoute(
-                      builder: (_) => const HomeConductorMapView(),
+                      builder: (_) => ChangeNotifierProvider(
+                        create: (_) => HomeConductorViewModel(),
+                        child: const HomeConductorMapView(),
+                      ),
                     ),
                     (route) => false,
                   );

@@ -7,7 +7,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 /// - Ubicación (guardar y escuchar actualizaciones).
 /// - Estado del viaje/solicitud.
 class FirebaseService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  FirebaseFirestore get _firestore => FirebaseFirestore.instance;
 
   // ============================================================================
   // GUARDAR UBICACIÓN
@@ -130,8 +130,11 @@ class FirebaseService {
       final conductor = data['conductor'];
       if (conductor is! Map) return null;
 
-      final lat = conductor['lat'] ?? conductor['latitude'];
-      final lng = conductor['lng'] ?? conductor['longitude'];
+      final ubicacion = conductor['ubicacion'];
+      if (ubicacion is! Map) return null;
+
+      final lat = ubicacion['lat'] ?? ubicacion['latitude'];
+      final lng = ubicacion['lng'] ?? ubicacion['longitude'];
 
       if (lat == null || lng == null) return null;
 
@@ -288,7 +291,13 @@ class FirebaseService {
       };
 
       if (conductorData != null) {
-        updateData['conductor'] = conductorData;
+        updateData['conductor'] = {
+          'nombre': conductorData['nombre'],
+          'foto': conductorData['foto'],
+          'fotoVehiculo': conductorData['fotoVehiculo'],
+          'ubicacion': conductorData['ubicacion'],
+          'placa': conductorData['placa'],
+        };
       }
 
       await _firestore.collection('solicitudes').doc(solicitudId).update(updateData);

@@ -6,7 +6,7 @@ import 'package:taxi_app/helper/responsive_helper.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/location_model.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/buscando_taxi_view.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/mapapreview_viewmodel.dart';
-import 'package:taxi_app/widgets/google_maps_widget.dart';
+import 'package:taxi_app/widgets/MapaGoogle.dart';
 
 import 'SeleccionDestino.dart';
 import 'package:taxi_app/core/app_colores.dart';
@@ -123,17 +123,17 @@ class _MapPreviewState extends State<MapPreview> {
               bottomLeft: Radius.circular(ResponsiveHelper.wp(context, 4)),
               bottomRight: Radius.circular(ResponsiveHelper.wp(context, 4)),
             ),
-            child: AppGoogleMap(
+            child: Mapagoogle(
               initialTarget: LatLng(
                 (origen.latitude + destino.latitude) / 2,
                 (origen.longitude + destino.longitude) / 2,
               ),
               initialZoom: 13,
               onMapCreated: _onMapCreated,
-              myLocationEnabled: false,
-              myLocationButtonEnabled: false,
-              rotateGesturesEnabled: false,
-              tiltGesturesEnabled: false,
+              // myLocationEnabled: false,
+              // myLocationButtonEnabled: false,
+              // rotateGesturesEnabled: false,
+              // tiltGesturesEnabled: false,
               markers: {
                 Marker(
                   markerId: const MarkerId('ubicacion'),

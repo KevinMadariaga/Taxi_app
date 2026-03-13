@@ -7,7 +7,7 @@ import 'package:taxi_app/screens/usuario_cliente/presentacion/view/DetailsSolici
 
 import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/mapapreview_viewmodel.dart';
 import 'package:taxi_app/core/app_colores.dart';
-import 'package:taxi_app/widgets/google_maps_widget.dart';
+import 'package:taxi_app/widgets/MapaGoogle.dart';
 
 
 /// Vista para seleccionar el destino en el mapa.
@@ -67,16 +67,16 @@ class _MapaPreviewViewState extends State<MapaPreviewView> {
             clipBehavior: Clip.antiAlias,
             child: ClipRRect(
               borderRadius: BorderRadius.circular(8),
-              child: AppGoogleMap(
+              child: Mapagoogle(
                 initialTarget: widget.location,
                 initialZoom: 16,
-                myLocationEnabled: false,
-                myLocationButtonEnabled: false,
-                rotateGesturesEnabled: false,
-                tiltGesturesEnabled: false,
-                onMapCreated: _onMapCreated,
-                onCameraMove: _onCameraMove,
-                onCameraIdle: _onCameraIdle,
+                // myLocationEnabled: false,
+                // myLocationButtonEnabled: false,
+                // rotateGesturesEnabled: false,
+                // tiltGesturesEnabled: false,
+                // onMapCreated: _onMapCreated,
+                // onCameraMove: _onCameraMove,
+                // onCameraIdle: _onCameraIdle,
               ),
             ),
           ),
@@ -299,16 +299,16 @@ class _MapaPreviewViewState extends State<MapaPreviewView> {
                               clipBehavior: Clip.antiAlias,
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(8),
-                                child: AppGoogleMap(
+                                child: Mapagoogle(
                                   initialTarget: widget.location,
                                   initialZoom: 16,
-                                  myLocationEnabled: false,
-                                  myLocationButtonEnabled: false,
-                                  rotateGesturesEnabled: false,
-                                  tiltGesturesEnabled: false,
-                                  onMapCreated: _onMapCreated,
-                                  onCameraMove: _onCameraMove,
-                                  onCameraIdle: _onCameraIdle,
+                                  // myLocationEnabled: false,
+                                  // myLocationButtonEnabled: false,
+                                  // rotateGesturesEnabled: false,
+                                  // tiltGesturesEnabled: false,
+                                  // onMapCreated: _onMapCreated,
+                                  // onCameraMove: _onCameraMove,
+                                  // onCameraIdle: _onCameraIdle,
                                 ),
                               ),
                             ),
