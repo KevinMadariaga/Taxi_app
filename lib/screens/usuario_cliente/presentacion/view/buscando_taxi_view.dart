@@ -5,10 +5,8 @@ import 'package:taxi_app/screens/usuario_cliente/presentacion/view/InicioCliente
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/RutaClienteView.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/view/pruebas/prueba.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/view/pruebas/pruebaviewmodel.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/RutaClienteViewModel.dart';
-import 'package:taxi_app/widgets/LoaderPreparandoRuta.dart';
+
 
 import 'dart:async';
 import 'package:taxi_app/widgets/map_loading_widget.dart';
@@ -62,7 +60,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView> {
                   );
                 }
               });
-              return LoaderPreparandoRuta();
+              return MapLoadingWidget();
             },
             transitionDuration: const Duration(milliseconds: 300),
           ),
@@ -191,8 +189,8 @@ class _LoaderMapaViewState extends State<LoaderMapaView> {
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (_) => ChangeNotifierProvider(
-            create: (_) => PruebaViewModel(),
-            child: PruebaCliente(idSolicitud: widget.solicitudId), // Elimina el '!' porque solicitudId no puede ser null aquí
+            create: (_) => Rutaclienteviewmodel(),
+            child: RutaCliente(idSolicitud: widget.solicitudId), // Elimina el '!' porque solicitudId no puede ser null aquí
           ),
         ),
       );

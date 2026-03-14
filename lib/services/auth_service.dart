@@ -7,14 +7,14 @@ import 'package:taxi_app/helper/session_helper.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:taxi_app/screens/home_screen.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/InicioClienteView.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/view/RutaClienteDestinoView.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/RutaClienteView.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/view/RutaDestinoClienteView.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/RutaClienteDestinoViewModel.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/RutaConductorView.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/RutaDestinoView.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/inicio_conductor_view.dart';
-import 'package:taxi_app/screens/usuario_conductor/presentacion/view/ruta_conductor_view.dart';
-import 'package:taxi_app/screens/usuario_conductor/presentacion/view/ruta_destino_conductor.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/RutaDestinoViewModel.dart';
+
 import 'package:taxi_app/services/route_cache_service.dart';
 
 /// Servicio que maneja la verificación de sesión y redirección
@@ -277,14 +277,14 @@ class AuthService {
             }
           } catch (_) {}
 
-          return RutaDestinoClienteView(
-            solicitudId: solicitudId,
-            destinoLocation: destino,
+          return ChangeNotifierProvider(
+            create: (_) => Rutaclientedestinoviewmodel(),
+            child: RutaClienteDestino(idSolicitud: solicitudId),
           );
         }
 
-        return RutaClienteView(
-          solicitudId: solicitudId,
+        return RutaCliente(
+          idSolicitud: solicitudId,
         );
       }
     } catch (_) {}

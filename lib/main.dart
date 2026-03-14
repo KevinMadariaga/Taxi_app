@@ -9,12 +9,13 @@ import 'package:taxi_app/screens/introductorio_screen.dart';
 import 'package:taxi_app/screens/usuario_cliente/data/Auth.dart';
 import 'package:taxi_app/screens/usuario_cliente/data/firebaseDB.dart';
 import 'package:taxi_app/models/AuthModel.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/RutaClienteDestinoViewModel.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/RutaClienteViewModel.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/RutaConductorViewModel.dart';
 import 'package:taxi_app/services/auth_service.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:taxi_app/services/background_tracking_service.dart';
 import 'package:taxi_app/services/notificacion_servicio.dart';
+import 'package:taxi_app/services/tracking_service.dart';
 import 'package:taxi_app/theme/app_theme.dart';
  
 /// Entry point for the Taxi App.
@@ -44,6 +45,8 @@ Future<void> _initializeAppServices() async {
   await FirebaseHelper.initializeFirebase();
   await PermissionsHelper.requestAllPermissions();
   await NotificacionesServicio.instance.init();
+  await initializeLocationNotificationChannel(); // Canal de notificación para tracking
+  await initializeTrackingNotificationChannel(); // Canal de notificación para background service
 }
 
 /// Determines the initial screen based on authentication state.
@@ -84,8 +87,9 @@ class MyApp extends StatelessWidget {
               create: (_) => RutaConductorViewModel(),
             ),
             ChangeNotifierProvider(
-              create: (_) => Rutaclientedestinoviewmodel(),
+              create: (_) => Rutaclienteviewmodel(),
             ),
+            
             // Add more ViewModels here as needed
           ],
           child: MaterialApp(

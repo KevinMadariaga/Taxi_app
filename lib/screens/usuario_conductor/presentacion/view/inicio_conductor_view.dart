@@ -19,7 +19,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:taxi_app/widgets/preview_solicitud_card.dart';
 import 'package:taxi_app/widgets/solicitud_card.dart';
-import 'ruta_conductor_view.dart';
 
 
 class HomeConductorMapView extends StatefulWidget {
@@ -768,6 +767,7 @@ class _HomeConductorMapViewState extends State<HomeConductorMapView> {
                                       'lat': vm.currentLocation!.latitude,
                                     if (vm.currentLocation != null)
                                       'lng': vm.currentLocation!.longitude,
+                                    if (vm.vehiclePhotoUrl != null) 'fotoVehiculo': vm.vehiclePhotoUrl,
                                   },
                                   'fecha de aceptacion conductor': FieldValue.serverTimestamp(),
                                 });

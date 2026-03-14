@@ -33,10 +33,13 @@ class HomeConductorViewModel extends ChangeNotifier {
 
   String displayName = 'Conductor';
   String? photoUrl;
+
   String? nameFromDb;
   String? plate;
-  
+  String? vehiclePhotoUrl;
+
   String? get vehiclePlate => plate;
+  String? get vehiclePhoto => vehiclePhotoUrl;
 
   LatLng? currentLocation;
 
@@ -87,6 +90,11 @@ class HomeConductorViewModel extends ChangeNotifier {
             final fotoFromDb = data?['fotoUrl'] ?? data?['foto'] ?? data?['photoUrl'];
             if (fotoFromDb != null && fotoFromDb.toString().trim().isNotEmpty) {
               photoUrl = fotoFromDb.toString().trim();
+            }
+            // Obtener la foto del vehículo si existe
+            final fotoVehiculoFromDb = data?['fotoVehiculo'] ?? data?['fotoVehiculo'] ?? data?['vehiclePhotoUrl'];
+            if (fotoVehiculoFromDb != null && fotoVehiculoFromDb.toString().trim().isNotEmpty) {
+              vehiclePhotoUrl = fotoVehiculoFromDb.toString().trim();
             }
             if (nameFromDb != null && nameFromDb!.trim().isNotEmpty) {
               displayName = nameFromDb!.trim();

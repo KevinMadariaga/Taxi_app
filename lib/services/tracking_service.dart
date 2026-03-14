@@ -5,9 +5,39 @@ import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:taxi_app/helper/permisos_helper.dart';
-
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'firebase_service.dart';
 
+Future<void> initializeTrackingNotificationChannel() async {
+  const AndroidNotificationChannel channel = AndroidNotificationChannel(
+    'tracking_channel', // id
+    'Tracking en segundo plano', // name
+    description: 'Notificación para el tracking en segundo plano',
+    importance: Importance.high,
+  );
+
+  await flutterLocalNotificationsPlugin
+      .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>()
+      ?.createNotificationChannel(channel);
+}
+
+final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+    FlutterLocalNotificationsPlugin();
+
+Future<void> initializeLocationNotificationChannel() async {
+  const AndroidNotificationChannel channel = AndroidNotificationChannel(
+    'location_channel', // id
+    'Ubicación en segundo plano', // name
+    description: 'Notificación para servicios de ubicación en segundo plano',
+    importance: Importance.high,
+  );
+
+  await flutterLocalNotificationsPlugin
+      .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>()
+      ?.createNotificationChannel(channel);
+}
 
 /// Servicio centralizado para tracking GPS con las siguientes responsabilidades:
 /// - Escuchar GPS en tiempo real
@@ -37,7 +67,6 @@ class TrackingService {
   // ============================================================================
   // ESCUCHAR GPS
   // ============================================================================
-
   /// Inicia el tracking de ubicación GPS en tiempo real.
   ///
   /// [onLocationUpdate] - Callback opcional que se ejecuta cada vez que hay una nueva ubicación.
@@ -80,6 +109,7 @@ class TrackingService {
               notificationTitle: 'Taxi App - Tracking activo',
               notificationText: 'Compartiendo tu ubicación en tiempo real.',
               enableWakeLock: true,
+              // notificationIcon eliminado para usar el predeterminado del sistema
             ),
           )
         : LocationSettings(
@@ -166,7 +196,6 @@ class TrackingService {
   // ============================================================================
   // ENVIAR UBICACIÓN
   // ============================================================================
-
   /// Inicia tracking GPS y envía automáticamente la ubicación a Firebase.
   ///
   /// [userId] - ID del usuario (conductor o cliente).
@@ -281,7 +310,6 @@ class TrackingService {
   // ============================================================================
   // DETENER TRACKING
   // ============================================================================
-
   /// Detiene el tracking GPS y libera recursos.
   ///
   /// Cancela la suscripción al stream de posiciones y marca el tracking como inactivo.
@@ -310,7 +338,6 @@ class TrackingService {
   // ============================================================================
   // UTILIDADES
   // ============================================================================
-
   /// Calcula la distancia en metros entre dos posiciones.
   double calcularDistancia(LatLng start, LatLng end) {
     return Geolocator.distanceBetween(

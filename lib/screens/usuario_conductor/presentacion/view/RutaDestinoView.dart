@@ -18,1134 +18,1215 @@ import 'package:geolocator/geolocator.dart';
 import 'dart:developer' as _logger;
 import 'package:url_launcher/url_launcher.dart';
 
+
 class RutaDestino extends StatefulWidget {
 
-  final String idSolicitud;
 
-  const RutaDestino({
-    super.key,
-    required this.idSolicitud,
-  });
+ final String idSolicitud;
 
-  @override
-  State<RutaDestino> createState() => _RutaDestinoState();
+
+ const RutaDestino({
+   super.key,
+   required this.idSolicitud,
+ });
+
+
+ @override
+ State<RutaDestino> createState() => _RutaDestinoState();
 }
 
+
 class _RutaDestinoState extends State<RutaDestino> with WidgetsBindingObserver {
-    bool _isPaused = false;
-  // El servicio background ahora se inicia solo desde el ViewModel y solo si no está corriendo
+   bool _isPaused = false;
+ // El servicio background ahora se inicia solo desde el ViewModel y solo si no está corriendo
 
-  final TextEditingController _chatController = TextEditingController();
-  final ScrollController _chatScrollController = ScrollController();
 
-  GoogleMapController? _mapController;
+ final TextEditingController _chatController = TextEditingController();
+ final ScrollController _chatScrollController = ScrollController();
 
-  LatLng? _ubicacionConductor;
-  bool _loadingUbicacion = true;
 
-  double _bearing = 0;
+ GoogleMapController? _mapController;
 
-  StreamSubscription<Position>? _positionStream;
 
-  bool _centraSoloConductor = true;
+ LatLng? _ubicacionConductor;
+ bool _loadingUbicacion = true;
 
-  final LatLng _initialTarget = LatLng(8.2595534, -73.353469);
-  final double _initialZoom = 15.0;
 
-  final Set<Circle> _circles = {};
+ double _bearing = 0;
 
-    List<LatLng> _polylinePoints = [];
-    bool _loadingPolyline = false;
-    LatLng? _ubicacionInicialConductor;
-    // Calcula los bounds de la polyline para ajustar la cámara
-    LatLngBounds? _calcularBoundsPolyline(List<LatLng> points) {
-      if (points.isEmpty) return null;
-      double minLat = points.first.latitude;
-      double maxLat = points.first.latitude;
-      double minLng = points.first.longitude;
-      double maxLng = points.first.longitude;
-      for (final p in points) {
-        if (p.latitude < minLat) minLat = p.latitude;
-        if (p.latitude > maxLat) maxLat = p.latitude;
-        if (p.longitude < minLng) minLng = p.longitude;
-        if (p.longitude > maxLng) maxLng = p.longitude;
-      }
-      return LatLngBounds(
-        southwest: LatLng(minLat, minLng),
-        northeast: LatLng(maxLat, maxLng),
-      );
-    }
 
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    // Inicializa notificaciones locales
-    RutaConductorViewModel.inicializarNotificaciones();
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await RutaDestinoViewModel.mostrarNotificacion(
-        'Continúa el servicio',
-        'Lleva el cliente a su destino.'
-      );
-      final vm = Provider.of<RutaDestinoViewModel>(context, listen: false);
-      // Guardar el idSolicitud en cache al ingresar a la clase
-      await vm.guardarSolicitudActiva(widget.idSolicitud);
-      await vm.cargarDatosCliente(widget.idSolicitud);
-      vm.iniciarChat(widget.idSolicitud);
-      vm.escucharEstadoSolicitud(widget.idSolicitud, context);
-      await _obtenerUbicacionConductor();
-      // Inicia tracking de ubicación en background
-      await vm.iniciarTrackingUbicacion(widget.idSolicitud);
-    });
-  }
+ StreamSubscription<Position>? _positionStream;
 
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _chatController.dispose();
-    _chatScrollController.dispose();
-    _positionStream?.cancel();
-    super.dispose();
-  }
 
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    super.didChangeAppLifecycleState(state);
-    if (state == AppLifecycleState.paused) {
-      debugPrint(' 🚀[LOG] RutaDestinoView: onPaused');
-      _isPaused = true;
-        // Iniciar servicio de background y obtener ubicación
-        _iniciarTrackingBackground();
-    } else if (state == AppLifecycleState.resumed) {
-      debugPrint(' 🚀 [LOG] RutaDestinoView: onResumed');
-      _isPaused = false;
-    }
-  }
+ bool _centraSoloConductor = true;
 
-    Future<void> _iniciarTrackingBackground() async {
-      try {
-        debugPrint('🚀 [LOG] Iniciando tracking background desde onPaused');
-        await initializeBackgroundService();
-        await startBackgroundTrackingService();
-      } catch (e) {
-        debugPrint('Error iniciando tracking background: $e');
-      }
-    }
 
-  Future<void> _obtenerUbicacionConductor() async {
-    setState(() { _loadingUbicacion = true; });
-    try {
-      final position = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.high);
-      final nuevaUbicacion = LatLng(position.latitude, position.longitude);
-      if (!mounted) return;
-      setState(() {
-        _ubicacionConductor = nuevaUbicacion;
-        _loadingUbicacion = false;
-        if (_ubicacionInicialConductor == null) {
-          _ubicacionInicialConductor = _ubicacionConductor;
-        }
-      });
-      // Actualizar en Firestore (solicitudes -> conductor -> ubicacion)
-      await FirebaseFirestore.instance
-        .collection('solicitudes')
-        .doc(widget.idSolicitud)
-        .update({
-          'conductor.ubicacion': {
-            'lat': nuevaUbicacion.latitude,
-            'lng': nuevaUbicacion.longitude,
-          }
-        });
-      if (!mounted) return;
-      setState(() { });
-      // Centrar ambos marcadores y ajustar zoom
-      _fitMarkers();
+ final LatLng _initialTarget = LatLng(8.2595534, -73.353469);
+ final double _initialZoom = 15.0;
 
-      _escucharMovimientoConductor();
 
-      // Obtener polyline de Google Directions API
-      final vm = Provider.of<RutaDestinoViewModel>(context, listen: false);
-      if (_ubicacionConductor != null && vm.latDestino != null && vm.lngDestino != null) {
-        setState(() { _loadingPolyline = true; });
-        try {
-          final direcciones = Direcciones();
-          String? polyline = await direcciones.getPolyline(
-            _ubicacionConductor!.latitude,
-            _ubicacionConductor!.longitude,
-            vm.latDestino!,
-            vm.lngDestino!
-          );
-          if (polyline != null && polyline.isNotEmpty) {
-            _polylinePoints = _decodePolyline(polyline);
-              // Ajusta la cámara para mostrar la polyline completa
-              if (_mapController != null && _polylinePoints.isNotEmpty) {
-                final bounds = _calcularBoundsPolyline(_polylinePoints);
-                if (bounds != null) {
-                  await _mapController!.animateCamera(
-                    CameraUpdate.newLatLngBounds(bounds, 80),
-                  );
-                }
-              }
-          } else {
-            _polylinePoints = [];
-          }
-        } catch (e) {
-          _polylinePoints = [];
-          debugPrint('Error obteniendo polyline: $e');
-        }
-        setState(() { _loadingPolyline = false; });
-      }
-    } catch (e) {
-      setState(() { _loadingUbicacion = false; });
-      debugPrint('Error obteniendo ubicación: $e');
-    }
-  }
+ final Set<Circle> _circles = {};
+
+
+   List<LatLng> _polylinePoints = [];
+   bool _loadingPolyline = false;
+   LatLng? _ubicacionInicialConductor;
+   // Calcula los bounds de la polyline para ajustar la cámara
+   LatLngBounds? _calcularBoundsPolyline(List<LatLng> points) {
+     if (points.isEmpty) return null;
+     double minLat = points.first.latitude;
+     double maxLat = points.first.latitude;
+     double minLng = points.first.longitude;
+     double maxLng = points.first.longitude;
+     for (final p in points) {
+       if (p.latitude < minLat) minLat = p.latitude;
+       if (p.latitude > maxLat) maxLat = p.latitude;
+       if (p.longitude < minLng) minLng = p.longitude;
+       if (p.longitude > maxLng) maxLng = p.longitude;
+     }
+     return LatLngBounds(
+       southwest: LatLng(minLat, minLng),
+       northeast: LatLng(maxLat, maxLng),
+     );
+   }
+
+
+ @override
+ void initState() {
+   super.initState();
+   WidgetsBinding.instance.addObserver(this);
+   // Inicializa notificaciones locales
+   RutaConductorViewModel.inicializarNotificaciones();
+   WidgetsBinding.instance.addPostFrameCallback((_) async {
+     await RutaDestinoViewModel.mostrarNotificacion(
+       'Continúa el servicio',
+       'Lleva el cliente a su destino.'
+     );
+     final vm = Provider.of<RutaDestinoViewModel>(context, listen: false);
+     // Guardar el idSolicitud en cache al ingresar a la clase
+     await vm.guardarSolicitudActiva(widget.idSolicitud);
+     await vm.cargarDatosCliente(widget.idSolicitud);
+     vm.iniciarChat(widget.idSolicitud);
+     vm.escucharEstadoSolicitud(widget.idSolicitud, context);
+     await _obtenerUbicacionConductor();
+     // Inicia tracking de ubicación en background
+     await vm.iniciarTrackingUbicacion(widget.idSolicitud);
+   });
+ }
+
+
+ @override
+ void dispose() {
+   WidgetsBinding.instance.removeObserver(this);
+   _chatController.dispose();
+   _chatScrollController.dispose();
+   _positionStream?.cancel();
+   super.dispose();
+ }
+
+
+ @override
+ void didChangeAppLifecycleState(AppLifecycleState state) {
+   super.didChangeAppLifecycleState(state);
+   if (state == AppLifecycleState.paused) {
+     debugPrint('🚀 [LOG] RutaDestinoView: onPaused - iniciando background service');
+     _isPaused = true;
+     _iniciarTrackingBackground();
+   } else if (state == AppLifecycleState.resumed) {
+     debugPrint('🚀 [LOG] RutaDestinoView: onResumed - deteniendo background service');
+     _isPaused = false;
+     _detenerTrackingBackground();
+   }
+ }
+
+
+   Future<void> _iniciarTrackingBackground() async {
+   try {
+     debugPrint('🚀 [LOG] Iniciando tracking background desde onPaused');
+     await initializeBackgroundService();
+     await startBackgroundTrackingService();
+     debugPrint('✅ [LOG] Background service iniciado');
+   } catch (e) {
+     debugPrint('Error iniciando tracking background: $e');
+   }
+ }
+
+
+ Future<void> _detenerTrackingBackground() async {
+   try {
+     final service = FlutterBackgroundService();
+     service.invoke("stop");
+     debugPrint('🛑 [LOG] Background service detenido');
+   } catch (e) {
+     debugPrint('Error deteniendo background service: $e');
+   }
+ }
+
+
+ Future<void> _obtenerUbicacionConductor() async {
+   setState(() { _loadingUbicacion = true; });
+   try {
+     final position = await Geolocator.getCurrentPosition(
+         desiredAccuracy: LocationAccuracy.high);
+     final nuevaUbicacion = LatLng(position.latitude, position.longitude);
+     if (!mounted) return;
+     setState(() {
+       _ubicacionConductor = nuevaUbicacion;
+       _loadingUbicacion = false;
+       if (_ubicacionInicialConductor == null) {
+         _ubicacionInicialConductor = _ubicacionConductor;
+       }
+     });
+     // Actualizar en Firestore (solicitudes -> conductor -> ubicacion)
+     await FirebaseFirestore.instance
+       .collection('solicitudes')
+       .doc(widget.idSolicitud)
+       .update({
+         'conductor.ubicacion': {
+           'lat': nuevaUbicacion.latitude,
+           'lng': nuevaUbicacion.longitude,
+         }
+       });
+     debugPrint('[LOG] Ubicación guardada en Firestore: lat=${nuevaUbicacion.latitude}, lng=${nuevaUbicacion.longitude}');
+     if (!mounted) return;
+     setState(() { });
+     // Centrar ambos marcadores y ajustar zoom
+     _fitMarkers();
+
+
+     _escucharMovimientoConductor();
+
+
+     // Obtener polyline de Google Directions API
+     final vm = Provider.of<RutaDestinoViewModel>(context, listen: false);
+     if (_ubicacionConductor != null && vm.latDestino != null && vm.lngDestino != null) {
+       setState(() { _loadingPolyline = true; });
+       try {
+         final direcciones = Direcciones();
+         String? polyline = await direcciones.getPolyline(
+           _ubicacionConductor!.latitude,
+           _ubicacionConductor!.longitude,
+           vm.latDestino!,
+           vm.lngDestino!
+         );
+         if (polyline != null && polyline.isNotEmpty) {
+           _polylinePoints = _decodePolyline(polyline);
+             // Ajusta la cámara para mostrar la polyline completa
+             if (_mapController != null && _polylinePoints.isNotEmpty) {
+               final bounds = _calcularBoundsPolyline(_polylinePoints);
+               if (bounds != null) {
+                 await _mapController!.animateCamera(
+                   CameraUpdate.newLatLngBounds(bounds, 80),
+                 );
+               }
+             }
+         } else {
+           _polylinePoints = [];
+         }
+       } catch (e) {
+         _polylinePoints = [];
+         debugPrint('Error obteniendo polyline: $e');
+       }
+       setState(() { _loadingPolyline = false; });
+     }
+   } catch (e) {
+     setState(() { _loadingUbicacion = false; });
+     debugPrint('Error obteniendo ubicación: $e');
+   }
+ }
+
 
 void _escucharMovimientoConductor() {
 
-  final vm = Provider.of<RutaConductorViewModel>(context, listen: false);
 
-  _positionStream = Geolocator.getPositionStream(
-    locationSettings: const LocationSettings(
-      accuracy: LocationAccuracy.high,
-      distanceFilter: 1, // Actualiza cada 15 metros de movimiento
-    ),
-  ).listen((Position position) async {
+ final vm = Provider.of<RutaConductorViewModel>(context, listen: false);
 
-    final nuevaUbicacion = LatLng(position.latitude, position.longitude);
 
-    if (!mounted) return;
-    setState(() {
-      _ubicacionConductor = nuevaUbicacion;
-    });
+ _positionStream = Geolocator.getPositionStream(
+   locationSettings: const LocationSettings(
+     accuracy: LocationAccuracy.high,
+     distanceFilter: 1, // Actualiza cada 15 metros de movimiento
+   ),
+ ).listen((Position position) async {
 
-    debugPrint('[LOG] Ubicación extraída del GPS: lat=${nuevaUbicacion.latitude}, lng=${nuevaUbicacion.longitude}');
-    if (_isPaused) {
-      debugPrint('[LOG] [onPaused] Ubicación obtenida: lat=${nuevaUbicacion.latitude}, lng=${nuevaUbicacion.longitude}');
-    }
 
-    // Guardar ubicación obtenida y fecha en Firestore (igual que en RutaConductorView)
-    try {
-      final fechaEnvio = DateTime.now().toIso8601String();
-      await FirebaseFirestore.instance
-        .collection('solicitudes')
-        .doc(widget.idSolicitud)
-        .update({
-          'conductor.ubicacion': {
-            'lat': nuevaUbicacion.latitude,
-            'lng': nuevaUbicacion.longitude,
-            'fecha': fechaEnvio,
-          }
-        });
-      debugPrint('[LOG] Ubicación guardada en base de datos: lat=${nuevaUbicacion.latitude}, lng=${nuevaUbicacion.longitude}, fecha=$fechaEnvio');
-    } catch (e) {
-      debugPrint('Error guardando ubicación obtenida: $e');
-    }
+   final nuevaUbicacion = LatLng(position.latitude, position.longitude);
 
-    // Ajusta la cámara para mostrar la polyline completa al mover el conductor
-    if (_mapController != null && _polylinePoints.isNotEmpty) {
-      final bounds = _calcularBoundsPolyline(_polylinePoints);
-      if (bounds != null && mounted) {
-        _mapController!.animateCamera(
-          CameraUpdate.newLatLngBounds(bounds, 80),
-        );
-      }
-    }
 
-    // Si el conductor se desvía más de 50 metros de la polyline, solicita nueva ruta
-    if (_polylinePoints.isNotEmpty && _ubicacionConductor != null) {
-      double minDist = double.infinity;
-      for (final p in _polylinePoints) {
-        final dist = Geolocator.distanceBetween(
-          _ubicacionConductor!.latitude,
-          _ubicacionConductor!.longitude,
-          p.latitude,
-          p.longitude,
-        );
-        if (dist < minDist) minDist = dist;
-      }
-      if (minDist > 50) {
-        _solicitarNuevaPolyline();
-      }
-    }
-  });
+   if (!mounted) return;
+   setState(() {
+     _ubicacionConductor = nuevaUbicacion;
+   });
+
+
+   debugPrint('[LOG] Ubicación extraída del GPS: lat=${nuevaUbicacion.latitude}, lng=${nuevaUbicacion.longitude}');
+   if (_isPaused) {
+     debugPrint('[LOG] [onPaused] Ubicación obtenida: lat=${nuevaUbicacion.latitude}, lng=${nuevaUbicacion.longitude}');
+   }
+
+
+   // Guardar ubicación obtenida y fecha en Firestore (igual que en RutaConductorView)
+   try {
+     final fechaEnvio = DateTime.now().toIso8601String();
+     await FirebaseFirestore.instance
+       .collection('solicitudes')
+       .doc(widget.idSolicitud)
+       .update({
+         'conductor.ubicacion': {
+           'lat': nuevaUbicacion.latitude,
+           'lng': nuevaUbicacion.longitude,
+           'fecha': fechaEnvio,
+         }
+       });
+     debugPrint('[LOG] Ubicación guardada en base de datos: lat=${nuevaUbicacion.latitude}, lng=${nuevaUbicacion.longitude}, fecha=$fechaEnvio');
+   } catch (e) {
+     debugPrint('Error guardando ubicación obtenida: $e');
+   }
+
+
+   // Ajusta la cámara para mostrar la polyline completa al mover el conductor
+   if (_mapController != null && _polylinePoints.isNotEmpty) {
+     final bounds = _calcularBoundsPolyline(_polylinePoints);
+     if (bounds != null && mounted) {
+       _mapController!.animateCamera(
+         CameraUpdate.newLatLngBounds(bounds, 80),
+       );
+     }
+   }
+
+
+   // Si el conductor se desvía más de 50 metros de la polyline, solicita nueva ruta
+   if (_polylinePoints.isNotEmpty && _ubicacionConductor != null) {
+     double minDist = double.infinity;
+     for (final p in _polylinePoints) {
+       final dist = Geolocator.distanceBetween(
+         _ubicacionConductor!.latitude,
+         _ubicacionConductor!.longitude,
+         p.latitude,
+         p.longitude,
+       );
+       if (dist < minDist) minDist = dist;
+     }
+     if (minDist > 50) {
+       _solicitarNuevaPolyline();
+     }
+   }
+ });
+
 
 }
- Future<void> _solicitarNuevaPolyline() async {
-    final vm = Provider.of<RutaDestinoViewModel>(context, listen: false);
-    if (_ubicacionConductor != null && vm.latDestino != null && vm.lngDestino != null) {
-      if (!mounted) return;
-      setState(() { _loadingPolyline = true; });
-      try {
-        final direcciones = Direcciones();
-        String? polyline = await direcciones.getPolyline(
-          _ubicacionConductor!.latitude,
-          _ubicacionConductor!.longitude,
-          vm.latDestino!,
-          vm.lngDestino!
-        );
-        if (polyline != null && polyline.isNotEmpty) {
-          _polylinePoints = _decodePolyline(polyline);
-          // Ajusta la cámara para mostrar la polyline completa
-          if (_mapController != null && _polylinePoints.isNotEmpty) {
-            final bounds = _calcularBoundsPolyline(_polylinePoints);
-            if (bounds != null) {
-              await _mapController!.animateCamera(
-                CameraUpdate.newLatLngBounds(bounds, 80),
-              );
-            }
-          }
-        } else {
-          _polylinePoints = [];
-        }
-      } catch (e) {
-        _polylinePoints = [];
-        debugPrint('Error obteniendo polyline: $e');
-      }
-      if (!mounted) return;
-      setState(() { _loadingPolyline = false; });
-    }
-  }
+Future<void> _solicitarNuevaPolyline() async {
+   final vm = Provider.of<RutaDestinoViewModel>(context, listen: false);
+   if (_ubicacionConductor != null && vm.latDestino != null && vm.lngDestino != null) {
+     if (!mounted) return;
+     setState(() { _loadingPolyline = true; });
+     try {
+       final direcciones = Direcciones();
+       String? polyline = await direcciones.getPolyline(
+         _ubicacionConductor!.latitude,
+         _ubicacionConductor!.longitude,
+         vm.latDestino!,
+         vm.lngDestino!
+       );
+       if (polyline != null && polyline.isNotEmpty) {
+         _polylinePoints = _decodePolyline(polyline);
+         // Ajusta la cámara para mostrar la polyline completa
+         if (_mapController != null && _polylinePoints.isNotEmpty) {
+           final bounds = _calcularBoundsPolyline(_polylinePoints);
+           if (bounds != null) {
+             await _mapController!.animateCamera(
+               CameraUpdate.newLatLngBounds(bounds, 80),
+             );
+           }
+         }
+       } else {
+         _polylinePoints = [];
+       }
+     } catch (e) {
+       _polylinePoints = [];
+       debugPrint('Error obteniendo polyline: $e');
+     }
+     if (!mounted) return;
+     setState(() { _loadingPolyline = false; });
+   }
+ }
 
 
-  List<LatLng> _decodePolyline(String encoded) {
-    List<LatLng> points = [];
-    int index = 0, len = encoded.length;
-    int lat = 0, lng = 0;
-    while (index < len) {
-      int b, shift = 0, result = 0;
-      do {
-        b = encoded.codeUnitAt(index++) - 63;
-        result |= (b & 0x1f) << shift;
-        shift += 5;
-      } while (b >= 0x20);
-      int dlat = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
-      lat += dlat;
-      shift = 0;
-      result = 0;
-      do {
-        b = encoded.codeUnitAt(index++) - 63;
-        result |= (b & 0x1f) << shift;
-        shift += 5;
-      } while (b >= 0x20);
-      int dlng = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
-      lng += dlng;
-      points.add(LatLng(lat / 1E5, lng / 1E5));
-    }
-    return points;
-  }
 
-  void _centerOnConductor() {
 
-    if (_mapController != null && _ubicacionConductor != null) {
+ List<LatLng> _decodePolyline(String encoded) {
+   List<LatLng> points = [];
+   int index = 0, len = encoded.length;
+   int lat = 0, lng = 0;
+   while (index < len) {
+     int b, shift = 0, result = 0;
+     do {
+       b = encoded.codeUnitAt(index++) - 63;
+       result |= (b & 0x1f) << shift;
+       shift += 5;
+     } while (b >= 0x20);
+     int dlat = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
+     lat += dlat;
+     shift = 0;
+     result = 0;
+     do {
+       b = encoded.codeUnitAt(index++) - 63;
+       result |= (b & 0x1f) << shift;
+       shift += 5;
+     } while (b >= 0x20);
+     int dlng = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
+     lng += dlng;
+     points.add(LatLng(lat / 1E5, lng / 1E5));
+   }
+   return points;
+ }
 
-      _mapController!.animateCamera(
-        CameraUpdate.newLatLngZoom(_ubicacionConductor!, 16),
-      );
 
-    }
+ void _centerOnConductor() {
 
-  }
 
-  void _fitMarkers() {
+   if (_mapController != null && _ubicacionConductor != null) {
 
-    if (_mapController == null) return;
 
-    final vm = Provider.of<RutaDestinoViewModel>(context, listen: false);
-    if (_ubicacionConductor == null || vm.latDestino == null || vm.lngDestino == null) return;
-    final destino = LatLng(vm.latDestino!, vm.lngDestino!);
-    // Centrar ambos marcadores usando bounds
-    final bounds = LatLngBounds(
-      southwest: LatLng(
-        Math.min(_ubicacionConductor!.latitude, destino.latitude),
-        Math.min(_ubicacionConductor!.longitude, destino.longitude),
-      ),
-      northeast: LatLng(
-        Math.max(_ubicacionConductor!.latitude, destino.latitude),
-        Math.max(_ubicacionConductor!.longitude, destino.longitude),
-      ),
-    );
-    _mapController!.animateCamera(
-      CameraUpdate.newLatLngBounds(bounds, 80),
-    );
+     _mapController!.animateCamera(
+       CameraUpdate.newLatLngZoom(_ubicacionConductor!, 16),
+     );
+
+
+   }
+
+
+ }
+
+
+ void _fitMarkers() {
+
+
+   if (_mapController == null) return;
+
+
+   final vm = Provider.of<RutaDestinoViewModel>(context, listen: false);
+   if (_ubicacionConductor == null || vm.latDestino == null || vm.lngDestino == null) return;
+   final destino = LatLng(vm.latDestino!, vm.lngDestino!);
+   // Centrar ambos marcadores usando bounds
+   final bounds = LatLngBounds(
+     southwest: LatLng(
+       Math.min(_ubicacionConductor!.latitude, destino.latitude),
+       Math.min(_ubicacionConductor!.longitude, destino.longitude),
+     ),
+     northeast: LatLng(
+       Math.max(_ubicacionConductor!.latitude, destino.latitude),
+       Math.max(_ubicacionConductor!.longitude, destino.longitude),
+     ),
+   );
+   _mapController!.animateCamera(
+     CameraUpdate.newLatLngBounds(bounds, 80),
+   );
 }
+
 
 // Calcula el bearing entre dos puntos (en grados)
 double _calcularBearing(double lat1, double lng1, double lat2, double lng2) {
-  double dLon = (lng2 - lng1) * (3.141592653589793 / 180.0);
-  double y = Math.sin(dLon) * Math.cos(lat2 * (3.141592653589793 / 180.0));
-  double x = Math.cos(lat1 * (3.141592653589793 / 180.0)) * Math.sin(lat2 * (3.141592653589793 / 180.0)) -
-      Math.sin(lat1 * (3.141592653589793 / 180.0)) * Math.cos(lat2 * (3.141592653589793 / 180.0)) * Math.cos(dLon);
-  double bearing = Math.atan2(y, x);
-  bearing = bearing * (180.0 / 3.141592653589793);
-  return (bearing + 360.0) % 360.0;
+ double dLon = (lng2 - lng1) * (3.141592653589793 / 180.0);
+ double y = Math.sin(dLon) * Math.cos(lat2 * (3.141592653589793 / 180.0));
+ double x = Math.cos(lat1 * (3.141592653589793 / 180.0)) * Math.sin(lat2 * (3.141592653589793 / 180.0)) -
+     Math.sin(lat1 * (3.141592653589793 / 180.0)) * Math.cos(lat2 * (3.141592653589793 / 180.0)) * Math.cos(dLon);
+ double bearing = Math.atan2(y, x);
+ bearing = bearing * (180.0 / 3.141592653589793);
+ return (bearing + 360.0) % 360.0;
 
-  }
 
-  void _sendMessage(RutaConductorViewModel vm) {
+ }
 
-    final texto = _chatController.text.trim();
 
-    if (texto.isEmpty) return;
+ void _sendMessage(RutaConductorViewModel vm) {
 
-    vm.enviarMensaje(
-        widget.idSolicitud,
-        vm.conductorId ?? '',
-        texto);
 
-    _chatController.clear();
+   final texto = _chatController.text.trim();
 
-    Future.delayed(const Duration(milliseconds: 100), () {
 
-      if (_chatScrollController.hasClients) {
+   if (texto.isEmpty) return;
 
-        _chatScrollController.animateTo(
-          _chatScrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOut,
-        );
 
-      }
+   vm.enviarMensaje(
+       widget.idSolicitud,
+       vm.conductorId ?? '',
+       texto);
 
-    });
 
-  }
-  // Calcula la distancia en kilómetros entre conductor y destino
-  String _distanciaKmConductorDestino() {
-    final vm = Provider.of<RutaDestinoViewModel>(context, listen: false);
-    if (_ubicacionConductor == null || vm.latDestino == null || vm.lngDestino == null) {
-      return "--";
-    }
-    final double distanciaMetros = Geolocator.distanceBetween(
-      _ubicacionConductor!.latitude,
-      _ubicacionConductor!.longitude,
-      vm.latDestino!,
-      vm.lngDestino!,
-    );
-    if (distanciaMetros < 1000) {
-      return "${distanciaMetros.round()} m";
-    } else {
-      final double distanciaKm = distanciaMetros / 1000.0;
-      return "${distanciaKm.toStringAsFixed(2)} km";
-    }
-  }
+   _chatController.clear();
+
+
+   Future.delayed(const Duration(milliseconds: 100), () {
+
+
+     if (_chatScrollController.hasClients) {
+
+
+       _chatScrollController.animateTo(
+         _chatScrollController.position.maxScrollExtent,
+         duration: const Duration(milliseconds: 200),
+         curve: Curves.easeOut,
+       );
+
+
+     }
+
+
+   });
+
+
+ }
+ // Calcula la distancia en kilómetros entre conductor y destino
+ String _distanciaKmConductorDestino() {
+   final vm = Provider.of<RutaDestinoViewModel>(context, listen: false);
+   if (_ubicacionConductor == null || vm.latDestino == null || vm.lngDestino == null) {
+     return "--";
+   }
+   final double distanciaMetros = Geolocator.distanceBetween(
+     _ubicacionConductor!.latitude,
+     _ubicacionConductor!.longitude,
+     vm.latDestino!,
+     vm.lngDestino!,
+   );
+   if (distanciaMetros < 1000) {
+     return "${distanciaMetros.round()} m";
+   } else {
+     final double distanciaKm = distanciaMetros / 1000.0;
+     return "${distanciaKm.toStringAsFixed(2)} km";
+   }
+ }
+
 
 // Calcula el tiempo estimado de llegada
-  String _tiempoEstimadoLlegada() {
-    final vm = Provider.of<RutaDestinoViewModel>(context, listen: false);
-    if (_ubicacionConductor == null || vm.latDestino == null || vm.lngDestino == null) {
-      return "Tiempo estimado: --";
-    }
-    final double distancia = Geolocator.distanceBetween(
-      _ubicacionConductor!.latitude,
-      _ubicacionConductor!.longitude,
-      vm.latDestino!,
-      vm.lngDestino!,
-    ) / 1000.0;
-    final double velocidad = 40.0;
-    final double tiempoHoras = distancia / velocidad;
-    final int minutos = (tiempoHoras * 60).round();
-    return "Tiempo estimado: ${minutos} min";
-  }
+ String _tiempoEstimadoLlegada() {
+   final vm = Provider.of<RutaDestinoViewModel>(context, listen: false);
+   if (_ubicacionConductor == null || vm.latDestino == null || vm.lngDestino == null) {
+     return "Tiempo estimado: --";
+   }
+   final double distancia = Geolocator.distanceBetween(
+     _ubicacionConductor!.latitude,
+     _ubicacionConductor!.longitude,
+     vm.latDestino!,
+     vm.lngDestino!,
+   ) / 1000.0;
+   final double velocidad = 40.0;
+   final double tiempoHoras = distancia / velocidad;
+   final int minutos = (tiempoHoras * 60).round();
+   return "Tiempo estimado: ${minutos} min";
+ }
 
 
-  Widget _chatSheet() {
 
-    return Consumer<RutaConductorViewModel>(
-      builder: (context, vm, _) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (_chatScrollController.hasClients && vm.mensajes.isNotEmpty) {
-            _chatScrollController.jumpTo(_chatScrollController.position.maxScrollExtent);
-          }
-        });
-        return SafeArea(
-          child: Container(
-            height: MediaQuery.of(context).size.height * 0.60,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColores.background,
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Center(
-                        child: const Text(
-                          "Chat con el cliente",
-                          style: TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
-                              color: AppColores.textPrimary),
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close, color: AppColores.textPrimary),
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                      },
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Expanded(
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(vertical: 8),
-                    decoration: BoxDecoration(
-                      color: const Color.fromARGB(255, 194, 189, 151),
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    child: ListView.builder(
-                      controller: _chatScrollController,
-                      itemCount: vm.mensajes.length,
-                      itemBuilder: (context, index) {
-                        final msg = vm.mensajes[index];
-                        final esMio = msg.senderId == vm.conductorId;
-                        return Container(
-                          margin: EdgeInsets.only(
-                            top: 10,
-                            bottom: 10,
-                            left: esMio ? 60 : 16,
-                            right: esMio ? 16 : 60,
-                          ),
-                          child: Align(
-                            alignment: esMio
-                                ? Alignment.centerRight
-                                : Alignment.centerLeft,
-                            child: Container(
-                              constraints: BoxConstraints(
-                                maxWidth: MediaQuery.of(context).size.width * 0.68,
-                                minWidth: 60,
-                              ),
-                              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 18),
-                              decoration: BoxDecoration(
-                                color: esMio ? AppColores.primary : Colors.white,
-                                borderRadius: BorderRadius.circular(22),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.07),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      msg.texto,
-                                      style: TextStyle(
-                                        color: esMio ? Colors.black : Colors.black,
-                                        fontSize: 17,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    msg.timestamp != null ? _formatHora(msg.timestamp!) : '',
-                                    style: TextStyle(
-                                      color: Colors.grey.shade600,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ),
-                const Divider(),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: AppColores.primary, width: 1.2),
-                        ),
-                        child: TextField(
-                          controller: _chatController,
-                          decoration: const InputDecoration(
-                              hintText: "Escribe un mensaje...",
-                              border: InputBorder.none,
-                              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14)),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: AppColores.primary,
-                        shape: BoxShape.circle,
-                      ),
-                      child: IconButton(
-                        icon: const Icon(
-                          Icons.send,
-                          color: Colors.white,
-                        ),
-                        onPressed: () => _sendMessage(vm),
-                      ),
-                    )
-                  ],
-                )
-              ],
-            ),
-          ),
-        );
-      },
-    );
 
-  }
+ Widget _chatSheet() {
 
-  String _formatHora(DateTime fechaHora) {
-    return '${fechaHora.hour.toString().padLeft(2, '0')}:${fechaHora.minute.toString().padLeft(2, '0')}';
-  }
 
-  Widget _mapWidget(BuildContext context) {
-    final vm = Provider.of<RutaDestinoViewModel>(context);
-    LatLng? destinoLatLng;
-    if (vm.latDestino != null && vm.lngDestino != null) {
-      destinoLatLng = LatLng(vm.latDestino!, vm.lngDestino!);
-      print("✅ Ubicación destino encontrada: lat=${vm.latDestino}, lng=${vm.lngDestino}");
-    } else {
-      destinoLatLng = null;
-      print("❌ Ubicación destino NO encontrada");
-    }
-    final target = _ubicacionConductor ?? destinoLatLng ?? _initialTarget;
-    final markers = <Marker>{
-      // // Marcador del conductor
-      // if (_ubicacionConductor != null)
-      //   Marker(
-      //     markerId: const MarkerId('conductor'),
-      //     position: _ubicacionConductor!,
-      //     rotation: _bearing,
-      //     anchor: const Offset(0.5, 0.5),
-      //     flat: true,
-      //     infoWindow: const InfoWindow(title: 'Tú'),
-      //     icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
-      //   ),
-      // Marcador del destino
-      if (destinoLatLng != null)
-        Marker(
-          markerId: const MarkerId('destino'),
-          position: destinoLatLng,
-          infoWindow: InfoWindow(
-            title: vm.tituloDestino.isNotEmpty ? vm.tituloDestino : 'Destino',
-            snippet: vm.direccionDestino.isNotEmpty ? vm.direccionDestino : null,
-          ),
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
-        ),
-    };
-    final polylines = <Polyline>{
-      if (_polylinePoints.isNotEmpty)
-        Polyline(
-          polylineId: const PolylineId('google_route'),
-          points: _polylinePoints,
-          color: AppColores.primary,
-          width: 5,
-        )
-      else if (_ubicacionConductor != null && destinoLatLng != null)
-        Polyline(
-          polylineId: const PolylineId('ruta_conductor_destino'),
-          points: [_ubicacionConductor!, destinoLatLng],
-          color: AppColores.primary,
-          width: 5,
-        ),
-    };
-    if (_polylinePoints.isEmpty) {
-      print("⚠️ POLYLINE VACÍA → usando línea recta");
-    } else {
-      print("✅ POLYLINE DE GOOGLE DIRECTIONS");
-    }
-    print("📍 Puntos polyline cargados: ${_polylinePoints.length}");
-    return SizedBox(
-      height: MediaQuery.of(context).size.height * 0.70,
-      child: Stack(
-        children: [
-          Mapagoogle(
-            initialTarget: target,
-            initialZoom: _initialZoom,
-            markers: markers,
-            polylines: polylines,
-            circles: _circles,
-          
-            //myLocationButtonEnabled: true,
-            onMapCreated: (controller) {
-              _mapController = controller;
-              // No llamar _fitMarkers aquí, se llama tras obtener ubicación
-            },
-          ),
-          if (_loadingUbicacion || _loadingPolyline)
-            Positioned.fill(
-              child: Container(
-                color: Colors.black.withOpacity(0.2),
-                child: const Center(
-                  child: CircularProgressIndicator(),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
+   return Consumer<RutaConductorViewModel>(
+     builder: (context, vm, _) {
+       WidgetsBinding.instance.addPostFrameCallback((_) {
+         if (_chatScrollController.hasClients && vm.mensajes.isNotEmpty) {
+           _chatScrollController.jumpTo(_chatScrollController.position.maxScrollExtent);
+         }
+       });
+       return SafeArea(
+         child: Container(
+           height: MediaQuery.of(context).size.height * 0.60,
+           padding: const EdgeInsets.all(12),
+           decoration: BoxDecoration(
+             color: AppColores.background,
+             borderRadius: BorderRadius.circular(24),
+           ),
+           child: Column(
+             children: [
+               Row(
+                 children: [
+                   Expanded(
+                     child: Center(
+                       child: const Text(
+                         "Chat con el cliente",
+                         style: TextStyle(
+                             fontSize: 22,
+                             fontWeight: FontWeight.bold,
+                             color: AppColores.textPrimary),
+                       ),
+                     ),
+                   ),
+                   IconButton(
+                     icon: const Icon(Icons.close, color: AppColores.textPrimary),
+                     onPressed: () {
+                       Navigator.of(context).pop();
+                     },
+                   ),
+                 ],
+               ),
+               const SizedBox(height: 8),
+               Expanded(
+                 child: Container(
+                   margin: const EdgeInsets.symmetric(vertical: 8),
+                   decoration: BoxDecoration(
+                     color: const Color.fromARGB(255, 194, 189, 151),
+                     borderRadius: BorderRadius.circular(18),
+                   ),
+                   child: ListView.builder(
+                     controller: _chatScrollController,
+                     itemCount: vm.mensajes.length,
+                     itemBuilder: (context, index) {
+                       final msg = vm.mensajes[index];
+                       final esMio = msg.senderId == vm.conductorId;
+                       return Container(
+                         margin: EdgeInsets.only(
+                           top: 10,
+                           bottom: 10,
+                           left: esMio ? 60 : 16,
+                           right: esMio ? 16 : 60,
+                         ),
+                         child: Align(
+                           alignment: esMio
+                               ? Alignment.centerRight
+                               : Alignment.centerLeft,
+                           child: Container(
+                             constraints: BoxConstraints(
+                               maxWidth: MediaQuery.of(context).size.width * 0.68,
+                               minWidth: 60,
+                             ),
+                             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 18),
+                             decoration: BoxDecoration(
+                               color: esMio ? AppColores.primary : Colors.white,
+                               borderRadius: BorderRadius.circular(22),
+                               boxShadow: [
+                                 BoxShadow(
+                                   color: Colors.black.withOpacity(0.07),
+                                   blurRadius: 8,
+                                   offset: const Offset(0, 2),
+                                 ),
+                               ],
+                             ),
+                             child: Row(
+                               mainAxisSize: MainAxisSize.min,
+                               crossAxisAlignment: CrossAxisAlignment.end,
+                               children: [
+                                 Expanded(
+                                   child: Text(
+                                     msg.texto,
+                                     style: TextStyle(
+                                       color: esMio ? Colors.black : Colors.black,
+                                       fontSize: 17,
+                                     ),
+                                   ),
+                                 ),
+                                 const SizedBox(width: 8),
+                                 Text(
+                                   msg.timestamp != null ? _formatHora(msg.timestamp!) : '',
+                                   style: TextStyle(
+                                     color: Colors.grey.shade600,
+                                     fontSize: 14,
+                                   ),
+                                 ),
+                               ],
+                             ),
+                           ),
+                         ),
+                       );
+                     },
+                   ),
+                 ),
+               ),
+               const Divider(),
+               Row(
+                 children: [
+                   Expanded(
+                     child: Container(
+                       decoration: BoxDecoration(
+                         color: Colors.white,
+                         borderRadius: BorderRadius.circular(16),
+                         border: Border.all(color: AppColores.primary, width: 1.2),
+                       ),
+                       child: TextField(
+                         controller: _chatController,
+                         decoration: const InputDecoration(
+                             hintText: "Escribe un mensaje...",
+                             border: InputBorder.none,
+                             contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14)),
+                       ),
+                     ),
+                   ),
+                   const SizedBox(width: 8),
+                   Container(
+                     decoration: BoxDecoration(
+                       color: AppColores.primary,
+                       shape: BoxShape.circle,
+                     ),
+                     child: IconButton(
+                       icon: const Icon(
+                         Icons.send,
+                         color: Colors.white,
+                       ),
+                       onPressed: () => _sendMessage(vm),
+                     ),
+                   )
+                 ],
+               )
+             ],
+           ),
+         ),
+       );
+     },
+   );
 
-  Widget _infoRow() {
 
-    final vm = Provider.of<RutaDestinoViewModel>(context);
-    final conductorId = vm.conductorId ?? '';
-    final mensajesPendientes = vm.mensajes.where((m) =>
-      m.senderId != conductorId &&
-      (!(m.readBy[conductorId] ?? false))
-    ).length;
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          CircleAvatar(
-            radius: 40,
-            backgroundColor: AppColores.primary,
-            backgroundImage: vm.fotoCliente.isNotEmpty
-                ? CachedNetworkImageProvider(vm.fotoCliente)
-                : null,
-            child: vm.fotoCliente.isEmpty
-                ? const Icon(Icons.person, color: Colors.white)
-                : null,
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final screenW = constraints.maxWidth;
-                    double nameFont = 25;
-                    double addressFont = 18;
-                    double spacing = 6;
-                    if (screenW >= 1000) {
-                      nameFont = 32;
-                      addressFont = 22;
-                      spacing = 12;
-                    } else if (screenW < 350) {
-                      nameFont = 18;
-                      addressFont = 14;
-                      spacing = 4;
-                    } else if (screenW < 500) {
-                      nameFont = 20;
-                      addressFont = 15;
-                      spacing = 5;
-                    }
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          vm.nombreCliente.isNotEmpty
-                              ? vm.nombreCliente.substring(0, 1).toUpperCase() + vm.nombreCliente.substring(1).toLowerCase()
-                              : "Cliente",
-                          style: TextStyle(
-                            fontSize: nameFont,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        SizedBox(height: spacing),
-                        Text(
-                          vm.direccionDestino,
-                          style: TextStyle(
-                            color: Colors.grey,
-                            fontSize: addressFont,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-          // Stack(
-          //   children: [
-          //     IconButton(
-          //       icon: Image.asset(
-          //         'assets/img/icon_location.png',
-          //         width: 40,
-          //         height: 40,
-          //       ),
-          //       onPressed: () async {
-          //         for (final m in vm.mensajes) {
-          //           if (m.senderId != conductorId && !(m.readBy[conductorId] ?? false)) {
-          //             await vm.chatService.markMessageRead(
-          //               solicitudId: widget.idSolicitud,
-          //               messageId: m.id,
-          //               userId: conductorId,
-          //             );
-          //           }
-          //         }
-          //         if (_ubicacionConductor != null && vm.latDestino != null && vm.lngDestino != null) {
-          //           final origen = '${_ubicacionConductor!.latitude},${_ubicacionConductor!.longitude}';
-          //           final destino = '${vm.latDestino},${vm.lngDestino}';
-          //           final url = 'https://www.google.com/maps/dir/?api=1&origin=$origen&destination=$destino&travelmode=driving';
-          //           try {
-          //             await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-          //           } catch (e) {
-          //             debugPrint('No se pudo abrir Google Maps: $e');
-          //           }
-          //         } else {
-          //           ScaffoldMessenger.of(context).showSnackBar(
-          //             SnackBar(content: Text('Ubicación no disponible')),
-          //           );
-          //         }
-          //       },
-          //     ),
-          //   ],
-          // ),
-        ],
-      ),
-    );
+ }
 
-  }
 
-  Widget _bottomButtons() {
+ String _formatHora(DateTime fechaHora) {
+   return '${fechaHora.hour.toString().padLeft(2, '0')}:${fechaHora.minute.toString().padLeft(2, '0')}';
+ }
 
-    bool _terminarViajePressed = false;
-    final size = MediaQuery.of(context).size;
-    final double screenW = size.width;
-    double buttonFontSize = 18;
-    double buttonPaddingV = 18;
-    double buttonIconSize = 22;
-    double buttonBorderRadius = 16;
-    double buttonSpacing = 8;
-    if (screenW >= 1000) {
-      buttonFontSize = 24;
-      buttonPaddingV = 28;
-      buttonIconSize = 32;
-      buttonBorderRadius = 24;
-      buttonSpacing = 16;
-    } else if (screenW < 350) {
-      buttonFontSize = 14;
-      buttonPaddingV = 10;
-      buttonIconSize = 16;
-      buttonBorderRadius = 10;
-      buttonSpacing = 4;
-    } else if (screenW < 500) {
-      buttonFontSize = 16;
-      buttonPaddingV = 14;
-      buttonIconSize = 18;
-      buttonBorderRadius = 12;
-      buttonSpacing = 6;
-    }
-    return SafeArea(
-      child: Container(
-        child: Padding(
-          padding: const EdgeInsets.all(8),
-          child: Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  style: OutlinedButton.styleFrom(
-                    side: BorderSide(color: AppColores.primary, width: 2),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(buttonBorderRadius),
-                    ),
-                    padding: EdgeInsets.symmetric(vertical: buttonPaddingV),
-                    backgroundColor: AppColores.background,
-                  ),
-                  onPressed: () async {
-                    final vm = Provider.of<RutaDestinoViewModel>(context, listen: false);
-                    if (_ubicacionConductor != null && vm.latDestino != null && vm.lngDestino != null) {
-                      final origen = '${_ubicacionConductor!.latitude},${_ubicacionConductor!.longitude}';
-                      final destino = '${vm.latDestino},${vm.lngDestino}';
-                      final url = 'https://www.google.com/maps/dir/?api=1&origin=$origen&destination=$destino&travelmode=driving';
-                      try {
-                        await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-                      } catch (e) {
-                        debugPrint('No se pudo abrir Google Maps: $e');
-                      }
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Ubicación no disponible')),
-                      );
-                    }
-                  },
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.map, color: AppColores.primary, size: buttonIconSize),
-                      SizedBox(width: buttonSpacing),
-                      Flexible(
-                        child: Text(
-                          "Mapa",
-                          style: TextStyle(
-                            color: AppColores.primary,
-                            fontWeight: FontWeight.w600,
-                            fontSize: buttonFontSize,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              SizedBox(width: screenW >= 1000 ? 32 : screenW < 350 ? 8 : 20),
-              Expanded(
-                child: StatefulBuilder(
-                  builder: (context, setState) {
-                    return ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColores.primary,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(buttonBorderRadius),
-                        ),
-                        padding: EdgeInsets.symmetric(vertical: buttonPaddingV),
-                        elevation: 0,
-                      ),
-                      onPressed: _terminarViajePressed
-                          ? null
-                          : () async {
-                              setState(() {
-                                _terminarViajePressed = true;
-                              });
-                              try {
-                                final fechaHoraFinalizacion = DateTime.now();
-                                await FirebaseFirestore.instance
-                                    .collection('solicitudes')
-                                    .doc(widget.idSolicitud)
-                                    .update({
-                                      'estado': 'completado',
-                                      'fecha de terminacion': fechaHoraFinalizacion,
-                                    });
-                                await finalizarViaje(); // Detener servicio background
-                                await RutaDestinoViewModel.mostrarNotificacion(
-                                  'Viaje terminado',
-                                  'El viaje ha finalizado correctamente.'
-                                );
-                                // Mostrar loader y navegar solo una vez
-                                await showDialog(
-                                  context: context,
-                                  barrierDismissible: false,
-                                  builder: (_) => const LoaderSolicitudCompletada(),
-                                );
-                                Navigator.of(context).pushReplacement(
-                                  MaterialPageRoute(
-                                    builder: (_) => ResumenConductorView(solicitudId: widget.idSolicitud),
-                                  ),
-                                );
-                              } catch (e) {
-                                debugPrint('Error al cambiar estado: $e');
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('No se pudo cambiar el estado')),
-                                );
-                                setState(() {
-                                  _terminarViajePressed = false;
-                                });
-                              }
-                            },
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.check, color: Colors.white, size: buttonIconSize),
-                          SizedBox(width: buttonSpacing),
-                          Flexible(
-                            child: Text(
-                              "Terminar viaje",
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
-                                fontSize: buttonFontSize,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
 
-  }
+ Widget _mapWidget(BuildContext context) {
+   final vm = Provider.of<RutaDestinoViewModel>(context);
+   LatLng? destinoLatLng;
+   if (vm.latDestino != null && vm.lngDestino != null) {
+     destinoLatLng = LatLng(vm.latDestino!, vm.lngDestino!);
+     print("✅ Ubicación destino encontrada: lat=${vm.latDestino}, lng=${vm.lngDestino}");
+   } else {
+     destinoLatLng = null;
+     print("❌ Ubicación destino NO encontrada");
+   }
+   final target = _ubicacionConductor ?? destinoLatLng ?? _initialTarget;
+   final markers = <Marker>{
+     // // Marcador del conductor
+     // if (_ubicacionConductor != null)
+     //   Marker(
+     //     markerId: const MarkerId('conductor'),
+     //     position: _ubicacionConductor!,
+     //     rotation: _bearing,
+     //     anchor: const Offset(0.5, 0.5),
+     //     flat: true,
+     //     infoWindow: const InfoWindow(title: 'Tú'),
+     //     icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+     //   ),
+     // Marcador del destino
+     if (destinoLatLng != null)
+       Marker(
+         markerId: const MarkerId('destino'),
+         position: destinoLatLng,
+         infoWindow: InfoWindow(
+           title: vm.tituloDestino.isNotEmpty ? vm.tituloDestino : 'Destino',
+           snippet: vm.direccionDestino.isNotEmpty ? vm.direccionDestino : null,
+         ),
+         icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+       ),
+   };
+   final polylines = <Polyline>{
+     if (_polylinePoints.isNotEmpty)
+       Polyline(
+         polylineId: const PolylineId('google_route'),
+         points: _polylinePoints,
+         color: AppColores.primary,
+         width: 5,
+       )
+     else if (_ubicacionConductor != null && destinoLatLng != null)
+       Polyline(
+         polylineId: const PolylineId('ruta_conductor_destino'),
+         points: [_ubicacionConductor!, destinoLatLng],
+         color: AppColores.primary,
+         width: 5,
+       ),
+   };
+   if (_polylinePoints.isEmpty) {
+     print("⚠️ POLYLINE VACÍA → usando línea recta");
+   } else {
+     print("✅ POLYLINE DE GOOGLE DIRECTIONS");
+   }
+   print("📍 Puntos polyline cargados: ${_polylinePoints.length}");
+   return SizedBox(
+     height: MediaQuery.of(context).size.height * 0.70,
+     child: Stack(
+       children: [
+         Mapagoogle(
+           initialTarget: target,
+           initialZoom: _initialZoom,
+           markers: markers,
+           polylines: polylines,
+           circles: _circles,
+        
+           //myLocationButtonEnabled: true,
+           onMapCreated: (controller) {
+             _mapController = controller;
+             // No llamar _fitMarkers aquí, se llama tras obtener ubicación
+           },
+         ),
+         if (_loadingUbicacion || _loadingPolyline)
+           Positioned.fill(
+             child: Container(
+               color: Colors.black.withOpacity(0.2),
+               child: const Center(
+                 child: CircularProgressIndicator(),
+               ),
+             ),
+           ),
+       ],
+     ),
+   );
+ }
 
-  /// Finaliza el servicio background cuando el viaje se completa
-  Future<void> finalizarViaje() async {
-    final service = FlutterBackgroundService();
-    service.invoke("stop"); // Quitar await
-  }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: PreferredSize(
-        preferredSize: Size.fromHeight(0),
-        child: Container(),
-      ),
-      body: Stack(
-        children: [
-          Column(
-            mainAxisSize: MainAxisSize.max,
-            children: [
-              Flexible(
-                flex: 2,
-                child: _mapWidget(context),
-              ),
-              Flexible(
-                flex: 1,
-                child: Container(
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.18),
-                        blurRadius: 18,
-                        offset: Offset(0, -6),
-                      ),
-                    ],
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.max,
-                      children: [
-                        Center(
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.route, color: AppColores.buttonPrimary, size: 26),
-                              const SizedBox(width: 8),
-                              Text(
-                                "Ruta al Destino",
-                                style: TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.black,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Divider(),
-                        Expanded(
-                          child: SingleChildScrollView(
-                            child: Column(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(vertical: 0, horizontal: 5),
-                                  child: _infoRow(),
-                                ),
-                                const SizedBox(height: 4),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(vertical: 0, horizontal: 4),
-                                  child: _bottomButtons(),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          // Posiciona el tiempo estimado de llegada encima del mapa
-          Positioned(
-            top: 18,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(18),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.08),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Text(
-                  _tiempoEstimadoLlegada(),
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black,
-                  ),
-                ),
-              ),
-            ),
-          ),
-          // Botón flotante abajo a la izquierda del mapa: muestra kilómetros
-          Positioned(
-            left: 24,
-            bottom: MediaQuery.of(context).size.height * 0.35,
-            child: FloatingActionButton.extended(
-              heroTag: "fab_distancia",
-              backgroundColor: Colors.white,
-              icon: const Icon(Icons.directions_car, color: Colors.black),
-              label: Text(
-                _distanciaKmConductorDestino(),
-                style: const TextStyle(
-                  color: Colors.black,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
-              ),
-              onPressed: () {}, // Solo informativo
-              elevation: 2,
-            ),
-          ),
-          // Posiciona el botón flotante abajo a la derecha del mapa
-          Positioned(
-            right: 24,
-            bottom: MediaQuery.of(context).size.height * 0.35, // Siempre encima del mapa
-            child: FloatingActionButton(
-              heroTag: "fab_centrar",
-              backgroundColor: AppColores.buttonPrimary,
-              child: Icon(_centraSoloConductor
-                  ? Icons.person_pin_circle
-                  : Icons.group),
-              onPressed: () {
-                setState(() {
-                  if (_centraSoloConductor) {
-                    _centerOnConductor();
-                  } else {
-                    _fitMarkers();
-                  }
-                  _centraSoloConductor = !_centraSoloConductor;
-                });
-              },
-            ),
-          ),
-          
-        ],
-      ),
-    );
-  
+ Widget _infoRow() {
 
-  }
-  
-}
+
+   final vm = Provider.of<RutaDestinoViewModel>(context);
+   final conductorId = vm.conductorId ?? '';
+   final mensajesPendientes = vm.mensajes.where((m) =>
+     m.senderId != conductorId &&
+     (!(m.readBy[conductorId] ?? false))
+   ).length;
+   return Padding(
+     padding: const EdgeInsets.all(16),
+     child: Row(
+       crossAxisAlignment: CrossAxisAlignment.center,
+       children: [
+         CircleAvatar(
+           radius: 40,
+           backgroundColor: AppColores.primary,
+           backgroundImage: vm.fotoCliente.isNotEmpty
+               ? CachedNetworkImageProvider(vm.fotoCliente)
+               : null,
+           child: vm.fotoCliente.isEmpty
+               ? const Icon(Icons.person, color: Colors.white)
+               : null,
+         ),
+         const SizedBox(width: 16),
+         Expanded(
+           child: Column(
+             mainAxisAlignment: MainAxisAlignment.center,
+             crossAxisAlignment: CrossAxisAlignment.start,
+             children: [
+               LayoutBuilder(
+                 builder: (context, constraints) {
+                   final screenW = constraints.maxWidth;
+                   double nameFont = 25;
+                   double addressFont = 18;
+                   double spacing = 6;
+                   if (screenW >= 1000) {
+                     nameFont = 32;
+                     addressFont = 22;
+                     spacing = 12;
+                   } else if (screenW < 350) {
+                     nameFont = 18;
+                     addressFont = 14;
+                     spacing = 4;
+                   } else if (screenW < 500) {
+                     nameFont = 20;
+                     addressFont = 15;
+                     spacing = 5;
+                   }
+                   return Column(
+                     crossAxisAlignment: CrossAxisAlignment.start,
+                     children: [
+                       Text(
+                         vm.nombreCliente.isNotEmpty
+                             ? vm.nombreCliente.substring(0, 1).toUpperCase() + vm.nombreCliente.substring(1).toLowerCase()
+                             : "Cliente",
+                         style: TextStyle(
+                           fontSize: nameFont,
+                           fontWeight: FontWeight.bold,
+                         ),
+                         maxLines: 1,
+                         overflow: TextOverflow.ellipsis,
+                       ),
+                       SizedBox(height: spacing),
+                       Text(
+                         vm.direccionDestino,
+                         style: TextStyle(
+                           color: Colors.grey,
+                           fontSize: addressFont,
+                         ),
+                         maxLines: 2,
+                         overflow: TextOverflow.ellipsis,
+                       ),
+                     ],
+                   );
+                 },
+               ),
+             ],
+           ),
+         ),
+         // Stack(
+         //   children: [
+         //     IconButton(
+         //       icon: Image.asset(
+         //         'assets/img/icon_location.png',
+         //         width: 40,
+         //         height: 40,
+         //       ),
+         //       onPressed: () async {
+         //         for (final m in vm.mensajes) {
+         //           if (m.senderId != conductorId && !(m.readBy[conductorId] ?? false)) {
+         //             await vm.chatService.markMessageRead(
+         //               solicitudId: widget.idSolicitud,
+         //               messageId: m.id,
+         //               userId: conductorId,
+         //             );
+         //           }
+         //         }
+         //         if (_ubicacionConductor != null && vm.latDestino != null && vm.lngDestino != null) {
+         //           final origen = '${_ubicacionConductor!.latitude},${_ubicacionConductor!.longitude}';
+         //           final destino = '${vm.latDestino},${vm.lngDestino}';
+         //           final url = 'https://www.google.com/maps/dir/?api=1&origin=$origen&destination=$destino&travelmode=driving';
+         //           try {
+         //             await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+         //           } catch (e) {
+         //             debugPrint('No se pudo abrir Google Maps: $e');
+         //           }
+         //         } else {
+         //           ScaffoldMessenger.of(context).showSnackBar(
+         //             SnackBar(content: Text('Ubicación no disponible')),
+         //           );
+         //         }
+         //       },
+         //     ),
+         //   ],
+         // ),
+       ],
+     ),
+   );
+
+
+ }
+
+
+ Widget _bottomButtons() {
+
+
+   bool _terminarViajePressed = false;
+   final size = MediaQuery.of(context).size;
+   final double screenW = size.width;
+   double buttonFontSize = 18;
+   double buttonPaddingV = 18;
+   double buttonIconSize = 22;
+   double buttonBorderRadius = 16;
+   double buttonSpacing = 8;
+   if (screenW >= 1000) {
+     buttonFontSize = 24;
+     buttonPaddingV = 28;
+     buttonIconSize = 32;
+     buttonBorderRadius = 24;
+     buttonSpacing = 16;
+   } else if (screenW < 350) {
+     buttonFontSize = 14;
+     buttonPaddingV = 10;
+     buttonIconSize = 16;
+     buttonBorderRadius = 10;
+     buttonSpacing = 4;
+   } else if (screenW < 500) {
+     buttonFontSize = 16;
+     buttonPaddingV = 14;
+     buttonIconSize = 18;
+     buttonBorderRadius = 12;
+     buttonSpacing = 6;
+   }
+   return SafeArea(
+     child: Container(
+       child: Padding(
+         padding: const EdgeInsets.all(8),
+         child: Row(
+           children: [
+             Expanded(
+               child: OutlinedButton(
+                 style: OutlinedButton.styleFrom(
+                   side: BorderSide(color: AppColores.primary, width: 2),
+                   shape: RoundedRectangleBorder(
+                     borderRadius: BorderRadius.circular(buttonBorderRadius),
+                   ),
+                   padding: EdgeInsets.symmetric(vertical: buttonPaddingV),
+                   backgroundColor: AppColores.background,
+                 ),
+                 onPressed: () async {
+                   final vm = Provider.of<RutaDestinoViewModel>(context, listen: false);
+                   if (_ubicacionConductor != null && vm.latDestino != null && vm.lngDestino != null) {
+                     final origen = '${_ubicacionConductor!.latitude},${_ubicacionConductor!.longitude}';
+                     final destino = '${vm.latDestino},${vm.lngDestino}';
+                     final url = 'https://www.google.com/maps/dir/?api=1&origin=$origen&destination=$destino&travelmode=driving';
+                     try {
+                       await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+                     } catch (e) {
+                       debugPrint('No se pudo abrir Google Maps: $e');
+                     }
+                   } else {
+                     ScaffoldMessenger.of(context).showSnackBar(
+                       SnackBar(content: Text('Ubicación no disponible')),
+                     );
+                   }
+                 },
+                 child: Row(
+                   mainAxisAlignment: MainAxisAlignment.center,
+                   children: [
+                     Icon(Icons.map, color: AppColores.primary, size: buttonIconSize),
+                     SizedBox(width: buttonSpacing),
+                     Flexible(
+                       child: Text(
+                         "Mapa",
+                         style: TextStyle(
+                           color: AppColores.primary,
+                           fontWeight: FontWeight.w600,
+                           fontSize: buttonFontSize,
+                         ),
+                         overflow: TextOverflow.ellipsis,
+                       ),
+                     ),
+                   ],
+                 ),
+               ),
+             ),
+             SizedBox(width: screenW >= 1000 ? 32 : screenW < 350 ? 8 : 20),
+             Expanded(
+               child: StatefulBuilder(
+                 builder: (context, setState) {
+                   return ElevatedButton(
+                     style: ElevatedButton.styleFrom(
+                       backgroundColor: AppColores.primary,
+                       shape: RoundedRectangleBorder(
+                         borderRadius: BorderRadius.circular(buttonBorderRadius),
+                       ),
+                       padding: EdgeInsets.symmetric(vertical: buttonPaddingV),
+                       elevation: 0,
+                     ),
+                     onPressed: _terminarViajePressed
+                         ? null
+                         : () async {
+                             setState(() {
+                               _terminarViajePressed = true;
+                             });
+                             try {
+                               final fechaHoraFinalizacion = DateTime.now();
+                               await FirebaseFirestore.instance
+                                   .collection('solicitudes')
+                                   .doc(widget.idSolicitud)
+                                   .update({
+                                     'estado': 'completado',
+                                     'fecha de terminacion': fechaHoraFinalizacion,
+                                   });
+                               await finalizarViaje(); // Detener servicio background
+                               await RutaDestinoViewModel.mostrarNotificacion(
+                                 'Viaje terminado',
+                                 'El viaje ha finalizado correctamente.'
+                               );
+                               // Mostrar loader y navegar solo una vez
+                               await showDialog(
+                                 context: context,
+                                 barrierDismissible: false,
+                                 builder: (_) => const LoaderSolicitudCompletada(),
+                               );
+                               Navigator.of(context).pushReplacement(
+                                 MaterialPageRoute(
+                                   builder: (_) => ResumenConductorView(solicitudId: widget.idSolicitud),
+                                 ),
+                               );
+                             } catch (e) {
+                               debugPrint('Error al cambiar estado: $e');
+                               ScaffoldMessenger.of(context).showSnackBar(
+                                 SnackBar(content: Text('No se pudo cambiar el estado')),
+                               );
+                               setState(() {
+                                 _terminarViajePressed = false;
+                               });
+                             }
+                           },
+                     child: Row(
+                       mainAxisAlignment: MainAxisAlignment.center,
+                       children: [
+                         Icon(Icons.check, color: Colors.white, size: buttonIconSize),
+                         SizedBox(width: buttonSpacing),
+                         Flexible(
+                           child: Text(
+                             "Terminar viaje",
+                             style: TextStyle(
+                               color: Colors.white,
+                               fontWeight: FontWeight.w600,
+                               fontSize: buttonFontSize,
+                             ),
+                             overflow: TextOverflow.ellipsis,
+                           ),
+                         ),
+                       ],
+                     ),
+                   );
+                 },
+               ),
+             ),
+           ],
+         ),
+       ),
+     ),
+   );
+
+
+ }
+
+
+ /// Finaliza el servicio background cuando el viaje se completa
+ Future<void> finalizarViaje() async {
+   final service = FlutterBackgroundService();
+   service.invoke("stop"); // Quitar await
+ }
+
+
+ @override
+ Widget build(BuildContext context) {
+   return Scaffold(
+     appBar: PreferredSize(
+       preferredSize: Size.fromHeight(0),
+       child: Container(),
+     ),
+     body: Stack(
+       children: [
+         Column(
+           mainAxisSize: MainAxisSize.max,
+           children: [
+             Flexible(
+               flex: 2,
+               child: _mapWidget(context),
+             ),
+             Flexible(
+               flex: 1,
+               child: Container(
+                 width: double.infinity,
+                 decoration: BoxDecoration(
+                   color: Colors.white,
+                   borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+                   boxShadow: [
+                     BoxShadow(
+                       color: Colors.black.withOpacity(0.18),
+                       blurRadius: 18,
+                       offset: Offset(0, -6),
+                     ),
+                   ],
+                 ),
+                 child: Padding(
+                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                   child: Column(
+                     mainAxisSize: MainAxisSize.max,
+                     children: [
+                       Center(
+                         child: Row(
+                           mainAxisSize: MainAxisSize.min,
+                           children: [
+                             Icon(Icons.route, color: AppColores.buttonPrimary, size: 26),
+                             const SizedBox(width: 8),
+                             Text(
+                               "Ruta al Destino",
+                               style: TextStyle(
+                                 fontSize: 20,
+                                 fontWeight: FontWeight.w600,
+                                 color: Colors.black,
+                               ),
+                             ),
+                           ],
+                         ),
+                       ),
+                       Divider(),
+                       Expanded(
+                         child: SingleChildScrollView(
+                           child: Column(
+                             children: [
+                               Container(
+                                 padding: const EdgeInsets.symmetric(vertical: 0, horizontal: 5),
+                                 child: _infoRow(),
+                               ),
+                               const SizedBox(height: 4),
+                               Container(
+                                 padding: const EdgeInsets.symmetric(vertical: 0, horizontal: 4),
+                                 child: _bottomButtons(),
+                               ),
+                             ],
+                           ),
+                         ),
+                       ),
+                     ],
+                   ),
+                 ),
+               ),
+             ),
+           ],
+         ),
+         // Posiciona el tiempo estimado de llegada encima del mapa
+         Positioned(
+           top: 18,
+           left: 0,
+           right: 0,
+           child: Center(
+             child: Container(
+               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+               decoration: BoxDecoration(
+                 color: Colors.white,
+                 borderRadius: BorderRadius.circular(18),
+                 boxShadow: [
+                   BoxShadow(
+                     color: Colors.black.withOpacity(0.08),
+                     blurRadius: 6,
+                     offset: const Offset(0, 2),
+                   ),
+                 ],
+               ),
+               child: Text(
+                 _tiempoEstimadoLlegada(),
+                 style: const TextStyle(
+                   fontSize: 18,
+                   fontWeight: FontWeight.w600,
+                   color: Colors.black,
+                 ),
+               ),
+             ),
+           ),
+         ),
+         // Botón flotante abajo a la izquierda del mapa: muestra kilómetros
+         Positioned(
+           left: 24,
+           bottom: MediaQuery.of(context).size.height * 0.35,
+           child: FloatingActionButton.extended(
+             heroTag: "fab_distancia",
+             backgroundColor: Colors.white,
+             icon: const Icon(Icons.directions_car, color: Colors.black),
+             label: Text(
+               _distanciaKmConductorDestino(),
+               style: const TextStyle(
+                 color: Colors.black,
+                 fontWeight: FontWeight.bold,
+                 fontSize: 16,
+               ),
+             ),
+             onPressed: () {}, // Solo informativo
+             elevation: 2,
+           ),
+         ),
+         // Posiciona el botón flotante abajo a la derecha del mapa
+         Positioned(
+           right: 24,
+           bottom: MediaQuery.of(context).size.height * 0.35, // Siempre encima del mapa
+           child: FloatingActionButton(
+             heroTag: "fab_centrar",
+             backgroundColor: AppColores.buttonPrimary,
+             child: Icon(_centraSoloConductor
+                 ? Icons.person_pin_circle
+                 : Icons.group),
+             onPressed: () {
+               setState(() {
+                 if (_centraSoloConductor) {
+                   _centerOnConductor();
+                 } else {
+                   _fitMarkers();
+                 }
+                 _centraSoloConductor = !_centraSoloConductor;
+               });
+             },
+           ),
+         ),
+        
+       ],
+     ),
+   );
+
+
+ }
+ }
