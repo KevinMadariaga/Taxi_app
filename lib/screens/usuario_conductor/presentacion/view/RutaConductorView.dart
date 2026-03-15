@@ -280,7 +280,7 @@ class _RutaConductorState extends State<RutaConductor>
         Geolocator.getPositionStream(
           locationSettings: const LocationSettings(
             accuracy: LocationAccuracy.high,
-            distanceFilter: 1, // Actualiza cada 15 metros de movimiento
+            distanceFilter: 15, // Actualiza cada 15 metros de movimiento
           ),
         ).listen((Position position) async {
           final nuevaUbicacion = LatLng(position.latitude, position.longitude);

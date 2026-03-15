@@ -257,7 +257,7 @@ class _RutaDestinoState extends State<RutaDestino> with WidgetsBindingObserver {
         Geolocator.getPositionStream(
           locationSettings: const LocationSettings(
             accuracy: LocationAccuracy.high,
-            distanceFilter: 1, // Actualiza cada 15 metros de movimiento
+            distanceFilter: 15, // Actualiza cada 15 metros de movimiento
           ),
         ).listen((Position position) async {
           final nuevaUbicacion = LatLng(position.latitude, position.longitude);

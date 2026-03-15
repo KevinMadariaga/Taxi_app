@@ -17,27 +17,31 @@ import 'package:taxi_app/services/background_tracking_service.dart';
 import 'package:taxi_app/services/notificacion_servicio.dart';
 import 'package:taxi_app/services/tracking_service.dart';
 import 'package:taxi_app/theme/app_theme.dart';
- 
+
+const SystemUiOverlayStyle _globalSystemOverlayStyle = SystemUiOverlayStyle(
+  statusBarColor: Colors.transparent,
+  statusBarIconBrightness: Brightness.light,
+  statusBarBrightness: Brightness.dark,
+);
+
 /// Entry point for the Taxi App.
 /// Initializes services, handles permissions, and launches the app.
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.dark,
-    ),
-  );
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  SystemChrome.setSystemUIOverlayStyle(_globalSystemOverlayStyle);
   await _initializeAppServices();
   await initializeBackgroundService();
   final initialScreen = await _getInitialScreen();
   final prefs = await SharedPreferences.getInstance();
   final seenOnboarding = prefs.getBool('seenOnboarding') ?? false;
-  runApp(MyApp(
-    initialScreen: initialScreen,
-    prefs: prefs,
-    seenOnboarding: seenOnboarding,
-  ));
+  runApp(
+    MyApp(
+      initialScreen: initialScreen,
+      prefs: prefs,
+      seenOnboarding: seenOnboarding,
+    ),
+  );
 }
 
 /// Initializes Firebase, permissions, and notifications.
@@ -65,7 +69,12 @@ class MyApp extends StatelessWidget {
   final SharedPreferences prefs;
   final bool seenOnboarding;
 
-  const MyApp({super.key, required this.initialScreen, required this.prefs, required this.seenOnboarding});
+  const MyApp({
+    super.key,
+    required this.initialScreen,
+    required this.prefs,
+    required this.seenOnboarding,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -77,19 +86,12 @@ class MyApp extends StatelessWidget {
         return MultiProvider(
           providers: [
             ChangeNotifierProvider(
-              create: (_) => AuthViewModel(
-                AuthRepository(
-                  FirebaseDataSource(),
-                ),
-              ),
+              create: (_) =>
+                  AuthViewModel(AuthRepository(FirebaseDataSource())),
             ),
-            ChangeNotifierProvider(
-              create: (_) => RutaConductorViewModel(),
-            ),
-            ChangeNotifierProvider(
-              create: (_) => Rutaclienteviewmodel(),
-            ),
-            
+            ChangeNotifierProvider(create: (_) => RutaConductorViewModel()),
+            ChangeNotifierProvider(create: (_) => Rutaclienteviewmodel()),
+
             // Add more ViewModels here as needed
           ],
           child: MaterialApp(
@@ -97,16 +99,24 @@ class MyApp extends StatelessWidget {
             title: 'Taxi Ya',
             theme: AppTheme.lightTheme,
             navigatorKey: navigatorKey,
+            builder: (context, child) {
+              return AnnotatedRegion<SystemUiOverlayStyle>(
+                value: _globalSystemOverlayStyle,
+                child: child ?? const SizedBox.shrink(),
+              );
+            },
             home: SplashScreen(
               nextScreen: seenOnboarding
                   ? initialScreen
-                  : LoginScreen(onFinish: () {
-                      // Mark onboarding as seen and navigate
-                      prefs.setBool('seenOnboarding', true);
-                      navigatorKey.currentState?.pushReplacement(
-                        MaterialPageRoute(builder: (_) => initialScreen),
-                      );
-                    }),
+                  : LoginScreen(
+                      onFinish: () {
+                        // Mark onboarding as seen and navigate
+                        prefs.setBool('seenOnboarding', true);
+                        navigatorKey.currentState?.pushReplacement(
+                          MaterialPageRoute(builder: (_) => initialScreen),
+                        );
+                      },
+                    ),
             ),
           ),
         );
