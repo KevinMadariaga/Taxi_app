@@ -1,69 +1,111 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
-class Mapagoogle extends StatefulWidget {
+/// Componente reutilizable para renderizar Google Maps en la app.
+///
+/// Mantiene valores por defecto orientados a una experiencia interactiva,
+/// pero expone opciones para que cada pantalla pueda personalizar el mapa.
+class Mapagoogle extends StatelessWidget {
   final LatLng initialTarget;
   final double initialZoom;
   final Set<Marker> markers;
+  final Set<Marker> customMarkers;
   final Set<Polyline> polylines;
   final Set<Circle> circles;
-  final Function(GoogleMapController)? onMapCreated;
+  final Set<Polygon> polygons;
+  final ValueChanged<GoogleMapController>? onMapCreated;
+  final ValueChanged<CameraPosition>? onCameraMove;
+  final VoidCallback? onCameraIdle;
+  final ArgumentCallback<LatLng>? onTap;
+  final ArgumentCallback<LatLng>? onLongPress;
   final EdgeInsets padding;
+  final bool autoAdjustPaddingForSystemUI;
+  final double topControlsOffset;
+  final bool myLocationEnabled;
+  final bool myLocationButtonEnabled;
+  final bool zoomControlsEnabled;
+  final bool zoomGesturesEnabled;
+  final bool rotateGesturesEnabled;
+  final bool tiltGesturesEnabled;
+  final bool compassEnabled;
+  final bool mapToolbarEnabled;
+  final bool trafficEnabled;
+  final bool buildingsEnabled;
+  final bool indoorViewEnabled;
+  final MapType mapType;
 
   const Mapagoogle({
     super.key,
     required this.initialTarget,
     this.initialZoom = 15,
     this.markers = const {},
+    this.customMarkers = const {},
     this.polylines = const {},
     this.circles = const {},
+    this.polygons = const {},
     this.onMapCreated,
+    this.onCameraMove,
+    this.onCameraIdle,
+    this.onTap,
+    this.onLongPress,
     this.padding = EdgeInsets.zero,
-  });
-
-  @override
-  State<Mapagoogle> createState() => _MapagoogleState();
-}
-
-class _MapagoogleState extends State<Mapagoogle> {
-
-  final Completer<GoogleMapController> _controller =
-    Completer<GoogleMapController>();
-
-  void _onMapCreated(GoogleMapController c) {
-    if (!_controller.isCompleted) {
-      _controller.complete(c);
-    }
-
-    widget.onMapCreated?.call(c);
-  }
+    this.autoAdjustPaddingForSystemUI = true,
+    this.topControlsOffset = 8,
+    this.myLocationEnabled = false,
+    this.myLocationButtonEnabled = false,
+    this.zoomControlsEnabled = false,
+    this.zoomGesturesEnabled = true,
+    this.rotateGesturesEnabled = true,
+    this.tiltGesturesEnabled = true,
+    this.compassEnabled = true,
+    this.mapToolbarEnabled = true,
+    this.trafficEnabled = false,
+    this.buildingsEnabled = true,
+    this.indoorViewEnabled = true,
+    this.mapType = MapType.normal,
+  }) : assert(initialZoom > 0);
 
   @override
   Widget build(BuildContext context) {
+    final allMarkers = <Marker>{...markers, ...customMarkers};
+    final showLocationButton = myLocationEnabled && myLocationButtonEnabled;
+    final topInset = autoAdjustPaddingForSystemUI
+        ? MediaQuery.of(context).padding.top + topControlsOffset
+        : 0.0;
+    final effectivePadding = EdgeInsets.fromLTRB(
+      padding.left,
+      padding.top + topInset,
+      padding.right,
+      padding.bottom,
+    );
+
     return GoogleMap(
       initialCameraPosition: CameraPosition(
-        target: widget.initialTarget,
-        zoom: widget.initialZoom,
+        target: initialTarget,
+        zoom: initialZoom,
       ),
-      markers: widget.markers,
-      polylines: widget.polylines,
-      circles: widget.circles,
-      onMapCreated: _onMapCreated,
-      myLocationEnabled: true,
-      myLocationButtonEnabled: true,
-      zoomControlsEnabled: false,
-      zoomGesturesEnabled: true,
-      rotateGesturesEnabled: true,
-      tiltGesturesEnabled: true,
-      compassEnabled: true,
-      padding: widget.padding,
+      markers: allMarkers,
+      polylines: polylines,
+      circles: circles,
+      polygons: polygons,
+      onMapCreated: onMapCreated,
+      onCameraMove: onCameraMove,
+      onCameraIdle: onCameraIdle,
+      onTap: onTap,
+      onLongPress: onLongPress,
+      myLocationEnabled: myLocationEnabled,
+      myLocationButtonEnabled: showLocationButton,
+      zoomControlsEnabled: zoomControlsEnabled,
+      zoomGesturesEnabled: zoomGesturesEnabled,
+      rotateGesturesEnabled: rotateGesturesEnabled,
+      tiltGesturesEnabled: tiltGesturesEnabled,
+      compassEnabled: compassEnabled,
+      mapToolbarEnabled: mapToolbarEnabled,
+      trafficEnabled: trafficEnabled,
+      buildingsEnabled: buildingsEnabled,
+      indoorViewEnabled: indoorViewEnabled,
+      mapType: mapType,
+      padding: effectivePadding,
     );
-  }
-
-  @override
-  void dispose() {
-    super.dispose();
   }
 }

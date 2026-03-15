@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:taxi_app/components/boton.dart';
 import 'package:taxi_app/core/app_colores.dart';
-import 'package:taxi_app/helper/responsive_helper.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/InicioClienteView.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/resumen_cliente_viewmodel.dart';
 
@@ -17,7 +16,6 @@ class ResumenClienteView extends StatefulWidget {
 class _ResumenClienteViewState extends State<ResumenClienteView> {
   bool _accionEnProgreso = false;
 
-  // Utilidades para formato
   String _thousands(String s) {
     final r = s.split('').reversed.toList();
     final out = <String>[];
@@ -30,57 +28,82 @@ class _ResumenClienteViewState extends State<ResumenClienteView> {
 
   String _formatCurrency(dynamic v) {
     final num n = v is num ? v : num.tryParse(v.toString()) ?? 0;
-    return "\$${_thousands(n.round().toString())}";
+    return '\$${_thousands(n.round().toString())}';
   }
 
   String _formatMetodo(dynamic metodo) {
-    if (metodo == null) return '—';
-    final s = metodo.toString().toLowerCase();
-    if (s.isEmpty) return '—';
+    if (metodo == null) return '-';
+    final s = metodo.toString().trim().toLowerCase();
+    if (s.isEmpty) return '-';
     return '${s[0].toUpperCase()}${s.substring(1)}';
   }
 
-  // Construye el card de valor del servicio
-  Widget _buildValorCard(double scale, dynamic valorServicio) {
+  String _resolveDestino(Map<String, dynamic> data) {
+    final destinoRaw = data['destino'];
+    if (destinoRaw is Map<String, dynamic>) {
+      final title = destinoRaw['title']?.toString().trim();
+      if (title?.isNotEmpty == true) return title!;
+
+      final direccion = destinoRaw['direccion']?.toString().trim();
+      if (direccion?.isNotEmpty == true) return direccion!;
+
+      final address = destinoRaw['address']?.toString().trim();
+      if (address?.isNotEmpty == true) return address!;
+    }
+
+    final direccionSeleccionada = data['direccion_seleccionada']
+        ?.toString()
+        .trim();
+    return (direccionSeleccionada?.isNotEmpty == true)
+        ? direccionSeleccionada!
+        : 'No disponible';
+  }
+
+  Widget _buildValorCard({
+    required double scale,
+    required bool isDesktop,
+    required dynamic valorServicio,
+  }) {
     return Card(
       color: AppColores.textPrimary,
       elevation: 3,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: EdgeInsets.symmetric(
-          vertical: 18 * scale,
-          horizontal: 16 * scale,
+          vertical: 16 * scale,
+          horizontal: 14 * scale,
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Row(
-              children: [
-                Icon(
-                  Icons.local_taxi,
-                  color: AppColores.buttonPrimary,
-                  size: 32 * scale,
-                ),
-                SizedBox(width: 12 * scale),
-                Text(
-                  'Valor del servicio',
-                  style: TextStyle(
-                    color: AppColores.textWhite,
-                    fontSize: 16 * scale,
-                    fontWeight: FontWeight.w500,
+            Expanded(
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.local_taxi,
+                    color: AppColores.buttonPrimary,
+                    size: isDesktop ? 32 : 26,
                   ),
-                ),
-              ],
+                  SizedBox(width: 10 * scale),
+                  Flexible(
+                    child: Text(
+                      'Valor del servicio',
+                      style: TextStyle(
+                        color: AppColores.textWhite,
+                        fontSize: 15.5 * scale,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
             Text(
               _formatCurrency(valorServicio),
               style: TextStyle(
                 color: AppColores.buttonPrimary,
-                fontSize: 20 * scale,
+                fontSize: (isDesktop ? 24 : 20) * scale,
                 fontWeight: FontWeight.w800,
-                letterSpacing: 0.2,
               ),
             ),
           ],
@@ -89,35 +112,39 @@ class _ResumenClienteViewState extends State<ResumenClienteView> {
     );
   }
 
-  // Construye el card principal con resumen del viaje
-  Widget _buildResumenCard(double scale, TextStyle titleStyle, TextStyle contentStyle, ResumenClienteViewModel vm, String destinoTexto, dynamic metodoPago) {
+  Widget _buildResumenCard({
+    required double scale,
+    required TextStyle titleStyle,
+    required TextStyle contentStyle,
+    required ResumenClienteViewModel vm,
+    required String destinoTexto,
+    required dynamic metodoPago,
+  }) {
     return Card(
       elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
-        padding: EdgeInsets.all(15 * scale),
+        padding: EdgeInsets.all(14 * scale),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
               leading: const CircleAvatar(
                 backgroundColor: AppColores.primary,
-                child: Icon(
-                  Icons.person,
-                  color: AppColores.textPrimary,
-                ),
+                child: Icon(Icons.person, color: AppColores.textPrimary),
               ),
               title: Text(
                 vm.nombreConductor,
                 style: contentStyle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
             const Divider(height: 8),
             ListTile(
               leading: CircleAvatar(
-                backgroundColor: AppColores.secondary.withOpacity(0.12),
-                child: Icon(
+                backgroundColor: AppColores.secondary.withValues(alpha: 0.12),
+                child: const Icon(
                   Icons.location_on,
                   color: AppColores.secondary,
                 ),
@@ -126,7 +153,7 @@ class _ResumenClienteViewState extends State<ResumenClienteView> {
               subtitle: Text(
                 destinoTexto,
                 style: contentStyle,
-                maxLines: 1,
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
             ),
@@ -134,19 +161,10 @@ class _ResumenClienteViewState extends State<ResumenClienteView> {
             ListTile(
               leading: const CircleAvatar(
                 backgroundColor: AppColores.grey100,
-                child: Icon(
-                  Icons.payment,
-                  color: AppColores.warning,
-                ),
+                child: Icon(Icons.payment, color: AppColores.warning),
               ),
-              title: Text(
-                'Método de pago',
-                style: titleStyle,
-              ),
-              subtitle: Text(
-                _formatMetodo(metodoPago),
-                style: contentStyle,
-              ),
+              title: Text('Metodo de pago', style: titleStyle),
+              subtitle: Text(_formatMetodo(metodoPago), style: contentStyle),
             ),
           ],
         ),
@@ -154,47 +172,45 @@ class _ResumenClienteViewState extends State<ResumenClienteView> {
     );
   }
 
-  // Construye el botón principal (continuar o volver)
-  Widget _buildMainButton(bool calificacionEnviada, double padding, double buttonHeight, double scale, ResumenClienteViewModel vm) {
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: padding),
-      child: CustomButton(
-        text: calificacionEnviada ? 'Volver a Inicio' : 'Continuar',
-        onPressed: _accionEnProgreso
-            ? null
-            : () {
-                setState(() {
-                  _accionEnProgreso = true;
-                });
-                if (calificacionEnviada) {
-                  Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(
-                      builder: (_) => const InicioClienteView(),
-                    ),
-                    (route) => false,
-                  );
+  Widget _buildMainButton({
+    required bool calificacionEnviada,
+    required double buttonHeight,
+    required ResumenClienteViewModel vm,
+    required double scale,
+  }) {
+    return CustomButton(
+      text: calificacionEnviada ? 'Volver a Inicio' : 'Continuar',
+      onPressed: _accionEnProgreso
+          ? null
+          : () {
+              setState(() {
+                _accionEnProgreso = true;
+              });
+
+              if (calificacionEnviada) {
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (_) => const InicioClienteView()),
+                  (route) => false,
+                );
+                if (mounted) {
                   setState(() {
                     _accionEnProgreso = false;
                   });
-                } else {
-                  _mostrarDialogoCalificacion(
-                    context,
-                    vm,
-                    scale,
-                    padding,
-                  ).whenComplete(() {
-                    if (mounted) {
-                      setState(() {
-                        _accionEnProgreso = false;
-                      });
-                    }
+                }
+                return;
+              }
+
+              _mostrarDialogoCalificacion(context, vm, scale).whenComplete(() {
+                if (mounted) {
+                  setState(() {
+                    _accionEnProgreso = false;
                   });
                 }
-              },
-        width: double.infinity,
-        height: buttonHeight,
-        color: AppColores.buttonPrimary,
-      ),
+              });
+            },
+      width: double.infinity,
+      height: buttonHeight,
+      color: AppColores.buttonPrimary,
     );
   }
 
@@ -204,36 +220,6 @@ class _ResumenClienteViewState extends State<ResumenClienteView> {
       create: (_) => ResumenClienteViewModel(solicitudId: widget.solicitudId),
       child: Consumer<ResumenClienteViewModel>(
         builder: (context, vm, _) {
-          final size = MediaQuery.of(context).size;
-          final screenWidth = size.width;
-          final screenHeight = size.height;
-          final deviceType = screenWidth >= 1200
-              ? DeviceType.desktop
-              : screenWidth >= 600
-                  ? DeviceType.tablet
-                  : DeviceType.mobile;
-          final isTablet = deviceType == DeviceType.tablet;
-          final isLargeScreen = deviceType == DeviceType.desktop;
-          final scale = (isTablet || isLargeScreen)
-              ? (screenWidth / 375).clamp(1.2, 1.7)
-              : (screenWidth / 375).clamp(0.9, 1.2);
-
-          final double padding = (isTablet || isLargeScreen) ? 48 * scale : 24 * scale;
-          final double imageHeight = (isTablet || isLargeScreen)
-              ? (screenHeight * 0.28).clamp(220, 320)
-              : (screenHeight * 0.22).clamp(140, 220);
-          final double buttonHeight = (isTablet || isLargeScreen) ? 64 * scale : 52 * scale;
-          final TextStyle titleStyle = TextStyle(
-            fontSize: (isTablet || isLargeScreen) ? 22 * scale : 16 * scale,
-            fontWeight: FontWeight.w600,
-            color: AppColores.textPrimary,
-          );
-          final TextStyle contentStyle = TextStyle(
-            fontSize: (isTablet || isLargeScreen) ? 21 * scale : 15 * scale,
-            fontWeight: FontWeight.w600,
-            color: AppColores.textPrimary,
-          );
-
           if (vm.cargando) {
             return const Scaffold(
               backgroundColor: AppColores.background,
@@ -241,24 +227,34 @@ class _ResumenClienteViewState extends State<ResumenClienteView> {
             );
           }
 
-          // Extrae datos de la solicitud
+          final media = MediaQuery.of(context);
+          final size = media.size;
+          final screenWidth = size.width;
+          final screenHeight = size.height;
+          final isTablet = screenWidth >= 600;
+          final isDesktop = screenWidth >= 1024;
+          final scale = (screenWidth / 390).clamp(0.92, isDesktop ? 1.45 : 1.2);
+          final horizontalPadding = isDesktop ? 56.0 : (isTablet ? 36.0 : 20.0);
+          final buttonHeight = isDesktop ? 62.0 : (isTablet ? 56.0 : 52.0);
+          final contentMaxWidth = isDesktop ? 760.0 : 620.0;
+          final imageHeight = (screenHeight * (isDesktop ? 0.24 : 0.2)).clamp(
+            150.0,
+            isDesktop ? 280.0 : 220.0,
+          );
+
+          final titleStyle = TextStyle(
+            fontSize: (isDesktop ? 21 : (isTablet ? 18 : 16)) * scale,
+            fontWeight: FontWeight.w600,
+            color: AppColores.textPrimary,
+          );
+          final contentStyle = TextStyle(
+            fontSize: (isDesktop ? 20 : (isTablet ? 17 : 15)) * scale,
+            fontWeight: FontWeight.w600,
+            color: AppColores.textPrimary,
+          );
+
           final data = vm.solicitudData ?? <String, dynamic>{};
-          final destinoRaw = data['destino'];
-          String destinoTexto = 'No disponible';
-          if (destinoRaw is Map<String, dynamic>) {
-            final d = destinoRaw;
-            if (d['title']?.toString().trim().isNotEmpty == true) {
-              destinoTexto = d['title'].toString();
-            } else {
-              destinoTexto =
-                  data['direccion_seleccionada']?.toString() ??
-                  d['direccion']?.toString() ??
-                  'No disponible';
-            }
-          } else {
-            destinoTexto =
-                data['direccion_seleccionada']?.toString() ?? 'No disponible';
-          }
+          final destinoTexto = _resolveDestino(data);
           final metodoPago = data['metodo_pago'];
           final valorServicio = data['valor'] ?? 0;
 
@@ -274,94 +270,120 @@ class _ResumenClienteViewState extends State<ResumenClienteView> {
                     colors: [AppColores.surface, AppColores.background],
                   ),
                 ),
-                child: SingleChildScrollView(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: padding,
-                    vertical: padding * 0.5,
-                  ),
-                  child: Column(
-                    children: [
-                      SizedBox(height: padding * 0.25),
-                      Center(
-                        child: Column(
-                          children: [
-                            Icon(
-                              Icons.check_circle,
-                              color: AppColores.success,
-                              size: (isTablet || isLargeScreen) ? 45 * scale : 30,
-                            ),
-                            SizedBox(height: 8 * scale),
-                            Text(
-                              'Viaje completado',
-                              style: TextStyle(
-                                fontSize: (isTablet || isLargeScreen) ? 30 * scale : 25 * scale,
-                                fontWeight: FontWeight.w700,
-                                color: AppColores.textPrimary,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-
-                          ],
-                        ),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: contentMaxWidth),
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        horizontalPadding,
+                        16 * scale,
+                        horizontalPadding,
+                        8 * scale,
                       ),
-                      SizedBox(height: padding * 0.25),
-                      Center(
-                        child: Image.asset(
-                          'assets/img/taxi.png',
-                          height: imageHeight,
-                          fit: BoxFit.contain,
-                        ),
-                      ),
-                      SizedBox(height: padding * 0.2),
-                      _buildValorCard((isTablet || isLargeScreen) ? scale * 1.25 : scale, valorServicio),
-                      SizedBox(height: padding * 0.4),
-                      Center(
-                        child: ConstrainedBox(
-                          constraints: BoxConstraints(
-                            maxWidth: (isTablet || isLargeScreen) ? 520 * scale : double.infinity,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          SizedBox(height: 4 * scale),
+                          Center(
+                            child: Column(
+                              children: [
+                                Icon(
+                                  Icons.check_circle,
+                                  color: AppColores.success,
+                                  size: isDesktop ? 42 : 32,
+                                ),
+                                SizedBox(height: 8 * scale),
+                                Text(
+                                  'Viaje completado',
+                                  style: TextStyle(
+                                    fontSize: (isDesktop ? 34 : 26) * scale,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColores.textPrimary,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
                           ),
-                          child: _buildResumenCard((isTablet || isLargeScreen) ? scale * 1.15 : scale, titleStyle, contentStyle, vm, destinoTexto, metodoPago),
-                        ),
+                          SizedBox(height: 10 * scale),
+                          Flexible(
+                            flex: 2,
+                            child: Center(
+                              child: Image.asset(
+                                'assets/img/taxi.png',
+                                height: imageHeight,
+                                fit: BoxFit.contain,
+                              ),
+                            ),
+                          ),
+                          SizedBox(height: 10 * scale),
+                          _buildValorCard(
+                            scale: scale,
+                            isDesktop: isDesktop,
+                            valorServicio: valorServicio,
+                          ),
+                          SizedBox(height: 10 * scale),
+                          _buildResumenCard(
+                            scale: scale,
+                            titleStyle: titleStyle,
+                            contentStyle: contentStyle,
+                            vm: vm,
+                            destinoTexto: destinoTexto,
+                            metodoPago: metodoPago,
+                          ),
+                        ],
                       ),
-                      SizedBox(height: (40 * scale) + 40),
-                    ],
+                    ),
                   ),
                 ),
               ),
             ),
-            floatingActionButton: _buildMainButton(vm.calificacionEnviada, padding, buttonHeight, scale, vm),
-            floatingActionButtonLocation:
-                FloatingActionButtonLocation.centerFloat,
+            bottomNavigationBar: SafeArea(
+              top: false,
+              minimum: EdgeInsets.fromLTRB(
+                horizontalPadding,
+                8,
+                horizontalPadding,
+                24,
+              ),
+              child: _buildMainButton(
+                calificacionEnviada: vm.calificacionEnviada,
+                buttonHeight: buttonHeight,
+                vm: vm,
+                scale: scale,
+              ),
+            ),
           );
         },
       ),
     );
   }
 
-  // ...existing code...
-  }
-
   Future<void> _mostrarDialogoCalificacion(
     BuildContext context,
     ResumenClienteViewModel vm,
     double scale,
-    double padding,
   ) {
-    final TextEditingController comentarioController = TextEditingController();
+    final comentarioController = TextEditingController();
+    bool accionDialogoEnProgreso = false;
 
-    bool _accionEnProgreso = false;
-    return showDialog(
+    return showDialog<void>(
       context: context,
-      builder: (BuildContext context) {
+      builder: (dialogContext) {
         return StatefulBuilder(
-          builder: (context, setState) {
+          builder: (dialogContext, setDialogState) {
             return Dialog(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: SingleChildScrollView(
-                child: Padding(
-                  padding: EdgeInsets.all(24 * scale),
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 20,
+                vertical: 24,
+              ),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 460),
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.all(22 * scale),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -375,13 +397,13 @@ class _ResumenClienteViewState extends State<ResumenClienteView> {
                           color: AppColores.textPrimary,
                         ),
                       ),
-                      SizedBox(height: 20 * scale),
+                      SizedBox(height: 18 * scale),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: List.generate(5, (index) {
                           return GestureDetector(
                             onTap: () {
-                              setState(() {
+                              setDialogState(() {
                                 vm.setCalificacion((index + 1).toDouble());
                               });
                             },
@@ -394,13 +416,13 @@ class _ResumenClienteViewState extends State<ResumenClienteView> {
                                     ? Icons.star
                                     : Icons.star_border,
                                 color: AppColores.buttonPrimary,
-                                size: 40 * scale,
+                                size: 38 * scale,
                               ),
                             ),
                           );
                         }),
                       ),
-                      SizedBox(height: 16 * scale),
+                      SizedBox(height: 12 * scale),
                       if (vm.calificacion > 0)
                         Text(
                           '${vm.calificacion.toStringAsFixed(0)} de 5 estrellas',
@@ -412,12 +434,12 @@ class _ResumenClienteViewState extends State<ResumenClienteView> {
                           ),
                         ),
                       if (vm.calificacion > 0 && vm.calificacion < 4) ...[
-                        SizedBox(height: 16 * scale),
+                        SizedBox(height: 14 * scale),
                         TextField(
                           controller: comentarioController,
                           maxLines: 3,
                           decoration: InputDecoration(
-                            hintText: 'Cuéntanos qué pasó...',
+                            hintText: 'Cuentanos que paso...',
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
                             ),
@@ -426,22 +448,18 @@ class _ResumenClienteViewState extends State<ResumenClienteView> {
                               color: AppColores.grey400,
                             ),
                           ),
-                          onChanged: (value) {
-                            vm.setComentarioCalificacion(value);
-                          },
+                          onChanged: vm.setComentarioCalificacion,
                         ),
                       ],
-                      SizedBox(height: 20 * scale),
+                      SizedBox(height: 18 * scale),
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
-                          Flexible(
+                          Expanded(
                             child: ElevatedButton(
-                              onPressed: () => Navigator.pop(context),
+                              onPressed: () => Navigator.pop(dialogContext),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppColores.grey200,
                                 padding: EdgeInsets.symmetric(
-                                  horizontal: 20 * scale,
                                   vertical: 12 * scale,
                                 ),
                               ),
@@ -456,30 +474,49 @@ class _ResumenClienteViewState extends State<ResumenClienteView> {
                             ),
                           ),
                           SizedBox(width: 12 * scale),
-                          Flexible(
+                          Expanded(
                             child: ElevatedButton(
-                              onPressed: _accionEnProgreso
+                              onPressed: accionDialogoEnProgreso
                                   ? null
                                   : () async {
-                                      if (vm.calificacion > 0) {
-                                        setState(() {
-                                          _accionEnProgreso = true;
-                                        });
-                                        await vm.enviarCalificacion();
-                                        if (context.mounted) {
-                                          Navigator.of(context).pushAndRemoveUntil(
-                                            MaterialPageRoute(
-                                              builder: (_) => InicioClienteView(key: UniqueKey()),
+                                      if (vm.calificacion <= 0) return;
+
+                                      setDialogState(() {
+                                        accionDialogoEnProgreso = true;
+                                      });
+
+                                      await vm.enviarCalificacion();
+
+                                      if (!dialogContext.mounted) return;
+                                      Navigator.pop(dialogContext);
+
+                                      if (!mounted) return;
+                                      if (vm.calificacionEnviada) {
+                                        Navigator.of(
+                                          context,
+                                        ).pushAndRemoveUntil(
+                                          MaterialPageRoute(
+                                            builder: (_) =>
+                                                const InicioClienteView(),
+                                          ),
+                                          (route) => false,
+                                        );
+                                      } else {
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              vm.mensajeCalificacion ??
+                                                  'No se pudo enviar la calificacion',
                                             ),
-                                            (route) => false,
-                                          );
-                                        }
+                                          ),
+                                        );
                                       }
                                     },
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppColores.buttonPrimary,
                                 padding: EdgeInsets.symmetric(
-                                  horizontal: 20 * scale,
                                   vertical: 12 * scale,
                                 ),
                               ),
@@ -505,4 +542,4 @@ class _ResumenClienteViewState extends State<ResumenClienteView> {
       },
     );
   }
-// ...existing code...
+}

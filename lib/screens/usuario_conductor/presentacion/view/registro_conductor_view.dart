@@ -3,7 +3,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:taxi_app/components/boton.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:flutter/services.dart';
-import 'package:taxi_app/screens/usuario_conductor/presentacion/view/inicio_conductor_view.dart';
+import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioConductorView.dart';
 import 'package:taxi_app/widgets/perfil.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/registro_conductor_viewmodel.dart';
 import 'dart:io';
@@ -360,7 +360,7 @@ class _BienvenidoCargandoViewState extends State<BienvenidoCargandoView> {
       if (!mounted) return;
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const HomeConductorMapView()),
+        MaterialPageRoute(builder: (_) => const InicioConductor()),
       );
     });
   }

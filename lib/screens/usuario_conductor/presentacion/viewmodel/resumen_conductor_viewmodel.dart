@@ -15,6 +15,22 @@ class ResumenConductorViewModel extends ChangeNotifier {
     _cargar();
   }
 
+  GeoPoint? _extractGeoPoint(dynamic rawValue) {
+    if (rawValue is GeoPoint) {
+      return rawValue;
+    }
+
+    if (rawValue is Map<String, dynamic>) {
+      final latRaw = rawValue['lat'] ?? rawValue['latitude'];
+      final lngRaw = rawValue['lng'] ?? rawValue['longitude'];
+      if (latRaw is num && lngRaw is num) {
+        return GeoPoint(latRaw.toDouble(), lngRaw.toDouble());
+      }
+    }
+
+    return null;
+  }
+
   String formatoHoraBogota(Timestamp? timestamp) {
     if (timestamp == null) return "-";
     final fechaUtc = timestamp.toDate().toUtc();
@@ -108,10 +124,10 @@ class ResumenConductorViewModel extends ChangeNotifier {
 
       // Dirección de recogida (tolerante a nulos / tipos inesperados)
       try {
-        final ubicacionInicial = solicitudData!['ubicacion_inicial'];
-        if (ubicacionInicial != null &&
-          ubicacionInicial.latitude != null &&
-          ubicacionInicial.longitude != null) {
+        final ubicacionInicial = _extractGeoPoint(
+          solicitudData!['ubicacion_inicial'],
+        );
+        if (ubicacionInicial != null) {
           final placemarks = await placemarkFromCoordinates(
             ubicacionInicial.latitude,
             ubicacionInicial.longitude,

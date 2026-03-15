@@ -22,6 +22,22 @@ class ResumenClienteViewModel extends ChangeNotifier {
     _cargar();
   }
 
+  GeoPoint? _extractGeoPoint(dynamic rawValue) {
+    if (rawValue is GeoPoint) {
+      return rawValue;
+    }
+
+    if (rawValue is Map<String, dynamic>) {
+      final latRaw = rawValue['lat'] ?? rawValue['latitude'];
+      final lngRaw = rawValue['lng'] ?? rawValue['longitude'];
+      if (latRaw is num && lngRaw is num) {
+        return GeoPoint(latRaw.toDouble(), lngRaw.toDouble());
+      }
+    }
+
+    return null;
+  }
+
   String formatoHoraBogota(Timestamp? timestamp) {
     if (timestamp == null) return "-";
     final fechaUtc = timestamp.toDate().toUtc();
@@ -57,8 +73,12 @@ class ResumenClienteViewModel extends ChangeNotifier {
 
     try {
       final data = solicitudData ?? {};
-      final conductorData = data['conductor'] as Map<String, dynamic>?;
-      final conductorIdLocal = (conductorData?['id'] as String?) ?? conductorId;
+      final rawConductor = data['conductor'];
+      final conductorData = rawConductor is Map<String, dynamic>
+          ? rawConductor
+          : null;
+      final conductorIdLocal = (conductorData?['id']?.toString() ?? conductorId)
+          .trim();
 
       // Guardar calificación dentro del documento de la solicitud
       await FirebaseFirestore.instance
@@ -67,7 +87,9 @@ class ResumenClienteViewModel extends ChangeNotifier {
           .update({
             'calificacion_cliente': {
               'score': calificacion,
-              'comment': comentarioCalificacion.isNotEmpty ? comentarioCalificacion : null,
+              'comment': comentarioCalificacion.isNotEmpty
+                  ? comentarioCalificacion
+                  : null,
               'ratedAt': Timestamp.now(),
             },
           });
@@ -94,7 +116,8 @@ class ResumenClienteViewModel extends ChangeNotifier {
           }
 
           if (cantidadCalificaciones > 0) {
-            final promedioCalificacion = totalCalificacion / cantidadCalificaciones;
+            final promedioCalificacion =
+                totalCalificacion / cantidadCalificaciones;
 
             // Actualizar calificación promedio en el documento del conductor
             await FirebaseFirestore.instance
@@ -103,7 +126,8 @@ class ResumenClienteViewModel extends ChangeNotifier {
                 .update({
                   'calificacion_promedio': promedioCalificacion,
                   'total_calificaciones': cantidadCalificaciones,
-                  'ultima_actualizacion_calificacion': FieldValue.serverTimestamp(),
+                  'ultima_actualizacion_calificacion':
+                      FieldValue.serverTimestamp(),
                 });
           }
         } catch (e) {
@@ -138,28 +162,41 @@ class ResumenClienteViewModel extends ChangeNotifier {
 
       // Obtener IDs desde la solicitud (usa los embebidos si existen)
       final rawConductor = solicitudData!['conductor'];
-      final conductorEmbebido =
-        rawConductor is Map<String, dynamic> ? rawConductor : null;
-      clienteId = solicitudData!['clienteId'] ?? '';
-      conductorId = solicitudData!['conductorId'] ?? conductorEmbebido?['id'] ?? '';
+      final conductorEmbebido = rawConductor is Map<String, dynamic>
+          ? rawConductor
+          : null;
+      clienteId = solicitudData!['clienteId']?.toString() ?? '';
+      conductorId =
+          solicitudData!['conductorId']?.toString() ??
+          conductorEmbebido?['id']?.toString() ??
+          '';
 
       // Obtener nombre y ubicación del cliente desde la solicitud
       final clienteRaw = solicitudData!['cliente'];
       if (clienteRaw is Map<String, dynamic>) {
-        clienteId = clienteRaw['id'] ?? clienteId;
+        clienteId = clienteRaw['id']?.toString() ?? clienteId;
         nombreCliente = (clienteRaw['nombre'] ?? '').toString().toUpperCase();
-        
+
         // Obtener ubicación del cliente (origen)
         final ubicacionClienteRaw = clienteRaw['ubicacion'];
         if (ubicacionClienteRaw is Map<String, dynamic>) {
-          direccionRecogida = ubicacionClienteRaw['address']?.toString() ?? 'Dirección no disponible';
+          direccionRecogida =
+              ubicacionClienteRaw['address']?.toString() ??
+              'Dirección no disponible';
         }
       }
 
-      // Verificar si ya existe calificación
-      if (solicitudData!.containsKey('calificacion cliente')) {
-        calificacion = (solicitudData!['calificacion cliente'] ?? 0).toDouble();
+      // Verificar si ya existe calificacion (esquema nuevo y legado)
+      final calificacionNueva = solicitudData!['calificacion_cliente'];
+      if (calificacionNueva is Map && calificacionNueva['score'] is num) {
+        calificacion = (calificacionNueva['score'] as num).toDouble();
         calificacionEnviada = true;
+      } else if (solicitudData!.containsKey('calificacion cliente')) {
+        final calificacionLegacy = solicitudData!['calificacion cliente'];
+        if (calificacionLegacy is num) {
+          calificacion = calificacionLegacy.toDouble();
+          calificacionEnviada = true;
+        }
       }
 
       // Obtener nombre del conductor: primero desde el objeto embebido en la solicitud, luego fallback al documento
@@ -178,15 +215,19 @@ class ResumenClienteViewModel extends ChangeNotifier {
 
       // Si no se obtuvo ubicación desde el cliente, intentar obtenerla de ubicacion_inicial
       if (direccionRecogida == 'Dirección no disponible') {
-        final ubicacionInicial = solicitudData!['ubicacion_inicial'];
+        final ubicacionInicial = _extractGeoPoint(
+          solicitudData!['ubicacion_inicial'],
+        );
         try {
-          final placemarks = await placemarkFromCoordinates(
-            ubicacionInicial.latitude,
-            ubicacionInicial.longitude,
-          );
-          if (placemarks.isNotEmpty) {
-            final p = placemarks.first;
-            direccionRecogida = "${p.street}, ${p.locality}, ${p.country}";
+          if (ubicacionInicial != null) {
+            final placemarks = await placemarkFromCoordinates(
+              ubicacionInicial.latitude,
+              ubicacionInicial.longitude,
+            );
+            if (placemarks.isNotEmpty) {
+              final p = placemarks.first;
+              direccionRecogida = "${p.street}, ${p.locality}, ${p.country}";
+            }
           }
         } catch (_) {
           direccionRecogida = "Dirección no disponible";

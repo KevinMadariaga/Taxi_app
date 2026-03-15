@@ -1,12 +1,15 @@
-
 import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:geocoding/geocoding.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:taxi_app/helper/map_helper.dart';
 import 'package:taxi_app/helper/session_helper.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/model/MapaClienteModel.dart';
 import 'package:taxi_app/services/firebase_service.dart';
-
+import 'package:taxi_app/services/ubicacion_servicio.dart';
 
 class InicioClienteViewModel extends ChangeNotifier {
   // --- Estado principal ---
@@ -14,24 +17,36 @@ class InicioClienteViewModel extends ChangeNotifier {
   String _clientName = 'Cliente';
   String? _clientId;
   bool _isLoadingLocation = false;
+  bool _isLoadingFavoritos = false;
   LatLng? _currentLocation;
+  bool _favoritosLoaded = false;
   bool _disposed = false;
+
+  Set<Marker> _conductoresMarkers = <Marker>{};
+  BitmapDescriptor? _taxiIcon;
+  List<UbicacionResultado> _favoritos = [];
 
   // --- Getters públicos ---
   String get clientName => _clientName;
   String? get clientId => _clientId;
   bool get isLoadingLocation => _isLoadingLocation;
+  bool get isLoadingFavoritos => _isLoadingFavoritos;
   LatLng? get currentLocation => _currentLocation;
+  Set<Marker> get conductoresMarkers => _conductoresMarkers;
+  List<UbicacionResultado> get favoritos => List.unmodifiable(_favoritos);
 
   // --- Servicios y subscripciones ---
   final FirebaseService _firebaseService = FirebaseService();
+  final UbicacionService _ubicacionService = UbicacionService();
   StreamSubscription<User?>? _authSub;
   StreamSubscription<String?>? _cachedNameSub;
+  StreamSubscription<QuerySnapshot>? _conductoresSub;
 
   // --- Inicialización y ciclo de vida ---
   Future<void> init() async {
     _listenAuthChanges();
     _listenCachedName();
+    await _inicializarConductoresConectados();
   }
 
   void _listenAuthChanges() {
@@ -40,12 +55,92 @@ class InicioClienteViewModel extends ChangeNotifier {
         _clientId = user.uid;
         _clientName = await _obtenerNombreCliente(user);
         await SessionHelper.saveSession('cliente', user.uid);
+        await cargarFavoritosUnaVez();
         if (!_disposed) notifyListeners();
       } else {
+        _clientId = null;
+        _favoritos = [];
+        _favoritosLoaded = false;
         await _cargarClienteDesdeCache();
         if (!_disposed) notifyListeners();
       }
     });
+  }
+
+  Future<void> _inicializarConductoresConectados() async {
+    try {
+      _taxiIcon = await MapHelper.loadMarkerIcon(
+        'assets/img/carito.png',
+        size: const Size(50, 50),
+      );
+    } catch (e) {
+      debugPrint('Error cargando icono de taxi: $e');
+    }
+
+    _conductoresSub?.cancel();
+    _conductoresSub = FirebaseFirestore.instance
+        .collection('conductores_conectados')
+        .snapshots()
+        .listen(
+          (snapshot) {
+            final markers = <Marker>{};
+            for (final doc in snapshot.docs) {
+              final data = doc.data();
+              if (data['ubicacion'] is GeoPoint) {
+                final geo = data['ubicacion'] as GeoPoint;
+                markers.add(
+                  Marker(
+                    markerId: MarkerId(doc.id),
+                    position: LatLng(geo.latitude, geo.longitude),
+                    icon: _taxiIcon ?? BitmapDescriptor.defaultMarker,
+                    infoWindow: const InfoWindow(title: 'Taxi disponible'),
+                  ),
+                );
+              }
+            }
+            _conductoresMarkers = markers;
+            if (!_disposed) notifyListeners();
+          },
+          onError: (e) {
+            debugPrint('Error escuchando conductores conectados: $e');
+          },
+        );
+  }
+
+  Future<void> cargarFavoritosUnaVez() async {
+    if (_favoritosLoaded) return;
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    _isLoadingFavoritos = true;
+    if (!_disposed) notifyListeners();
+
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('ubicaciones')
+          .where('userId', isEqualTo: user.uid)
+          .get();
+
+      _favoritos = snapshot.docs.map((doc) {
+        final data = doc.data();
+        final nombre = (data['nombre'] ?? '') as String;
+        final direccion = (data['direccion'] ?? '') as String;
+        final geo = data['ubicacion'] as GeoPoint;
+        return UbicacionResultado(
+          location: LatLng(geo.latitude, geo.longitude),
+          nombre: nombre.isNotEmpty ? nombre : 'Favorito',
+          direccion: direccion.isNotEmpty ? direccion : nombre,
+        );
+      }).toList();
+
+      _favoritosLoaded = true;
+    } catch (e) {
+      debugPrint('Error cargando favoritos: $e');
+    } finally {
+      _isLoadingFavoritos = false;
+      if (!_disposed) notifyListeners();
+    }
   }
 
   void _listenCachedName() {
@@ -57,12 +152,14 @@ class InicioClienteViewModel extends ChangeNotifier {
         }
       });
       // Aplicar valor actual si existe
-      SessionHelper.getCachedName().then((n) {
-        if (n != null && n.trim().isNotEmpty) {
-          _clientName = n.trim();
-          if (!_disposed) notifyListeners();
-        }
-      }).catchError((_) {});
+      SessionHelper.getCachedName()
+          .then((n) {
+            if (n != null && n.trim().isNotEmpty) {
+              _clientName = n.trim();
+              if (!_disposed) notifyListeners();
+            }
+          })
+          .catchError((_) {});
     } catch (_) {}
   }
 
@@ -86,11 +183,14 @@ class InicioClienteViewModel extends ChangeNotifier {
         final cached = await SessionHelper.getCachedName();
         if (cached != null && cached.trim().isNotEmpty) {
           name = cached.trim();
-        } else if (user.displayName != null && user.displayName!.trim().isNotEmpty) {
+        } else if (user.displayName != null &&
+            user.displayName!.trim().isNotEmpty) {
           name = user.displayName!.trim();
         } else if (user.email != null && user.email!.contains('@')) {
           final namePart = user.email!.split('@').first;
-          name = namePart.isNotEmpty ? '${namePart[0].toUpperCase()}${namePart.substring(1)}' : 'Cliente';
+          name = namePart.isNotEmpty
+              ? '${namePart[0].toUpperCase()}${namePart.substring(1)}'
+              : 'Cliente';
         }
       }
     } catch (e) {
@@ -118,27 +218,76 @@ class InicioClienteViewModel extends ChangeNotifier {
     }
   }
 
-
   /// Actualiza la ubicación local y en Firestore si hay cliente
   Future<void> updateLocation(LatLng loc) async {
     _isLoadingLocation = true;
     _currentLocation = loc;
     if (!_disposed) notifyListeners();
     try {
-      String? cid = _clientId ?? FirebaseAuth.instance.currentUser?.uid;
-      if (cid == null || cid.isEmpty) cid = await SessionHelper.getUserUid();
-      if (cid != null && cid.isNotEmpty) {
-        await _firebaseService.guardarUbicacionCliente(
-          clienteId: cid,
-          position: loc,
-        );
-      }
+      await _guardarUbicacionCliente(loc);
     } catch (e) {
       debugPrint('Error guardando ubicacion: $e');
     } finally {
       _isLoadingLocation = false;
       if (!_disposed) notifyListeners();
     }
+  }
+
+  Future<void> cargarUbicacionActual() async {
+    _isLoadingLocation = true;
+    if (!_disposed) notifyListeners();
+
+    try {
+      final loc = await _ubicacionService.obtenerUbicacionActual();
+      if (loc != null) {
+        _currentLocation = loc;
+        await _guardarUbicacionCliente(loc);
+      }
+    } catch (e) {
+      debugPrint('Error obteniendo ubicación actual: $e');
+    } finally {
+      _isLoadingLocation = false;
+      if (!_disposed) notifyListeners();
+    }
+  }
+
+  Future<void> _guardarUbicacionCliente(LatLng loc) async {
+    String? cid = _clientId ?? FirebaseAuth.instance.currentUser?.uid;
+    if (cid == null || cid.isEmpty) {
+      cid = await SessionHelper.getUserUid();
+    }
+    if (cid != null && cid.isNotEmpty) {
+      await _firebaseService.guardarUbicacionCliente(
+        clienteId: cid,
+        position: loc,
+      );
+    }
+  }
+
+  Future<String> obtenerDireccionDesdeCoordenadas(LatLng coord) async {
+    try {
+      final placemarks = await placemarkFromCoordinates(
+        coord.latitude,
+        coord.longitude,
+      );
+      if (placemarks.isNotEmpty) {
+        final p = placemarks.first;
+        final name = p.name?.trim() ?? '';
+        final street = p.street?.trim() ?? '';
+        final subLocality = p.subLocality?.trim() ?? '';
+        final locality = p.locality?.trim() ?? '';
+        final parts = <String>[
+          name,
+          street,
+          subLocality,
+          locality,
+        ].where((s) => s.isNotEmpty).toList();
+        if (parts.isNotEmpty) {
+          return parts.take(2).join(', ');
+        }
+      }
+    } catch (_) {}
+    return '${coord.latitude.toStringAsFixed(6)}, ${coord.longitude.toStringAsFixed(6)}';
   }
 
   @override
@@ -148,10 +297,11 @@ class InicioClienteViewModel extends ChangeNotifier {
     try {
       _cachedNameSub?.cancel();
     } catch (_) {}
+    try {
+      _conductoresSub?.cancel();
+    } catch (_) {}
     super.dispose();
   }
-
-
 
   // --- Métodos utilitarios ---
   void updateSearch(String value) {

@@ -3,7 +3,7 @@ import 'package:taxi_app/components/boton.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/login_conductor_viewmodel.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/registro_conductor_view.dart';
-import 'package:taxi_app/screens/usuario_conductor/presentacion/view/inicio_conductor_view.dart';
+import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioConductorView.dart';
 import 'package:taxi_app/widgets/sucess_overlay.dart';
 
 class LoginConductorView extends StatefulWidget {
@@ -27,7 +27,7 @@ class _LoginConductorViewState extends State<LoginConductorView> {
       if (user != null && mounted) {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => const HomeConductorMapView()),
+          MaterialPageRoute(builder: (_) => const InicioConductor()),
         );
       }
     });
@@ -153,7 +153,7 @@ class _LoginConductorViewState extends State<LoginConductorView> {
                               if (!mounted) return;
                               navigator.pushReplacement(
                                 MaterialPageRoute(
-                                  builder: (_) => const HomeConductorMapView(),
+                                  builder: (_) => const InicioConductor(),
                                 ),
                               );
                             } else if (vm.error.value != null) {

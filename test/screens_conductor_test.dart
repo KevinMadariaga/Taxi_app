@@ -3,7 +3,7 @@ import 'package:taxi_app/firebase_options.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/historial_viaje_conductor.dart';
-import 'package:taxi_app/screens/usuario_conductor/presentacion/view/inicio_conductor_view.dart';
+import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioConductorView.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/login_conductor_view.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/registro_conductor_view.dart';
 
@@ -18,8 +18,8 @@ void main() {
       expect(find.byType(HistorialConductor), findsOneWidget);
     });
     testWidgets('HomeConductorMapView se puede construir', (tester) async {
-      await tester.pumpWidget(MaterialApp(home: HomeConductorMapView()));
-      expect(find.byType(HomeConductorMapView), findsOneWidget);
+      await tester.pumpWidget(MaterialApp(home: InicioConductor()));
+      expect(find.byType(InicioConductor), findsOneWidget);
     });
     testWidgets('LoginConductorView se puede construir', (tester) async {
       await tester.pumpWidget(MaterialApp(home: LoginConductorView()));

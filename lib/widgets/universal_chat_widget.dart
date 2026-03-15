@@ -32,6 +32,33 @@ class _UniversalChatWidgetState extends State<UniversalChatWidget> {
   final TextEditingController _chatController = TextEditingController();
   final ScrollController _chatScrollController = ScrollController();
   final FocusNode _chatFocusNode = FocusNode();
+  bool _isSending = false;
+  int _lastMessageCount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.autoFocus) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _chatFocusNode.requestFocus();
+      });
+    }
+  }
+
+  void _scrollToBottom({bool animated = true}) {
+    if (!_chatScrollController.hasClients) return;
+    final target = _chatScrollController.position.maxScrollExtent + 24;
+    if (!animated) {
+      _chatScrollController.jumpTo(target);
+      return;
+    }
+    _chatScrollController.animateTo(
+      target,
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+    );
+  }
 
   @override
   void dispose() {
@@ -42,38 +69,50 @@ class _UniversalChatWidgetState extends State<UniversalChatWidget> {
   }
 
   Future<void> _sendChatMessage() async {
+    if (_isSending) return;
     final texto = _chatController.text.trim();
     if (texto.isEmpty) return;
     final uid = FirebaseAuth.instance.currentUser?.uid;
+
+    if (uid == null || uid.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudo enviar el mensaje')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isSending = true;
+    });
+
     try {
       await _chatService.sendMessage(
         solicitudId: widget.solicitudId,
-        senderId: uid ?? '',
+        senderId: uid,
         texto: texto,
       );
       _chatController.clear();
       await Future.delayed(const Duration(milliseconds: 60));
-      if (_chatScrollController.hasClients) {
-        _chatScrollController.animateTo(
-          _chatScrollController.position.maxScrollExtent + 24,
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOutCubic,
-        );
-      }
+      if (!mounted) return;
+      _scrollToBottom();
     } catch (_) {}
+    if (!mounted) return;
+    setState(() {
+      _isSending = false;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
-    // Abrir el teclado automáticamente si autoFocus es true
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (widget.autoFocus) {
-        _chatFocusNode.requestFocus();
-      }
-    });
-    return SafeArea(
-      child: Container(
+    final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOut,
+      padding: EdgeInsets.only(bottom: keyboardInset),
+      child: SafeArea(
+        child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: widget.backgroundColor ?? Colors.white,
@@ -87,7 +126,11 @@ class _UniversalChatWidgetState extends State<UniversalChatWidget> {
                   child: Center(
                     child: Text(
                       widget.chatTitle ?? 'Chat',
-                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black),
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
                     ),
                   ),
                 ),
@@ -112,16 +155,31 @@ class _UniversalChatWidgetState extends State<UniversalChatWidget> {
                   initialData: const [],
                   builder: (context, snapshot) {
                     final mensajes = snapshot.data ?? const <ChatMessage>[];
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      if (_chatScrollController.hasClients) {
-                        _chatScrollController.jumpTo(
-                          _chatScrollController.position.maxScrollExtent,
-                        );
-                      }
-                    });
+
+                    final hasClients = _chatScrollController.hasClients;
+                    final nearBottom = hasClients
+                        ? (_chatScrollController.position.maxScrollExtent -
+                                  _chatScrollController.position.pixels) <=
+                              120
+                        : true;
+                    final hasNewMessages = mensajes.length != _lastMessageCount;
+
+                    if (hasNewMessages) {
+                      _lastMessageCount = mensajes.length;
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (!mounted) return;
+                        if (nearBottom || mensajes.isEmpty) {
+                          _scrollToBottom();
+                        }
+                      });
+                    }
+
                     if (mensajes.isEmpty) {
                       return const Center(
-                        child: Text('Aún no hay mensajes.\nEscribe el primero.', textAlign: TextAlign.center),
+                        child: Text(
+                          'Aún no hay mensajes.\nEscribe el primero.',
+                          textAlign: TextAlign.center,
+                        ),
                       );
                     }
                     return ListView.builder(
@@ -138,17 +196,25 @@ class _UniversalChatWidgetState extends State<UniversalChatWidget> {
                             right: esMio ? 16 : 60,
                           ),
                           child: Align(
-                            alignment: esMio ? Alignment.centerRight : Alignment.centerLeft,
+                            alignment: esMio
+                                ? Alignment.centerRight
+                                : Alignment.centerLeft,
                             child: Container(
                               constraints: BoxConstraints(
-                                maxWidth: MediaQuery.of(context).size.width * 0.68,
+                                maxWidth:
+                                    MediaQuery.of(context).size.width * 0.68,
                                 minWidth: 60,
                               ),
-                              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 18),
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 12,
+                                horizontal: 18,
+                              ),
                               decoration: BoxDecoration(
                                 color: esMio
-                                    ? (widget.myMessageColor ?? Colors.yellow.shade700)
-                                    : (widget.otherMessageColor ?? Colors.white),
+                                    ? (widget.myMessageColor ??
+                                          Colors.yellow.shade700)
+                                    : (widget.otherMessageColor ??
+                                          Colors.white),
                                 borderRadius: BorderRadius.circular(22),
                                 boxShadow: [
                                   BoxShadow(
@@ -166,14 +232,18 @@ class _UniversalChatWidgetState extends State<UniversalChatWidget> {
                                     child: Text(
                                       msg.texto,
                                       style: TextStyle(
-                                        color: esMio ? Colors.black : Colors.black,
+                                        color: esMio
+                                            ? Colors.black
+                                            : Colors.black,
                                         fontSize: 17,
                                       ),
                                     ),
                                   ),
                                   const SizedBox(width: 8),
                                   Text(
-                                    msg.timestamp != null ? _formatHora(msg.timestamp!) : '',
+                                    msg.timestamp != null
+                                        ? _formatHora(msg.timestamp!)
+                                        : '',
                                     style: TextStyle(
                                       color: Colors.grey.shade600,
                                       fontSize: 14,
@@ -207,10 +277,15 @@ class _UniversalChatWidgetState extends State<UniversalChatWidget> {
                       controller: _chatController,
                       focusNode: _chatFocusNode,
                       autofocus: widget.autoFocus,
+                      textInputAction: TextInputAction.send,
+                      onSubmitted: (_) => _sendChatMessage(),
                       decoration: const InputDecoration(
                         hintText: "Escribe un mensaje...",
                         border: InputBorder.none,
-                        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
                       ),
                     ),
                   ),
@@ -222,17 +297,15 @@ class _UniversalChatWidgetState extends State<UniversalChatWidget> {
                     shape: BoxShape.circle,
                   ),
                   child: IconButton(
-                    icon: const Icon(
-                      Icons.send,
-                      color: Colors.white,
-                    ),
-                    onPressed: _sendChatMessage,
+                    icon: const Icon(Icons.send, color: Colors.white),
+                    onPressed: _isSending ? null : _sendChatMessage,
                   ),
                 ),
               ],
             ),
           ],
         ),
+      ),
       ),
     );
   }

@@ -18,13 +18,11 @@ import 'package:taxi_app/services/map_service.dart';
 class MapapreviewViewModel extends ChangeNotifier {
   /// Constructor para la vista de previsualización con dos marcadores
   /// (usa origen y destino reales).
-  MapapreviewViewModel({
-    required this.origen,
-    required this.destino,
-  })  : _center = origen.position,
-        _initialDireccion = origen.title,
-        _origenLocation = origen.position,
-        _origenDireccion = origen.title;
+  MapapreviewViewModel({required this.origen, required this.destino})
+    : _center = origen.position,
+      _initialDireccion = origen.title,
+      _origenLocation = origen.position,
+      _origenDireccion = origen.title;
 
   /// Constructor para la vista de selección de destino.
   ///
@@ -34,18 +32,18 @@ class MapapreviewViewModel extends ChangeNotifier {
     String? initialDireccion,
     LatLng? origenLocation,
     String? origenDireccion,
-  })  : origen = LocationModel(
-          position: origenLocation ?? initialLocation,
-          title: origenDireccion ?? initialDireccion,
-        ),
-        destino = LocationModel(
-          position: initialLocation,
-          title: initialDireccion,
-        ),
-        _center = initialLocation,
-        _initialDireccion = initialDireccion,
-        _origenLocation = origenLocation,
-        _origenDireccion = origenDireccion;
+  }) : origen = LocationModel(
+         position: origenLocation ?? initialLocation,
+         title: origenDireccion ?? initialDireccion,
+       ),
+       destino = LocationModel(
+         position: initialLocation,
+         title: initialDireccion,
+       ),
+       _center = initialLocation,
+       _initialDireccion = initialDireccion,
+       _origenLocation = origenLocation,
+       _origenDireccion = origenDireccion;
 
   /// Modelo de la ubicación de origen (para la vista de previsualización).
   final LocationModel origen;
@@ -97,10 +95,71 @@ class MapapreviewViewModel extends ChangeNotifier {
 
   final MapService _mapService = const MapService();
 
+  String _coordsText(LatLng point) {
+    return '${point.latitude.toStringAsFixed(6)}, ${point.longitude.toStringAsFixed(6)}';
+  }
+
+  String _normalizeLabel(String value) {
+    return value
+        .toLowerCase()
+        .replaceAll('á', 'a')
+        .replaceAll('é', 'e')
+        .replaceAll('í', 'i')
+        .replaceAll('ó', 'o')
+        .replaceAll('ú', 'u')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
+  bool _isGenericOriginLabel(String? value) {
+    if (value == null) return true;
+    final normalized = _normalizeLabel(value);
+    if (normalized.isEmpty) return true;
+    const genericLabels = {
+      'tu ubicacion',
+      'ubicacion',
+      'ubicacion actual',
+      'mi ubicacion',
+      'origen',
+    };
+    return genericLabels.contains(normalized);
+  }
+
+  Future<String> _resolveOrigenAddressForSolicitud() async {
+    final origenPos = origen.position;
+
+    final subtitle = origen.subtitle?.trim();
+    if (!_isGenericOriginLabel(subtitle)) {
+      final formatted = formatAddress(subtitle);
+      return formatted.isNotEmpty ? formatted : subtitle!;
+    }
+
+    final title = origen.title?.trim();
+    if (!_isGenericOriginLabel(title)) {
+      final formatted = formatAddress(title);
+      return formatted.isNotEmpty ? formatted : title!;
+    }
+
+    try {
+      final placemarks = await placemarkFromCoordinates(
+        origenPos.latitude,
+        origenPos.longitude,
+      );
+      if (placemarks.isNotEmpty) {
+        final resolved = _buildFriendlyFromPlacemark(placemarks.first);
+        if (resolved.trim().isNotEmpty) return resolved.trim();
+      }
+    } catch (_) {}
+
+    return _coordsText(origenPos);
+  }
+
   /// Calcula el valor del servicio según la hora
   void _calcularValorServicio() {
     final horaActual = DateTime.now();
-    valorServicio = (horaActual.hour >= 18 || horaActual.hour < 6) ? '12000' : '10000';
+    valorServicio = (horaActual.hour >= 18 || horaActual.hour < 6)
+        ? '12000'
+        : '10000';
   }
 
   Future<void> init() async {
@@ -118,8 +177,10 @@ class MapapreviewViewModel extends ChangeNotifier {
   /// Resuelve una dirección legible para el centro actual del mapa (solo en selección).
   Future<void> reverseGeocodeCenter() async {
     try {
-      final placemarks =
-          await placemarkFromCoordinates(_center.latitude, _center.longitude);
+      final placemarks = await placemarkFromCoordinates(
+        _center.latitude,
+        _center.longitude,
+      );
       if (placemarks.isNotEmpty) {
         final p = placemarks.first;
         final direccion = _buildFriendlyFromPlacemark(p);
@@ -170,9 +231,12 @@ class MapapreviewViewModel extends ChangeNotifier {
       return formatAddress('$street, $locality');
     }
     // fallback: preferir cualquier dos partes no vacías
-    final parts = [name, street, subLocality, locality]
-        .where((s) => s.isNotEmpty)
-        .toList();
+    final parts = [
+      name,
+      street,
+      subLocality,
+      locality,
+    ].where((s) => s.isNotEmpty).toList();
     if (parts.isEmpty) return '';
     return formatAddress(parts.take(2).join(', '));
   }
@@ -235,13 +299,15 @@ class MapapreviewViewModel extends ChangeNotifier {
       }).toList();
 
       final newPolylines = <Polyline>{};
-      newPolylines.add(_mapService.createPolyline(
-        id: 'route',
-        points: points,
-        color: const Color(0xFFFAC001),
-        width: 5,
-        geodesic: true,
-      ));
+      newPolylines.add(
+        _mapService.createPolyline(
+          id: 'route',
+          points: points,
+          color: const Color(0xFFFAC001),
+          width: 5,
+          geodesic: true,
+        ),
+      );
       polylines = newPolylines;
 
       final distance = (route0['distance'] is num)
@@ -311,30 +377,37 @@ class MapapreviewViewModel extends ChangeNotifier {
       if ((clienteNombre == null || clienteNombre.trim().isEmpty) &&
           user?.email != null) {
         final part = user!.email!.split('@').first;
-        final formatted =
-            part.replaceAll(RegExp(r'[._\-+]'), ' ');
+        final formatted = part.replaceAll(RegExp(r'[._\-+]'), ' ');
         final words = formatted
             .split(RegExp(r'\s+'))
             .where((w) => w.isNotEmpty)
             .map((w) {
-          return w.length == 1
-              ? w.toUpperCase()
-              : '${w[0].toUpperCase()}${w.substring(1)}';
-        }).join(' ');
+              return w.length == 1
+                  ? w.toUpperCase()
+                  : '${w[0].toUpperCase()}${w.substring(1)}';
+            })
+            .join(' ');
         clienteNombre = words.isNotEmpty ? words : null;
       }
 
       final origenPos = origen.position;
-      final origenAddress = origen.title;
+      final origenAddress = await _resolveOrigenAddressForSolicitud();
       // intentar obtener foto de perfil del usuario (Auth) o desde doc 'cliente'
       String? clientePhotoUrl = user?.photoURL;
-      if ((clientePhotoUrl == null || clientePhotoUrl.trim().isEmpty) && clienteId != null) {
+      if ((clientePhotoUrl == null || clientePhotoUrl.trim().isEmpty) &&
+          clienteId != null) {
         try {
-          final doc = await FirebaseFirestore.instance.collection('cliente').doc(clienteId).get();
+          final doc = await FirebaseFirestore.instance
+              .collection('cliente')
+              .doc(clienteId)
+              .get();
           if (doc.exists) {
             final data = doc.data();
             clientePhotoUrl = data != null
-                ? (data['foto']?.toString() ?? data['fotoUrl']?.toString() ?? data['photo']?.toString() ?? data['photoUrl']?.toString())
+                ? (data['foto']?.toString() ??
+                      data['fotoUrl']?.toString() ??
+                      data['photo']?.toString() ??
+                      data['photoUrl']?.toString())
                 : null;
           }
         } catch (_) {}
@@ -348,7 +421,7 @@ class MapapreviewViewModel extends ChangeNotifier {
           'ubicacion': {
             'lat': origenPos.latitude,
             'lng': origenPos.longitude,
-            'address': origenAddress ?? '',
+            'address': origenAddress,
           },
         },
         'destino': {

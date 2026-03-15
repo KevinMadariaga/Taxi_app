@@ -12,7 +12,7 @@ import 'package:taxi_app/screens/usuario_cliente/presentacion/view/RutaClienteVi
 import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/RutaClienteDestinoViewModel.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/RutaConductorView.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/RutaDestinoView.dart';
-import 'package:taxi_app/screens/usuario_conductor/presentacion/view/inicio_conductor_view.dart';
+import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioConductorView.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/RutaDestinoViewModel.dart';
 
 import 'package:taxi_app/services/route_cache_service.dart';
@@ -128,7 +128,7 @@ class AuthService {
   }) {
     if (role == 'conductor') {
       // Usuario conductor sin solicitud activa
-      return const HomeConductorMapView();
+      return const InicioConductor();
     } else {
       // Usuario cliente (rol == 'cliente' o null) sin solicitud activa
       return const InicioClienteView();

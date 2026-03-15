@@ -1,5 +1,5 @@
-
 import 'package:flutter/material.dart';
+import 'package:geocoding/geocoding.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:taxi_app/helper/responsive_helper.dart';
@@ -7,8 +7,8 @@ import 'package:taxi_app/screens/usuario_cliente/presentacion/model/location_mod
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/buscando_taxi_view.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/mapapreview_viewmodel.dart';
 import 'package:taxi_app/widgets/MapaGoogle.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/view/SeleccionDestino.dart';
 
-import 'SeleccionDestino.dart';
 import 'package:taxi_app/core/app_colores.dart';
 
 class MapPreview extends StatefulWidget {
@@ -22,10 +22,13 @@ class MapPreview extends StatefulWidget {
 }
 
 class _MapPreviewState extends State<MapPreview> {
+  static const double _boundsPadding = 120;
   GoogleMapController? _controller;
   late MapapreviewViewModel _vm;
   BitmapDescriptor? _destIcon;
   VoidCallback? _vmListener;
+  String? _origenDireccionActual;
+  bool _resolviendoOrigenDireccion = false;
 
   @override
   void initState() {
@@ -40,6 +43,65 @@ class _MapPreviewState extends State<MapPreview> {
     };
     _vm.addListener(_vmListener!);
     _loadDestIcon();
+    _resolverDireccionOrigen();
+  }
+
+  String _coordsText(LatLng point) {
+    return '${point.latitude.toStringAsFixed(6)}, ${point.longitude.toStringAsFixed(6)}';
+  }
+
+  Future<void> _resolverDireccionOrigen() async {
+    final origenPos = widget.origen.position;
+    final subtitle = widget.origen.subtitle?.trim() ?? '';
+    if (subtitle.isNotEmpty) {
+      if (!mounted) return;
+      setState(() => _origenDireccionActual = subtitle);
+      return;
+    }
+
+    if (mounted) {
+      setState(() {
+        _resolviendoOrigenDireccion = true;
+      });
+    }
+
+    try {
+      final placemarks = await placemarkFromCoordinates(
+        origenPos.latitude,
+        origenPos.longitude,
+      );
+
+      if (!mounted) return;
+
+      if (placemarks.isNotEmpty) {
+        final p = placemarks.first;
+        final direccion = [
+          p.street,
+          p.subLocality,
+          p.locality,
+          p.administrativeArea,
+        ].where((s) => s != null && s.isNotEmpty).join(', ');
+
+        setState(() {
+          _origenDireccionActual = direccion.isNotEmpty
+              ? direccion
+              : _coordsText(origenPos);
+          _resolviendoOrigenDireccion = false;
+        });
+        return;
+      }
+
+      setState(() {
+        _origenDireccionActual = _coordsText(origenPos);
+        _resolviendoOrigenDireccion = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _origenDireccionActual = _coordsText(origenPos);
+        _resolviendoOrigenDireccion = false;
+      });
+    }
   }
 
   Future<void> _loadDestIcon() async {
@@ -70,13 +132,13 @@ class _MapPreviewState extends State<MapPreview> {
     if (bounds == null) return;
     try {
       await _controller!.animateCamera(
-        CameraUpdate.newLatLngBounds(bounds, 120),
+        CameraUpdate.newLatLngBounds(bounds, _boundsPadding),
       );
     } catch (_) {
       await Future.delayed(const Duration(milliseconds: 200));
       try {
         await _controller!.animateCamera(
-          CameraUpdate.newLatLngBounds(bounds, 120),
+          CameraUpdate.newLatLngBounds(bounds, _boundsPadding),
         );
       } catch (_) {}
     }
@@ -86,6 +148,7 @@ class _MapPreviewState extends State<MapPreview> {
   void dispose() {
     if (_vmListener != null) _vm.removeListener(_vmListener!);
     _controller?.dispose();
+    _vm.dispose();
     super.dispose();
   }
 
@@ -130,10 +193,6 @@ class _MapPreviewState extends State<MapPreview> {
               ),
               initialZoom: 13,
               onMapCreated: _onMapCreated,
-              // myLocationEnabled: false,
-              // myLocationButtonEnabled: false,
-              // rotateGesturesEnabled: false,
-              // tiltGesturesEnabled: false,
               markers: {
                 Marker(
                   markerId: const MarkerId('ubicacion'),
@@ -195,64 +254,41 @@ class _MapPreviewState extends State<MapPreview> {
   }
 
   Widget _buildLocationCard(BuildContext context, MapapreviewViewModel vm) {
-    return Container(
-      padding: EdgeInsets.all(ResponsiveHelper.wp(context, 2)),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(ResponsiveHelper.wp(context, 4)),
-        border: Border.all(color: Colores.amarillo, width: 1.5),
-        color: Colors.white,
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: EdgeInsets.all(ResponsiveHelper.wp(context, 2)),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(
-                ResponsiveHelper.wp(context, 5),
-              ),
-              border: Border.all(color: Colores.amarillo),
-            ),
-            child: const Icon(
-              Icons.location_on_outlined,
-              color: Colors.black54,
-            ),
-          ),
-          SizedBox(width: ResponsiveHelper.wp(context, 3)),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Tu ubicación actual',
-                  style: TextStyle(
-                    fontSize: ResponsiveHelper.sp(context, 12),
-                    color: Colors.black54,
-                  ),
-                ),
-                SizedBox(height: ResponsiveHelper.hp(context, 0.5)),
-                Text(
-                  vm.origen.title ?? 'Ubicación',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: ResponsiveHelper.sp(context, 14),
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+    return _buildLocationInfoCard(
+      context,
+      header: 'Tu ubicación actual',
+      value: _resolviendoOrigenDireccion
+          ? 'Buscando ubicación actual...'
+          : (_origenDireccionActual ?? vm.origen.title ?? 'Ubicación'),
+      icon: Icons.location_on_outlined,
+      iconBorderColor: Colores.amarillo,
+      cardBorderRadius: ResponsiveHelper.wp(context, 4),
     );
   }
 
   Widget _buildDestinationCard(BuildContext context, MapapreviewViewModel vm) {
+    return _buildLocationInfoCard(
+      context,
+      header: '¿Adónde va?',
+      value: vm.destino.title ?? vm.destino.subtitle ?? 'Destino',
+      icon: Icons.place,
+      iconBorderColor: Colors.black12,
+      cardBorderRadius: ResponsiveHelper.wp(context, 3),
+    );
+  }
+
+  Widget _buildLocationInfoCard(
+    BuildContext context, {
+    required String header,
+    required String value,
+    required IconData icon,
+    required Color iconBorderColor,
+    required double cardBorderRadius,
+  }) {
     return Container(
       padding: EdgeInsets.all(ResponsiveHelper.wp(context, 2)),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(ResponsiveHelper.wp(context, 3)),
+        borderRadius: BorderRadius.circular(cardBorderRadius),
         border: Border.all(color: Colores.amarillo, width: 1.5),
         color: Colors.white,
       ),
@@ -265,9 +301,9 @@ class _MapPreviewState extends State<MapPreview> {
               borderRadius: BorderRadius.circular(
                 ResponsiveHelper.wp(context, 5),
               ),
-              border: Border.all(color: Colors.black12),
+              border: Border.all(color: iconBorderColor),
             ),
-            child: const Icon(Icons.place, color: Colors.black54),
+            child: Icon(icon, color: Colors.black54),
           ),
           SizedBox(width: ResponsiveHelper.wp(context, 3)),
           Expanded(
@@ -275,7 +311,7 @@ class _MapPreviewState extends State<MapPreview> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '¿Adónde va?',
+                  header,
                   style: TextStyle(
                     fontSize: ResponsiveHelper.sp(context, 12),
                     color: Colors.black54,
@@ -283,7 +319,7 @@ class _MapPreviewState extends State<MapPreview> {
                 ),
                 SizedBox(height: ResponsiveHelper.hp(context, 0.5)),
                 Text(
-                  vm.destino.title ?? vm.destino.subtitle ?? 'Destino',
+                  value,
                   style: TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: ResponsiveHelper.sp(context, 14),
@@ -448,8 +484,12 @@ class _MapPreviewState extends State<MapPreview> {
         elevation: 4,
         child: InkWell(
           customBorder: const CircleBorder(),
-          onTap: () {
-            Navigator.of(context).push(
+          onTap: () async {
+            final navigator = Navigator.of(context);
+            final popped = await navigator.maybePop();
+            if (popped || !mounted) return;
+
+            navigator.pushReplacement(
               MaterialPageRoute(
                 builder: (_) => DestinoSeleccionView(
                   currentLocation: widget.origen.position,

@@ -3,13 +3,52 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:taxi_app/components/boton.dart';
 import 'package:taxi_app/core/app_colores.dart';
-import 'package:taxi_app/screens/usuario_conductor/presentacion/view/inicio_conductor_view.dart';
-import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/inicio_conductor_viewmodel.dart';
+import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioConductorView.dart';
+import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/InicioConductorViewModel.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/resumen_conductor_viewmodel.dart';
 
 class ResumenConductorView extends StatelessWidget {
   final String solicitudId;
   const ResumenConductorView({super.key, required this.solicitudId});
+
+  static String _thousands(String s) {
+    final r = s.split('').reversed.toList();
+    final out = <String>[];
+    for (int i = 0; i < r.length; i++) {
+      if (i != 0 && i % 3 == 0) out.add('.');
+      out.add(r[i]);
+    }
+    return out.reversed.join();
+  }
+
+  static String _formatCurrency(dynamic v) {
+    final num n = v is num ? v : num.tryParse(v.toString()) ?? 0;
+    return '\$${_thousands(n.round().toString())}';
+  }
+
+  static String _resolveDestino(Map<String, dynamic> data) {
+    final destino = data['destino'];
+    if (destino is Map<String, dynamic>) {
+      final direccion = destino['direccion']?.toString().trim();
+      if (direccion?.isNotEmpty == true) return direccion!;
+
+      final address = destino['address']?.toString().trim();
+      if (address?.isNotEmpty == true) return address!;
+
+      final direccionDestino = destino['direccion_destino']?.toString().trim();
+      if (direccionDestino?.isNotEmpty == true) return direccionDestino!;
+
+      final title = destino['title']?.toString().trim();
+      if (title?.isNotEmpty == true) return title!;
+    }
+
+    final direccionSeleccionada = data['direccion_seleccionada']
+        ?.toString()
+        .trim();
+    return (direccionSeleccionada?.isNotEmpty == true)
+        ? direccionSeleccionada!
+        : 'No disponible';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -17,23 +56,6 @@ class ResumenConductorView extends StatelessWidget {
       create: (_) => ResumenConductorViewModel(solicitudId: solicitudId),
       child: Consumer<ResumenConductorViewModel>(
         builder: (context, vm, _) {
-          final screenWidth = MediaQuery.of(context).size.width;
-          final scale = screenWidth / 375;
-
-          final double padding = 24 * scale;
-          final double imageHeight = 180 * scale;
-          final double buttonHeight = 52 * scale;
-          final TextStyle titleStyle = TextStyle(
-            fontSize: 16 * scale,
-            fontWeight: FontWeight.w600,
-            color: AppColores.textPrimary,
-          );
-          final TextStyle contentStyle = TextStyle(
-            fontSize: 16 * scale,
-            fontWeight: FontWeight.w600,
-            color: AppColores.textPrimary,
-          );
-
           if (vm.cargando) {
             return const Scaffold(
               backgroundColor: AppColores.background,
@@ -41,46 +63,48 @@ class ResumenConductorView extends StatelessWidget {
             );
           }
 
+          final media = MediaQuery.of(context);
+          final size = media.size;
+          final screenWidth = size.width;
+          final screenHeight = size.height;
+          final isTablet = screenWidth >= 600;
+          final isDesktop = screenWidth >= 1024;
+          final scale = (screenWidth / 390).clamp(0.92, isDesktop ? 1.45 : 1.2);
+          final horizontalPadding = isDesktop ? 56.0 : (isTablet ? 36.0 : 20.0);
+          final buttonHeight = isDesktop ? 62.0 : (isTablet ? 56.0 : 52.0);
+            final buttonBottomInset =
+              Theme.of(context).platform == TargetPlatform.android ? 34.0 : 24.0;
+          final contentMaxWidth = isDesktop ? 760.0 : 620.0;
+          final imageHeight = (screenHeight * (isDesktop ? 0.24 : 0.2)).clamp(
+            150.0,
+            isDesktop ? 280.0 : 220.0,
+          );
+          final titleFont = isDesktop ? 21.0 : (isTablet ? 18.0 : 16.0);
+          final contentFont = isDesktop ? 20.0 : (isTablet ? 17.0 : 15.0);
+
+          final TextStyle titleStyle = TextStyle(
+            fontSize: titleFont * scale,
+            fontWeight: FontWeight.w600,
+            color: AppColores.textPrimary,
+          );
+          final TextStyle contentStyle = TextStyle(
+            fontSize: contentFont * scale,
+            fontWeight: FontWeight.w600,
+            color: AppColores.textPrimary,
+          );
+
           final data = vm.solicitudData ?? <String, dynamic>{};
-          final destino = data['destino'];
-          String direccionSeleccionada = 'No disponible';
-          if (destino is Map<String, dynamic>) {
-            final d = destino;
-            final dir = (d['direccion']?.toString().trim().isNotEmpty == true)
-                ? d['direccion'].toString()
-                : (d['address']?.toString().trim().isNotEmpty == true)
-                ? d['address'].toString()
-                : (d['direccion_destino']?.toString().trim().isNotEmpty == true)
-                ? d['direccion_destino'].toString()
-                : (d['title']?.toString() ?? 'No disponible');
-            direccionSeleccionada = dir;
-          } else {
-            direccionSeleccionada =
-                data['direccion_seleccionada']?.toString() ?? 'No disponible';
-          }
+          final direccionSeleccionada = _resolveDestino(data);
           final metodoPago = data['metodo_pago'];
-          final horaFin = data['fecha de terminacion'] as Timestamp?;
+          final horaFin = data['fecha de terminacion'] is Timestamp
+              ? data['fecha de terminacion'] as Timestamp
+              : null;
           final valorServicio = data['valor'] ?? 0;
-
-          String thousands(String s) {
-            final r = s.split('').reversed.toList();
-            final out = <String>[];
-            for (int i = 0; i < r.length; i++) {
-              if (i != 0 && i % 3 == 0) out.add('.');
-              out.add(r[i]);
-            }
-            return out.reversed.join();
-          }
-
-          String formatCurrency(dynamic v) {
-            final num n = v is num ? v : num.tryParse(v.toString()) ?? 0;
-            return "\$${thousands(n.round().toString())}";
-          }
 
           return Scaffold(
             backgroundColor: AppColores.background,
             body: SafeArea(
-              bottom: true,
+              bottom: false,
               child: Container(
                 decoration: const BoxDecoration(
                   gradient: LinearGradient(
@@ -89,186 +113,213 @@ class ResumenConductorView extends StatelessWidget {
                     colors: [AppColores.surface, AppColores.background],
                   ),
                 ),
-                child: Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: padding,
-                    vertical: padding * 0.6,
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.max,
-                    children: [
-                      SizedBox(height: padding * 0.3),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: contentMaxWidth),
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        horizontalPadding,
+                        16 * scale,
+                        horizontalPadding,
+                        8 * scale,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          const Icon(
-                            Icons.check_circle,
-                            color: AppColores.success,
-                            size: 30,
+                          SizedBox(height: 4 * scale),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.check_circle,
+                                color: AppColores.success,
+                                size: isDesktop ? 38 : 30,
+                              ),
+                              SizedBox(width: 8 * scale),
+                              Flexible(
+                                child: Text(
+                                  'Viaje terminado',
+                                  style: TextStyle(
+                                    fontSize: (isDesktop ? 30 : 25) * scale,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColores.textPrimary,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
                           ),
-                          SizedBox(width: 8 * scale),
-                          Text(
-                            'Viaje terminado',
-                            style: TextStyle(
-                              fontSize: 25 * scale,
-                              fontWeight: FontWeight.w700,
-                              color: AppColores.textPrimary,
+                          SizedBox(height: 10 * scale),
+                          Flexible(
+                            flex: 2,
+                            child: Center(
+                              child: Image.asset(
+                                'assets/img/taxi.png',
+                                height: imageHeight,
+                                fit: BoxFit.contain,
+                              ),
                             ),
                           ),
-                        ],
-                      ),
-                      SizedBox(height: padding * 0.5),
-                      Image.asset(
-                        'assets/img/taxi.png',
-                        height: imageHeight,
-                        fit: BoxFit.contain,
-                      ),
-                      SizedBox(height: padding * 0.1),
-                      // Card del valor
-                      Card(
-                        color: AppColores.textPrimary,
-                        elevation: 3,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(
-                            vertical: 18 * scale,
-                            horizontal: 16 * scale,
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Row(
+                          SizedBox(height: 10 * scale),
+                          Card(
+                            color: AppColores.textPrimary,
+                            elevation: 3,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(
+                                vertical: 16 * scale,
+                                horizontal: 14 * scale,
+                              ),
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
-                                  const Icon(
-                                    Icons.local_taxi,
-                                    color: AppColores.buttonPrimary,
+                                  Expanded(
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.local_taxi,
+                                          color: AppColores.buttonPrimary,
+                                          size: isDesktop ? 30 : 24,
+                                        ),
+                                        SizedBox(width: 8 * scale),
+                                        Flexible(
+                                          child: Text(
+                                            'Valor del servicio',
+                                            style: TextStyle(
+                                              color: AppColores.textWhite,
+                                              fontSize: 15.5 * scale,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
-                                  SizedBox(width: 8 * scale),
                                   Text(
-                                    'Valor del servicio',
+                                    _formatCurrency(valorServicio),
                                     style: TextStyle(
-                                      color: AppColores.textWhite,
-                                      fontSize: 16 * scale,
-                                      fontWeight: FontWeight.w500,
+                                      color: AppColores.buttonPrimary,
+                                      fontSize: (isDesktop ? 24 : 20) * scale,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 0.2,
                                     ),
                                   ),
                                 ],
                               ),
-                              Text(
-                                formatCurrency(valorServicio),
-                                style: TextStyle(
-                                  color: AppColores.buttonPrimary,
-                                  fontSize: 20 * scale,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 0.2,
-                                ),
-                              ),
-                            ],
+                            ),
                           ),
-                        ),
-                      ),
-                      SizedBox(height: padding * 0.3),
-                      // Card principal con resumen
-                      Card(
-                        elevation: 2,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Padding(
-                          padding: EdgeInsets.all(16 * scale),
-                          child: Column(
-                            children: [
-                              ListTile(
-                                leading: const CircleAvatar(
-                                  backgroundColor: AppColores.primary,
-                                  child: Icon(
-                                    Icons.person,
-                                    color: AppColores.textPrimary,
+                          SizedBox(height: 10 * scale),
+                          Card(
+                            elevation: 2,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Padding(
+                              padding: EdgeInsets.all(14 * scale),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  ListTile(
+                                    leading: const CircleAvatar(
+                                      backgroundColor: AppColores.primary,
+                                      child: Icon(
+                                        Icons.person,
+                                        color: AppColores.textPrimary,
+                                      ),
+                                    ),
+                                    title: Text(
+                                      vm.nombreCliente,
+                                      style: contentStyle,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
                                   ),
-                                ),
-                                title: Text(
-                                  vm.nombreCliente,
-                                  style: contentStyle,
-                                ),
-                              ),
-                              const Divider(height: 8),
-                              ListTile(
-                                leading: CircleAvatar(
-                                  backgroundColor: AppColores.secondary
-                                      .withOpacity(0.12),
-                                  child: Icon(
-                                    Icons.location_on,
-                                    color: AppColores.secondary,
+                                  const Divider(height: 8),
+                                  ListTile(
+                                    leading: CircleAvatar(
+                                      backgroundColor: AppColores.secondary
+                                          .withValues(alpha: 0.12),
+                                      child: const Icon(
+                                        Icons.location_on,
+                                        color: AppColores.secondary,
+                                      ),
+                                    ),
+                                    title: Text('Destino', style: titleStyle),
+                                    subtitle: Text(
+                                      direccionSeleccionada,
+                                      style: contentStyle,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
                                   ),
-                                ),
-                                title: Text('Destino', style: titleStyle),
-                                subtitle: Text(
-                                  direccionSeleccionada,
-                                  style: contentStyle,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              const Divider(height: 8),
-                              ListTile(
-                                leading: const CircleAvatar(
-                                  backgroundColor: AppColores.grey100,
-                                  child: Icon(
-                                    Icons.payment,
-                                    color: AppColores.warning,
+                                  const Divider(height: 8),
+                                  ListTile(
+                                    leading: const CircleAvatar(
+                                      backgroundColor: AppColores.grey100,
+                                      child: Icon(
+                                        Icons.payment,
+                                        color: AppColores.warning,
+                                      ),
+                                    ),
+                                    title: Text(
+                                      'Metodo de pago',
+                                      style: titleStyle,
+                                    ),
+                                    subtitle: Text(
+                                      _formatMetodo(metodoPago),
+                                      style: contentStyle,
+                                    ),
                                   ),
-                                ),
-                                title: Text(
-                                  'Método de pago',
-                                  style: titleStyle,
-                                ),
-                                subtitle: Text(
-                                  _formatMetodo(metodoPago),
-                                  style: contentStyle,
-                                ),
-                              ),
-                              const Divider(height: 8),
-                              ListTile(
-                                leading: const CircleAvatar(
-                                  backgroundColor: AppColores.grey100,
-                                  child: Icon(
-                                    Icons.schedule,
-                                    color: AppColores.warning,
+                                  const Divider(height: 8),
+                                  ListTile(
+                                    leading: const CircleAvatar(
+                                      backgroundColor: AppColores.grey100,
+                                      child: Icon(
+                                        Icons.schedule,
+                                        color: AppColores.warning,
+                                      ),
+                                    ),
+                                    title: Text(
+                                      'Hora de finalizacion',
+                                      style: titleStyle,
+                                    ),
+                                    subtitle: Text(
+                                      horaFin != null
+                                          ? vm.formatoHoraBogota(horaFin)
+                                          : 'No disponible',
+                                      style: contentStyle,
+                                    ),
                                   ),
-                                ),
-                                title: Text(
-                                  'Hora de finalización',
-                                  style: titleStyle,
-                                ),
-                                subtitle: Text(
-                                  horaFin != null
-                                      ? vm.formatoHoraBogota(horaFin)
-                                      : 'No disponible',
-                                  style: contentStyle,
-                                ),
+                                ],
                               ),
-                            ],
+                            ),
                           ),
-                        ),
+                        ],
                       ),
-                      const Spacer(),
-                    ],
+                    ),
                   ),
                 ),
               ),
             ),
-            floatingActionButton: Padding(
-              padding: EdgeInsets.symmetric(horizontal: padding),
+            bottomNavigationBar: SafeArea(
+              top: false,
+              minimum: EdgeInsets.fromLTRB(
+                horizontalPadding,
+                8,
+                horizontalPadding,
+                buttonBottomInset,
+              ),
               child: CustomButton(
                 text: 'Volver a Inicio',
                 onPressed: () {
                   Navigator.of(context).pushAndRemoveUntil(
                     MaterialPageRoute(
                       builder: (_) => ChangeNotifierProvider(
-                        create: (_) => HomeConductorViewModel(),
-                        child: const HomeConductorMapView(),
+                        create: (_) => InicioConductorViewmodel(),
+                        child: const InicioConductor(),
                       ),
                     ),
                     (route) => false,
@@ -279,8 +330,6 @@ class ResumenConductorView extends StatelessWidget {
                 color: AppColores.buttonPrimary,
               ),
             ),
-            floatingActionButtonLocation:
-                FloatingActionButtonLocation.centerFloat,
           );
         },
       ),
