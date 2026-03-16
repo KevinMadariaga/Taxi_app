@@ -169,6 +169,36 @@ class Rutaclienteviewmodel extends ChangeNotifier {
     }
   }
 
+  /// Marca la solicitud como "Sin respuesta" y luego la cancela.
+  Future<void> cancelarSolicitudSinRespuesta(String solicitudId) async {
+    if (_cancelHandled) return;
+    _cancelHandled = true;
+
+    final docRef = FirebaseFirestore.instance
+        .collection('solicitudes')
+        .doc(solicitudId);
+
+    try {
+      await docRef.set({
+        'estado': 'Sin respuesta',
+        'sinRespuestaAt': FieldValue.serverTimestamp(),
+        'motivoCancelacion': 'Sin respuesta',
+      }, SetOptions(merge: true));
+
+      await _rideService.cancelarSolicitud(solicitudId);
+
+      await docRef.set({
+        'motivoCancelacion': 'Sin respuesta',
+        'estadoPrevioCancelacion': 'Sin respuesta',
+        'cancelledAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('Error al cancelar solicitud por sin respuesta: $e');
+      _cancelHandled = false;
+      rethrow;
+    }
+  }
+
   String? get conductorId => FirebaseAuth.instance.currentUser?.uid;
 
   /// Getter para el id del cliente autenticado

@@ -12,9 +12,12 @@ import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/RutaCli
 import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/RutaClienteViewModel.dart';
 import 'package:taxi_app/widgets/LoaderCancelado.dart';
 import 'package:taxi_app/widgets/MapaGoogle.dart';
+import 'package:taxi_app/widgets/intermediate_transition_view.dart';
 import 'package:taxi_app/widgets/universal_chat_widget.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/utils/marker_icon_helper.dart';
+
+enum _EnCaminoModalResult { continuar, timeoutSinRespuesta }
 
 class RutaCliente extends StatefulWidget {
   final String idSolicitud;
@@ -80,6 +83,10 @@ class _RutaClienteState extends State<RutaCliente> with WidgetsBindingObserver {
   bool _mostrarSoloCliente = false;
   BitmapDescriptor? _conductorMarkerIcon;
   BitmapDescriptor? _clienteMarkerIcon;
+  bool _enCaminoModalVisible = false;
+  bool _enCaminoFlowHandled = false;
+  bool _clienteConfirmoVoyEnCamino = false;
+  bool _cancelNavigationHandled = false;
 
   bool _sameLatLng(LatLng? a, LatLng? b, {double epsilon = 0.000001}) {
     if (a == null && b == null) return true;
@@ -199,29 +206,8 @@ class _RutaClienteState extends State<RutaCliente> with WidgetsBindingObserver {
       // Escuchar estado de la solicitud
       _estadoSolicitudSub = _vm
           .escucharEstadoSolicitudStream(widget.idSolicitud)
-          .listen((estado) {
-            // debugPrint('[RutaClienteView] Estado de la solicitud actualizado: $estado');
-            if (estado == 'cancelado') {
-              if (mounted) {
-                Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (context) => InicioClienteView()),
-                  (route) => false,
-                );
-              }
-            } else if (estado == 'en camino') {
-              if (mounted) {
-                Navigator.of(context).pushReplacement(
-                  MaterialPageRoute(
-                    builder: (context) => ChangeNotifierProvider(
-                      create: (_) => Rutaclientedestinoviewmodel(),
-                      child: RutaClienteDestino(
-                        idSolicitud: widget.idSolicitud,
-                      ),
-                    ),
-                  ),
-                );
-              }
-            }
+          .listen((estado) async {
+            await _manejarCambioEstadoSolicitud(estado);
           });
       // Escuchar ubicación del conductor desde el ViewModel
       _vm.escucharUbicacionConductor(widget.idSolicitud);
@@ -281,6 +267,147 @@ class _RutaClienteState extends State<RutaCliente> with WidgetsBindingObserver {
       _conductorMarkerIcon = conductorIcon;
       _clienteMarkerIcon = clienteIcon;
     });
+  }
+
+  Future<void> _manejarCambioEstadoSolicitud(String? estadoRaw) async {
+    if (!mounted || estadoRaw == null) return;
+
+    final estado = estadoRaw.trim().toLowerCase();
+    final esCancelado = estado == 'cancelado' || estado == 'cancelada';
+    if (esCancelado) {
+      if (_cancelNavigationHandled) return;
+      _cancelNavigationHandled = true;
+
+      _estadoSolicitudSub?.cancel();
+      _estadoSolicitudSub = null;
+
+      if (_enCaminoModalVisible && mounted) {
+        Navigator.of(context).pop();
+        _enCaminoModalVisible = false;
+      }
+
+      await _vm.limpiarSolicitudActiva();
+      if (!mounted) return;
+
+      await navigateWithIntermediateLoader(
+        context: context,
+        nextBuilder: (_) => const InicioClienteView(),
+        delay: const Duration(milliseconds: 1200),
+        title: 'Solicitud cancelada',
+        subtitle: 'Regresando al inicio...',
+        icon: Icons.cancel_rounded,
+        clearStackOnNext: true,
+      );
+      return;
+    }
+
+    final esEnRuta =
+        estado == 'en ruta' ||
+        estado == 'en_ruta' ||
+        estado == 'enruta' ||
+        estado == 'en progreso' ||
+        estado == 'en_progreso';
+
+    if (esEnRuta) {
+      if (_enCaminoFlowHandled) return;
+      _enCaminoFlowHandled = true;
+      _navegarARutaClienteDestino();
+      return;
+    }
+
+    final mostrarModalConfirmacion =
+        estado == 'en camino' ||
+        estado == 'encamino' ||
+        estado == 'en espera' ||
+        estado == 'en_espera' ||
+        estado == 'enespera';
+
+    // En estados intermedios no navega automáticamente: primero muestra la modal.
+    if (mostrarModalConfirmacion && !_clienteConfirmoVoyEnCamino) {
+      await _mostrarModalEnCamino();
+    }
+  }
+
+  Future<void> _mostrarModalEnCamino() async {
+    if (!mounted || _enCaminoFlowHandled || _enCaminoModalVisible) return;
+
+    _enCaminoModalVisible = true;
+    final resultado = await showModalBottomSheet<_EnCaminoModalResult>(
+      context: context,
+      isScrollControlled: true,
+      isDismissible: false,
+      enableDrag: false,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return FractionallySizedBox(
+          heightFactor: 1,
+          child: _EnCaminoCountdownSheet(idSolicitud: widget.idSolicitud),
+        );
+      },
+    );
+
+    _enCaminoModalVisible = false;
+    if (!mounted || _enCaminoFlowHandled) return;
+
+    if (resultado == _EnCaminoModalResult.continuar) {
+      // Al confirmar "Voy en camino" se mantiene en esta vista.
+      _clienteConfirmoVoyEnCamino = true;
+      return;
+    }
+
+    if (resultado == _EnCaminoModalResult.timeoutSinRespuesta) {
+      _enCaminoFlowHandled = true;
+      await _manejarSinRespuestaPorTimeout();
+    }
+  }
+
+  Future<void> _manejarSinRespuestaPorTimeout() async {
+    _estadoSolicitudSub?.cancel();
+    _estadoSolicitudSub = null;
+
+    var loaderVisible = false;
+    if (mounted) {
+      loaderVisible = true;
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const LoaderSolicitudCancelada(
+          texto: 'Tiempo agotado.\nCancelando solicitud...',
+        ),
+      );
+    }
+
+    try {
+      await _vm.cancelarSolicitudSinRespuesta(widget.idSolicitud);
+      await _vm.limpiarSolicitudActiva();
+      await Future.delayed(const Duration(milliseconds: 400));
+    } catch (e) {
+      debugPrint('Error al cancelar por timeout: $e');
+    } finally {
+      if (loaderVisible && mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+    }
+
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (context) => const InicioClienteView()),
+      (route) => false,
+    );
+  }
+
+  void _navegarARutaClienteDestino() {
+    if (!mounted) return;
+    navigateWithIntermediateLoader(
+      context: context,
+      nextBuilder: (context) => ChangeNotifierProvider(
+        create: (_) => Rutaclientedestinoviewmodel(),
+        child: RutaClienteDestino(idSolicitud: widget.idSolicitud),
+      ),
+      title: 'Ruta confirmada',
+      subtitle: 'Preparando el viaje al destino...',
+    );
   }
 
   @override
@@ -730,6 +857,195 @@ class _RutaClienteState extends State<RutaCliente> with WidgetsBindingObserver {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _EnCaminoCountdownSheet extends StatefulWidget {
+  final String idSolicitud;
+
+  const _EnCaminoCountdownSheet({required this.idSolicitud});
+
+  @override
+  State<_EnCaminoCountdownSheet> createState() =>
+      _EnCaminoCountdownSheetState();
+}
+
+class _EnCaminoCountdownSheetState extends State<_EnCaminoCountdownSheet> {
+  static const int _duracionTotalSegundos = 180;
+  int _segundosRestantes = _duracionTotalSegundos;
+  Timer? _timer;
+  bool _timeoutTriggered = false;
+  bool _updatingEstado = false;
+
+  void _cerrarPorTimeout() {
+    if (_timeoutTriggered || !mounted) return;
+    _timeoutTriggered = true;
+    _timer?.cancel();
+    Navigator.of(context).pop(_EnCaminoModalResult.timeoutSinRespuesta);
+  }
+
+  Future<void> _marcarVoyEnCamino() async {
+    if (_updatingEstado || !mounted) return;
+
+    setState(() {
+      _updatingEstado = true;
+    });
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('solicitudes')
+          .doc(widget.idSolicitud)
+          .update({'estado': 'voy en camino'});
+
+      if (!mounted) return;
+      Navigator.of(context).pop(_EnCaminoModalResult.continuar);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _updatingEstado = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudo confirmar el estado.')),
+      );
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_segundosRestantes <= 1) {
+        setState(() {
+          _segundosRestantes = 0;
+        });
+        _cerrarPorTimeout();
+        return;
+      }
+      setState(() {
+        _segundosRestantes -= 1;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  String _formatearTiempo(int totalSegundos) {
+    final minutos = (totalSegundos ~/ 60).toString().padLeft(2, '0');
+    final segundos = (totalSegundos % 60).toString().padLeft(2, '0');
+    return '$minutos:$segundos';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final topPadding = MediaQuery.of(context).padding.top;
+
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      child: SafeArea(
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(24, topPadding > 0 ? 16 : 28, 24, 32),
+          child: Column(
+            children: [
+              Container(
+                width: 48,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+              const Spacer(),
+              const Icon(
+                Icons.directions_car_filled_rounded,
+                color: AppColores.primary,
+                size: 72,
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'El conductor esta en tu ubicacion',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w700,
+                  color: AppColores.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'Tiempo de espera de confirmacion',
+                style: TextStyle(fontSize: 16, color: AppColores.textPrimary),
+              ),
+              const SizedBox(height: 20),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 28,
+                  vertical: 18,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColores.surface,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  _formatearTiempo(_segundosRestantes),
+                  style: const TextStyle(
+                    fontSize: 44,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.2,
+                    color: AppColores.primary,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColores.primary,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  onPressed: _updatingEstado ? null : _marcarVoyEnCamino,
+                  child: _updatingEstado
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.4,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white,
+                            ),
+                          ),
+                        )
+                      : const Text(
+                          'Voy en camino',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

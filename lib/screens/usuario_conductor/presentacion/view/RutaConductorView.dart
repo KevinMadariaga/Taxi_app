@@ -17,9 +17,12 @@ import 'package:taxi_app/widgets/MapaGoogle.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:provider/provider.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/RutaConductorViewModel.dart';
+import 'package:taxi_app/widgets/intermediate_transition_view.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:taxi_app/widgets/universal_chat_widget.dart';
+
+enum _EsperaConfirmacionResult { comenzarRuta, timeout }
 
 class RutaConductor extends StatefulWidget {
   final String idSolicitud;
@@ -91,6 +94,9 @@ class _RutaConductorState extends State<RutaConductor>
   List<LatLng> _polylinePoints = [];
   bool _loadingPolyline = false;
   BitmapDescriptor? _clienteMarkerIcon;
+  bool _esperaConfirmacionModalVisible = false;
+  bool _rutaDestinoNavegada = false;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _estadoEnRutaSub;
 
   @override
   void initState() {
@@ -122,9 +128,32 @@ class _RutaConductorState extends State<RutaConductor>
       await _cargarMarcadoresPersonalizados();
       vm.iniciarChat(widget.idSolicitud);
       vm.escucharEstadoSolicitud(widget.idSolicitud, context);
+      _escucharNavegacionEnRuta();
       await _obtenerUbicacionConductor();
       await vm.iniciarTrackingUbicacion(widget.idSolicitud);
     });
+  }
+
+  void _escucharNavegacionEnRuta() {
+    _estadoEnRutaSub?.cancel();
+    _estadoEnRutaSub = FirebaseFirestore.instance
+        .collection('solicitudes')
+        .doc(widget.idSolicitud)
+        .snapshots()
+        .listen((doc) {
+          if (!doc.exists || !mounted || _rutaDestinoNavegada) return;
+          final estado =
+              doc.data()?['estado']?.toString().trim().toLowerCase() ?? '';
+          final esEnRuta =
+              estado == 'en ruta' ||
+              estado == 'en_ruta' ||
+              estado == 'enruta' ||
+              estado == 'en progreso' ||
+              estado == 'en_progreso';
+          if (esEnRuta) {
+            _navegarARutaDestino();
+          }
+        });
   }
 
   Future<void> _cargarMarcadoresPersonalizados() async {
@@ -154,6 +183,7 @@ class _RutaConductorState extends State<RutaConductor>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _positionStream?.cancel();
+    _estadoEnRutaSub?.cancel();
     super.dispose();
   }
 
@@ -846,37 +876,7 @@ class _RutaConductorState extends State<RutaConductor>
                     onPressed: _yaLleguePressed
                         ? null
                         : () async {
-                            setState(() {
-                              _yaLleguePressed = true;
-                            });
-                            try {
-                              await FirebaseFirestore.instance
-                                  .collection('solicitudes')
-                                  .doc(widget.idSolicitud)
-                                  .update({'estado': 'en camino'});
-                            } catch (e) {
-                              debugPrint('Error al cambiar estado: $e');
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('No se pudo cambiar el estado'),
-                                ),
-                              );
-                              setState(() {
-                                _yaLleguePressed = false;
-                              });
-                              return;
-                            }
-                            if (!mounted) return;
-                            Navigator.of(context).pushReplacement(
-                              MaterialPageRoute(
-                                builder: (_) => ChangeNotifierProvider(
-                                  create: (_) => RutaDestinoViewModel(),
-                                  child: RutaDestino(
-                                    idSolicitud: widget.idSolicitud,
-                                  ),
-                                ),
-                              ),
-                            );
+                            await _manejarYaLlegue();
                           },
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -907,6 +907,109 @@ class _RutaConductorState extends State<RutaConductor>
           );
         },
       ),
+    );
+  }
+
+  Future<void> _manejarYaLlegue() async {
+    if (!mounted || _yaLleguePressed) return;
+
+    setState(() {
+      _yaLleguePressed = true;
+    });
+
+    try {
+      await _actualizarEstadoSolicitud('en espera');
+    } catch (e) {
+      debugPrint('Error al cambiar estado a en espera: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudo iniciar la espera')),
+      );
+      setState(() {
+        _yaLleguePressed = false;
+      });
+      return;
+    }
+
+    final modalResult = await _mostrarModalEsperaConfirmacion();
+    if (!mounted) return;
+
+    if (modalResult == _EsperaConfirmacionResult.comenzarRuta) {
+      await _comenzarRuta();
+      return;
+    }
+
+    setState(() {
+      _yaLleguePressed = false;
+    });
+
+    if (modalResult == _EsperaConfirmacionResult.timeout) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No hubo confirmación del cliente en 3 minutos.'),
+        ),
+      );
+    }
+  }
+
+  Future<void> _actualizarEstadoSolicitud(String estado) async {
+    await FirebaseFirestore.instance
+        .collection('solicitudes')
+        .doc(widget.idSolicitud)
+        .update({'estado': estado});
+  }
+
+  Future<_EsperaConfirmacionResult?> _mostrarModalEsperaConfirmacion() async {
+    if (!mounted || _esperaConfirmacionModalVisible) return null;
+
+    _esperaConfirmacionModalVisible = true;
+    final result = await showModalBottomSheet<_EsperaConfirmacionResult>(
+      context: context,
+      isScrollControlled: true,
+      isDismissible: false,
+      enableDrag: false,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return FractionallySizedBox(
+          heightFactor: 1,
+          child: _EsperaConfirmacionSheet(idSolicitud: widget.idSolicitud),
+        );
+      },
+    );
+
+    _esperaConfirmacionModalVisible = false;
+    return result;
+  }
+
+  Future<void> _comenzarRuta() async {
+    try {
+      await _actualizarEstadoSolicitud('en ruta');
+    } catch (e) {
+      debugPrint('Error al cambiar estado a en ruta: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudo comenzar la ruta')),
+      );
+      setState(() {
+        _yaLleguePressed = false;
+      });
+      return;
+    }
+    // La navegación se realiza por listener cuando Firestore confirma estado "en ruta".
+  }
+
+  void _navegarARutaDestino() {
+    if (!mounted || _rutaDestinoNavegada) return;
+    _rutaDestinoNavegada = true;
+    navigateWithIntermediateLoader(
+      context: context,
+      nextBuilder: (_) => ChangeNotifierProvider(
+        create: (_) => RutaDestinoViewModel(),
+        child: RutaDestino(idSolicitud: widget.idSolicitud),
+      ),
+      title: 'Cliente confirmado',
+      subtitle: 'Abriendo ruta al destino...',
     );
   }
 
@@ -1077,6 +1180,204 @@ class _RutaConductorState extends State<RutaConductor>
             ),
             // ...existing code...
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EsperaConfirmacionSheet extends StatefulWidget {
+  final String idSolicitud;
+
+  const _EsperaConfirmacionSheet({required this.idSolicitud});
+
+  @override
+  State<_EsperaConfirmacionSheet> createState() =>
+      _EsperaConfirmacionSheetState();
+}
+
+class _EsperaConfirmacionSheetState extends State<_EsperaConfirmacionSheet> {
+  static const int _duracionTotalSegundos = 180;
+  int _segundosRestantes = _duracionTotalSegundos;
+  bool _clienteConfirmo = false;
+  Timer? _timer;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _estadoSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _iniciarEscuchaEstado();
+    _iniciarTimer();
+  }
+
+  void _iniciarEscuchaEstado() {
+    _estadoSub = FirebaseFirestore.instance
+        .collection('solicitudes')
+        .doc(widget.idSolicitud)
+        .snapshots()
+        .listen((doc) {
+          if (!doc.exists || !mounted) return;
+          final data = doc.data();
+          final estado = data?['estado']?.toString().trim().toLowerCase() ?? '';
+          final confirmado =
+              estado == 'en camino' ||
+              estado == 'en_camino' ||
+              estado == 'encamino' ||
+              estado == 'voy en camino' ||
+              estado == 'voy_en_camino' ||
+              estado == 'voyencamino';
+          if (confirmado != _clienteConfirmo) {
+            if (confirmado) {
+              _timer?.cancel();
+            }
+            setState(() {
+              _clienteConfirmo = confirmado;
+            });
+          }
+        });
+  }
+
+  void _iniciarTimer() {
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_clienteConfirmo) {
+        timer.cancel();
+        return;
+      }
+      if (_segundosRestantes <= 0) {
+        timer.cancel();
+        Navigator.of(context).pop(_EsperaConfirmacionResult.timeout);
+        return;
+      }
+      setState(() {
+        _segundosRestantes -= 1;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _estadoSub?.cancel();
+    super.dispose();
+  }
+
+  String _formatearTiempo(int totalSegundos) {
+    final minutos = (totalSegundos ~/ 60).toString().padLeft(2, '0');
+    final segundos = (totalSegundos % 60).toString().padLeft(2, '0');
+    return '$minutos:$segundos';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 28),
+          child: Column(
+            children: [
+              Container(
+                width: 48,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+              const Spacer(),
+              Icon(
+                _clienteConfirmo
+                    ? Icons.verified_rounded
+                    : Icons.hourglass_bottom_rounded,
+                color: AppColores.primary,
+                size: 72,
+              ),
+              const SizedBox(height: 18),
+              Text(
+                _clienteConfirmo
+                    ? 'Cliente va en camino, espera'
+                    : 'Esperando confirmación del cliente',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w700,
+                  color: AppColores.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 10),
+              if (!_clienteConfirmo) ...[
+                const Text(
+                  'Tiempo de espera restante',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 16, color: AppColores.textPrimary),
+                ),
+                const SizedBox(height: 20),
+              ],
+              if (!_clienteConfirmo)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 28,
+                    vertical: 18,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColores.surface,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    _formatearTiempo(_segundosRestantes),
+                    style: const TextStyle(
+                      fontSize: 44,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.2,
+                      color: AppColores.primary,
+                    ),
+                  ),
+                )
+              else
+                const Text(
+                  'Cuando estes listo, inicia el trayecto al destino.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 17, color: AppColores.textPrimary),
+                ),
+              const Spacer(),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColores.primary,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  onPressed: _clienteConfirmo
+                      ? () {
+                          Navigator.of(
+                            context,
+                          ).pop(_EsperaConfirmacionResult.comenzarRuta);
+                        }
+                      : null,
+                  child: const Text(
+                    'Comenzar ruta',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

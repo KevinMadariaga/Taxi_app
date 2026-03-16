@@ -10,8 +10,8 @@ import 'package:taxi_app/screens/usuario_conductor/presentacion/view/resumen_con
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/RutaDestinoViewModel.dart';
 import 'package:taxi_app/services/DireccionesServicio.dart';
 import 'package:taxi_app/services/background_tracking_service.dart';
-import 'package:taxi_app/widgets/LoaderCompletado.dart';
 import 'package:taxi_app/widgets/MapaGoogle.dart';
+import 'package:taxi_app/widgets/intermediate_transition_view.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:provider/provider.dart';
 import 'package:geolocator/geolocator.dart';
@@ -359,22 +359,13 @@ class _RutaDestinoState extends State<RutaDestino> with WidgetsBindingObserver {
       );
 
       if (!mounted) return;
-      showDialog(
+      await navigateWithIntermediateLoader(
         context: context,
-        barrierDismissible: false,
-        builder: (_) => const LoaderSolicitudCompletada(),
-      );
-
-      await Future.delayed(const Duration(seconds: 2));
-      if (!mounted) return;
-
-      if (Navigator.of(context).canPop()) {
-        Navigator.of(context).pop();
-      }
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => ResumenConductorView(solicitudId: widget.idSolicitud),
-        ),
+        nextBuilder: (_) =>
+            ResumenConductorView(solicitudId: widget.idSolicitud),
+        delay: const Duration(milliseconds: 1400),
+        title: 'Viaje finalizado',
+        subtitle: 'Generando resumen del servicio...',
       );
     } catch (e) {
       debugPrint('Error finalizando viaje: $e');

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/RutaConductorView.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/historial_viaje_conductor.dart';
+import 'package:taxi_app/widgets/intermediate_transition_view.dart';
 import 'package:taxi_app/widgets/perfil.dart';
 
 class InicioConductorNavigation {
@@ -9,8 +10,19 @@ class InicioConductorNavigation {
     String idSolicitud,
   ) {
     return Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => RutaConductor(idSolicitud: idSolicitud),
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 220),
+        reverseTransitionDuration: const Duration(milliseconds: 180),
+        pageBuilder: (_, __, ___) => IntermediateTransitionView(
+          delay: const Duration(seconds: 2),
+          title: 'Servicio aceptado',
+          subtitle: 'Abriendo ruta hacia el cliente...',
+          nextBuilder: (_) => RutaConductor(idSolicitud: idSolicitud),
+          icon: Icons.local_taxi,
+        ),
+        transitionsBuilder: (_, animation, __, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
       ),
     );
   }

@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 
 class Direcciones {
 
-  final String apiKey = "AIzaSyBijCV2BttW2Sat4GiASFtNOn3zfIBvD-4";
+  final String apiKey = "";
 
   Future<String?> getPolyline(
       double originLat,

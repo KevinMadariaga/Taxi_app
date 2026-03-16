@@ -87,25 +87,23 @@ class _InicioClienteViewState extends State<InicioClienteView> {
                   isTablet ? 48.0 : 16.0 * scale,
                   isTablet ? 32.0 : 18.0 * scale,
                 ),
-                child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildSaludoYNombre(scale),
-                      SizedBox(height: isTablet ? 32 : 14 * scale),
-                      _buildSubtitle(scale),
-                      SizedBox(height: isTablet ? 36 : 18 * scale),
-                      _buildSearchBox(scale),
-                      SizedBox(height: isTablet ? 8 : 1 * scale),
-                      _buildFavoritos(scale),
-                      SizedBox(height: carouselHeight, child: _buildCarousel()),
-                      SizedBox(height: isTablet ? 8 : 2 * scale),
-                      _buildLocationLabel(scale),
-                      SizedBox(height: isTablet ? 12 : 8 * scale),
-                      _buildMap(carouselHeight),
-                      SizedBox(height: isTablet ? 18 : 10 * scale),
-                    ],
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildSaludoYNombre(scale),
+                    SizedBox(height: isTablet ? 32 : 14 * scale),
+                    _buildSubtitle(scale),
+                    SizedBox(height: isTablet ? 36 : 18 * scale),
+                    _buildSearchBox(scale),
+                    SizedBox(height: isTablet ? 8 : 1 * scale),
+                    _buildFavoritos(scale),
+                    SizedBox(height: carouselHeight, child: _buildCarousel()),
+                    SizedBox(height: isTablet ? 8 : 2 * scale),
+                    _buildLocationLabel(scale),
+                    SizedBox(height: isTablet ? 12 : 8 * scale),
+                    Expanded(child: _buildMap()),
+                    SizedBox(height: isTablet ? 18 : 10 * scale),
+                  ],
                 ),
               ),
               if (vm.isLoadingLocation) _buildLoader(),
@@ -295,35 +293,32 @@ class _InicioClienteViewState extends State<InicioClienteView> {
     );
   }
 
-  Widget _buildMap(double mapHeight) {
-    return SizedBox(
-      height: mapHeight,
-      child: Container(
-        width: double.infinity,
-        decoration: BoxDecoration(
-          color: AppColores.cardBackground,
-          borderRadius: BorderRadius.circular(2),
-          border: Border.all(color: AppColores.borderSubtle, width: 1.0),
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(2),
-          child: AppGoogleMap(
-            initialTarget:
-                vm.currentLocation ?? const LatLng(8.2595534, -73.353469),
-            initialZoom: 14.5,
-            myLocationEnabled: true,
-            myLocationButtonEnabled: false,
-            compassEnabled: false,
-            markers: vm.conductoresMarkers,
-            onMapCreated: (controller) async {
-              _mapController = controller;
-              if (vm.currentLocation != null) {
-                await controller.animateCamera(
-                  CameraUpdate.newLatLngZoom(vm.currentLocation!, 16),
-                );
-              }
-            },
-          ),
+  Widget _buildMap() {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: AppColores.cardBackground,
+        borderRadius: BorderRadius.circular(2),
+        border: Border.all(color: AppColores.borderSubtle, width: 1.0),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(2),
+        child: AppGoogleMap(
+          initialTarget:
+              vm.currentLocation ?? const LatLng(8.2595534, -73.353469),
+          initialZoom: 14.5,
+          myLocationEnabled: true,
+          myLocationButtonEnabled: false,
+          compassEnabled: false,
+          markers: vm.conductoresMarkers,
+          onMapCreated: (controller) async {
+            _mapController = controller;
+            if (vm.currentLocation != null) {
+              await controller.animateCamera(
+                CameraUpdate.newLatLngZoom(vm.currentLocation!, 16),
+              );
+            }
+          },
         ),
       ),
     );

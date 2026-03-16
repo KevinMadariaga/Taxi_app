@@ -10,7 +10,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:taxi_app/helper/session_helper.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/RutaClienteDestinoView.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/ResumenClienteView.dart';
-import 'package:taxi_app/widgets/LoaderCompletado.dart';
+import 'package:taxi_app/widgets/intermediate_transition_view.dart';
 
 class Rutaclientedestinoviewmodel extends ChangeNotifier {
   // Servicio de mapas
@@ -142,25 +142,15 @@ class Rutaclientedestinoviewmodel extends ChangeNotifier {
             _navegandoAResumen = true;
 
             if (!context.mounted) return;
-            showDialog(
-              context: context,
-              barrierDismissible: false,
-              builder: (_) => const LoaderSolicitudCompletada(),
-            );
-
-            await Future.delayed(const Duration(seconds: 4));
-
-            if (!context.mounted) return;
-            Navigator.of(context).pop(); // Cierra el loader
-
-            if (!context.mounted) return;
             debugPrint(
               '[RutaClienteViewModel] Loader cerrado, navegando a ResumenClienteView',
             );
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(
-                builder: (_) => ResumenClienteView(solicitudId: solicitudId),
-              ),
+            await navigateWithIntermediateLoader(
+              context: context,
+              nextBuilder: (_) => ResumenClienteView(solicitudId: solicitudId),
+              delay: const Duration(milliseconds: 1400),
+              title: 'Viaje finalizado',
+              subtitle: 'Preparando tu resumen del viaje...',
             );
             debugPrint('[RutaClienteViewModel] pushReplacement ejecutado');
           } else {

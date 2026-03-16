@@ -14,7 +14,7 @@ import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioCondu
 import 'package:taxi_app/services/chat_service.dart';
 import 'package:taxi_app/services/route_cache_service.dart';
 import 'package:taxi_app/services/tracking_service.dart';
-import 'package:taxi_app/widgets/LoaderCancelado.dart';
+import 'package:taxi_app/widgets/intermediate_transition_view.dart';
 
 class RutaConductorViewModel extends ChangeNotifier {
   /// Inicia tracking GPS y guarda la ubicación del conductor en Firestore mientras se mueve.
@@ -85,23 +85,14 @@ class RutaConductorViewModel extends ChangeNotifier {
               await RouteCacheService.clearSolicitud(solicitudId);
             } catch (_) {}
             if (!context.mounted) return;
-            // Mostrar loader cancelada
-            showDialog(
+            await navigateWithIntermediateLoader(
               context: context,
-              barrierDismissible: false,
-              builder: (_) => const LoaderSolicitudCancelada(),
-            );
-            // Cargar la clase en segundo planoR
-            final homeConductorWidget = InicioConductor();
-            await Future.delayed(const Duration(seconds: 2));
-            if (!context.mounted) return;
-            Navigator.of(
-              context,
-              rootNavigator: true,
-            ).pop(); // Cierra el loader
-            if (!context.mounted) return;
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => homeConductorWidget),
+              nextBuilder: (_) => const InicioConductor(),
+              delay: const Duration(milliseconds: 1200),
+              title: 'Solicitud cancelada',
+              subtitle: 'Regresando al inicio...',
+              icon: Icons.cancel_rounded,
+              clearStackOnNext: true,
             );
           }
         });
