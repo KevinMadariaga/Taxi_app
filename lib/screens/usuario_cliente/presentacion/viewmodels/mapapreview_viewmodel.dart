@@ -1,6 +1,6 @@
-import 'dart:async';
-import 'dart:convert';
 import 'dart:ui';
+import 'dart:math' as math;
+import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -11,6 +11,7 @@ import 'package:http/http.dart' as http;
 import 'package:taxi_app/helper/map_helper.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/location_model.dart';
 import 'package:taxi_app/services/map_service.dart';
+import 'package:taxi_app/services/ubicacion_servicio.dart';
 
 /// ViewModel unificado para:
 /// - Selección/previsualización de destino (pantalla de mapa con pin centrado).
@@ -81,6 +82,9 @@ class MapapreviewViewModel extends ChangeNotifier {
   /// Método de pago seleccionado.
   String metodoPago = 'Efectivo';
 
+  /// Comentario adicional del cliente para el conductor.
+  String comentario = '';
+
   /// Valor del servicio dependiendo de la hora.
   late String valorServicio;
 
@@ -140,10 +144,14 @@ class MapapreviewViewModel extends ChangeNotifier {
       return formatted.isNotEmpty ? formatted : title!;
     }
 
+    return _resolveAddressFromCoordinates(origenPos);
+  }
+
+  Future<String> _resolveAddressFromCoordinates(LatLng position) async {
     try {
       final placemarks = await placemarkFromCoordinates(
-        origenPos.latitude,
-        origenPos.longitude,
+        position.latitude,
+        position.longitude,
       );
       if (placemarks.isNotEmpty) {
         final resolved = _buildFriendlyFromPlacemark(placemarks.first);
@@ -151,7 +159,37 @@ class MapapreviewViewModel extends ChangeNotifier {
       }
     } catch (_) {}
 
-    return _coordsText(origenPos);
+    return _coordsText(position);
+  }
+
+  String _resolveDestinoAddressForSolicitud() {
+    final subtitle = formatAddress(destino.subtitle);
+    if (subtitle.isNotEmpty) return subtitle;
+
+    final title = formatAddress(destino.title);
+    if (title.isNotEmpty) return title;
+
+    return _coordsText(destino.position);
+  }
+
+  String? _firstNonEmptyValue(
+    Map<String, dynamic>? source,
+    List<String> keys,
+  ) {
+    if (source == null) return null;
+    for (final key in keys) {
+      final raw = source[key]?.toString().trim();
+      if (raw != null && raw.isNotEmpty) {
+        return raw;
+      }
+    }
+    return null;
+  }
+
+  double _parseValorServicio() {
+    final digits = valorServicio.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.isEmpty) return 0;
+    return double.tryParse(digits) ?? 0;
   }
 
   /// Calcula el valor del servicio según la hora
@@ -164,7 +202,7 @@ class MapapreviewViewModel extends ChangeNotifier {
 
   Future<void> init() async {
     _calcularValorServicio();
-    await _fetchRouteOSRM();
+    await _buildRouteFollowingRoads();
   }
 
   /// Actualiza el centro del mapa cuando la cámara se mueve (solo en selección).
@@ -248,6 +286,13 @@ class MapapreviewViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setComentario(String value) {
+    final next = value.trim();
+    if (comentario == next) return;
+    comentario = next;
+    notifyListeners();
+  }
+
   /// Bounds de cámara que abarcan origen, destino y la ruta.
   LatLngBounds? get cameraBounds {
     final points = <LatLng>[];
@@ -260,85 +305,122 @@ class MapapreviewViewModel extends ChangeNotifier {
     return _mapService.computeBoundsFromPoints(points);
   }
 
-  /// Llamada a OSRM para obtener la ruta detallada entre origen y destino.
-  Future<void> _fetchRouteOSRM() async {
+  /// Intenta trazar la ruta real por calles; si falla, usa un fallback matematico.
+  Future<void> _buildRouteFollowingRoads() async {
     final o = origen.position;
     final d = destino.position;
-    final url = Uri.parse(
-      'https://router.project-osrm.org/route/v1/driving/'
-      '${o.longitude},${o.latitude};${d.longitude},${d.latitude}?overview=full&geometries=geojson',
-    );
+
     try {
-      final resp = await http.get(url).timeout(const Duration(seconds: 6));
-      if (resp.statusCode != 200) {
-        _buildDirectPolylineFallback();
-        return;
-      }
-      final data = json.decode(resp.body) as Map<String, dynamic>?;
-      if (data == null) {
-        _buildDirectPolylineFallback();
-        return;
-      }
-      final routes = data['routes'] as List?;
-      if (routes == null || routes.isEmpty) {
-        _buildDirectPolylineFallback();
-        return;
-      }
-      final route0 = routes[0] as Map<String, dynamic>;
-      final geometry = route0['geometry'] as Map<String, dynamic>?;
-      if (geometry == null || geometry['coordinates'] == null) {
-        _buildDirectPolylineFallback();
-        return;
-      }
-      final coords = geometry['coordinates'] as List;
-      final points = coords.map<LatLng>((c) {
-        // OSRM devuelve [lon, lat]
-        final lon = (c[0] as num).toDouble();
-        final lat = (c[1] as num).toDouble();
-        return LatLng(lat, lon);
-      }).toList();
-
-      final newPolylines = <Polyline>{};
-      newPolylines.add(
-        _mapService.createPolyline(
-          id: 'route',
-          points: points,
-          color: const Color(0xFFFAC001),
-          width: 5,
-          geodesic: true,
-        ),
+      final uri = Uri.parse(
+        'https://router.project-osrm.org/route/v1/driving/'
+        '${o.longitude},${o.latitude};${d.longitude},${d.latitude}'
+        '?overview=full&geometries=geojson',
       );
-      polylines = newPolylines;
 
-      final distance = (route0['distance'] is num)
-          ? (route0['distance'] as num).toDouble()
-          : null;
-      if (distance != null) {
-        routeDistanceKm = distance / 1000.0;
-      } else {
-        final dMeters = MapHelper.routeDistanceMeters(points);
-        routeDistanceKm = dMeters / 1000.0;
+      final response = await http
+          .get(uri)
+          .timeout(const Duration(seconds: 8));
+
+      if (response.statusCode == 200) {
+        final body = jsonDecode(response.body) as Map<String, dynamic>;
+        final routes = body['routes'] as List<dynamic>?;
+        if (routes != null && routes.isNotEmpty) {
+          final route = routes.first as Map<String, dynamic>;
+          final geometry = route['geometry'] as Map<String, dynamic>?;
+          final rawCoords = geometry?['coordinates'] as List<dynamic>?;
+
+          if (rawCoords != null && rawCoords.length >= 2) {
+            final points = rawCoords.map((entry) {
+              final item = entry as List<dynamic>;
+              final lng = (item[0] as num).toDouble();
+              final lat = (item[1] as num).toDouble();
+              return LatLng(lat, lng);
+            }).toList(growable: false);
+
+            polylines = {
+              _mapService.createPolyline(
+                id: 'route',
+                points: points,
+                color: const Color(0xFFFAC001),
+                width: 5,
+                geodesic: true,
+              ),
+            };
+
+            final distanceFromApi = (route['distance'] as num?)?.toDouble();
+            if (distanceFromApi != null) {
+              routeDistanceKm = distanceFromApi / 1000.0;
+            } else {
+              routeDistanceKm = MapHelper.routeDistanceMeters(points) / 1000.0;
+            }
+
+            notifyListeners();
+            return;
+          }
+        }
       }
+    } catch (_) {}
 
-      notifyListeners();
-    } on TimeoutException {
-      _buildDirectPolylineFallback();
-    } catch (_) {
-      _buildDirectPolylineFallback();
-    }
+    _buildRouteWithMathFallback();
   }
 
-  void _buildDirectPolylineFallback() {
+  /// Fallback matematico cuando no se puede obtener una ruta vial.
+  void _buildRouteWithMathFallback() {
+    final o = origen.position;
+    final d = destino.position;
+    final straightMeters = MapHelper.distanceMeters(o, d);
+    final segments = straightMeters < 1200
+        ? 24
+        : straightMeters < 4000
+        ? 36
+        : 48;
+
+    final points = _interpolateRoute(o, d, segments: segments);
     polylines = {
       _mapService.createPolyline(
         id: 'route',
-        points: [origen.position, destino.position],
-        color: const Color(0xFF448AFF),
+        points: points,
+        color: const Color(0xFFFAC001),
         width: 5,
         geodesic: true,
       ),
     };
+
+    final distanceMeters = MapHelper.routeDistanceMeters(points);
+    routeDistanceKm = distanceMeters / 1000.0;
     notifyListeners();
+  }
+
+  List<LatLng> _interpolateRoute(
+    LatLng origin,
+    LatLng destination, {
+    int segments = 20,
+  }) {
+    final safeSegments = math.max(2, segments);
+    final points = <LatLng>[];
+
+    final dLat = destination.latitude - origin.latitude;
+    final dLng = destination.longitude - origin.longitude;
+    final distance = math.sqrt((dLat * dLat) + (dLng * dLng));
+
+    // Curva suave perpendicular a la recta O->D para trazar mejor la ruta.
+    final normalLat = distance == 0 ? 0.0 : -dLng / distance;
+    final normalLng = distance == 0 ? 0.0 : dLat / distance;
+    final maxCurve = distance * 0.08;
+
+    for (int i = 0; i <= safeSegments; i++) {
+      final t = i / safeSegments;
+      final baseLat = origin.latitude + (destination.latitude - origin.latitude) * t;
+      final baseLng = origin.longitude + (destination.longitude - origin.longitude) * t;
+
+      // Onda senoidal para no salir en extremos y curvar en la mitad.
+      final curveFactor = math.sin(math.pi * t) * maxCurve;
+      final lat = baseLat + (normalLat * curveFactor);
+      final lng = baseLng + (normalLng * curveFactor);
+      points.add(LatLng(lat, lng));
+    }
+
+    return points;
   }
 
   /// Crea la solicitud en Firestore y devuelve el id generado,
@@ -350,27 +432,31 @@ class MapapreviewViewModel extends ChangeNotifier {
 
     try {
       final user = FirebaseAuth.instance.currentUser;
-      final clienteId = user?.uid;
+      final clienteId = user?.uid.trim();
+      if (clienteId == null || clienteId.isEmpty) {
+        return null;
+      }
+
+      Map<String, dynamic>? clienteDocData;
+      try {
+        final doc = await FirebaseFirestore.instance
+            .collection('cliente')
+            .doc(clienteId)
+            .get();
+        if (doc.exists) {
+          clienteDocData = doc.data();
+        }
+      } catch (_) {}
+
       String? clienteNombre = user?.displayName;
 
       // Si no hay displayName, intentar leer el nombre canónico desde 'cliente'.
-      if ((clienteNombre == null || clienteNombre.trim().isEmpty) &&
-          clienteId != null) {
-        try {
-          final doc = await FirebaseFirestore.instance
-              .collection('cliente')
-              .doc(clienteId)
-              .get();
-          if (doc.exists) {
-            final data = doc.data();
-            final dynamic maybeName = data != null ? data['nombre'] : null;
-            if (maybeName is String && maybeName.trim().isNotEmpty) {
-              clienteNombre = maybeName.trim();
-            }
-          }
-        } catch (_) {
-          // ignorar error de lectura y seguir con fallback
-        }
+      if (clienteNombre == null || clienteNombre.trim().isEmpty) {
+        clienteNombre = _firstNonEmptyValue(clienteDocData, const [
+          'nombre',
+          'name',
+          'displayName',
+        ]);
       }
 
       // Fallback final: usar el email para derivar un nombre legible.
@@ -390,50 +476,76 @@ class MapapreviewViewModel extends ChangeNotifier {
         clienteNombre = words.isNotEmpty ? words : null;
       }
 
-      final origenPos = origen.position;
-      final origenAddress = await _resolveOrigenAddressForSolicitud();
+        final gpsOrigenPos = await UbicacionService().obtenerUbicacionActual();
+        final origenPos = gpsOrigenPos ?? origen.position;
+        final origenAddress = gpsOrigenPos != null
+          ? await _resolveAddressFromCoordinates(origenPos)
+          : await _resolveOrigenAddressForSolicitud();
+      final destinoAddress = _resolveDestinoAddressForSolicitud();
+
       // intentar obtener foto de perfil del usuario (Auth) o desde doc 'cliente'
       String? clientePhotoUrl = user?.photoURL;
-      if ((clientePhotoUrl == null || clientePhotoUrl.trim().isEmpty) &&
-          clienteId != null) {
+      if (clientePhotoUrl == null || clientePhotoUrl.trim().isEmpty) {
+        clientePhotoUrl = _firstNonEmptyValue(clienteDocData, const [
+          'foto',
+          'fotoUrl',
+          'photo',
+          'photoUrl',
+        ]);
+      }
+
+      final resolvedClienteNombre =
+          (clienteNombre == null || clienteNombre.trim().isEmpty)
+          ? 'Cliente'
+          : clienteNombre.trim();
+      final resolvedClientePhotoUrl = clientePhotoUrl?.trim() ?? '';
+      final metodoPagoSanitizado =
+          metodoPago.trim().isEmpty ? 'Efectivo' : metodoPago.trim();
+      final comentarioSanitizado = comentario.trim();
+      final valorServicioNumerico = _parseValorServicio();
+
+      // Sincronizar ubicación actual en el perfil del cliente si se pudo leer GPS.
+      if (gpsOrigenPos != null) {
         try {
-          final doc = await FirebaseFirestore.instance
+          await FirebaseFirestore.instance
               .collection('cliente')
               .doc(clienteId)
-              .get();
-          if (doc.exists) {
-            final data = doc.data();
-            clientePhotoUrl = data != null
-                ? (data['foto']?.toString() ??
-                      data['fotoUrl']?.toString() ??
-                      data['photo']?.toString() ??
-                      data['photoUrl']?.toString())
-                : null;
-          }
+              .set({
+                'ubicacion': {
+                  'lat': origenPos.latitude,
+                  'lng': origenPos.longitude,
+                  'direccion': origenAddress,
+                  'lastUpdated': FieldValue.serverTimestamp(),
+                },
+              }, SetOptions(merge: true));
         } catch (_) {}
       }
 
-      final solicitud = {
+      final solicitud = <String, dynamic>{
         'cliente': {
           'id': clienteId,
-          'nombre': clienteNombre ?? '',
-          'foto': clientePhotoUrl ?? '',
+          'nombre': resolvedClienteNombre,
+          'foto': resolvedClientePhotoUrl,
           'ubicacion': {
             'lat': origenPos.latitude,
             'lng': origenPos.longitude,
-            'address': origenAddress,
+            'direccion': origenAddress,
           },
         },
+
         'destino': {
-          'title': destino.title ?? '',
-          'direccion': destino.subtitle ?? destino.title ?? '',
+          'direccion': destinoAddress,
           'lat': destino.position.latitude,
           'lng': destino.position.longitude,
         },
-        'metodo_pago': metodoPago,
-        'valor': valorServicio,
         'estado': 'buscando',
-        'creacion de solicitud': FieldValue.serverTimestamp(),
+        'metodoPago': metodoPagoSanitizado,
+        'comentario': comentarioSanitizado,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+        'tarifa': {
+          'total': valorServicioNumerico,
+        },
       };
 
       final docRef = await FirebaseFirestore.instance

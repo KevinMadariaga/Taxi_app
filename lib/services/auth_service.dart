@@ -1,26 +1,25 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:taxi_app/helper/session_helper.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:taxi_app/screens/home_screen.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/view/InicioClienteView.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/view/RutaClienteDestinoView.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/view/RutaClienteView.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/RutaClienteDestinoViewModel.dart';
+import 'package:taxi_app/features/trip_tracking/views/trip_tracking_screen.dart';
+import 'package:taxi_app/features/trip_tracking/views/trip_route_tracking_screen.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/view/home_cliente_view.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/RutaConductorView.dart';
-import 'package:taxi_app/screens/usuario_conductor/presentacion/view/RutaDestinoView.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioConductorView.dart';
-import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/RutaDestinoViewModel.dart';
+import 'package:taxi_app/features/trip_tracking/viewmodels/trip_route_tracking_viewmodel.dart';
 
+import 'package:taxi_app/services/notification_service.dart';
 import 'package:taxi_app/services/route_cache_service.dart';
 
 /// Servicio que maneja la verificación de sesión y redirección
 /// a la pantalla correspondiente según el estado del usuario
 class AuthService {
   AuthService();
+
+  bool _activeSolicitudNotificationShown = false;
 
   /// Determina la pantalla inicial según el estado de autenticación
   /// y las solicitudes activas del usuario
@@ -33,7 +32,8 @@ class AuthService {
       final solicitudActivaCliente = _getSolicitudActivaCliente(prefs);
       final solicitudActivaConductor = _getSolicitudActivaConductor(prefs);
       final activeFromSession = await SessionHelper.getActiveSolicitud();
-      final activeFromRouteCache = await RouteCacheService.getActiveSolicitudId();
+      final activeFromRouteCache =
+          await RouteCacheService.getActiveSolicitudId();
 
       // Verificar autenticación
       final currentUser = FirebaseAuth.instance.currentUser;
@@ -44,11 +44,17 @@ class AuthService {
       if (currentUser != null) {
         try {
           final uid = currentUser.uid;
-          final conductorDoc = await FirebaseFirestore.instance.collection('conductor').doc(uid).get();
+          final conductorDoc = await FirebaseFirestore.instance
+              .collection('conductor')
+              .doc(uid)
+              .get();
           if (conductorDoc.exists) {
             role = 'conductor';
           } else {
-            final clienteDoc = await FirebaseFirestore.instance.collection('cliente').doc(uid).get();
+            final clienteDoc = await FirebaseFirestore.instance
+                .collection('cliente')
+                .doc(uid)
+                .get();
             if (clienteDoc.exists) role = 'cliente';
           }
         } catch (_) {}
@@ -58,13 +64,16 @@ class AuthService {
       String? candidateSolicitudId;
       if (activeFromSession != null && activeFromSession.isNotEmpty) {
         candidateSolicitudId = activeFromSession;
-      } else if (activeFromRouteCache != null && activeFromRouteCache.isNotEmpty) {
+      } else if (activeFromRouteCache != null &&
+          activeFromRouteCache.isNotEmpty) {
         candidateSolicitudId = activeFromRouteCache;
       } else if (role == 'conductor') {
         candidateSolicitudId = solicitudActivaConductor;
       } else {
         candidateSolicitudId = solicitudActivaCliente;
       }
+
+      final currentUid = currentUser?.uid;
 
       // Si el usuario está autenticado
       if (currentUser != null || isLogged) {
@@ -76,6 +85,27 @@ class AuthService {
           );
           if (screen != null) {
             return screen;
+          }
+        }
+
+        // 1.1) Fallback: rehidratar solicitud activa desde Firestore si no hay cache local
+        if (currentUid != null && currentUid.isNotEmpty) {
+          final fromFirestore = await _findActiveSolicitudIdForUser(
+            uid: currentUid,
+            role: role,
+          );
+          if (fromFirestore != null && fromFirestore.isNotEmpty) {
+            try {
+              await SessionHelper.setActiveSolicitud(fromFirestore);
+            } catch (_) {}
+
+            final screen = await _buildScreenForActiveSolicitud(
+              solicitudId: fromFirestore,
+              role: role,
+            );
+            if (screen != null) {
+              return screen;
+            }
           }
         }
 
@@ -123,15 +153,13 @@ class AuthService {
   }
 
   /// Retorna la pantalla correspondiente para un usuario autenticado
-  Widget _getAuthenticatedUserScreen({
-    required String? role,
-  }) {
+  Widget _getAuthenticatedUserScreen({required String? role}) {
     if (role == 'conductor') {
       // Usuario conductor sin solicitud activa
       return const InicioConductor();
     } else {
       // Usuario cliente (rol == 'cliente' o null) sin solicitud activa
-      return const InicioClienteView();
+      return const HomeClienteView();
     }
   }
 
@@ -147,7 +175,9 @@ class AuthService {
           .get();
 
       if (!doc.exists) {
-        try { await SessionHelper.clearActiveSolicitud(); } catch (_) {}
+        try {
+          await SessionHelper.clearActiveSolicitud();
+        } catch (_) {}
         return null;
       }
 
@@ -159,8 +189,12 @@ class AuthService {
           .toLowerCase();
 
       // No restaurar si está completada o cancelada
-      if (estado.contains('complet') || estado.contains('cancel') || estado.contains('finaliz')) {
-        try { await SessionHelper.clearActiveSolicitud(); } catch (_) {}
+      if (estado.contains('complet') ||
+          estado.contains('cancel') ||
+          estado.contains('finaliz')) {
+        try {
+          await SessionHelper.clearActiveSolicitud();
+        } catch (_) {}
         return null;
       }
 
@@ -170,39 +204,43 @@ class AuthService {
       String? conductorId;
       final rawConductor = data['conductor'];
       if (rawConductor is Map) {
-        conductorId = (rawConductor['id'] ??
-                rawConductor['uid'] ??
-                rawConductor['conductorId'] ??
-                rawConductor['driverId'])
-            ?.toString();
+        conductorId =
+            (rawConductor['id'] ??
+                    rawConductor['uid'] ??
+                    rawConductor['conductorId'] ??
+                    rawConductor['driverId'])
+                ?.toString();
       } else {
-        conductorId = (data['conductorId'] ??
-                data['conductor_id'] ??
-                data['assignedTo'] ??
-                data['driverId'])
-            ?.toString();
+        conductorId =
+            (data['conductorId'] ??
+                    data['conductor_id'] ??
+                    data['assignedTo'] ??
+                    data['driverId'])
+                ?.toString();
       }
 
       String? clienteId;
       final rawCliente = data['cliente'];
       if (rawCliente is Map) {
-        clienteId = (rawCliente['id'] ??
-                rawCliente['uid'] ??
-                rawCliente['clienteId'])
-            ?.toString();
+        clienteId =
+            (rawCliente['id'] ?? rawCliente['uid'] ?? rawCliente['clienteId'])
+                ?.toString();
       } else {
         clienteId = (data['clienteId'] ?? data['userId'] ?? data['cliente_id'])
             ?.toString();
       }
 
       final isCurrentDriver =
-          conductorId != null && currentUid != null && currentUid == conductorId;
+          conductorId != null &&
+          currentUid != null &&
+          currentUid == conductorId;
       final isCurrentClient =
           clienteId != null && currentUid != null && currentUid == clienteId;
 
       // Conductor: rol explícito o coincide con el asignado
       if (role == 'conductor' || isCurrentDriver) {
-        final conductorInProgress = estado.contains('progr') ||
+        final conductorInProgress =
+            estado.contains('progr') ||
             estado.contains('en_progr') ||
             estado.contains('enruta') ||
             estado.contains('viaj') ||
@@ -210,81 +248,42 @@ class AuthService {
             estado.contains('encam');
 
         if (conductorInProgress) {
-          // intentar obtener ubicación de destino si está disponible en el documento
-          LatLng? destino;
-          try {
-            final rawDestino = data['destino'] ?? data['destination'];
-            if (rawDestino is Map) {
-              final u = (rawDestino['ubicacion'] ?? rawDestino);
-              if (u is Map) {
-                final lat = (u['lat'] ?? u['latitude'] ?? u['latitud']);
-                final lng = (u['lng'] ?? u['longitude'] ?? u['longitud']);
-                if (lat != null && lng != null) {
-                  destino = LatLng((lat as num).toDouble(), (lng as num).toDouble());
-                }
-              }
-            }
-          } catch (_) {}
-
-          return ChangeNotifierProvider(
-            create: (_) => RutaDestinoViewModel(),
-            child: RutaDestino(idSolicitud: solicitudId),
+          return TripRouteTrackingScreen(
+            solicitudId: solicitudId,
+            currentUserId: currentUid ?? conductorId ?? '',
+            tipoUsuario: TipoUsuarioTracking.conductor,
           );
         }
         // Try to restore cached route data to preserve UI state after reload (non in-progress)
         try {
           final cache = await RouteCacheService.loadForSolicitud(solicitudId);
           if (cache != null) {
-            LatLng? clientLoc;
-            if (cache.clientLat != null && cache.clientLng != null) {
-              clientLoc = LatLng(cache.clientLat!, cache.clientLng!);
-            }
-            return RutaConductor(
-              idSolicitud: solicitudId,
-            );
+            return RutaConductor(idSolicitud: solicitudId);
           }
         } catch (_) {}
 
-        return RutaConductor(
-          idSolicitud: solicitudId,
-        );
+        return RutaConductor(idSolicitud: solicitudId);
       }
 
       // Cliente: rol explícito, rol desconocido o coincide con el cliente
       if (role == 'cliente' || role == null || isCurrentClient) {
-        final inProgress = estado.contains('progr') ||
-          estado.contains('en_progr') ||
-          estado.contains('enruta') ||
-          estado.contains('viaj') ||
-          // Variantes comunes de "en camino"
-          estado.contains('camino') ||
-          estado.contains('encam');
+        final estadoNormalizado = _normalizeEstadoCliente(estado);
+        if (_isSolicitudActivaCliente(estadoNormalizado)) {
+          await _notifyActiveSolicitudOnAppOpen();
+        }
 
-        if (inProgress) {
-          // intentar obtener ubicación de destino si está disponible en el documento
-          LatLng? destino;
-          try {
-            final rawDestino = data['destino'] ?? data['destination'];
-            if (rawDestino is Map) {
-              final u = (rawDestino['ubicacion'] ?? rawDestino);
-              if (u is Map) {
-                final lat = (u['lat'] ?? u['latitude'] ?? u['latitud']);
-                final lng = (u['lng'] ?? u['longitude'] ?? u['longitud']);
-                if (lat != null && lng != null) {
-                  destino = LatLng((lat as num).toDouble(), (lng as num).toDouble());
-                }
-              }
-            }
-          } catch (_) {}
-
-          return ChangeNotifierProvider(
-            create: (_) => Rutaclientedestinoviewmodel(),
-            child: RutaClienteDestino(idSolicitud: solicitudId),
+        if (estadoNormalizado == 'en_ruta') {
+          return TripRouteTrackingScreen(
+            solicitudId: solicitudId,
+            currentUserId: currentUid ?? clienteId ?? '',
+            tipoUsuario: TipoUsuarioTracking.cliente,
           );
         }
 
-        return RutaCliente(
-          idSolicitud: solicitudId,
+        return TripTrackingScreen(
+          solicitudId: solicitudId,
+          currentUserId: currentUid ?? clienteId ?? '',
+          cancelledBy: 'cliente',
         );
       }
     } catch (_) {}
@@ -361,8 +360,10 @@ class AuthService {
     String? role,
   }) async {
     try {
-      final credential = await FirebaseAuth.instance
-          .signInWithEmailAndPassword(email: email, password: password);
+      final credential = await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
 
       final user = credential.user;
       if (user != null) {
@@ -415,5 +416,129 @@ class AuthService {
     } catch (_) {
       return null;
     }
+  }
+
+  String _normalizeEstadoCliente(String rawEstado) {
+    final raw = rawEstado.toLowerCase().trim();
+    final compact = raw.replaceAll('_', ' ').replaceAll('-', ' ');
+
+    if (compact.contains('en ruta') || compact.contains('enruta')) {
+      return 'en_ruta';
+    }
+    if (compact.contains('en camino') || compact.contains('encam')) {
+      return 'en_camino';
+    }
+    if (compact.contains('en espera') || compact.contains('enespera')) {
+      return 'en_espera';
+    }
+    if (compact.contains('cancel') || compact.contains('complet')) {
+      return 'cerrada';
+    }
+    if (compact.contains('asignado') || compact.contains('assigned')) {
+      return 'asignado';
+    }
+    return compact;
+  }
+
+  bool _isSolicitudActivaCliente(String estadoNormalizado) {
+    return estadoNormalizado == 'asignado' ||
+        estadoNormalizado == 'en_espera' ||
+        estadoNormalizado == 'en_camino' ||
+        estadoNormalizado == 'en_ruta';
+  }
+
+  Future<String?> _findActiveSolicitudIdForUser({
+    required String uid,
+    required String? role,
+  }) async {
+    final queries = <String>[];
+
+    if (role == 'conductor') {
+      queries.addAll(const [
+        'conductor.id',
+        'conductor.uid',
+        'conductorId',
+        'conductor_id',
+        'assignedTo',
+        'driverId',
+      ]);
+    } else {
+      queries.addAll(const [
+        'cliente.id',
+        'cliente.uid',
+        'clienteId',
+        'cliente_id',
+        'userId',
+      ]);
+    }
+
+    // Si el rol es ambiguo, intentamos ambos lados para maximizar restauracion.
+    if (role == null) {
+      queries.addAll(const [
+        'conductor.id',
+        'conductor.uid',
+        'conductorId',
+        'conductor_id',
+        'assignedTo',
+        'driverId',
+      ]);
+    }
+
+    for (final field in queries.toSet()) {
+      final found = await _findActiveSolicitudByField(field: field, uid: uid);
+      if (found != null && found.isNotEmpty) {
+        return found;
+      }
+    }
+
+    return null;
+  }
+
+  Future<String?> _findActiveSolicitudByField({
+    required String field,
+    required String uid,
+  }) async {
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('solicitudes')
+          .where(field, isEqualTo: uid)
+          .limit(20)
+          .get();
+
+      for (final doc in snapshot.docs) {
+        final data = doc.data();
+        final estado = (data['status'] ?? data['estado'] ?? '')
+            .toString()
+            .toLowerCase();
+
+        if (_isEstadoSolicitudCerrado(estado)) {
+          continue;
+        }
+
+        return doc.id;
+      }
+    } catch (_) {}
+
+    return null;
+  }
+
+  bool _isEstadoSolicitudCerrado(String estado) {
+    return estado.contains('complet') ||
+        estado.contains('cancel') ||
+        estado.contains('finaliz');
+  }
+
+  Future<void> _notifyActiveSolicitudOnAppOpen() async {
+    if (_activeSolicitudNotificationShown) return;
+    _activeSolicitudNotificationShown = true;
+
+    try {
+      await NotificationService.instance.init();
+      await NotificationService.instance.showNotification(
+        DateTime.now().millisecondsSinceEpoch % 100000,
+        'Solicitud activa',
+        'Solicitud activa, el conductor ya viene en camino.',
+      );
+    } catch (_) {}
   }
 }

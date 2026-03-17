@@ -233,9 +233,11 @@ class FirebaseService {
   /// Actualiza el estado a 'completado' y registra la hora de finalización.
   Future<void> finalizarViaje(String solicitudId) async {
     try {
+
       await _firestore.collection('solicitudes').doc(solicitudId).update({
         'estado': 'completado',
         'completedAt': FieldValue.serverTimestamp(),
+        'fecha de terminacion': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
     } catch (e) {

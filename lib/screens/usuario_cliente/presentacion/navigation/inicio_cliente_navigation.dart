@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/location_model.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/view/buscar_destino_view.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/DetailsSolicitud.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/MapaPreviewView.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/view/SeleccionDestino.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/view/ayuda_view.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/view/configuracion_aplicacion_view.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/historial_viaje_cliente.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/view/notificaciones_view.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/view/seguridad_view.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/view/soporte_view.dart';
 import 'package:taxi_app/widgets/perfil.dart';
 
 class InicioClienteNavigation {
@@ -41,13 +46,43 @@ class InicioClienteNavigation {
     ).push(MaterialPageRoute(builder: (_) => const HistorialCliente()));
   }
 
+  static Future<void> irAConfiguracion(BuildContext context) {
+    return Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const ConfiguracionAplicacionView()),
+    );
+  }
+
+  static Future<void> irASeguridad(BuildContext context) {
+    return Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const SeguridadView()));
+  }
+
+  static Future<void> irAAyuda(BuildContext context) {
+    return Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const AyudaView()));
+  }
+
+  static Future<void> irASoporte(BuildContext context) {
+    return Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const SoporteView()));
+  }
+
+  static Future<void> irANotificaciones(BuildContext context) {
+    return Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const NotificacionesView()));
+  }
+
   static Future<void> irADestinoSeleccion(
     BuildContext context,
     LatLng? currentLocation,
   ) {
     return Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => DestinoSeleccionView(currentLocation: currentLocation),
+        builder: (_) => BuscarDestinoView(currentLocation: currentLocation),
       ),
     );
   }

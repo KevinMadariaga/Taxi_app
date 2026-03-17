@@ -11,7 +11,9 @@ import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/MapaClienteModel.dart';
 
 class InicioClienteView extends StatefulWidget {
-  const InicioClienteView({super.key});
+  const InicioClienteView({super.key, this.authUid});
+
+  final String? authUid;
 
   @override
   State<InicioClienteView> createState() => _InicioClienteViewState();
@@ -22,7 +24,7 @@ class _InicioClienteViewState extends State<InicioClienteView> {
   late InicioClienteViewModel vm;
   late VoidCallback _vmListener;
   GoogleMapController? _mapController;
-  int _selectedIndex = 0;
+  int _selectedIndex = 1;
   final PageController _carouselController = PageController(
     viewportFraction: 0.98,
   );
@@ -45,6 +47,9 @@ class _InicioClienteViewState extends State<InicioClienteView> {
     _vmListener = () => setState(() {});
     vm.addListener(_vmListener);
     vm.init();
+    if (widget.authUid != null && widget.authUid!.isNotEmpty) {
+      vm.hydrateFromUid(widget.authUid!);
+    }
     _loadCurrentLocation();
   }
 
@@ -151,7 +156,7 @@ class _InicioClienteViewState extends State<InicioClienteView> {
             SizedBox(width: 12 * scale),
             Expanded(
               child: Text(
-                'Busca taxi',
+                '¿A dónde vamos?',
                 style: TextStyle(
                   color: AppColores.primary,
                   fontSize: 15 * scale,
@@ -360,16 +365,16 @@ class _InicioClienteViewState extends State<InicioClienteView> {
         onTap: _onBottomNavTap,
         items: const [
           BottomNavigationBarItem(
-            icon: Icon(Icons.directions_car),
-            label: 'Viajes',
+            icon: Icon(Icons.menu),
+            label: 'Mas opciones',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.calendar_today),
-            label: 'Historial',
+            icon: Icon(Icons.map_outlined),
+            label: 'Mapa',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.person_outline),
-            label: 'Tú',
+            label: 'Perfil',
           ),
         ],
       ),
@@ -432,15 +437,85 @@ class _InicioClienteViewState extends State<InicioClienteView> {
   }
 
   Future<void> _onBottomNavTap(int index) async {
-    if (index == 1) {
-      await InicioClienteNavigation.irAHistorial(context);
-      if (!mounted) return;
+    if (index == 0) {
       setState(() => _selectedIndex = 0);
+      await _showMoreOptionsSheet();
+      if (!mounted) return;
+      setState(() => _selectedIndex = 1);
     } else if (index == 2) {
+      setState(() => _selectedIndex = 2);
       await _navigateToPerfil();
+      if (!mounted) return;
+      setState(() => _selectedIndex = 1);
     } else {
       setState(() => _selectedIndex = index);
     }
+  }
+
+  Future<void> _showMoreOptionsSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: Icon(Icons.security),
+                title: Text('Seguridad'),
+                onTap: () async {
+                  Navigator.of(ctx).pop();
+                  await InicioClienteNavigation.irASeguridad(context);
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.settings),
+                title: Text('Configuracion'),
+                onTap: () async {
+                  Navigator.of(ctx).pop();
+                  await InicioClienteNavigation.irAConfiguracion(context);
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.help_outline),
+                title: Text('Ayuda'),
+                onTap: () async {
+                  Navigator.of(ctx).pop();
+                  await InicioClienteNavigation.irAAyuda(context);
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.support_agent),
+                title: Text('Soporte'),
+                onTap: () async {
+                  Navigator.of(ctx).pop();
+                  await InicioClienteNavigation.irASoporte(context);
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.notifications_none),
+                title: Text('Notificaciones'),
+                onTap: () async {
+                  Navigator.of(ctx).pop();
+                  await InicioClienteNavigation.irANotificaciones(context);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.history),
+                title: const Text('Historial'),
+                onTap: () async {
+                  Navigator.of(ctx).pop();
+                  await InicioClienteNavigation.irAHistorial(context);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   Future<bool> _onWillPop() async {

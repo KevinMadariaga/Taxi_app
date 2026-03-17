@@ -59,12 +59,17 @@ void onStart(ServiceInstance service) async {
 
   service.on("startTracking").listen((event) async {
 
-    final userId = event?["userId"];
-    final userType = event?["userType"];
+    final userId = event?["userId"]?.toString();
+    final userType = event?["userType"]?.toString();
+    final solicitudId = event?["solicitudId"]?.toString();
+
+    if (userId == null || userId.isEmpty) return;
+    if (userType == null || userType.isEmpty) return;
 
     await tracking.iniciarTrackingConEnvio(
       userId: userId,
       userType: userType,
+      solicitudId: solicitudId,
     );
 
   });

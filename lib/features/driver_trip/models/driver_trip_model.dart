@@ -1,0 +1,98 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+class DriverTripParty {
+  const DriverTripParty({
+    required this.id,
+    required this.name,
+    required this.address,
+    required this.photoUrl,
+    required this.lat,
+    required this.lng,
+  });
+
+  final String id;
+  final String name;
+  final String address;
+  final String photoUrl;
+  final double? lat;
+  final double? lng;
+
+  bool get hasLocation => lat != null && lng != null;
+
+  factory DriverTripParty.fromMap(Map<String, dynamic>? map) {
+    if (map == null) {
+      return const DriverTripParty(
+        id: '',
+        name: '',
+        address: '',
+        photoUrl: '',
+        lat: null,
+        lng: null,
+      );
+    }
+
+    final ubicacion = map['ubicacion'];
+    double? lat;
+    double? lng;
+    String address = '';
+
+    if (ubicacion is Map<String, dynamic>) {
+      lat = (ubicacion['lat'] as num?)?.toDouble();
+      lng = (ubicacion['lng'] as num?)?.toDouble();
+      address = (ubicacion['address'] ?? '').toString();
+    }
+
+    lat ??= (map['lat'] as num?)?.toDouble();
+    lng ??= (map['lng'] as num?)?.toDouble();
+
+    final rawPhoto =
+        map['foto'] ?? map['photo'] ?? map['photoUrl'] ?? map['imagen'];
+    String photo = '';
+    if (rawPhoto is String) {
+      photo = rawPhoto;
+    } else if (rawPhoto is Map<String, dynamic>) {
+      photo = (rawPhoto['url'] ?? rawPhoto['link'] ?? '').toString();
+    }
+
+    return DriverTripParty(
+      id: (map['id'] ?? map['uid'] ?? '').toString(),
+      name: (map['nombre'] ?? map['name'] ?? '').toString(),
+      address: address,
+      photoUrl: photo,
+      lat: lat,
+      lng: lng,
+    );
+  }
+}
+
+class DriverTripModel {
+  const DriverTripModel({
+    required this.id,
+    required this.status,
+    required this.client,
+    required this.driver,
+    required this.updatedAt,
+  });
+
+  final String id;
+  final String status;
+  final DriverTripParty client;
+  final DriverTripParty driver;
+  final DateTime? updatedAt;
+
+  factory DriverTripModel.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data() ?? <String, dynamic>{};
+    final rawStatus = data['estado'];
+    final rawUpdated = data['updatedAt'];
+
+    return DriverTripModel(
+      id: doc.id,
+      status: (rawStatus ?? '').toString().toLowerCase(),
+      client: DriverTripParty.fromMap(data['cliente'] as Map<String, dynamic>?),
+      driver: DriverTripParty.fromMap(
+        data['conductor'] as Map<String, dynamic>?,
+      ),
+      updatedAt: rawUpdated is Timestamp ? rawUpdated.toDate() : null,
+    );
+  }
+}

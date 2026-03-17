@@ -79,19 +79,20 @@ class InicioClienteViewModel extends ChangeNotifier {
 
     _conductoresSub?.cancel();
     _conductoresSub = FirebaseFirestore.instance
-        .collection('conductores_conectados')
+        .collection('conductores')
+        .where('activos', isEqualTo: true)
         .snapshots()
         .listen(
           (snapshot) {
             final markers = <Marker>{};
             for (final doc in snapshot.docs) {
               final data = doc.data();
-              if (data['ubicacion'] is GeoPoint) {
-                final geo = data['ubicacion'] as GeoPoint;
+              final geo = _extractConductorLocation(data);
+              if (geo != null) {
                 markers.add(
                   Marker(
                     markerId: MarkerId(doc.id),
-                    position: LatLng(geo.latitude, geo.longitude),
+                    position: geo,
                     icon: _taxiIcon ?? BitmapDescriptor.defaultMarker,
                     infoWindow: const InfoWindow(title: 'Taxi disponible'),
                   ),
@@ -117,16 +118,34 @@ class InicioClienteViewModel extends ChangeNotifier {
     if (!_disposed) notifyListeners();
 
     try {
-      final snapshot = await FirebaseFirestore.instance
-          .collection('ubicaciones')
-          .where('userId', isEqualTo: user.uid)
+      final userFavSnapshot = await FirebaseFirestore.instance
+          .collection('usuarios')
+          .doc(user.uid)
+          .collection('favoritos')
           .get();
+
+      QuerySnapshot<Map<String, dynamic>> snapshot = userFavSnapshot;
+
+      // Compatibilidad con estructura legacy mientras se migra la data.
+      if (snapshot.docs.isEmpty) {
+        snapshot = await FirebaseFirestore.instance
+            .collection('ubicaciones')
+            .where('userId', isEqualTo: user.uid)
+            .get();
+      }
 
       _favoritos = snapshot.docs.map((doc) {
         final data = doc.data();
         final nombre = (data['nombre'] ?? '') as String;
         final direccion = (data['direccion'] ?? '') as String;
-        final geo = data['ubicacion'] as GeoPoint;
+        final geo = data['ubicacion'] as GeoPoint?;
+        if (geo == null) {
+          return UbicacionResultado(
+            location: null,
+            nombre: nombre.isNotEmpty ? nombre : 'Favorito',
+            direccion: direccion.isNotEmpty ? direccion : nombre,
+          );
+        }
         return UbicacionResultado(
           location: LatLng(geo.latitude, geo.longitude),
           nombre: nombre.isNotEmpty ? nombre : 'Favorito',
@@ -166,16 +185,31 @@ class InicioClienteViewModel extends ChangeNotifier {
   Future<String> _obtenerNombreCliente(User user) async {
     String name = 'Cliente';
     try {
-      // 1. Intentar leer el nombre desde la colección 'cliente' en Firestore
-      final doc = await FirebaseFirestore.instance
-          .collection('cliente')
+      // 0. Intentar leer primero desde la nueva coleccion unificada 'usuarios'.
+      final userDoc = await FirebaseFirestore.instance
+          .collection('usuarios')
           .doc(user.uid)
           .get();
-      if (doc.exists) {
-        final data = doc.data();
-        final dynamic maybeName = data != null ? data['nombre'] : null;
+      if (userDoc.exists) {
+        final userData = userDoc.data();
+        final dynamic maybeName = userData != null ? userData['nombre'] : null;
         if (maybeName is String && maybeName.trim().isNotEmpty) {
           name = maybeName.trim();
+        }
+      }
+
+      // 1. Intentar leer el nombre desde la colección 'cliente' en Firestore
+      if (name == 'Cliente') {
+        final doc = await FirebaseFirestore.instance
+            .collection('cliente')
+            .doc(user.uid)
+            .get();
+        if (doc.exists) {
+          final data = doc.data();
+          final dynamic maybeName = data != null ? data['nombre'] : null;
+          if (maybeName is String && maybeName.trim().isNotEmpty) {
+            name = maybeName.trim();
+          }
         }
       }
       // 2. Si no hay nombre en Firestore, usar cache/displayName/email
@@ -197,6 +231,24 @@ class InicioClienteViewModel extends ChangeNotifier {
       debugPrint('Error leyendo nombre de cliente: $e');
     }
     return name;
+  }
+
+  Future<void> hydrateFromUid(String uid) async {
+    _clientId = uid;
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('usuarios')
+          .doc(uid)
+          .get();
+      if (doc.exists) {
+        final data = doc.data() ?? <String, dynamic>{};
+        final nombre = (data['nombre'] ?? '').toString().trim();
+        if (nombre.isNotEmpty) {
+          _clientName = nombre;
+        }
+      }
+    } catch (_) {}
+    if (!_disposed) notifyListeners();
   }
 
   Future<void> _cargarClienteDesdeCache() async {
@@ -307,5 +359,30 @@ class InicioClienteViewModel extends ChangeNotifier {
   void updateSearch(String value) {
     search = value;
     if (!_disposed) notifyListeners();
+  }
+
+  LatLng? _extractConductorLocation(Map<String, dynamic> data) {
+    final ubicacion = data['ubicacion'];
+    if (ubicacion is GeoPoint) {
+      return LatLng(ubicacion.latitude, ubicacion.longitude);
+    }
+
+    if (ubicacion is Map) {
+      final lat = (ubicacion['lat'] ?? ubicacion['latitude']) as num?;
+      final lng =
+          (ubicacion['lng'] ?? ubicacion['longitude'] ?? ubicacion['longitud'])
+              as num?;
+      if (lat != null && lng != null) {
+        return LatLng(lat.toDouble(), lng.toDouble());
+      }
+    }
+
+    final lat = (data['lat'] ?? data['latitude']) as num?;
+    final lng = (data['lng'] ?? data['longitude'] ?? data['longitud']) as num?;
+    if (lat != null && lng != null) {
+      return LatLng(lat.toDouble(), lng.toDouble());
+    }
+
+    return null;
   }
 }

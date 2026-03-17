@@ -51,7 +51,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyDsf6lGUchlE9icU_g-qZrtA4mV2WJox0Y',
-    appId: '1:1011373106222:android:faa4db22472c3246f56bbf',
+    appId: '1:1011373106222:android:f5f0573a658779ccf56bbf',
     messagingSenderId: '1011373106222',
     projectId: 'aplicacion-taxi-fd0a7',
     storageBucket: 'aplicacion-taxi-fd0a7.firebasestorage.app',

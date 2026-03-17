@@ -11,7 +11,7 @@ import 'package:taxi_app/screens/usuario_cliente/presentacion/model/location_mod
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/DetailsSolicitud.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/MapaPreviewView.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/SeleccionaUbicacionEnMapaView.dart';
-import 'InicioClienteView.dart';
+import 'home_cliente_view.dart';
 
 class DestinoSeleccionView extends StatefulWidget {
   final LatLng? currentLocation;
@@ -169,8 +169,9 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
     if (tipo == 'Favorito') {
       // Mostrar desplegable de favoritos guardados y opción de agregar
       final snapshot = await FirebaseFirestore.instance
-          .collection('ubicaciones')
-          .where('userId', isEqualTo: user.uid)
+          .collection('usuarios')
+          .doc(user.uid)
+          .collection('favoritos')
           .where('tipo', isEqualTo: 'Favorito')
           .get();
       final favoritos = snapshot.docs;
@@ -240,8 +241,9 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
     // Casa y Trabajo: lógica anterior
     if (tipo == 'Casa' || tipo == 'Trabajo') {
       final snapshot = await FirebaseFirestore.instance
-          .collection('ubicaciones')
-          .where('userId', isEqualTo: user.uid)
+          .collection('usuarios')
+          .doc(user.uid)
+          .collection('favoritos')
           .where('tipo', isEqualTo: tipo)
           .limit(1)
           .get();
@@ -304,14 +306,23 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
       direccion =
           '${loc.latitude.toStringAsFixed(6)}, ${loc.longitude.toStringAsFixed(6)}';
     }
-    await FirebaseFirestore.instance.collection('ubicaciones').add({
+    final payload = {
       'userId': user.uid,
       'nombre': nombrePersonalizado ?? tipo,
       'direccion': direccion,
       'ubicacion': GeoPoint(loc.latitude, loc.longitude),
       'createdAt': FieldValue.serverTimestamp(),
       'tipo': tipo,
-    });
+    };
+
+    await FirebaseFirestore.instance
+        .collection('usuarios')
+        .doc(user.uid)
+        .collection('favoritos')
+        .add(payload);
+
+    // Compatibilidad con consultas legacy y autocompletado existente.
+    await FirebaseFirestore.instance.collection('ubicaciones').add(payload);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -538,8 +549,9 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
     if (user == null) return;
 
     final snapshot = await FirebaseFirestore.instance
-        .collection('ubicaciones')
-        .where('userId', isEqualTo: user.uid)
+      .collection('usuarios')
+      .doc(user.uid)
+      .collection('favoritos')
         .where('tipo', isEqualTo: tipo)
         .limit(1)
         .get();
@@ -1066,13 +1078,22 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
             '${loc.latitude.toStringAsFixed(6)}, ${loc.longitude.toStringAsFixed(6)}';
       }
 
-      await FirebaseFirestore.instance.collection('ubicaciones').add({
+      final payload = {
         'userId': user.uid,
         'nombre': etiqueta,
         'direccion': direccion,
         'ubicacion': GeoPoint(loc.latitude, loc.longitude),
         'createdAt': FieldValue.serverTimestamp(),
-      });
+        'tipo': 'Favorito',
+      };
+
+      await FirebaseFirestore.instance
+          .collection('usuarios')
+          .doc(user.uid)
+          .collection('favoritos')
+          .add(payload);
+
+      await FirebaseFirestore.instance.collection('ubicaciones').add(payload);
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1088,7 +1109,7 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
 
   void _irAInicioCliente() {
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const InicioClienteView()),
+      MaterialPageRoute(builder: (_) => const HomeClienteView()),
     );
   }
 
@@ -1171,8 +1192,9 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
     if (user == null) return;
 
     final snapshot = await FirebaseFirestore.instance
-        .collection('ubicaciones')
-        .where('userId', isEqualTo: user.uid)
+      .collection('usuarios')
+      .doc(user.uid)
+      .collection('favoritos')
         .where('tipo', isEqualTo: 'Favorito')
         .get();
     final favoritos = snapshot.docs;

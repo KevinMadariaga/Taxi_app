@@ -1,22 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:taxi_app/helper/firebase_helper.dart';
 import 'package:taxi_app/helper/permisos_helper.dart';
-import 'package:taxi_app/screens/splash_screen.dart';
-import 'package:taxi_app/screens/introductorio_screen.dart';
+import 'package:taxi_app/core/constants/app_constants.dart';
+import 'package:taxi_app/core/theme/app_theme.dart';
+import 'package:taxi_app/core/utils/app_dependencies.dart';
+import 'package:taxi_app/routes/app_routes.dart';
 import 'package:taxi_app/screens/usuario_cliente/data/Auth.dart';
 import 'package:taxi_app/screens/usuario_cliente/data/firebaseDB.dart';
 import 'package:taxi_app/models/AuthModel.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/RutaClienteViewModel.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/RutaConductorViewModel.dart';
-import 'package:taxi_app/services/auth_service.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:taxi_app/services/background_tracking_service.dart';
 import 'package:taxi_app/services/notificacion_servicio.dart';
 import 'package:taxi_app/services/tracking_service.dart';
-import 'package:taxi_app/theme/app_theme.dart';
 
 const SystemUiOverlayStyle _globalSystemOverlayStyle = SystemUiOverlayStyle(
   statusBarColor: Colors.transparent,
@@ -30,51 +31,41 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   SystemChrome.setSystemUIOverlayStyle(_globalSystemOverlayStyle);
-  await _initializeAppServices();
-  await initializeBackgroundService();
-  final initialScreen = await _getInitialScreen();
-  final prefs = await SharedPreferences.getInstance();
-  final seenOnboarding = prefs.getBool('seenOnboarding') ?? false;
-  runApp(
-    MyApp(
-      initialScreen: initialScreen,
-      prefs: prefs,
-      seenOnboarding: seenOnboarding,
-    ),
-  );
+  await _initializeCoreServices();
+
+  final dependencies = AppDependencies.initialize();
+  runApp(MyApp(dependencies: dependencies));
 }
 
 /// Initializes Firebase, permissions, and notifications.
-Future<void> _initializeAppServices() async {
+Future<void> _initializeCoreServices() async {
   await FirebaseHelper.initializeFirebase();
+
+  if (!kReleaseMode && AppConstants.phoneAuthTestMode) {
+    // In non-release environments this avoids Play Integrity/SafetyNet blocks
+    // while phone auth is being configured in Firebase Console.
+    await FirebaseAuth.instance.setSettings(
+      appVerificationDisabledForTesting: true,
+    );
+
+    if (kDebugMode) {
+      debugPrint('FirebaseAuth test app verification is enabled (non-release).');
+    }
+  }
+
   await PermissionsHelper.requestAllPermissions();
   await NotificacionesServicio.instance.init();
-  await initializeLocationNotificationChannel(); // Canal de notificación para tracking
-  await initializeTrackingNotificationChannel(); // Canal de notificación para background service
+  await initializeLocationNotificationChannel();
+  await initializeTrackingNotificationChannel();
+  await initializeBackgroundService();
 }
-
-/// Determines the initial screen based on authentication state.
-Future<Widget> _getInitialScreen() async {
-  final authService = AuthService();
-  return await authService.determineInitialScreen();
-}
-
-/// Global navigator key for navigation outside widget context.
-final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 /// Root widget for the Taxi App.
 /// Sets up providers, theming, and navigation.
 class MyApp extends StatelessWidget {
-  final Widget initialScreen;
-  final SharedPreferences prefs;
-  final bool seenOnboarding;
+  const MyApp({super.key, required this.dependencies});
 
-  const MyApp({
-    super.key,
-    required this.initialScreen,
-    required this.prefs,
-    required this.seenOnboarding,
-  });
+  final AppDependencies dependencies;
 
   @override
   Widget build(BuildContext context) {
@@ -91,33 +82,21 @@ class MyApp extends StatelessWidget {
             ),
             ChangeNotifierProvider(create: (_) => RutaConductorViewModel()),
             ChangeNotifierProvider(create: (_) => Rutaclienteviewmodel()),
-
-            // Add more ViewModels here as needed
           ],
           child: MaterialApp(
             debugShowCheckedModeBanner: false,
-            title: 'Taxi Ya',
-            theme: AppTheme.lightTheme,
-            navigatorKey: navigatorKey,
+            title: AppConstants.appTitle,
+            theme: AppThemeConfig.lightTheme,
+            initialRoute: AppRoutes.splash,
+            onGenerateRoute: (settings) {
+              return AppRoutes.onGenerateRoute(settings, dependencies);
+            },
             builder: (context, child) {
               return AnnotatedRegion<SystemUiOverlayStyle>(
                 value: _globalSystemOverlayStyle,
                 child: child ?? const SizedBox.shrink(),
               );
             },
-            home: SplashScreen(
-              nextScreen: seenOnboarding
-                  ? initialScreen
-                  : LoginScreen(
-                      onFinish: () {
-                        // Mark onboarding as seen and navigate
-                        prefs.setBool('seenOnboarding', true);
-                        navigatorKey.currentState?.pushReplacement(
-                          MaterialPageRoute(builder: (_) => initialScreen),
-                        );
-                      },
-                    ),
-            ),
           ),
         );
       },

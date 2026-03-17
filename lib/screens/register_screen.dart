@@ -3,7 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../components/social_icon_button.dart';
 import '../services/google_sign_in_service.dart';
-import 'usuario_cliente/presentacion/view/InicioClienteView.dart';
+import 'usuario_cliente/presentacion/view/home_cliente_view.dart';
 import 'package:awesome_snackbar_content/awesome_snackbar_content.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -48,7 +48,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
           ),
         );
-        Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const InicioClienteView()));
+        Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const HomeClienteView()));
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al registrar con Google: $e')));
       } finally {
@@ -99,7 +99,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       }
 
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Registro guardado')));
-      Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const InicioClienteView()));
+      Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const HomeClienteView()));
     } on FirebaseAuthException catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Auth error: ${e.message}')));
     } catch (e) {

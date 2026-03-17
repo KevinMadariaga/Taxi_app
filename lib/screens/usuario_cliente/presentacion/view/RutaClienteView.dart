@@ -2,13 +2,15 @@ import 'dart:async';
 import 'dart:math' as Math;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:taxi_app/features/trip_tracking/viewmodels/trip_route_tracking_viewmodel.dart';
+import 'package:taxi_app/features/trip_tracking/views/trip_route_tracking_screen.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/InicioClienteView.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/view/ResumenClienteView.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/view/RutaClienteDestinoView.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/RutaClienteDestinoViewModel.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/RutaClienteViewModel.dart';
 import 'package:taxi_app/widgets/LoaderCancelado.dart';
 import 'package:taxi_app/widgets/MapaGoogle.dart';
@@ -87,6 +89,7 @@ class _RutaClienteState extends State<RutaCliente> with WidgetsBindingObserver {
   bool _enCaminoFlowHandled = false;
   bool _clienteConfirmoVoyEnCamino = false;
   bool _cancelNavigationHandled = false;
+  bool _completionNavigationHandled = false;
 
   bool _sameLatLng(LatLng? a, LatLng? b, {double epsilon = 0.000001}) {
     if (a == null && b == null) return true;
@@ -273,6 +276,7 @@ class _RutaClienteState extends State<RutaCliente> with WidgetsBindingObserver {
     if (!mounted || estadoRaw == null) return;
 
     final estado = estadoRaw.trim().toLowerCase();
+    final estadoCompacto = estado.replaceAll('_', ' ').replaceAll('-', ' ');
     final esCancelado = estado == 'cancelado' || estado == 'cancelada';
     if (esCancelado) {
       if (_cancelNavigationHandled) return;
@@ -296,6 +300,33 @@ class _RutaClienteState extends State<RutaCliente> with WidgetsBindingObserver {
         title: 'Solicitud cancelada',
         subtitle: 'Regresando al inicio...',
         icon: Icons.cancel_rounded,
+        clearStackOnNext: true,
+      );
+      return;
+    }
+
+    final esCompletado =
+        estadoCompacto.contains('completad') ||
+        estadoCompacto.contains('completed') ||
+        estadoCompacto.contains('finaliz');
+    if (esCompletado) {
+      if (_completionNavigationHandled) return;
+      _completionNavigationHandled = true;
+
+      _estadoSolicitudSub?.cancel();
+      _estadoSolicitudSub = null;
+
+      if (_enCaminoModalVisible && mounted) {
+        Navigator.of(context).pop();
+        _enCaminoModalVisible = false;
+      }
+
+      await navigateWithIntermediateLoader(
+        context: context,
+        nextBuilder: (_) => ResumenClienteView(solicitudId: widget.idSolicitud),
+        delay: const Duration(milliseconds: 1200),
+        title: 'Viaje completado',
+        subtitle: 'Preparando resumen del viaje...',
         clearStackOnNext: true,
       );
       return;
@@ -401,9 +432,10 @@ class _RutaClienteState extends State<RutaCliente> with WidgetsBindingObserver {
     if (!mounted) return;
     navigateWithIntermediateLoader(
       context: context,
-      nextBuilder: (context) => ChangeNotifierProvider(
-        create: (_) => Rutaclientedestinoviewmodel(),
-        child: RutaClienteDestino(idSolicitud: widget.idSolicitud),
+      nextBuilder: (context) => TripRouteTrackingScreen(
+        solicitudId: widget.idSolicitud,
+        currentUserId: FirebaseAuth.instance.currentUser?.uid ?? '',
+        tipoUsuario: TipoUsuarioTracking.cliente,
       ),
       title: 'Ruta confirmada',
       subtitle: 'Preparando el viaje al destino...',
@@ -897,7 +929,7 @@ class _EnCaminoCountdownSheetState extends State<_EnCaminoCountdownSheet> {
       await FirebaseFirestore.instance
           .collection('solicitudes')
           .doc(widget.idSolicitud)
-          .update({'estado': 'voy en camino'});
+          .update({'estado': 'en camino'});
 
       if (!mounted) return;
       Navigator.of(context).pop(_EnCaminoModalResult.continuar);

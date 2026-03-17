@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/features/phone_auth/screens/auth_phone_screen.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/registro_cliente_view.dart';
 import 'package:taxi_app/services/auth_service.dart';
 import '../services/google_sign_in_service.dart';
-import 'register_screen.dart';
 import 'package:awesome_snackbar_content/awesome_snackbar_content.dart';
 
 class HomeView extends StatefulWidget {
-  const HomeView({super.key});
+  const HomeView({super.key, VoidCallback? onLegacyFinish});
 
   @override
   State<HomeView> createState() => _HomeViewState();
@@ -88,6 +88,8 @@ class _HomeViewState extends State<HomeView> {
 
       // Guardar rol detectado en la sesión
       await authService.saveUserSession(role: role, isLoggedIn: true);
+
+      if (!mounted) return;
 
       // Mostrar snackbar de bienvenida
       ScaffoldMessenger.of(context).showSnackBar(
@@ -171,6 +173,8 @@ class _HomeViewState extends State<HomeView> {
       // Guardar rol detectado en la sesión
       await AuthService().saveUserSession(role: role, isLoggedIn: true);
 
+      if (!mounted) return;
+
       // Mostrar snackbar de bienvenida
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -228,7 +232,7 @@ class _HomeViewState extends State<HomeView> {
                         child: Image.asset(
                           'assets/img/taxi.png',
                           fit: BoxFit.contain,
-                          errorBuilder: (_, __, ___) => const Icon(
+                          errorBuilder: (context, error, stackTrace) => const Icon(
                             Icons.local_taxi,
                             size: 120,
                             color: Colors.black87,
@@ -307,6 +311,34 @@ class _HomeViewState extends State<HomeView> {
                           ),
                   ),
                 ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _isLoading
+                        ? null
+                        : () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const AuthPhoneScreen(),
+                              ),
+                            );
+                          },
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColores.textPrimary,
+                      side: const BorderSide(color: AppColores.buttonPrimary),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    icon: const Icon(Icons.sms_rounded),
+                    label: const Text(
+                      'Ingresar con numero telefonico',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 24),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -355,7 +387,10 @@ class _HomeViewState extends State<HomeView> {
 class _SocialIconButton extends StatelessWidget {
   final String asset;
   final VoidCallback onTap;
-  const _SocialIconButton({required this.asset, required this.onTap, Key? key}) : super(key: key);
+  const _SocialIconButton({
+    required this.asset,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
