@@ -58,6 +58,22 @@
       },
       "oauth_client": [
         {
+          "client_id": "1011373106222-ak6qavf5tna9l10lcp2prtlk15pe3ofq.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.taxiya.taxiapp",
+            "certificate_hash": "6dffd9d37c4aaec63f090b26b6e1851e76b20b76"
+          }
+        },
+        {
+          "client_id": "1011373106222-fknmapp6bfhrugcbgim7nbpte9n63gtq.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.taxiya.taxiapp",
+            "certificate_hash": "3d154fa270e5a3f7b6222c4a4e2a475d285d05d9"
+          }
+        },
+        {
           "client_id": "1011373106222-ofcjeip1ilo359c7kd28k5vidds94cnu.apps.googleusercontent.com",
           "client_type": 3
         }
