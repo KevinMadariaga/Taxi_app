@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
@@ -49,11 +50,7 @@ class _SoporteChatModalState extends State<SoporteChatModal> {
 
     setState(() {
       _messages.add(
-        _ChatMessage(
-          text: text,
-          isAgent: false,
-          createdAt: DateTime.now(),
-        ),
+        _ChatMessage(text: text, isAgent: false, createdAt: DateTime.now()),
       );
       _messageCtrl.clear();
     });
@@ -88,13 +85,24 @@ class _SoporteChatModalState extends State<SoporteChatModal> {
 
   @override
   Widget build(BuildContext context) {
-    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final media = MediaQuery.of(context);
+    final bottomInset = media.viewInsets.bottom;
+    final safeBottom = media.padding.bottom;
+    final bottomReserved = bottomInset + safeBottom;
+    final topInset = media.padding.top;
+    final desiredHeight = media.size.height * 0.72;
+    final maxHeight = media.size.height - topInset - 12;
+    final availableWithKeyboard = math.max(240.0, maxHeight - bottomReserved);
+    final sheetHeight = math.min(desiredHeight, availableWithKeyboard);
+
     return SafeArea(
+      top: true,
+      bottom: false,
       child: AnimatedPadding(
         duration: const Duration(milliseconds: 200),
-        padding: EdgeInsets.only(bottom: bottomInset),
+        padding: EdgeInsets.only(bottom: bottomReserved),
         child: SizedBox(
-          height: MediaQuery.of(context).size.height * 0.72,
+          height: sheetHeight,
           child: Column(
             children: [
               const SizedBox(height: 8),
@@ -117,15 +125,18 @@ class _SoporteChatModalState extends State<SoporteChatModal> {
               Expanded(
                 child: ListView.builder(
                   controller: _scrollCtrl,
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
                   padding: const EdgeInsets.all(12),
                   itemCount: _messages.length,
                   itemBuilder: (context, index) {
                     final m = _messages[index];
-                    final align =
-                        m.isAgent ? CrossAxisAlignment.start : CrossAxisAlignment.end;
+                    final align = m.isAgent
+                        ? CrossAxisAlignment.start
+                        : CrossAxisAlignment.end;
                     final bg = m.isAgent
                         ? AppColores.grey200
-                        : AppColores.buttonPrimary.withOpacity(0.25);
+                        : AppColores.buttonPrimary.withValues(alpha: 0.25);
                     return Column(
                       crossAxisAlignment: align,
                       children: [

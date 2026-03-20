@@ -1,0 +1,7 @@
+# Copy this file to android/key.properties and set production signing values.
+# Do not commit android/key.properties.
+# storeFile can be absolute or relative to the android/ folder.
+storeFile=keystore/taxiapp-upload-key.jks
+storePassword=REPLACE_WITH_STORE_PASSWORD
+keyAlias=REPLACE_WITH_KEY_ALIAS
+keyPassword=REPLACE_WITH_KEY_PASSWORD

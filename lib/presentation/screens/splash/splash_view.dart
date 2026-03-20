@@ -5,7 +5,7 @@ import 'package:taxi_app/core/constants/app_constants.dart';
 import 'package:taxi_app/presentation/viewmodels/splash/splash_viewmodel.dart';
 import 'package:taxi_app/routes/app_routes.dart';
 import 'package:taxi_app/screens/home_screen.dart';
-import 'package:taxi_app/services/auth_service.dart';
+import 'package:taxi_app/core/services/services.dart';
 
 class SplashView extends StatefulWidget {
   const SplashView({super.key});
@@ -106,7 +106,7 @@ class _SplashViewState extends State<SplashView>
                       width: 180,
                       height: 180,
                       child: Image.asset(
-                        'assets/img/taxi.png',
+                        'assets/img/foreground_car.png',
                         fit: BoxFit.contain,
                         errorBuilder: (context, error, stackTrace) =>
                             const Icon(

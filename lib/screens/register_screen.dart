@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../components/social_icon_button.dart';
-import '../services/google_sign_in_service.dart';
+import 'package:taxi_app/core/services/google_sign_in_service.dart';
 import 'usuario_cliente/presentacion/view/home_cliente_view.dart';
 import 'package:awesome_snackbar_content/awesome_snackbar_content.dart';
 
@@ -20,6 +20,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         final userCredential = await GoogleSignInService().signInWithGoogle();
         final user = userCredential?.user;
         if (user == null) {
+          if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No se pudo obtener la información del usuario.')));
           return;
         }
@@ -36,6 +37,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           });
         }
         // Registro exitoso
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             elevation: 0,
@@ -50,9 +52,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
         );
         Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const HomeClienteView()));
       } catch (e) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al registrar con Google: $e')));
       } finally {
-        setState(() => _loading = false);
+        if (mounted) {
+          setState(() => _loading = false);
+        }
       }
     }
   final _emailCtrl = TextEditingController();
@@ -98,14 +103,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
         }
       }
 
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Registro guardado')));
       Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const HomeClienteView()));
     } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Auth error: ${e.message}')));
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al guardar: $e')));
     } finally {
-      setState(() => _loading = false);
+      if (mounted) {
+        setState(() => _loading = false);
+      }
     }
   }
 
@@ -127,7 +137,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     child: Image.asset(
                       'assets/img/taxi.png',
                       fit: BoxFit.contain,
-                      errorBuilder: (_, __, ___) => const Icon(
+                      errorBuilder: (context, error, stackTrace) => const Icon(
                         Icons.local_taxi,
                         size: 140,
                         color: Colors.black87,

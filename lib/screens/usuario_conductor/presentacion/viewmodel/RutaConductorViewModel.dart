@@ -11,9 +11,9 @@ import 'package:taxi_app/screens/usuario_cliente/presentacion/model/chat_message
 
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/RutaConductorView.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioConductorView.dart';
-import 'package:taxi_app/services/chat_service.dart';
-import 'package:taxi_app/services/route_cache_service.dart';
-import 'package:taxi_app/services/tracking_service.dart';
+import 'package:taxi_app/core/services/chat_service_adapter.dart';
+import 'package:taxi_app/core/services/services.dart';
+import 'package:taxi_app/core/services/tracking_service.dart';
 import 'package:taxi_app/widgets/intermediate_transition_view.dart';
 
 class RutaConductorViewModel extends ChangeNotifier {

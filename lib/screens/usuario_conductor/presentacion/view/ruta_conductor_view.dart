@@ -11,9 +11,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/chat_message.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/ruta_destino_conductor.dart';
-import 'package:taxi_app/services/chat_service.dart';
-import 'package:taxi_app/services/notificacion_servicio.dart';
-import 'package:taxi_app/services/route_cache_service.dart';
+import 'package:taxi_app/core/services/chat_service_adapter.dart';
+import 'package:taxi_app/core/services/services.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/ruta_conductor_viewmodel.dart';
 import 'package:taxi_app/widgets/google_maps_widget.dart';
 import 'package:taxi_app/widgets/map_loading_widget.dart';
@@ -47,7 +46,7 @@ class RutaConductorView extends StatefulWidget {
 }
 
 class _RutaConductorViewState extends State<RutaConductorView> {
-    bool _primerMovimientoDetectado = false;
+  bool _primerMovimientoDetectado = false;
   GoogleMapController? _mapController;
   Set<Polyline> _polylines = {};
   List<LatLng> _routePoints = [];
@@ -68,7 +67,6 @@ class _RutaConductorViewState extends State<RutaConductorView> {
   bool _hasNewChat = false;
   bool _isChatOpen = false;
   late final RutaConductorUsuarioViewModel _viewModel;
-  int _lastRouteCutIndex = 0;
   // Mostrar loader centrado en el mapa mientras se obtiene la ruta/dirección
   bool _obteniendoDireccion = false;
   bool _initializing = true;
@@ -89,52 +87,55 @@ class _RutaConductorViewState extends State<RutaConductorView> {
     _restoreCacheAndNotifyConductor();
     _initFromSolicitud();
     _listenChatMessages();
-  // Recorta la polilínea cada 10 metros desde la posición actual del conductor
-  void shortenRouteToDriverCustom(int closestIdx) {
-    if (_routePoints.isEmpty || _driverLocation == null) return;
-    final dest = _clientLocation ?? widget.clientLocation;
-    if (dest != null) {
-      final distToDest = _haversineDistanceMeters(_driverLocation!, dest);
-      if (distToDest < 35) {
-        setState(() {
-          _routePoints = [];
-          _polylines = _polylines
-              .where((p) => p.polylineId.value != 'route')
-              .toSet();
-        });
-        return;
+    // Recorta la polilínea cada 10 metros desde la posición actual del conductor
+    void shortenRouteToDriverCustom(int closestIdx) {
+      if (_routePoints.isEmpty || _driverLocation == null) return;
+      final dest = _clientLocation ?? widget.clientLocation;
+      if (dest != null) {
+        final distToDest = _haversineDistanceMeters(_driverLocation!, dest);
+        if (distToDest < 35) {
+          setState(() {
+            _routePoints = [];
+            _polylines = _polylines
+                .where((p) => p.polylineId.value != 'route')
+                .toSet();
+          });
+          return;
+        }
       }
-    }
 
-    // Recortar cada 10 metros
-    int startIdx = closestIdx;
-    double accumulated = 0.0;
-    for (int i = closestIdx; i < _routePoints.length - 1; i++) {
-      accumulated += _haversineDistanceMeters(_routePoints[i], _routePoints[i + 1]);
-      if (accumulated >= 10) {
-        startIdx = i;
-        break;
-      }
-    }
-    final remaining = _routePoints.sublist(startIdx);
-
-    setState(() {
-      final newPolys = Set<Polyline>.from(_polylines);
-      newPolys.removeWhere((p) => p.polylineId.value == 'route');
-      if (remaining.length >= 2) {
-        newPolys.add(
-          Polyline(
-            polylineId: const PolylineId('route'),
-            color: AppColores.primary,
-            width: 5,
-            points: remaining,
-          ),
+      // Recortar cada 10 metros
+      int startIdx = closestIdx;
+      double accumulated = 0.0;
+      for (int i = closestIdx; i < _routePoints.length - 1; i++) {
+        accumulated += _haversineDistanceMeters(
+          _routePoints[i],
+          _routePoints[i + 1],
         );
+        if (accumulated >= 10) {
+          startIdx = i;
+          break;
+        }
       }
-      _polylines = newPolys;
-      _routePoints = remaining;
-    });
-  }
+      final remaining = _routePoints.sublist(startIdx);
+
+      setState(() {
+        final newPolys = Set<Polyline>.from(_polylines);
+        newPolys.removeWhere((p) => p.polylineId.value == 'route');
+        if (remaining.length >= 2) {
+          newPolys.add(
+            Polyline(
+              polylineId: const PolylineId('route'),
+              color: AppColores.primary,
+              width: 5,
+              points: remaining,
+            ),
+          );
+        }
+        _polylines = newPolys;
+        _routePoints = remaining;
+      });
+    }
 
     _driverPosSub = _viewModel.listenPosicionConductor().listen((pos) async {
       if (!mounted) return;
@@ -180,7 +181,7 @@ class _RutaConductorViewState extends State<RutaConductorView> {
       _maybeFetchRouteIfNeeded();
     }, onError: (_) {});
 
-  // Recorta la polilínea cada 10 metros desde la posición actual del conductor
+    // Recorta la polilínea cada 10 metros desde la posición actual del conductor
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _viewModel.init(context);
     });
@@ -192,7 +193,9 @@ class _RutaConductorViewState extends State<RutaConductorView> {
 
     const minDuration = Duration(seconds: 3);
     final elapsed = DateTime.now().difference(_initStart);
-    final remaining = elapsed >= minDuration ? Duration.zero : minDuration - elapsed;
+    final remaining = elapsed >= minDuration
+        ? Duration.zero
+        : minDuration - elapsed;
 
     _initializationScheduled = true;
     Future.delayed(remaining, () {
@@ -205,13 +208,17 @@ class _RutaConductorViewState extends State<RutaConductorView> {
 
   Future<void> _restoreCacheAndNotifyConductor() async {
     try {
-      final cache = await RouteCacheService.loadForSolicitud(widget.solicitudId);
+      final cache = await RouteCacheService.loadForSolicitud(
+        widget.solicitudId,
+      );
       if (!mounted) return;
       if (cache != null) {
         setState(() {
           _clientName = _clientName ?? cache.clientName;
           _clientAddress = _clientAddress ?? cache.clientAddress;
-          if (_clientLocation == null && cache.clientLat != null && cache.clientLng != null) {
+          if (_clientLocation == null &&
+              cache.clientLat != null &&
+              cache.clientLng != null) {
             _clientLocation = LatLng(cache.clientLat!, cache.clientLng!);
           }
         });
@@ -227,49 +234,48 @@ class _RutaConductorViewState extends State<RutaConductorView> {
 
   Future<void> _initFromSolicitud() async {
     // Si ya viene todo desde el caller, usarlo directamente
- if (widget.clientLocation != null) {
+    if (widget.clientLocation != null) {
+      _clientLocation = widget.clientLocation;
+      _driverLocation = widget.driverLocation;
+      _clientName = widget.clientName;
+      _clientAddress = widget.clientAddress;
 
-  _clientLocation = widget.clientLocation;
-  _driverLocation = widget.driverLocation;
-  _clientName = widget.clientName;
-  _clientAddress = widget.clientAddress;
+      try {
+        final doc = await FirebaseFirestore.instance
+            .collection('solicitudes')
+            .doc(widget.solicitudId)
+            .get();
 
-  try {
-    final doc = await FirebaseFirestore.instance
-        .collection('solicitudes')
-        .doc(widget.solicitudId)
-        .get();
+        final data = doc.data();
+        final rawCliente = data?['cliente'];
 
-    final data = doc.data();
-    final rawCliente = data?['cliente'];
+        if (rawCliente is Map) {
+          final foto =
+              rawCliente['foto'] ??
+              rawCliente['photo'] ??
+              rawCliente['photoUrl'] ??
+              rawCliente['imagen'];
 
-    if (rawCliente is Map) {
-      final foto = rawCliente['foto'] ??
-          rawCliente['photo'] ??
-          rawCliente['photoUrl'] ??
-          rawCliente['imagen'];
-
-      if (foto is String && foto.isNotEmpty) {
-        _clientPhotoUrl = foto.trim();
-      } else if (foto is Map) {
-        final url = foto['url'] ?? foto['link'];
-        if (url is String && url.isNotEmpty) {
-          _clientPhotoUrl = url.trim();
+          if (foto is String && foto.isNotEmpty) {
+            _clientPhotoUrl = foto.trim();
+          } else if (foto is Map) {
+            final url = foto['url'] ?? foto['link'];
+            if (url is String && url.isNotEmpty) {
+              _clientPhotoUrl = url.trim();
+            }
+          }
         }
+      } catch (_) {}
+
+      setState(() {});
+      // Si ya tenemos ubicación del conductor también, solicitar ruta
+      if (_driverLocation != null && _clientLocation != null) {
+        try {
+          await _fetchRouteOSRM(_driverLocation!, _clientLocation!);
+        } catch (_) {}
       }
+      return;
     }
-  } catch (_) {}
-
-  setState(() {});
-  // Si ya tenemos ubicación del conductor también, solicitar ruta
-  if (_driverLocation != null && _clientLocation != null) {
-    try {
-      await _fetchRouteOSRM(_driverLocation!, _clientLocation!);
-    } catch (_) {}
-  }
-  return;
-}
-
 
     setState(() {
       _loadingSolicitud = true;
@@ -310,10 +316,13 @@ class _RutaConductorViewState extends State<RutaConductorView> {
           _clientName = (rawCliente['nombre'] as String).trim();
         }
         // intentar leer foto del cliente desde la solicitud
-        if (rawCliente['foto'] is String && (rawCliente['foto'] as String).isNotEmpty) {
+        if (rawCliente['foto'] is String &&
+            (rawCliente['foto'] as String).isNotEmpty) {
           _clientPhotoUrl = (rawCliente['foto'] as String).trim();
           if (kDebugMode) {
-            print('RutaConductorView: loaded client photo url: $_clientPhotoUrl');
+            print(
+              'RutaConductorView: loaded client photo url: $_clientPhotoUrl',
+            );
           }
         }
       }
@@ -321,10 +330,19 @@ class _RutaConductorViewState extends State<RutaConductorView> {
       // ubicación del conductor desde el objeto 'conductor' en la solicitud
       final rawConductor = data['conductor'];
       if (rawConductor is Map) {
-        final lat = (rawConductor['lat'] ?? rawConductor['latitude'] ?? rawConductor['latitud']);
-        final lng = (rawConductor['lng'] ?? rawConductor['longitude'] ?? rawConductor['longitud']);
+        final lat =
+            (rawConductor['lat'] ??
+            rawConductor['latitude'] ??
+            rawConductor['latitud']);
+        final lng =
+            (rawConductor['lng'] ??
+            rawConductor['longitude'] ??
+            rawConductor['longitud']);
         if (lat != null && lng != null) {
-          conductorPos = LatLng((lat as num).toDouble(), (lng as num).toDouble());
+          conductorPos = LatLng(
+            (lat as num).toDouble(),
+            (lng as num).toDouble(),
+          );
         }
       }
 
@@ -346,11 +364,14 @@ class _RutaConductorViewState extends State<RutaConductorView> {
     }
   }
 
-  
-
   Future<void> _loadClientMarkerIcon() async {
     try {
-      final dpr = WidgetsBinding.instance.platformDispatcher.views.first.devicePixelRatio;
+      final dpr = WidgetsBinding
+          .instance
+          .platformDispatcher
+          .views
+          .first
+          .devicePixelRatio;
       final icon = await BitmapDescriptor.asset(
         ImageConfiguration(size: const Size(30, 50), devicePixelRatio: dpr),
         'assets/img/map_pin_red.png',
@@ -384,7 +405,6 @@ class _RutaConductorViewState extends State<RutaConductorView> {
     if (!mounted) return;
     // Limpia cache de la solicitud cancelada (el estado "cancelado" ya viene desde Firestore)
     RouteCacheService.clearSolicitud(widget.solicitudId);
-
   }
 
   void _listenChatMessages() {
@@ -393,9 +413,9 @@ class _RutaConductorViewState extends State<RutaConductorView> {
     f?.catchError((e) {
       // ignore platform "No active stream to cancel"
     });
-    _chatSub = _chatService
-        .listenMessages(widget.solicitudId)
-        .listen((mensajes) {
+    _chatSub = _chatService.listenMessages(widget.solicitudId).listen((
+      mensajes,
+    ) {
       if (!mounted) return;
       if (mensajes.isEmpty) return;
       final last = mensajes.last;
@@ -413,7 +433,6 @@ class _RutaConductorViewState extends State<RutaConductorView> {
     }, onError: (_) {});
   }
 
-
   void _onMapCreated(GoogleMapController controller) async {
     _mapController = controller;
     // Ajustar vista inicial para que se vean conductor y cliente (si ambos existen)
@@ -424,7 +443,8 @@ class _RutaConductorViewState extends State<RutaConductorView> {
 
   void _maybeFetchRouteIfNeeded() {
     try {
-      if ((_routePoints.isEmpty || _polylines.every((p) => p.polylineId.value != 'route')) &&
+      if ((_routePoints.isEmpty ||
+              _polylines.every((p) => p.polylineId.value != 'route')) &&
           _driverLocation != null &&
           (_clientLocation ?? widget.clientLocation) != null) {
         final client = _clientLocation ?? widget.clientLocation!;
@@ -440,12 +460,12 @@ class _RutaConductorViewState extends State<RutaConductorView> {
     final lat2 = to.latitude * math.pi / 180;
     final dLon = (to.longitude - from.longitude) * math.pi / 180;
     final y = math.sin(dLon) * math.cos(lat2);
-    final x = math.cos(lat1) * math.sin(lat2) -
+    final x =
+        math.cos(lat1) * math.sin(lat2) -
         math.sin(lat1) * math.cos(lat2) * math.cos(dLon);
     final brng = math.atan2(y, x);
     return (brng * 180 / math.pi + 360) % 360;
   }
-
 
   Future<void> _sendChatMessage() async {
     final texto = _chatController.text.trim();
@@ -468,7 +488,7 @@ class _RutaConductorViewState extends State<RutaConductorView> {
       }
     } catch (_) {}
   }
-  
+
   Future<void> _openChatSheet() async {
     setState(() {
       _isChatOpen = true;
@@ -501,14 +521,9 @@ class _RutaConductorViewState extends State<RutaConductorView> {
               return Container(
                 decoration: const BoxDecoration(
                   color: AppColores.sheetBackground,
-                  borderRadius: BorderRadius.vertical(
-                    top: Radius.circular(20),
-                  ),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
                   boxShadow: [
-                    BoxShadow(
-                      color: AppColores.borderSubtle,
-                      blurRadius: 16,
-                    ),
+                    BoxShadow(color: AppColores.borderSubtle, blurRadius: 16),
                   ],
                 ),
                 padding: EdgeInsets.fromLTRB(
@@ -531,7 +546,10 @@ class _RutaConductorViewState extends State<RutaConductorView> {
                           ),
                         ),
                         IconButton(
-                          icon: Icon(Icons.close, size: ResponsiveHelper.sp(ctx, 18)),
+                          icon: Icon(
+                            Icons.close,
+                            size: ResponsiveHelper.sp(ctx, 18),
+                          ),
                           onPressed: () {
                             FocusScope.of(ctx).unfocus();
                             Navigator.of(ctx).pop();
@@ -548,16 +566,22 @@ class _RutaConductorViewState extends State<RutaConductorView> {
                           border: Border.all(color: AppColores.borderSubtle),
                         ),
                         child: StreamBuilder<List<ChatMessage>>(
-                          stream: _chatService.listenMessages(widget.solicitudId),
+                          stream: _chatService.listenMessages(
+                            widget.solicitudId,
+                          ),
                           initialData: const [],
                           builder: (context, snapshot) {
-                            final mensajes = snapshot.data ?? const <ChatMessage>[];
-                            final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+                            final mensajes =
+                                snapshot.data ?? const <ChatMessage>[];
+                            final uid =
+                                FirebaseAuth.instance.currentUser?.uid ?? '';
 
                             WidgetsBinding.instance.addPostFrameCallback((_) {
                               if (_chatScrollController.hasClients) {
                                 _chatScrollController.jumpTo(
-                                  _chatScrollController.position.maxScrollExtent,
+                                  _chatScrollController
+                                      .position
+                                      .maxScrollExtent,
                                 );
                               }
                             });
@@ -573,7 +597,9 @@ class _RutaConductorViewState extends State<RutaConductorView> {
 
                             return ListView.builder(
                               controller: _chatScrollController,
-                              padding: EdgeInsets.all(ResponsiveHelper.wp(context, 2)),
+                              padding: EdgeInsets.all(
+                                ResponsiveHelper.wp(context, 2),
+                              ),
                               itemCount: mensajes.length,
                               itemBuilder: (_, i) {
                                 final m = mensajes[i];
@@ -588,14 +614,26 @@ class _RutaConductorViewState extends State<RutaConductorView> {
                                       : Alignment.centerLeft,
                                   child: Container(
                                     margin: EdgeInsets.symmetric(
-                                      vertical: ResponsiveHelper.hp(context, 0.4),
+                                      vertical: ResponsiveHelper.hp(
+                                        context,
+                                        0.4,
+                                      ),
                                     ),
                                     padding: EdgeInsets.symmetric(
-                                      horizontal: ResponsiveHelper.wp(context, 3),
-                                      vertical: ResponsiveHelper.hp(context, 0.8),
+                                      horizontal: ResponsiveHelper.wp(
+                                        context,
+                                        3,
+                                      ),
+                                      vertical: ResponsiveHelper.hp(
+                                        context,
+                                        0.8,
+                                      ),
                                     ),
                                     constraints: BoxConstraints(
-                                      maxWidth: ResponsiveHelper.wp(context, 65),
+                                      maxWidth: ResponsiveHelper.wp(
+                                        context,
+                                        65,
+                                      ),
                                     ),
                                     decoration: BoxDecoration(
                                       color: esMio
@@ -614,24 +652,36 @@ class _RutaConductorViewState extends State<RutaConductorView> {
                                       ),
                                     ),
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
                                         Text(
                                           m.texto,
                                           style: TextStyle(
-                                            fontSize: ResponsiveHelper.sp(context, 14),
+                                            fontSize: ResponsiveHelper.sp(
+                                              context,
+                                              14,
+                                            ),
                                             color: AppColores.textPrimary,
                                           ),
                                         ),
                                         if (hhmm.isNotEmpty) ...[
-                                          SizedBox(height: ResponsiveHelper.hp(context, 0.4)),
+                                          SizedBox(
+                                            height: ResponsiveHelper.hp(
+                                              context,
+                                              0.4,
+                                            ),
+                                          ),
                                           Align(
                                             alignment: Alignment.bottomRight,
                                             child: Text(
                                               hhmm,
                                               style: TextStyle(
-                                                fontSize: ResponsiveHelper.sp(context, 11),
+                                                fontSize: ResponsiveHelper.sp(
+                                                  context,
+                                                  11,
+                                                ),
                                                 color: AppColores.textSecondary,
                                               ),
                                             ),
@@ -659,7 +709,9 @@ class _RutaConductorViewState extends State<RutaConductorView> {
                             decoration: InputDecoration(
                               hintText: 'Escribe un mensaje...',
                               border: const OutlineInputBorder(
-                                borderRadius: BorderRadius.all(Radius.circular(20)),
+                                borderRadius: BorderRadius.all(
+                                  Radius.circular(20),
+                                ),
                               ),
                               contentPadding: EdgeInsets.symmetric(
                                 horizontal: ResponsiveHelper.wp(ctx, 3),
@@ -670,7 +722,11 @@ class _RutaConductorViewState extends State<RutaConductorView> {
                         ),
                         SizedBox(width: ResponsiveHelper.wp(ctx, 2)),
                         IconButton(
-                          icon: Icon(Icons.send, color: AppColores.primary, size: ResponsiveHelper.sp(ctx, 18)),
+                          icon: Icon(
+                            Icons.send,
+                            color: AppColores.primary,
+                            size: ResponsiveHelper.sp(ctx, 18),
+                          ),
                           onPressed: _sendChatMessage,
                         ),
                       ],
@@ -733,7 +789,6 @@ class _RutaConductorViewState extends State<RutaConductorView> {
         );
         _polylines = newPolys;
         _routePoints = points;
-        _lastRouteCutIndex = 0;
         if (durationMin != null) {
           _routeDurationMin = durationMin.round();
         } else {
@@ -752,7 +807,8 @@ class _RutaConductorViewState extends State<RutaConductorView> {
     } catch (_) {
       // ignore
     } finally {
-      if (mounted && _obteniendoDireccion) setState(() => _obteniendoDireccion = false);
+      if (mounted && _obteniendoDireccion)
+        setState(() => _obteniendoDireccion = false);
     }
   }
 
@@ -764,8 +820,12 @@ class _RutaConductorViewState extends State<RutaConductorView> {
     final dLon = (b.longitude - a.longitude) * math.pi / 180.0;
     final lat1 = a.latitude * math.pi / 180.0;
     final lat2 = b.latitude * math.pi / 180.0;
-    final h = math.sin(dLat / 2) * math.sin(dLat / 2) +
-        math.cos(lat1) * math.cos(lat2) * math.sin(dLon / 2) * math.sin(dLon / 2);
+    final h =
+        math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(lat1) *
+            math.cos(lat2) *
+            math.sin(dLon / 2) *
+            math.sin(dLon / 2);
     final c = 2 * math.atan2(math.sqrt(h), math.sqrt(1 - h));
     return R * c;
   }
@@ -801,7 +861,11 @@ class _RutaConductorViewState extends State<RutaConductorView> {
     final c = client!;
     final bearing = _calculateBearing(d, c);
     final dist = _haversineDistanceMeters(d, c);
-    final zoom = dist < 200 ? 17.5 : dist < 1000 ? 16.5 : 15.5;
+    final zoom = dist < 200
+        ? 17.5
+        : dist < 1000
+        ? 16.5
+        : 15.5;
 
     if (!_primerMovimientoDetectado) {
       // Primer movimiento: centrar ambos marcadores
@@ -831,12 +895,7 @@ class _RutaConductorViewState extends State<RutaConductorView> {
       try {
         await _mapController!.animateCamera(
           CameraUpdate.newCameraPosition(
-            CameraPosition(
-              target: d,
-              zoom: zoom,
-              bearing: bearing,
-              tilt: 30,
-            ),
+            CameraPosition(target: d, zoom: zoom, bearing: bearing, tilt: 30),
           ),
         );
       } catch (_) {
@@ -844,19 +903,13 @@ class _RutaConductorViewState extends State<RutaConductorView> {
           await Future.delayed(const Duration(milliseconds: 300));
           await _mapController!.animateCamera(
             CameraUpdate.newCameraPosition(
-              CameraPosition(
-                target: d,
-                zoom: zoom,
-                bearing: bearing,
-                tilt: 30,
-              ),
+              CameraPosition(target: d, zoom: zoom, bearing: bearing, tilt: 30),
             ),
           );
         } catch (_) {}
       }
     }
   }
-
 
   Future<void> _abrirGoogleMapsExternamente() async {
     try {
@@ -912,9 +965,7 @@ class _RutaConductorViewState extends State<RutaConductorView> {
         backgroundColor: AppColores.background,
         body: SafeArea(
           child: Center(
-            child: MapLoadingWidget(
-              message: 'Cargando mapa de la ruta...',
-            ),
+            child: MapLoadingWidget(message: 'Cargando mapa de la ruta...'),
           ),
         ),
       );
@@ -924,7 +975,9 @@ class _RutaConductorViewState extends State<RutaConductorView> {
       Marker(
         markerId: MarkerId('client_${widget.solicitudId}'),
         position: clientLocation,
-        icon: _clientMarkerIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+        icon:
+            _clientMarkerIcon ??
+            BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
         infoWindow: InfoWindow(
           title: _clientName ?? widget.clientName ?? 'Cliente',
           snippet: _clientAddress ?? widget.clientAddress,
@@ -932,312 +985,401 @@ class _RutaConductorViewState extends State<RutaConductorView> {
       ),
     };
 
-
     // Calcular distancia actual del conductor al cliente (en metros)
     final double _distanceToClient = _driverLocation == null
-      ? double.infinity
-      : _haversineDistanceMeters(_driverLocation!, clientLocation);
-    final bool _canPressArrived = _distanceToClient <= 70.0; // habilitar solo dentro de 70 metros
+        ? double.infinity
+        : _haversineDistanceMeters(_driverLocation!, clientLocation);
+    final bool _canPressArrived =
+        _distanceToClient <= 70.0; // habilitar solo dentro de 70 metros
 
     return WillPopScope(
       onWillPop: () async => false,
       child: Scaffold(
-      resizeToAvoidBottomInset: false,
-      body: SafeArea(
-        top: true,
-        bottom: true,
-        child: Column(
-          children: [
-            // Mapa ocupa casi todo el alto disponible
-            Expanded(
-              child: Stack(
-                children: [
-                  AppGoogleMap(
-                    initialTarget: _driverLocation ?? widget.driverLocation ?? clientLocation,
-                    initialZoom: (_driverLocation ?? widget.driverLocation) != null ? 15.5 : 16.0,
-                    myLocationEnabled: true,
-                    myLocationButtonEnabled: true,
-                    compassEnabled: true,
-                    markers: markers,
-                    polylines: _polylines,
-                    onMapCreated: _onMapCreated,
-                  ),
-
-                  if (_routeDurationMin != null)
-                    Align(
-                      alignment: Alignment.topCenter,
-                      child: Container(
-                        margin: EdgeInsets.only(top: ResponsiveHelper.hp(context, 2)),
-                        padding: EdgeInsets.symmetric(horizontal: ResponsiveHelper.wp(context, 3), vertical: ResponsiveHelper.hp(context, 1)),
-                        decoration: BoxDecoration(
-                          color: AppColores.cardBackground,
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(blurRadius: 6, color: AppColores.borderSubtle),
-                          ],
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.access_time, size: ResponsiveHelper.sp(context, 14), color: AppColores.textSecondary),
-                            SizedBox(width: ResponsiveHelper.wp(context, 2)),
-                            Text(
-                              'Tiempo estimado: ${_routeDurationMin} min',
-                              style: TextStyle(fontSize: ResponsiveHelper.sp(context, 14), fontWeight: FontWeight.w600, color: AppColores.textPrimary),
-                            ),
-                          ],
-                        ),
-                      ),
+        resizeToAvoidBottomInset: false,
+        body: SafeArea(
+          top: true,
+          bottom: true,
+          child: Column(
+            children: [
+              // Mapa ocupa casi todo el alto disponible
+              Expanded(
+                child: Stack(
+                  children: [
+                    AppGoogleMap(
+                      initialTarget:
+                          _driverLocation ??
+                          widget.driverLocation ??
+                          clientLocation,
+                      initialZoom:
+                          (_driverLocation ?? widget.driverLocation) != null
+                          ? 15.5
+                          : 16.0,
+                      myLocationEnabled: true,
+                      myLocationButtonEnabled: true,
+                      compassEnabled: true,
+                      markers: markers,
+                      polylines: _polylines,
+                      onMapCreated: _onMapCreated,
                     ),
 
-                  // Badge flotante con distancia al cliente
-                  Positioned(
-                    bottom: 12,
-                    right: 12,
-                    child: SafeArea(
-                      child: Material(
-                        color: Colors.transparent,
+                    if (_routeDurationMin != null)
+                      Align(
+                        alignment: Alignment.topCenter,
                         child: Container(
-                          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          margin: EdgeInsets.only(
+                            top: ResponsiveHelper.hp(context, 2),
+                          ),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: ResponsiveHelper.wp(context, 3),
+                            vertical: ResponsiveHelper.hp(context, 1),
+                          ),
                           decoration: BoxDecoration(
                             color: AppColores.cardBackground,
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: [BoxShadow(color: AppColores.borderSubtle, blurRadius: 6)],
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                blurRadius: 6,
+                                color: AppColores.borderSubtle,
+                              ),
+                            ],
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.place, size: ResponsiveHelper.sp(context, 14), color: _canPressArrived ? Colors.green : AppColores.primary),
+                              Icon(
+                                Icons.access_time,
+                                size: ResponsiveHelper.sp(context, 14),
+                                color: AppColores.textSecondary,
+                              ),
                               SizedBox(width: ResponsiveHelper.wp(context, 2)),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    _distanceToClient.isFinite
-                                        ? (_distanceToClient <= 0.5 ? 'A <1 m' : '${_distanceToClient.round()} m')
-                                        : 'Calculando...',
-                                    style: TextStyle(fontSize: ResponsiveHelper.sp(context, 13), fontWeight: FontWeight.w700, color: _canPressArrived ? Colors.green : AppColores.textPrimary),
-                                  ),
-                                ],
+                              Text(
+                                'Tiempo estimado: ${_routeDurationMin} min',
+                                style: TextStyle(
+                                  fontSize: ResponsiveHelper.sp(context, 14),
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColores.textPrimary,
+                                ),
                               ),
                             ],
                           ),
                         ),
                       ),
-                    ),
-                  ),
 
-                  if (_obteniendoDireccion)
-                    Positioned.fill(
-                      child: Container(
-                        color: AppColores.borderSubtle,
-                        child: const Center(
-                          child: MapLoadingWidget(message: 'Obteniendo dirección...'),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-
-            // Información del cliente + botones (estilo card inferior)
-            Container(
-              width: double.infinity,
-              // Dejar un pequeño margen inferior para que el card no quede
-              // pegado al borde. `SafeArea(bottom: true)` ya protege
-              // contra la barra de navegación, así evitamos duplicar inset.
-              margin: EdgeInsets.only(bottom: ResponsiveHelper.hp(context, 1)),
-              constraints: BoxConstraints(minHeight: ResponsiveHelper.hp(context, 18)),
-              decoration: BoxDecoration(
-                color: AppColores.cardBackground,
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(24),
-                  topRight: Radius.circular(24),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColores.borderSubtle,
-                    blurRadius: 10,
-                    offset: const Offset(0, -2),
-                  ),
-                ],
-              ),
-              padding: EdgeInsets.fromLTRB(
-                ResponsiveHelper.wp(context, 4),
-                ResponsiveHelper.hp(context, 2),
-                ResponsiveHelper.wp(context, 4),
-                ResponsiveHelper.hp(context, 2) + ResponsiveHelper.hp(context, 0.8),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      // Imagen del cliente (rectangular redondeada) junto al nombre
-                      (_clientPhotoUrl != null && _clientPhotoUrl!.isNotEmpty)
-                          ? ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: CachedNetworkImage(
-                                imageUrl: _clientPhotoUrl!,
-                                width: ResponsiveHelper.sp(context, 60),
-                                height: ResponsiveHelper.sp(context, 60),
-                                fit: BoxFit.cover,
-                                placeholder: (_, __) => Container(
-                                  width: ResponsiveHelper.sp(context, 60),
-                                  height: ResponsiveHelper.sp(context, 60),
-                                  color: AppColores.grey200,
-                                ),
-                                errorWidget: (ctx, error, stack) => Container(
-                                  width: ResponsiveHelper.sp(context, 60),
-                                  height: ResponsiveHelper.sp(context, 60),
-                                  color: AppColores.grey200,
-                                  child: Icon(
-                                    Icons.person,
-                                    size: ResponsiveHelper.sp(context, 18),
-                                    color: Colors.black87,
-                                  ),
-                                ),
-                              ),
-                            )
-                          : Container(
-                              width: ResponsiveHelper.sp(context, 60),
-                              height: ResponsiveHelper.sp(context, 60),
-                              decoration: BoxDecoration(
-                                color: AppColores.grey200,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Icon(
-                                Icons.person,
-                                size: ResponsiveHelper.sp(context, 18),
-                                color: Colors.black87,
-                              ),
+                    // Badge flotante con distancia al cliente
+                    Positioned(
+                      bottom: 12,
+                      right: 12,
+                      child: SafeArea(
+                        child: Material(
+                          color: Colors.transparent,
+                          child: Container(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
                             ),
-                      SizedBox(width: ResponsiveHelper.wp(context, 3)),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    _clientName ?? widget.clientName ?? 'Cliente',
-                                    style: TextStyle(
-                                      fontSize: ResponsiveHelper.sp(context, 18),
-                                      fontWeight: FontWeight.w700,
-                                      color: AppColores.textPrimary,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                                IconButton(
-                                  icon: Stack(
-                                    clipBehavior: Clip.none,
-                                    children: [
-                                      const Icon(Icons.chat_bubble_outline),
-                                      if (_hasNewChat)
-                                        Positioned(
-                                          right: -2,
-                                          top: -2,
-                                          child: Container(
-                                            width: 10,
-                                            height: 10,
-                                            decoration: const BoxDecoration(
-                                              color: AppColores.error,
-                                              shape: BoxShape.circle,
-                                            ),
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                  onPressed: _openChatSheet,
+                            decoration: BoxDecoration(
+                              color: AppColores.background,
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppColores.borderSubtle,
+                                  blurRadius: 6,
                                 ),
                               ],
                             ),
-                            if (((_clientAddress ?? widget.clientAddress) ?? '').isNotEmpty) ...[
-                              SizedBox(height: ResponsiveHelper.hp(context, 0.6)),
-                              Text(
-                                (_clientAddress ?? widget.clientAddress)!,
-                                style: TextStyle(
-                                  fontSize: ResponsiveHelper.sp(context, 13),
-                                  color: AppColores.textSecondary,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.place,
+                                  size: ResponsiveHelper.sp(context, 14),
+                                  color: _canPressArrived
+                                      ? Colors.green
+                                      : AppColores.primary,
                                 ),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: ResponsiveHelper.hp(context, 2)),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: _abrirGoogleMapsExternamente,
-                          icon: Icon(Icons.navigation_outlined, size: ResponsiveHelper.sp(context, 16)),
-                          label: Text('Mapa', style: TextStyle(fontSize: ResponsiveHelper.sp(context, 14))),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColores.surface,
-                            foregroundColor: AppColores.primary,
-                            side: BorderSide(color: AppColores.primary),
-                            padding: EdgeInsets.symmetric(vertical: ResponsiveHelper.hp(context, 1.2)),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                                SizedBox(
+                                  width: ResponsiveHelper.wp(context, 2),
+                                ),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _distanceToClient.isFinite
+                                          ? (_distanceToClient <= 0.5
+                                                ? 'A <1 m'
+                                                : '${_distanceToClient.round()} m')
+                                          : 'Calculando...',
+                                      style: TextStyle(
+                                        fontSize: ResponsiveHelper.sp(
+                                          context,
+                                          13,
+                                        ),
+                                        fontWeight: FontWeight.w700,
+                                        color: _canPressArrived
+                                            ? Colors.green
+                                            : AppColores.textPrimary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ),
                           ),
                         ),
                       ),
-                      SizedBox(width: ResponsiveHelper.wp(context, 3)),
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: _canPressArrived ? () async {
-                            try {
-                              await FirebaseFirestore.instance
-                                  .collection('solicitudes')
-                                  .doc(widget.solicitudId)
-                                  .update({'status': 'en camino'});
-                            } catch (_) {}
+                    ),
 
-                            if (widget.onArrived != null) {
-                              widget.onArrived!();
-                              return;
-                            }
-                            if (!mounted) return;
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => RutaDestinoConductorView(
-                                  solicitudId: widget.solicitudId,
-                                ),
-                              ),
-                            );
-                          } : null,
-                          icon: Icon(Icons.check_circle_outline, size: ResponsiveHelper.sp(context, 16)),
-                          label: Text('Ya llegué', style: TextStyle(fontSize: ResponsiveHelper.sp(context, 14))),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: _canPressArrived ? AppColores.primary : AppColores.grey400,
-                            padding: EdgeInsets.symmetric(vertical: ResponsiveHelper.hp(context, 1.2)),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                    if (_obteniendoDireccion)
+                      Positioned.fill(
+                        child: Container(
+                          color: AppColores.borderSubtle,
+                          child: const Center(
+                            child: MapLoadingWidget(
+                              message: 'Obteniendo dirección...',
                             ),
                           ),
                         ),
                       ),
-                    ],
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+
+              // Información del cliente + botones (estilo card inferior)
+              Container(
+                width: double.infinity,
+                // Dejar un pequeño margen inferior para que el card no quede
+                // pegado al borde. `SafeArea(bottom: true)` ya protege
+                // contra la barra de navegación, así evitamos duplicar inset.
+                margin: EdgeInsets.only(
+                  bottom: ResponsiveHelper.hp(context, 1),
+                ),
+                constraints: BoxConstraints(
+                  minHeight: ResponsiveHelper.hp(context, 18),
+                ),
+                decoration: BoxDecoration(
+                  color: AppColores.cardBackground,
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(24),
+                    topRight: Radius.circular(24),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColores.borderSubtle,
+                      blurRadius: 10,
+                      offset: const Offset(0, -2),
+                    ),
+                  ],
+                ),
+                padding: EdgeInsets.fromLTRB(
+                  ResponsiveHelper.wp(context, 4),
+                  ResponsiveHelper.hp(context, 2),
+                  ResponsiveHelper.wp(context, 4),
+                  ResponsiveHelper.hp(context, 2) +
+                      ResponsiveHelper.hp(context, 0.8),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        // Imagen del cliente (rectangular redondeada) junto al nombre
+                        (_clientPhotoUrl != null && _clientPhotoUrl!.isNotEmpty)
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: CachedNetworkImage(
+                                  imageUrl: _clientPhotoUrl!,
+                                  width: ResponsiveHelper.sp(context, 60),
+                                  height: ResponsiveHelper.sp(context, 60),
+                                  fit: BoxFit.cover,
+                                  placeholder: (_, __) => Container(
+                                    width: ResponsiveHelper.sp(context, 60),
+                                    height: ResponsiveHelper.sp(context, 60),
+                                    color: AppColores.grey200,
+                                  ),
+                                  errorWidget: (ctx, error, stack) => Container(
+                                    width: ResponsiveHelper.sp(context, 60),
+                                    height: ResponsiveHelper.sp(context, 60),
+                                    color: AppColores.grey200,
+                                    child: Icon(
+                                      Icons.person,
+                                      size: ResponsiveHelper.sp(context, 18),
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                ),
+                              )
+                            : Container(
+                                width: ResponsiveHelper.sp(context, 60),
+                                height: ResponsiveHelper.sp(context, 60),
+                                decoration: BoxDecoration(
+                                  color: AppColores.grey200,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Icon(
+                                  Icons.person,
+                                  size: ResponsiveHelper.sp(context, 18),
+                                  color: Colors.black87,
+                                ),
+                              ),
+                        SizedBox(width: ResponsiveHelper.wp(context, 3)),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      _clientName ??
+                                          widget.clientName ??
+                                          'Cliente',
+                                      style: TextStyle(
+                                        fontSize: ResponsiveHelper.sp(
+                                          context,
+                                          18,
+                                        ),
+                                        fontWeight: FontWeight.w700,
+                                        color: AppColores.textPrimary,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  IconButton(
+                                    icon: Stack(
+                                      clipBehavior: Clip.none,
+                                      children: [
+                                        const Icon(Icons.chat_bubble_outline),
+                                        if (_hasNewChat)
+                                          Positioned(
+                                            right: -2,
+                                            top: -2,
+                                            child: Container(
+                                              width: 10,
+                                              height: 10,
+                                              decoration: const BoxDecoration(
+                                                color: AppColores.error,
+                                                shape: BoxShape.circle,
+                                              ),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                    onPressed: _openChatSheet,
+                                  ),
+                                ],
+                              ),
+                              if (((_clientAddress ?? widget.clientAddress) ??
+                                      '')
+                                  .isNotEmpty) ...[
+                                SizedBox(
+                                  height: ResponsiveHelper.hp(context, 0.6),
+                                ),
+                                Text(
+                                  (_clientAddress ?? widget.clientAddress)!,
+                                  style: TextStyle(
+                                    fontSize: ResponsiveHelper.sp(context, 13),
+                                    color: AppColores.textSecondary,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: ResponsiveHelper.hp(context, 2)),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: _abrirGoogleMapsExternamente,
+                            icon: Icon(
+                              Icons.navigation_outlined,
+                              size: ResponsiveHelper.sp(context, 16),
+                            ),
+                            label: Text(
+                              'Mapa',
+                              style: TextStyle(
+                                fontSize: ResponsiveHelper.sp(context, 14),
+                              ),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColores.background,
+                              foregroundColor: AppColores.primary,
+                              side: BorderSide(color: AppColores.primary),
+                              padding: EdgeInsets.symmetric(
+                                vertical: ResponsiveHelper.hp(context, 1.2),
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: ResponsiveHelper.wp(context, 3)),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: _canPressArrived
+                                ? () async {
+                                    try {
+                                      await FirebaseFirestore.instance
+                                          .collection('solicitudes')
+                                          .doc(widget.solicitudId)
+                                          .update({'estado': 'en camino'});
+                                    } catch (_) {}
+
+                                    if (widget.onArrived != null) {
+                                      widget.onArrived!();
+                                      return;
+                                    }
+                                    if (!mounted) return;
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            RutaDestinoConductorView(
+                                              solicitudId: widget.solicitudId,
+                                            ),
+                                      ),
+                                    );
+                                  }
+                                : null,
+                            icon: Icon(
+                              Icons.check_circle_outline,
+                              size: ResponsiveHelper.sp(context, 16),
+                            ),
+                            label: Text(
+                              'Ya llegué',
+                              style: TextStyle(
+                                fontSize: ResponsiveHelper.sp(context, 14),
+                              ),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _canPressArrived
+                                  ? AppColores.primary
+                                  : AppColores.grey400,
+                              padding: EdgeInsets.symmetric(
+                                vertical: ResponsiveHelper.hp(context, 1.2),
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
-      ),
       ),
     );
   }
 }
-

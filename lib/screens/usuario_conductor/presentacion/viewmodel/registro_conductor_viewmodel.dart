@@ -106,7 +106,11 @@ class RegistroConductorViewModel {
   Future<void> pickImage() async {
     try {
       final picker = ImagePicker();
-      final picked = await picker.pickImage(source: ImageSource.gallery, maxWidth: 1200, imageQuality: 85);
+      final picked = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1200,
+        imageQuality: 85,
+      );
       if (picked != null) {
         selectedImage.value = picked;
       }
@@ -118,65 +122,60 @@ class RegistroConductorViewModel {
   Future<String> _uploadProfilePhoto(String uid, XFile file) async {
     final originalBytes = await file.readAsBytes();
 
-    const int maxBytes = 300 * 1024; // 300 KB
-    const int targetMinBytes = 150 * 1024; // 150 KB (attempt)
+    const int maxBytes = 100 * 1024;
 
-    List<int> compressed = originalBytes;
+    Uint8List compressed = Uint8List.fromList(originalBytes);
 
-    // If already under max, start from original
-    if (originalBytes.length > maxBytes) {
-      // Try compressing reducing quality until under maxBytes or quality floor reached
-      int quality = 85;
-      while (quality >= 30) {
-        try {
-          final result = await FlutterImageCompress.compressWithList(
-            originalBytes,
-            quality: quality,
-            rotate: 0,
-          );
-          if (result.isNotEmpty) compressed = result;
-        } catch (_) {}
+    final attempts = <Map<String, int>>[
+      {'q': 80, 'w': 0},
+      {'q': 70, 'w': 0},
+      {'q': 60, 'w': 1280},
+      {'q': 50, 'w': 1080},
+      {'q': 45, 'w': 900},
+      {'q': 40, 'w': 720},
+      {'q': 35, 'w': 640},
+      {'q': 30, 'w': 560},
+      {'q': 25, 'w': 480},
+    ];
 
-        if (compressed.length <= maxBytes) break;
-        quality -= 5;
-      }
-    }
-
-    // If compressed is now too small (< targetMinBytes) but original was larger,
-    // try increasing quality to reach closer to targetMinBytes (best-effort).
-    if (compressed.length < targetMinBytes && originalBytes.length > targetMinBytes) {
-      for (int q in [95, 90, 88]) {
-        try {
-          final result = await FlutterImageCompress.compressWithList(
-            originalBytes,
-            quality: q,
-            rotate: 0,
-          );
-          if (result.isNotEmpty) {
-            compressed = result;
-          }
-        } catch (_) {}
-        if (compressed.length >= targetMinBytes || compressed.length > maxBytes) break;
-      }
-    }
-
-    // Final safety: if still larger than maxBytes, fall back to original resized
-    if (compressed.length > maxBytes) {
+    for (final a in attempts) {
       try {
-        final result = await FlutterImageCompress.compressWithList(
-          originalBytes,
-          quality: 50,
-          minWidth: 800,
-          minHeight: 800,
-        );
-        if (result.isNotEmpty) compressed = result;
+        final q = a['q'] ?? 70;
+        final w = a['w'] ?? 0;
+        final result = w > 0
+            ? await FlutterImageCompress.compressWithList(
+                originalBytes,
+                quality: q,
+                rotate: 0,
+                format: CompressFormat.webp,
+                minWidth: w,
+                minHeight: w,
+              )
+            : await FlutterImageCompress.compressWithList(
+                originalBytes,
+                quality: q,
+                rotate: 0,
+                format: CompressFormat.webp,
+              );
+        if (result.isEmpty) continue;
+        final current = Uint8List.fromList(result);
+        if (compressed.isEmpty || current.length < compressed.length) {
+          compressed = current;
+        }
+        if (current.length <= maxBytes) {
+          compressed = current;
+          break;
+        }
       } catch (_) {}
     }
 
-    final ref = FirebaseStorage.instance.ref().child('conductor_photos').child('$uid.jpg');
+    final ref = FirebaseStorage.instance
+        .ref()
+        .child('conductor_photos')
+        .child('$uid.webp');
     final uploadTask = ref.putData(
-      Uint8List.fromList(compressed),
-      SettableMetadata(contentType: 'image/jpeg'),
+      compressed,
+      SettableMetadata(contentType: 'image/webp'),
     );
     final snapshot = await uploadTask;
     final url = await snapshot.ref.getDownloadURL();

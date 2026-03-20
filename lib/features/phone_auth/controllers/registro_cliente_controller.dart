@@ -56,7 +56,8 @@ class RegistroClienteController extends ChangeNotifier {
     try {
       final profileUrl = await _storageService.uploadImage(
         file: File(_profileImage!.path),
-        path: 'usuarios/$uid/profile_${DateTime.now().millisecondsSinceEpoch}.jpg',
+        path:
+            'usuarios/$uid/profile_${DateTime.now().millisecondsSinceEpoch}.webp',
       );
 
       await _userDataService.guardarUsuarioCliente(

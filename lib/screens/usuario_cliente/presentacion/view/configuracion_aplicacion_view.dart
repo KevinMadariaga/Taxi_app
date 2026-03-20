@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/routes/app_routes.dart';
 import 'package:taxi_app/screens/eliminar_cuenta_screen.dart';
-import 'package:taxi_app/services/auth_service.dart';
+import 'package:taxi_app/core/services/services.dart';
 
 class ConfiguracionAplicacionView extends StatefulWidget {
   const ConfiguracionAplicacionView({super.key});
@@ -12,11 +12,13 @@ class ConfiguracionAplicacionView extends StatefulWidget {
       _ConfiguracionAplicacionViewState();
 }
 
-class _ConfiguracionAplicacionViewState extends State<ConfiguracionAplicacionView> {
+class _ConfiguracionAplicacionViewState
+    extends State<ConfiguracionAplicacionView> {
   static const String _appVersion = '1.0.0+4';
 
   String _apariencia = 'Sistema';
   bool _isLoggingOut = false;
+  bool _isDeletingAccount = false;
 
   Future<void> _seleccionarApariencia() async {
     final selected = await showModalBottomSheet<String>(
@@ -57,13 +59,13 @@ class _ConfiguracionAplicacionViewState extends State<ConfiguracionAplicacionVie
   }
 
   Future<void> _abrirDocumentosLegales() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const _DocumentosLegalesView()),
-    );
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const _DocumentosLegalesView()));
   }
 
   Future<void> _cerrarSesion() async {
-    if (_isLoggingOut) return;
+    if (_isLoggingOut || _isDeletingAccount) return;
     final confirmar = await showDialog<bool>(
       context: context,
       builder: (ctx) {
@@ -90,14 +92,15 @@ class _ConfiguracionAplicacionViewState extends State<ConfiguracionAplicacionVie
     try {
       await AuthService().logout();
       if (!mounted) return;
-      Navigator.of(context).pushNamedAndRemoveUntil(
-        AppRoutes.login,
-        (route) => false,
-      );
+      Navigator.of(
+        context,
+      ).pushNamedAndRemoveUntil(AppRoutes.login, (route) => false);
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No se pudo cerrar sesión. Intenta de nuevo.')),
+        const SnackBar(
+          content: Text('No se pudo cerrar sesión. Intenta de nuevo.'),
+        ),
       );
     } finally {
       if (mounted) {
@@ -107,9 +110,42 @@ class _ConfiguracionAplicacionViewState extends State<ConfiguracionAplicacionVie
   }
 
   Future<void> _eliminarCuenta() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const EliminarCuentaScreen()),
+    if (_isDeletingAccount || _isLoggingOut) return;
+
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Eliminar cuenta'),
+          content: const Text(
+            'Vas a iniciar el proceso para eliminar tu cuenta de forma permanente. ¿Deseas continuar?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Continuar'),
+            ),
+          ],
+        );
+      },
     );
+
+    if (confirmar != true || !mounted) return;
+
+    setState(() => _isDeletingAccount = true);
+    try {
+      await Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const EliminarCuentaScreen()));
+    } finally {
+      if (mounted) {
+        setState(() => _isDeletingAccount = false);
+      }
+    }
   }
 
   @override
@@ -146,24 +182,41 @@ class _ConfiguracionAplicacionViewState extends State<ConfiguracionAplicacionVie
           ListTile(
             leading: Icon(
               Icons.logout,
-              color: _isLoggingOut ? AppColores.textSecondary : AppColores.error,
+              color: _isLoggingOut
+                  ? AppColores.textSecondary
+                  : AppColores.error,
             ),
             title: Text(
               _isLoggingOut ? 'Cerrando sesión...' : 'Cerrar sesión',
               style: TextStyle(
-                color: _isLoggingOut ? AppColores.textSecondary : AppColores.error,
+                color: _isLoggingOut
+                    ? AppColores.textSecondary
+                    : AppColores.error,
                 fontWeight: FontWeight.w600,
               ),
             ),
-            enabled: !_isLoggingOut,
+            enabled: !_isLoggingOut && !_isDeletingAccount,
             onTap: _cerrarSesion,
           ),
           ListTile(
-            leading: const Icon(Icons.delete_forever_outlined, color: AppColores.error),
-            title: const Text(
-              'Eliminar cuenta',
-              style: TextStyle(color: AppColores.error, fontWeight: FontWeight.w600),
+            leading: Icon(
+              Icons.delete_forever_outlined,
+              color: _isDeletingAccount
+                  ? AppColores.textSecondary
+                  : AppColores.error,
             ),
+            title: Text(
+              _isDeletingAccount
+                  ? 'Abriendo eliminación...'
+                  : 'Eliminar cuenta',
+              style: TextStyle(
+                color: _isDeletingAccount
+                    ? AppColores.textSecondary
+                    : AppColores.error,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            enabled: !_isDeletingAccount && !_isLoggingOut,
             onTap: _eliminarCuenta,
           ),
         ],

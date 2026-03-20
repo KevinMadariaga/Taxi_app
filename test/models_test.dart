@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:taxi_app/data/models/registro_cliente_model.dart';
 import 'package:taxi_app/data/models/solicitud_id.dart';
 import 'package:taxi_app/data/models/viewmodels/registro_cliente_viewmodel.dart';
+import 'package:taxi_app/features/resumen_viaje/models/resumen_viaje_model.dart';
 
 void main() {
   group('Modelos de datos', () {
@@ -28,6 +29,31 @@ void main() {
     test('RegistroClienteViewModel puede instanciarse', () {
       final model = RegistroClienteViewModel();
       expect(model, isNotNull);
+    });
+
+    test('ResumenViajeModel usa tarifa.total como valor del servicio', () {
+      final model = ResumenViajeModel.fromFirestore(
+        solicitudId: 'sol_1',
+        data: {
+          'tarifa': {'total': 18500},
+          'valorServicio': 9999,
+          'destino': {'direccion': 'Centro'},
+        },
+      );
+
+      expect(model.valorServicio, 18500);
+    });
+
+    test('ResumenViajeModel mantiene fallback de valorServicio', () {
+      final model = ResumenViajeModel.fromFirestore(
+        solicitudId: 'sol_2',
+        data: {
+          'valorServicio': 24000,
+          'destino': {'direccion': 'Terminal'},
+        },
+      );
+
+      expect(model.valorServicio, 24000);
     });
   });
 }

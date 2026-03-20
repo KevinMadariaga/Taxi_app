@@ -8,8 +8,8 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:taxi_app/helper/map_helper.dart';
 import 'package:taxi_app/helper/session_helper.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/MapaClienteModel.dart';
-import 'package:taxi_app/services/firebase_service.dart';
-import 'package:taxi_app/services/ubicacion_servicio.dart';
+import 'package:taxi_app/core/services/services.dart';
+import 'package:taxi_app/core/services/ubicacion_servicio.dart';
 
 class InicioClienteViewModel extends ChangeNotifier {
   // --- Estado principal ---

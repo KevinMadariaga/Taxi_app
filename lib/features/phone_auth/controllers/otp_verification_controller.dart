@@ -1,9 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:taxi_app/data/repositories/client_auth/client_auth_repository_impl.dart';
+import 'package:taxi_app/domain/models/auth_flow_result.dart';
+import 'package:taxi_app/domain/repositories/client_auth_repository.dart';
+import 'package:taxi_app/domain/usecases/client_auth/verify_client_phone_otp_usecase.dart';
+import 'package:taxi_app/core/services/services.dart';
 
 import '../models/phone_code_result_model.dart';
-import '../services/phone_auth_service.dart';
 import '../services/user_data_service.dart';
 
 class OtpVerificationController extends ChangeNotifier {
@@ -12,15 +16,23 @@ class OtpVerificationController extends ChangeNotifier {
     required int? resendToken,
     required this.phoneNumber,
     required this.isAdminMode,
-    PhoneAuthService? phoneAuthService,
+    ClientAuthRepository? clientAuthRepository,
     UserDataService? userDataService,
+    VerifyClientPhoneOtpUseCase? verifyClientPhoneOtpUseCase,
+    AuthService? authService,
   }) : _verificationId = verificationId,
        _resendToken = resendToken,
-       _phoneAuthService = phoneAuthService ?? PhoneAuthService(),
-       _userDataService = userDataService ?? UserDataService();
+         _clientAuthRepository = clientAuthRepository ?? ClientAuthRepositoryImpl(),
+         _userDataService = userDataService ?? UserDataService(),
+         _verifyClientPhoneOtpUseCase =
+           verifyClientPhoneOtpUseCase ??
+           VerifyClientPhoneOtpUseCase(clientAuthRepository ?? ClientAuthRepositoryImpl()),
+       _authService = authService ?? AuthService();
 
-  final PhoneAuthService _phoneAuthService;
+  final ClientAuthRepository _clientAuthRepository;
   final UserDataService _userDataService;
+  final VerifyClientPhoneOtpUseCase _verifyClientPhoneOtpUseCase;
+  final AuthService _authService;
 
   final String phoneNumber;
   final bool isAdminMode;
@@ -32,6 +44,11 @@ class OtpVerificationController extends ChangeNotifier {
   int _resendCountdown = 30;
   bool _loading = false;
   Timer? _timer;
+  int _failedAttempts = 0;
+  DateTime? _lockUntil;
+
+  static const int _maxFailedAttempts = 5;
+  static const Duration _lockDuration = Duration(minutes: 5);
 
   String get otpCode => _otpCode;
   int get resendCountdown => _resendCountdown;
@@ -65,43 +82,80 @@ class OtpVerificationController extends ChangeNotifier {
       throw StateError('Ingresa un codigo valido de 6 digitos.');
     }
 
+    if (_lockUntil != null && DateTime.now().isBefore(_lockUntil!)) {
+      final remaining = _lockUntil!.difference(DateTime.now()).inSeconds;
+      throw StateError(
+          'Has alcanzado el numero maximo de intentos. Intenta nuevamente en ${remaining}s.');
+    }
+
     _loading = true;
     notifyListeners();
 
     try {
-      final credential = await _phoneAuthService.verifyCode(
-        verificationId: _verificationId,
-        otpCode: _otpCode,
-      );
-
-      final user = credential.user;
-      if (user == null) {
-        throw StateError('No fue posible autenticar al usuario.');
-      }
+      final normalizedPhone = _normalizeToTenDigits(phoneNumber);
 
       if (isAdminMode) {
-        final adminExists = await _userDataService.administradorExiste(user.uid);
+        final identity = await _clientAuthRepository.verifyPhoneOtp(
+          verificationId: _verificationId,
+          otpCode: _otpCode,
+        );
+
+        final uid = identity.uid;
+        if (uid.isEmpty) {
+          throw StateError('No fue posible autenticar al usuario.');
+        }
+
+        await _authService.saveUserSession(
+          role: 'administrador',
+          isLoggedIn: true,
+        );
+
+        final adminExists = await _userDataService.administradorExiste(uid);
         return AuthResolutionModel(
           destination: adminExists
               ? AuthNextDestination.adminPanel
               : AuthNextDestination.adminRegistration,
-          uid: user.uid,
-          phoneNumber: phoneNumber,
+          uid: uid,
+          phoneNumber: normalizedPhone,
         );
       }
 
-      final userExists = await _userDataService.usuarioExiste(user.uid);
-      return AuthResolutionModel(
-        destination: userExists
-            ? AuthNextDestination.clientHome
-            : AuthNextDestination.clientRegistration,
-        uid: user.uid,
-        phoneNumber: phoneNumber,
+      final flow = await _verifyClientPhoneOtpUseCase(
+        VerifyClientPhoneOtpParams(
+          verificationId: _verificationId,
+          otpCode: _otpCode,
+          phoneNumber: phoneNumber,
+        ),
       );
+
+      await _authService.saveUserSession(role: 'cliente', isLoggedIn: true);
+
+      return AuthResolutionModel(
+        destination: flow.destination == AuthFlowDestination.clientHome
+            ? AuthNextDestination.clientHome
+            : AuthNextDestination.completeClientProfile,
+        uid: flow.user.id,
+        phoneNumber: _normalizeToTenDigits(
+          flow.user.telefono.isNotEmpty ? flow.user.telefono : normalizedPhone,
+        ),
+      );
+    } catch (e) {
+      _failedAttempts += 1;
+      if (_failedAttempts >= _maxFailedAttempts) {
+        _lockUntil = DateTime.now().add(_lockDuration);
+      }
+      rethrow;
     } finally {
       _loading = false;
       notifyListeners();
     }
+  }
+
+  String _normalizeToTenDigits(String input) {
+    final digits = input.replaceAll(RegExp(r'\D'), '');
+    if (digits.isEmpty) return '';
+    if (digits.length <= 10) return digits;
+    return digits.substring(digits.length - 10);
   }
 
   Future<void> resendCode() async {
@@ -111,10 +165,11 @@ class OtpVerificationController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final result = await _phoneAuthService.sendCode(
+      final result = await _clientAuthRepository.sendPhoneOtp(
         phoneNumber: phoneNumber,
         forceResendingToken: _resendToken,
       );
+      // convert domain model to local PhoneCodeResultModel
       _verificationId = result.verificationId;
       _resendToken = result.resendToken;
       startTimer();

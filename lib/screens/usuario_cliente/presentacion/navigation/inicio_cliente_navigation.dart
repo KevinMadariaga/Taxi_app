@@ -13,6 +13,31 @@ import 'package:taxi_app/screens/usuario_cliente/presentacion/view/soporte_view.
 import 'package:taxi_app/widgets/perfil.dart';
 
 class InicioClienteNavigation {
+  static PageRouteBuilder<T> _buildSmoothRoute<T>(Widget page) {
+    return PageRouteBuilder<T>(
+      pageBuilder: (context, animation, secondaryAnimation) => page,
+      transitionDuration: const Duration(milliseconds: 260),
+      reverseTransitionDuration: const Duration(milliseconds: 220),
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeInCubic,
+        );
+        return FadeTransition(
+          opacity: curved,
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, 0.02),
+              end: Offset.zero,
+            ).animate(curved),
+            child: child,
+          ),
+        );
+      },
+    );
+  }
+
   static Future<void> irAPerfil(BuildContext context) {
     return Navigator.of(context).push(
       PageRouteBuilder(
@@ -78,11 +103,15 @@ class InicioClienteNavigation {
 
   static Future<void> irADestinoSeleccion(
     BuildContext context,
-    LatLng? currentLocation,
-  ) {
+    LatLng? currentLocation, {
+    String? origenDireccionInicial,
+  }) {
     return Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => BuscarDestinoView(currentLocation: currentLocation),
+      _buildSmoothRoute(
+        BuscarDestinoView(
+          currentLocation: currentLocation,
+          origenDireccionInicial: origenDireccionInicial,
+        ),
       ),
     );
   }
@@ -92,11 +121,9 @@ class InicioClienteNavigation {
     LocationModel origen,
     LocationModel destino,
   ) {
-    return Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => MapPreview(origen: origen, destino: destino),
-      ),
-    );
+    return Navigator.of(
+      context,
+    ).push(_buildSmoothRoute(MapPreview(origen: origen, destino: destino)));
   }
 
   static Future<void> irAMapaPreviewFavoritoCasa(
@@ -105,9 +132,8 @@ class InicioClienteNavigation {
     String direccion,
   ) {
     return Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) =>
-            MapaPreviewView(location: location, direccion: direccion),
+      _buildSmoothRoute(
+        MapaPreviewView(location: location, direccion: direccion),
       ),
     );
   }

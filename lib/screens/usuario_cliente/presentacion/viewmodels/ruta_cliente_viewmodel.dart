@@ -13,11 +13,9 @@ import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/helper/map_helper.dart';
 import 'package:taxi_app/helper/session_helper.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/chat_message.dart';
-import 'package:taxi_app/services/chat_service.dart';
-import 'package:taxi_app/services/map_service.dart';
-import 'package:taxi_app/services/notificacion_servicio.dart';
-import 'package:taxi_app/services/firebase_service.dart';
-import 'package:taxi_app/services/route_cache_service.dart';
+import 'package:taxi_app/core/services/chat_service_adapter.dart';
+import 'package:taxi_app/core/services/map_service_adapter.dart';
+import 'package:taxi_app/core/services/services.dart';
 
 class RutaClienteViewModel extends ChangeNotifier {
       /// Método público para recalcular la ruta desde la vista

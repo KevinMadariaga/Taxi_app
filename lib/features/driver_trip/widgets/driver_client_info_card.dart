@@ -94,13 +94,13 @@ class DriverClientInfoCard extends StatelessWidget {
                       onPressed: onOpenChat,
                       style: OutlinedButton.styleFrom(
                         minimumSize: const Size.fromHeight(48),
-                        side: const BorderSide(color: AppColores.buttonChat, width: 1.8),
+                        side: const BorderSide(color: AppColores.buttonPrimary, width: 1.8),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
-                      icon: const Icon(Icons.chat_bubble_outline, color: AppColores.buttonChat),
+                      icon: const Icon(Icons.chat_bubble_outline, color: AppColores.buttonPrimary),
                       label: const Text(
                         'Chat',
-                        style: TextStyle(color: AppColores.buttonChat, fontWeight: FontWeight.w700),
+                        style: TextStyle(color: AppColores.buttonPrimary, fontWeight: FontWeight.w700),
                       ),
                     ),
                     if (unreadCount > 0)
@@ -133,7 +133,7 @@ class DriverClientInfoCard extends StatelessWidget {
                   style: ElevatedButton.styleFrom(
                     minimumSize: const Size.fromHeight(48),
                     backgroundColor: AppColores.buttonPrimary,
-                    foregroundColor: AppColores.textPrimary,
+                    foregroundColor: AppColores.textWhite,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                   icon: const Icon(Icons.navigation_rounded),
@@ -149,7 +149,7 @@ class DriverClientInfoCard extends StatelessWidget {
               onPressed: isSendingArrival ? null : onReportArrival,
               style: ElevatedButton.styleFrom(
                 minimumSize: const Size.fromHeight(50),
-                backgroundColor: AppColores.buttonChat,
+                backgroundColor: AppColores.success ,
                 foregroundColor: AppColores.textWhite,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),

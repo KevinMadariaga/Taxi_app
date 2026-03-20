@@ -7,6 +7,7 @@ class AdminModel {
     required this.telefono,
     required this.foto,
     required this.gremio,
+    this.gremioFoto = '',
     this.fechaRegistro,
   });
 
@@ -15,6 +16,7 @@ class AdminModel {
   final String telefono;
   final String foto;
   final String gremio;
+  final String gremioFoto;
   final DateTime? fechaRegistro;
 
   factory AdminModel.fromFirestore(String uid, Map<String, dynamic> data) {
@@ -25,6 +27,7 @@ class AdminModel {
       telefono: (data['telefono'] ?? '').toString(),
       foto: (data['foto'] ?? '').toString(),
       gremio: (data['gremio'] ?? '').toString(),
+      gremioFoto: (data['gremioFoto'] ?? '').toString(),
       fechaRegistro: timestamp is Timestamp ? timestamp.toDate() : null,
     );
   }

@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import 'package:flutter/foundation.dart';
+import 'package:geocoding/geocoding.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/data/models/solicitud_id.dart';
@@ -12,9 +13,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:taxi_app/helper/session_helper.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/preview_solicitud.dart';
-import 'package:taxi_app/services/firebase_service.dart';
-import 'package:taxi_app/services/tracking_service.dart';
-import 'package:taxi_app/services/notification_service.dart';
+import 'package:taxi_app/core/services/tracking_service.dart';
+import 'package:taxi_app/core/services/services.dart';
 
 class InicioConductorViewmodel extends ChangeNotifier {
   // Variables de estado y colecciones faltantes
@@ -27,6 +27,7 @@ class InicioConductorViewmodel extends ChangeNotifier {
   final Map<String, String> _clientePhotoById = {};
   final Set<String> _clientePhotoLoadedIds = {};
   final Set<String> _knownPendingIds = {};
+  final Set<String> _resolvingAddressSolicitudIds = {};
   final StreamController<String> _newSolicitudController =
       StreamController<String>.broadcast();
   Stream<String> get onNewSolicitud => _newSolicitudController.stream;
@@ -36,13 +37,16 @@ class InicioConductorViewmodel extends ChangeNotifier {
   StreamSubscription<String?>? _cachedNameSub;
   bool _previewStatusHandled = false;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseService _firebaseService = FirebaseService();
   final TrackingService _trackingService = TrackingService();
 
   bool _disposed = false;
   bool isTogglingConnection = false;
   double rating = 0.0;
   int totalRatings = 0;
+  int totalCompletedTrips = 0;
+  double totalServiceValue = 0.0;
+  double _ratingFromConductorDoc = 0.0;
+  int _totalRatingsFromConductorDoc = 0;
 
   String displayName = 'Conductor';
   String? photoUrl;
@@ -115,7 +119,7 @@ class InicioConductorViewmodel extends ChangeNotifier {
 
         final uid = user.uid;
         try {
-          final snap = await _firestore.collection('conductor').doc(uid).get();
+          final snap = await _firestore.collection('usuarios').doc(uid).get();
           if (snap.exists) {
             final data = snap.data();
             nameFromDb = data?['nombre']?.toString();
@@ -128,13 +132,34 @@ class InicioConductorViewmodel extends ChangeNotifier {
             }
             // Obtener la foto del vehículo si existe
             final fotoVehiculoFromDb =
-                data?['fotoVehiculo'] ??
-                data?['fotoVehiculo'] ??
-                data?['vehiclePhotoUrl'];
+                data?['fotoVehiculo'] ?? data?['vehiclePhotoUrl'];
             if (fotoVehiculoFromDb != null &&
                 fotoVehiculoFromDb.toString().trim().isNotEmpty) {
               vehiclePhotoUrl = fotoVehiculoFromDb.toString().trim();
             }
+
+            final docAverage = _toDoubleOrNull(
+              data?['calificacionPromedio'] ??
+                  data?['ratingPromedio'] ??
+                  data?['rating'],
+            );
+            final docCount = _toIntOrNull(
+              data?['totalCalificaciones'] ??
+                  data?['ratingCount'] ??
+                  data?['totalRatings'],
+            );
+
+            if (docAverage != null) {
+              _ratingFromConductorDoc = docAverage.clamp(0.0, 5.0).toDouble();
+            }
+            if (docCount != null && docCount >= 0) {
+              _totalRatingsFromConductorDoc = docCount;
+            }
+            if (_totalRatingsFromConductorDoc > 0) {
+              totalRatings = _totalRatingsFromConductorDoc;
+              rating = _ratingFromConductorDoc;
+            }
+
             if (nameFromDb != null && nameFromDb!.trim().isNotEmpty) {
               displayName = nameFromDb!.trim();
             }
@@ -153,29 +178,6 @@ class InicioConductorViewmodel extends ChangeNotifier {
       final position = await _trackingService.obtenerUbicacionActual();
       if (position != null) {
         currentLocation = LatLng(position.latitude, position.longitude);
-        // Guardar ubicación en Firebase
-        final uid = FirebaseAuth.instance.currentUser?.uid;
-        if (uid != null && uid.isNotEmpty) {
-          try {
-            await _firebaseService.guardarUbicacionConductor(
-              conductorId: uid,
-              position: currentLocation!,
-            );
-            // Guardar SIEMPRE en conductores_conectados al obtener ubicación
-            await FirebaseFirestore.instance
-                .collection('conductores_conectados')
-                .doc(uid)
-                .set({
-                  'ubicacion': GeoPoint(
-                    currentLocation!.latitude,
-                    currentLocation!.longitude,
-                  ),
-                  'timestamp': FieldValue.serverTimestamp(),
-                }, SetOptions(merge: true));
-          } catch (e) {
-            debugPrint('Error guardando ubicación del conductor: $e');
-          }
-        }
       }
     } catch (_) {}
     loadingLocation = false;
@@ -284,123 +286,26 @@ class InicioConductorViewmodel extends ChangeNotifier {
   }
 
   void _handleSolicitudesQuerySnapshot(QuerySnapshot snap) {
+    if (!isConnected) {
+      return;
+    }
+
     try {
-      solicitudes.clear();
       final currentPendingIds = <String>{};
+      final parsedSolicitudes = <SolicitudItem>[];
+
       for (final doc in snap.docs) {
-        final raw = doc.data();
-        if (raw == null) continue;
-        final data = raw as Map<String, dynamic>;
-        final st = data['estado'] ?? data['status'];
-        if (st == null) continue;
-        final stLower = st.toString().toLowerCase();
-        if (!(stLower == 'buscando' ||
-            stLower == 'pending' ||
-            stLower == 'pendiente'))
-          continue;
-
-        // We'll only mark as pending for this driver if within radius (added below)
-
-        GeoPoint? origen;
-        String? origenAddress;
-        String? origenTitle;
-
-        final rawCliente = data['cliente'];
-        if (rawCliente is Map && rawCliente['ubicacion'] is Map) {
-          try {
-            final u = rawCliente['ubicacion'];
-            final lat = (u['lat'] as num?)?.toDouble();
-            final lng = (u['lng'] as num?)?.toDouble();
-            if (lat != null && lng != null) {
-              origen = GeoPoint(lat, lng);
-            }
-            origenAddress = (u['address'] ?? u['direccion'])?.toString();
-            origenTitle = origenAddress;
-          } catch (_) {}
-        }
-
-        if (origen == null && data['ubicacion_inicial'] is GeoPoint) {
-          origen = data['ubicacion_inicial'] as GeoPoint;
-        } else if (origen == null && data['origen'] is Map) {
-          try {
-            final o = data['origen'];
-            final lat = (o['lat'] as num?)?.toDouble();
-            final lng = (o['lng'] as num?)?.toDouble();
-            if (lat != null && lng != null) origen = GeoPoint(lat, lng);
-            if (o['address'] != null) {
-              origenAddress = o['address']?.toString();
-            } else if (o['direccion'] != null) {
-              origenAddress = o['direccion']?.toString();
-            }
-            if (o['title'] != null) {
-              origenTitle = o['title']?.toString();
-            } else if (o['address'] != null) {
-              origenTitle = o['address']?.toString();
-            } else if (o['direccion'] != null) {
-              origenTitle = o['direccion']?.toString();
-            }
-          } catch (_) {}
-        }
-        if (origen == null) continue;
-
-        String? clienteId;
-        String? nombreClienteFromData;
-        final clienteField = rawCliente;
-        if (clienteField is Map) {
-          clienteId =
-              (clienteField['id'] ??
-                      clienteField['uid'] ??
-                      clienteField['clienteId'])
-                  ?.toString();
-          nombreClienteFromData =
-              (clienteField['nombre'] ?? clienteField['name'])?.toString();
-        }
-        clienteId ??=
-            data['clienteId']?.toString() ?? data['cliente']?.toString();
-        if (clienteId == null) continue;
-
-        final item = SolicitudItem(
-          id: doc.id,
-          clienteId: clienteId,
-          ubicacionInicial: origen,
-          ubicacionDestino: null,
-          metodoPago:
-              (data['metodoPago'] ?? data['metodo_pago'] ?? data['metodo'])
-                  ?.toString(),
-        );
-
-        item.nombreCliente =
-            nombreClienteFromData ??
-            (data['nombreCliente'] ??
-                    data['nombre_cliente'] ??
-                    data['clienteNombre'] ??
-                    data['nombre'])
-                ?.toString();
-        if (origenAddress == null && data['origen'] is Map) {
-          final o = data['origen'];
-          origenAddress = (o['address'] ?? o['direccion'] ?? o['address_text'])
-              ?.toString();
-        }
-        item.origenTitle =
-            origenTitle ??
-            (data['origen'] is Map
-                ? (data['origen']['title'] ?? null)?.toString()
-                : null);
-        item.direccion =
-            origenAddress ??
-            (data['direccion'] ??
-                    data['direccion_recoger'] ??
-                    data['direccion_origen'] ??
-                    data['ubicacion_text'])
-                ?.toString();
+        final item = _buildPendingSolicitudItem(doc);
+        if (item == null) continue;
 
         // Require driver's current location to compute distance; if unavailable, skip
         if (currentLocation == null) continue;
+
         item.distanciaKm = _distanceKm(
           currentLocation!.latitude,
           currentLocation!.longitude,
-          origen.latitude,
-          origen.longitude,
+          item.ubicacionInicial.latitude,
+          item.ubicacionInicial.longitude,
         );
 
         // Only include solicitudes within 3 km
@@ -411,9 +316,14 @@ class InicioConductorViewmodel extends ChangeNotifier {
         // mark as pending for notification comparison (only when within range)
         currentPendingIds.add(doc.id);
 
-        solicitudes.add(item);
-        _completarDatosSolicitud(item);
+        parsedSolicitudes.add(item);
+        unawaited(_completarDatosSolicitud(item));
+        unawaited(_ensureFriendlyAddress(item));
       }
+
+      solicitudes
+        ..clear()
+        ..addAll(parsedSolicitudes);
 
       try {
         for (final id in currentPendingIds) {
@@ -444,51 +354,148 @@ class InicioConductorViewmodel extends ChangeNotifier {
     } catch (_) {}
   }
 
+  SolicitudItem? _buildPendingSolicitudItem(QueryDocumentSnapshot doc) {
+    final raw = doc.data();
+    if (raw is! Map<String, dynamic>) return null;
+
+    final status = raw['estado'] ?? raw['status'];
+    if (!_isPendingStatus(status)) return null;
+
+    final item = SolicitudItem.fromMap(doc.id, raw);
+    if (item.clienteId == null || item.clienteId!.isEmpty) return null;
+
+    final lat = item.ubicacionInicial.latitude;
+    final lng = item.ubicacionInicial.longitude;
+    if (lat == 0 && lng == 0) return null;
+
+    return item;
+  }
+
+  bool _isPendingStatus(dynamic status) {
+    if (status == null) return false;
+    final normalized = status.toString().toLowerCase().trim();
+    return normalized == 'buscando' ||
+        normalized == 'pending' ||
+        normalized == 'pendiente';
+  }
+
+  Future<void> _ensureFriendlyAddress(SolicitudItem item) async {
+    final hasAddress =
+        (item.origenTitle != null && item.origenTitle!.trim().isNotEmpty) ||
+        (item.direccion != null && item.direccion!.trim().isNotEmpty);
+    if (hasAddress) return;
+    if (!_resolvingAddressSolicitudIds.add(item.id)) return;
+
+    try {
+      final placemarks = await placemarkFromCoordinates(
+        item.ubicacionInicial.latitude,
+        item.ubicacionInicial.longitude,
+      );
+      if (placemarks.isEmpty) return;
+
+      final p = placemarks.first;
+      final parts = [
+        p.street?.trim(),
+        p.subLocality?.trim(),
+        p.locality?.trim(),
+      ].whereType<String>().where((value) => value.isNotEmpty);
+
+      final friendly = parts.take(2).join(', ').trim();
+      if (friendly.isEmpty) return;
+
+      item.origenTitle = friendly;
+      item.direccion = friendly;
+      _safeNotify();
+    } catch (_) {
+      // Si falla geocoding dejamos fallback a lat/lng en la vista.
+    } finally {
+      _resolvingAddressSolicitudIds.remove(item.id);
+    }
+  }
+
   void _subscribeConductorStatus() {
     try {
       final uid = FirebaseAuth.instance.currentUser?.uid;
       if (uid == null || uid.isEmpty) return;
       _conductorSub?.cancel();
-      _conductorSub = _firestore
-          .collection('conductor')
-          .doc(uid)
-          .snapshots()
-          .listen((snap) {
-            if (!snap.exists) return;
-            final data = snap.data();
-            if (data != null) {
-              final p = data['foto'] ?? data['fotoUrl'] ?? data['photoUrl'];
-              if (p != null && p.toString().trim().isNotEmpty) {
-                photoUrl = p.toString().trim();
-              }
-            }
+      _conductorSub = _firestore.collection('usuarios').doc(uid).snapshots().listen((
+        snap,
+      ) {
+        if (!snap.exists) return;
+        final data = snap.data();
+        if (data != null) {
+          final docName = data['nombre']?.toString().trim();
+          if (docName != null && docName.isNotEmpty) {
+            displayName = docName;
+          }
 
-            final connected =
-                snap.exists && (snap.data()?['conectado'] == true);
-            final previously = isConnected;
-            isConnected = connected;
-            if (!isConnected) {
-              // Clear pending solicitudes and known ids when driver disconnects
-              solicitudes.clear();
-              _knownPendingIds.clear();
-              routePoints.clear();
-              routePolylines.removeWhere(
-                (p) => p.polylineId.value.startsWith('route_'),
-              );
-              extraMarkers.removeWhere((m) => m.markerId.value == 'driver');
-              // Cancel solicitudes listener when disconnected to avoid processing updates
-              try {
-                _sub?.cancel();
-              } catch (_) {}
-              _safeNotify();
-            } else if (!previously && isConnected) {
-              // Just became connected: start listening to solicitudes
-              try {
-                _subscribeSolicitudes();
-              } catch (_) {}
-            }
-            _safeNotify();
-          });
+          final docPlate = data['placa']?.toString().trim();
+          if (docPlate != null && docPlate.isNotEmpty) {
+            plate = docPlate;
+          }
+
+          final p = data['foto'] ?? data['fotoUrl'] ?? data['photoUrl'];
+          if (p != null && p.toString().trim().isNotEmpty) {
+            photoUrl = p.toString().trim();
+          }
+
+          final vehiclePhoto = data['fotoVehiculo'] ?? data['vehiclePhotoUrl'];
+          if (vehiclePhoto != null &&
+              vehiclePhoto.toString().trim().isNotEmpty) {
+            vehiclePhotoUrl = vehiclePhoto.toString().trim();
+          }
+
+          final docAverage = _toDoubleOrNull(
+            data['calificacionPromedio'] ??
+                data['ratingPromedio'] ??
+                data['rating'],
+          );
+          final docCount = _toIntOrNull(
+            data['totalCalificaciones'] ??
+                data['ratingCount'] ??
+                data['totalRatings'],
+          );
+
+          if (docAverage != null) {
+            _ratingFromConductorDoc = docAverage.clamp(0.0, 5.0).toDouble();
+          }
+          if (docCount != null && docCount >= 0) {
+            _totalRatingsFromConductorDoc = docCount;
+          }
+
+          if (_totalRatingsFromConductorDoc > 0) {
+            totalRatings = _totalRatingsFromConductorDoc;
+            rating = _ratingFromConductorDoc;
+          }
+        }
+
+        final connected =
+            snap.exists &&
+            ((snap.data()?['disponible'] == true) ||
+                (snap.data()?['conectado'] == true));
+        final previously = isConnected;
+        isConnected = connected;
+        if (!isConnected) {
+          // Limpiar estados de solicitudes/previews cuando no está disponible.
+          try {
+            stopPreviewSolicitudStatusListener();
+          } catch (_) {}
+          clearPreviewAndRoutes();
+          solicitudes.clear();
+          _knownPendingIds.clear();
+          // Cancel solicitudes listener when disconnected to avoid processing updates
+          try {
+            _sub?.cancel();
+          } catch (_) {}
+          _safeNotify();
+        } else if (!previously && isConnected) {
+          // Just became connected: start listening to solicitudes
+          try {
+            _subscribeSolicitudes();
+          } catch (_) {}
+        }
+        _safeNotify();
+      });
     } catch (_) {}
   }
 
@@ -502,25 +509,90 @@ class InicioConductorViewmodel extends ChangeNotifier {
           .where('conductor.id', isEqualTo: uid)
           .snapshots()
           .listen((snap) {
-            double currentTotal = 0.0;
-            int count = 0;
+            double scoreTotal = 0.0;
+            int completedCount = 0;
+            int ratedCount = 0;
+            double serviceTotal = 0.0;
+
             for (var doc in snap.docs) {
               try {
                 final data = doc.data();
-                final calificacionObj =
-                    data['calificacion'] ?? data['calificacion_cliente'];
-                if (calificacionObj is Map &&
-                    calificacionObj['score'] != null) {
-                  currentTotal += (calificacionObj['score'] as num).toDouble();
-                  count++;
+                final estado = (data['estado'] ?? data['status'] ?? '')
+                    .toString()
+                    .toLowerCase()
+                    .trim();
+                if (!_isCompletedStatus(estado)) continue;
+
+                completedCount++;
+                serviceTotal += _extractServiceValue(data);
+
+                final score = _extractRatingScore(data);
+                if (score != null) {
+                  scoreTotal += score;
+                  ratedCount++;
                 }
               } catch (_) {}
             }
-            totalRatings = count;
-            rating = count > 0 ? (currentTotal / count) : 0.0;
+
+            // Promedio basado en calificaciones efectivamente realizadas por clientes.
+            totalCompletedTrips = completedCount;
+            totalServiceValue = serviceTotal;
+            // Si existe rating consolidado en usuarios, priorizarlo en la vista.
+            if (_totalRatingsFromConductorDoc > 0) {
+              totalRatings = _totalRatingsFromConductorDoc;
+              rating = _ratingFromConductorDoc;
+            } else if (ratedCount > 0) {
+              totalRatings = ratedCount;
+              rating = scoreTotal / ratedCount;
+            } else {
+              totalRatings = _totalRatingsFromConductorDoc;
+              rating = _totalRatingsFromConductorDoc > 0
+                  ? _ratingFromConductorDoc
+                  : 0.0;
+            }
             _safeNotify();
           });
     } catch (_) {}
+  }
+
+  double? _toDoubleOrNull(dynamic value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse(value?.toString() ?? '');
+  }
+
+  int? _toIntOrNull(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '');
+  }
+
+  bool _isCompletedStatus(String status) {
+    if (status.isEmpty) return false;
+    return status == 'completado' || status.contains('complet');
+  }
+
+  double _extractServiceValue(Map<String, dynamic> data) {
+    final tarifa = data['tarifa'];
+    if (tarifa is Map<String, dynamic> && tarifa['total'] != null) {
+      final total = tarifa['total'];
+      if (total is num) return total.toDouble();
+      return double.tryParse(total.toString()) ?? 0.0;
+    }
+
+    final valor = data['valor'];
+    if (valor is num) return valor.toDouble();
+    return double.tryParse(valor?.toString() ?? '') ?? 0.0;
+  }
+
+  double? _extractRatingScore(Map<String, dynamic> data) {
+    final raw = data['calificacion'] ?? data['calificacion_cliente'];
+    if (raw is Map<String, dynamic>) {
+      final score = raw['score'] ?? raw['puntaje'] ?? raw['valor'];
+      if (score is num) return score.toDouble();
+      return double.tryParse(score?.toString() ?? '');
+    }
+    if (raw is num) return raw.toDouble();
+    return double.tryParse(raw?.toString() ?? '');
   }
 
   Future<void> toggleConductorConnection() async {
@@ -530,11 +602,19 @@ class InicioConductorViewmodel extends ChangeNotifier {
     isTogglingConnection = true;
     _safeNotify();
     try {
-      final docRef = _firestore.collection('conductor').doc(uid);
+      final docRef = _firestore.collection('usuarios').doc(uid);
       final snap = await docRef.get();
-      final current = snap.exists && (snap.data()?['conectado'] == true);
+      final data = snap.data();
+      final current =
+          snap.exists &&
+          ((data?['disponible'] == true) || (data?['conectado'] == true));
       final newVal = !current;
-      await docRef.update({'conectado': newVal});
+      await docRef.set({
+        'uid': uid,
+        'rol': 'conductor',
+        'tipoUsuario': 'conductor',
+        'disponible': newVal,
+      }, SetOptions(merge: true));
       // The _conductorSub listener will update the local isConnected state
     } catch (e) {
       debugPrint('Error toggling connection: $e');

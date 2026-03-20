@@ -41,22 +41,30 @@ class EditarPerfilScreen extends StatefulWidget {
 }
 
 class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
-      bool get _hasChanges {
-        final nombreChanged = widget.selectedImage != null && widget.nombreController.text.trim() != widget.selectedImage?.path;
-        final telefonoChanged = widget.selectedVehicleImage != null && widget.telefonoController.text.trim() != widget.selectedVehicleImage?.path;
-        final placaChanged = widget.esConductor && widget.placaController.text.trim() != (widget.placaController.value.text.trim());
-        final imageChanged = _image?.path != widget.selectedImage?.path;
-        final vehicleChanged = widget.esConductor && _vehicleImage?.path != widget.selectedVehicleImage?.path;
-        return nombreChanged || telefonoChanged || placaChanged || imageChanged || vehicleChanged;
-      }
-    Future<String?> _getPrevImageUrl(String tipoUsuario, String uid, String campo) async {
-      try {
-        final snapshot = await FirebaseFirestore.instance.collection(tipoUsuario).doc(uid).get();
-        return snapshot.data()?[campo] as String?;
-      } catch (_) {
-        return null;
-      }
-    }
+  bool get _hasChanges {
+    final nombreChanged =
+        widget.selectedImage != null &&
+        widget.nombreController.text.trim() != widget.selectedImage?.path;
+    final telefonoChanged =
+        widget.selectedVehicleImage != null &&
+        widget.telefonoController.text.trim() !=
+            widget.selectedVehicleImage?.path;
+    final placaChanged =
+        widget.esConductor &&
+        widget.placaController.text.trim() !=
+            (widget.placaController.value.text.trim());
+    final imageChanged = _image?.path != widget.selectedImage?.path;
+    final vehicleChanged =
+        widget.esConductor &&
+        _vehicleImage?.path != widget.selectedVehicleImage?.path;
+    return nombreChanged ||
+        telefonoChanged ||
+        placaChanged ||
+        imageChanged ||
+        vehicleChanged;
+  }
+
+
   File? _image;
   File? _vehicleImage;
   bool _isUploading = false;
@@ -78,11 +86,11 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
       );
       if (picked == null) return;
       final pickedFile = File(picked.path);
-      final compressed = await _compressFile(pickedFile, maxBytes: 300 * 1024);
+      final compressed = await _compressFile(pickedFile, maxBytes: 100 * 1024);
       final fileSize = await compressed.length();
-      if (fileSize > 300 * 1024) {
+      if (fileSize > 100 * 1024) {
         AnimatedSnackBar.material(
-          'La imagen seleccionada es mayor a 300KB. Selecciona una más pequeña.',
+          'La imagen seleccionada es mayor a 100KB. Selecciona una más pequeña.',
           type: AnimatedSnackBarType.warning,
         ).show(context);
         return;
@@ -107,14 +115,15 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
   Future<File> _compressFile(File file, {required int maxBytes}) async {
     try {
       final dir = await getTemporaryDirectory();
-      final outPath = '${dir.path}/${DateTime.now().millisecondsSinceEpoch}_comp.jpg';
+      final outPath =
+          '${dir.path}/${DateTime.now().millisecondsSinceEpoch}_comp.webp';
       final bytes = await file.readAsBytes();
       final codec = await ui.instantiateImageCodec(bytes);
       final frame = await codec.getNextFrame();
       final ui.Image original = frame.image;
       final int origW = original.width;
       final int origH = original.height;
-      final qualities = [95, 85, 75, 65, 55, 45, 35, 30];
+      final qualities = [80, 70, 60, 50, 45, 40, 35, 30, 25];
       final scales = [1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4];
       File? best;
       for (final s in scales) {
@@ -127,6 +136,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
             quality: q,
             minWidth: targetW,
             minHeight: targetH,
+            format: CompressFormat.webp,
           );
           if (result == null) continue;
           final len = await result.length();
@@ -160,7 +170,10 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: AppColores.primary,
-        title: const Text('Editar Perfil', style: TextStyle(color: AppColores.textWhite)),
+        title: const Text(
+          'Editar Perfil',
+          style: TextStyle(color: AppColores.textWhite),
+        ),
         iconTheme: const IconThemeData(color: AppColores.textWhite),
       ),
       backgroundColor: AppColores.background,
@@ -178,8 +191,16 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                       CircleAvatar(
                         radius: avatarRadius,
                         backgroundColor: AppColores.grey200,
-                        backgroundImage: _image != null ? FileImage(_image!) : null,
-                        child: _image == null ? Icon(Icons.person, size: avatarIconSize, color: AppColores.textWhite) : null,
+                        backgroundImage: _image != null
+                            ? FileImage(_image!)
+                            : null,
+                        child: _image == null
+                            ? Icon(
+                                Icons.person,
+                                size: avatarIconSize,
+                                color: AppColores.textWhite,
+                              )
+                            : null,
                       ),
                       Positioned(
                         bottom: cameraButtonRadius * 0.5,
@@ -189,7 +210,11 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                           child: CircleAvatar(
                             radius: cameraButtonRadius,
                             backgroundColor: AppColores.primary,
-                            child: Icon(Icons.camera_alt, size: cameraIconSize, color: AppColores.textWhite),
+                            child: Icon(
+                              Icons.camera_alt,
+                              size: cameraIconSize,
+                              color: AppColores.textWhite,
+                            ),
                           ),
                         ),
                       ),
@@ -203,23 +228,43 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
               controller: widget.nombreController,
               decoration: InputDecoration(
                 labelText: 'Nombre',
-                labelStyle: TextStyle(fontSize: labelFontSize, color: AppColores.textPrimary),
-                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColores.primary)),
-                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColores.primary)),
+                labelStyle: TextStyle(
+                  fontSize: labelFontSize,
+                  color: AppColores.textPrimary,
+                ),
+                enabledBorder: UnderlineInputBorder(
+                  borderSide: BorderSide(color: AppColores.primary),
+                ),
+                focusedBorder: UnderlineInputBorder(
+                  borderSide: BorderSide(color: AppColores.primary),
+                ),
               ),
-              style: TextStyle(fontSize: fieldFontSize, color: AppColores.textPrimary),
+              style: TextStyle(
+                fontSize: fieldFontSize,
+                color: AppColores.textPrimary,
+              ),
             ),
             SizedBox(height: screenHeight * 0.02),
             TextField(
               controller: widget.telefonoController,
               decoration: InputDecoration(
                 labelText: 'Teléfono',
-                labelStyle: TextStyle(fontSize: labelFontSize, color: AppColores.textPrimary),
-                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColores.primary)),
-                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColores.primary)),
+                labelStyle: TextStyle(
+                  fontSize: labelFontSize,
+                  color: AppColores.textPrimary,
+                ),
+                enabledBorder: UnderlineInputBorder(
+                  borderSide: BorderSide(color: AppColores.primary),
+                ),
+                focusedBorder: UnderlineInputBorder(
+                  borderSide: BorderSide(color: AppColores.primary),
+                ),
               ),
               keyboardType: TextInputType.phone,
-              style: TextStyle(fontSize: fieldFontSize, color: AppColores.textPrimary),
+              style: TextStyle(
+                fontSize: fieldFontSize,
+                color: AppColores.textPrimary,
+              ),
             ),
             if (widget.esConductor) ...[
               SizedBox(height: screenHeight * 0.02),
@@ -227,17 +272,34 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                 controller: widget.placaController,
                 decoration: InputDecoration(
                   labelText: 'Placa',
-                  labelStyle: TextStyle(fontSize: labelFontSize, color: AppColores.textPrimary),
-                  enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColores.primary)),
-                  focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColores.primary)),
+                  labelStyle: TextStyle(
+                    fontSize: labelFontSize,
+                    color: AppColores.textPrimary,
+                  ),
+                  enabledBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: AppColores.primary),
+                  ),
+                  focusedBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: AppColores.primary),
+                  ),
                 ),
-                style: TextStyle(fontSize: fieldFontSize, color: AppColores.textPrimary),
+                style: TextStyle(
+                  fontSize: fieldFontSize,
+                  color: AppColores.textPrimary,
+                ),
               ),
               SizedBox(height: screenHeight * 0.02),
               Center(
                 child: Column(
                   children: [
-                    Text('Foto del vehículo', style: TextStyle(fontSize: labelFontSize + 2, fontWeight: FontWeight.w600, color: AppColores.textPrimary)),
+                    Text(
+                      'Foto del vehículo',
+                      style: TextStyle(
+                        fontSize: labelFontSize + 2,
+                        fontWeight: FontWeight.w600,
+                        color: AppColores.textPrimary,
+                      ),
+                    ),
                     SizedBox(height: screenHeight * 0.015),
                     Stack(
                       children: [
@@ -248,7 +310,11 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                               ? Image.file(_vehicleImage!, fit: BoxFit.cover)
                               : Container(
                                   color: AppColores.grey200,
-                                  child: Icon(Icons.directions_car, color: AppColores.textWhite, size: vehicleImgHeight * 0.5),
+                                  child: Icon(
+                                    Icons.directions_car,
+                                    color: AppColores.textWhite,
+                                    size: vehicleImgHeight * 0.5,
+                                  ),
                                 ),
                         ),
                         Positioned(
@@ -259,8 +325,17 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                             child: Container(
                               width: vehicleCameraBtnSize,
                               height: vehicleCameraBtnSize,
-                              decoration: BoxDecoration(color: AppColores.primary, borderRadius: BorderRadius.circular(vehicleCameraBtnSize * 0.33)),
-                              child: Icon(Icons.camera_alt, size: vehicleCameraIconSize, color: AppColores.textWhite),
+                              decoration: BoxDecoration(
+                                color: AppColores.primary,
+                                borderRadius: BorderRadius.circular(
+                                  vehicleCameraBtnSize * 0.33,
+                                ),
+                              ),
+                              child: Icon(
+                                Icons.camera_alt,
+                                size: vehicleCameraIconSize,
+                                color: AppColores.textWhite,
+                              ),
                             ),
                           ),
                         ),
@@ -300,66 +375,112 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                               String? imageUrl;
                               String? vehicleUrl;
                               final uid = await _getUid();
-                              final tipoUsuario = widget.esConductor ? 'conductor' : 'cliente';
+                              // Siempre guardar en 'usuarios' (no en 'conductor' ni 'cliente')
                               // Subir imagen de perfil si hay nueva
                               if (_image != null && uid != null) {
-                                final fileSize = await _image!.length();
-                                if (fileSize > 300 * 1024) {
+                                final profileToUpload = await _compressFile(
+                                  _image!,
+                                  maxBytes: 100 * 1024,
+                                );
+                                final fileSize = await profileToUpload.length();
+                                if (fileSize > 100 * 1024) {
                                   AnimatedSnackBar.material(
-                                    'La imagen de perfil es mayor a 300KB. Selecciona una más pequeña.',
+                                    'La imagen de perfil es mayor a 100KB. Selecciona una más pequeña.',
                                     type: AnimatedSnackBarType.warning,
                                   ).show(context);
                                   setState(() => _isUploading = false);
                                   return;
                                 }
                                 // Solo actualiza si es diferente
-                                final prevUrl = await _getPrevImageUrl(tipoUsuario, uid, 'foto');
-                                if (prevUrl == null || prevUrl.isEmpty || widget.selectedImage == null || widget.selectedImage!.path != prevUrl) {
+                                final prevDoc = await FirebaseFirestore.instance.collection('usuarios').doc(uid).get();
+                                final prevUrl = prevDoc.data()?['foto'] as String?;
+                                if (prevUrl == null ||
+                                    prevUrl.isEmpty ||
+                                    widget.selectedImage == null ||
+                                    widget.selectedImage!.path != prevUrl) {
                                   // Eliminar imagen anterior si existe
                                   try {
                                     if (prevUrl != null && prevUrl.isNotEmpty) {
-                                      await firebase_storage.FirebaseStorage.instance.refFromURL(prevUrl).delete();
+                                      await firebase_storage
+                                          .FirebaseStorage
+                                          .instance
+                                          .refFromURL(prevUrl)
+                                          .delete();
                                     }
                                   } catch (_) {}
-                                  final path = '$tipoUsuario/$uid/profile_${DateTime.now().millisecondsSinceEpoch}.jpg';
-                                  final ref = firebase_storage.FirebaseStorage.instance.ref().child(path);
-                                  final uploadTask = ref.putFile(_image!);
+                                  final path =
+                                      'usuarios/$uid/profile_${DateTime.now().millisecondsSinceEpoch}.webp';
+                                  final ref = firebase_storage
+                                      .FirebaseStorage
+                                      .instance
+                                      .ref()
+                                      .child(path);
+                                  final uploadTask = ref.putFile(
+                                    profileToUpload,
+                                  );
                                   final snapshot = await uploadTask;
-                                  imageUrl = await snapshot.ref.getDownloadURL();
+                                  imageUrl = await snapshot.ref
+                                      .getDownloadURL();
                                 }
                               }
                               // Subir imagen de vehículo si hay nueva y es conductor
-                              if (widget.esConductor && _vehicleImage != null && uid != null) {
-                                final fileSize = await _vehicleImage!.length();
-                                if (fileSize > 300 * 1024) {
+                              if (widget.esConductor &&
+                                  _vehicleImage != null &&
+                                  uid != null) {
+                                final vehicleToUpload = await _compressFile(
+                                  _vehicleImage!,
+                                  maxBytes: 100 * 1024,
+                                );
+                                final fileSize = await vehicleToUpload.length();
+                                if (fileSize > 100 * 1024) {
                                   AnimatedSnackBar.material(
-                                    'La imagen del vehículo es mayor a 300KB. Selecciona una más pequeña.',
+                                    'La imagen del vehículo es mayor a 100KB. Selecciona una más pequeña.',
                                     type: AnimatedSnackBarType.warning,
                                   ).show(context);
                                   setState(() => _isUploading = false);
                                   return;
                                 }
                                 // Solo actualiza si es diferente
-                                final prevUrl = await _getPrevImageUrl(tipoUsuario, uid, 'fotoVehiculo');
-                                if (prevUrl == null || prevUrl.isEmpty || widget.selectedVehicleImage == null || widget.selectedVehicleImage!.path != prevUrl) {
+                                final prevDoc = await FirebaseFirestore.instance.collection('usuarios').doc(uid).get();
+                                final prevUrl = prevDoc.data()?['fotoVehiculo'] as String?;
+                                if (prevUrl == null ||
+                                    prevUrl.isEmpty ||
+                                    widget.selectedVehicleImage == null ||
+                                    widget.selectedVehicleImage!.path !=
+                                        prevUrl) {
                                   // Eliminar imagen anterior si existe
                                   try {
                                     if (prevUrl != null && prevUrl.isNotEmpty) {
-                                      await firebase_storage.FirebaseStorage.instance.refFromURL(prevUrl).delete();
+                                      await firebase_storage
+                                          .FirebaseStorage
+                                          .instance
+                                          .refFromURL(prevUrl)
+                                          .delete();
                                     }
                                   } catch (_) {}
-                                  final path = '$tipoUsuario/$uid/vehicle_${DateTime.now().millisecondsSinceEpoch}.jpg';
-                                  final ref = firebase_storage.FirebaseStorage.instance.ref().child(path);
-                                  final uploadTask = ref.putFile(_vehicleImage!);
+                                  final path =
+                                      'usuarios/$uid/vehicle_${DateTime.now().millisecondsSinceEpoch}.webp';
+                                  final ref = firebase_storage
+                                      .FirebaseStorage
+                                      .instance
+                                      .ref()
+                                      .child(path);
+                                  final uploadTask = ref.putFile(
+                                    vehicleToUpload,
+                                  );
                                   final snapshot = await uploadTask;
-                                  vehicleUrl = await snapshot.ref.getDownloadURL();
+                                  vehicleUrl = await snapshot.ref
+                                      .getDownloadURL();
                                 }
                               }
                               final Map<String, dynamic> datos = {};
-                              datos['nombre'] = widget.nombreController.text.trim();
-                              datos['telefono'] = widget.telefonoController.text.trim();
+                              datos['nombre'] = widget.nombreController.text
+                                  .trim();
+                              datos['telefono'] = widget.telefonoController.text
+                                  .trim();
                               if (widget.esConductor) {
-                                datos['placa'] = widget.placaController.text.trim();
+                                datos['placa'] = widget.placaController.text
+                                    .trim();
                               }
                               if (imageUrl != null) {
                                 datos['foto'] = imageUrl;
@@ -404,4 +525,3 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
     }
   }
 }
-

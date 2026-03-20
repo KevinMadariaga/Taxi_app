@@ -32,103 +32,8 @@ class MapaPreviewView extends StatefulWidget {
 
 class _MapaPreviewViewState extends State<MapaPreviewView> {
   late final MapapreviewViewModel _vm;
-  GoogleMapController? _mapController;
+  
 
-  /// Widget para el título de la pantalla.
-  Widget _buildTitle() {
-    return const Padding(
-      padding: EdgeInsets.symmetric(horizontal: 15.0),
-      child: Center(
-        child: Text(
-          'Mueve el indicador en el mapa',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: Colors.black87,
-            fontSize: 19,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Widget para el mapa y el marcador fijo.
-  Widget _buildMap() {
-    return SizedBox(
-      height: 420,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.black, width: 1),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Mapagoogle(
-                initialTarget: widget.location,
-                initialZoom: 16,
-                // myLocationEnabled: false,
-                // myLocationButtonEnabled: false,
-                // rotateGesturesEnabled: false,
-                // tiltGesturesEnabled: false,
-                // onMapCreated: _onMapCreated,
-                // onCameraMove: _onCameraMove,
-                // onCameraIdle: _onCameraIdle,
-              ),
-            ),
-          ),
-          IgnorePointer(
-            child: Transform.translate(
-              offset: const Offset(0, -18),
-              child: const Icon(
-                Icons.place,
-                size: 48,
-                color: Color(0xFFFFCA44),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Widget para mostrar la dirección y el nombre del lugar.
-  Widget _buildAddressInfo(MapapreviewViewModel vm) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SizedBox(height: 20),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 15.0),
-          child: Text(
-            vm.formatAddress(widget.direccion ?? 'Nombre del lugar').toUpperCase(),
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-              color: Colors.black87,
-            ),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 15.0),
-          child: Text(
-            vm.formatAddress(vm.currentAddress).isNotEmpty
-                ? vm.formatAddress(vm.currentAddress)
-                : '${vm.center.latitude.toStringAsFixed(6)}, ${vm.center.longitude.toStringAsFixed(6)}',
-            style: const TextStyle(
-              fontSize: 18,
-              color: Colors.black54,
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-      ],
-    );
-  }
 
   /// Widget para el botón inferior.
   Widget _buildBottomBar(BuildContext context) {
@@ -212,32 +117,6 @@ class _MapaPreviewViewState extends State<MapaPreviewView> {
     _vm.reverseGeocodeCenter();
   }
 
-  /// Callback cuando el mapa es creado.
-  void _onMapCreated(GoogleMapController controller) {
-    _mapController = controller;
-    // Zoom animado sobre el centro
-    Future.delayed(const Duration(milliseconds: 300), () {
-      if (!mounted || _mapController == null) return;
-      _mapController!.animateCamera(
-        CameraUpdate.newCameraPosition(
-          CameraPosition(
-            target: widget.location,
-            zoom: 18,
-          ),
-        ),
-      );
-    });
-  }
-
-  /// Callback cuando la cámara se mueve.
-  void _onCameraMove(CameraPosition position) {
-    _vm.updateCameraCenter(position.target);
-  }
-
-  /// Callback cuando la cámara deja de moverse.
-  void _onCameraIdle() {
-    _vm.reverseGeocodeCenter();
-  }
 
   @override
   Widget build(BuildContext context) {

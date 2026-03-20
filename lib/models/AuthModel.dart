@@ -2,11 +2,12 @@ import 'package:flutter/foundation.dart';
 import 'package:taxi_app/helper/session_helper.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:taxi_app/screens/usuario_cliente/data/Auth.dart';
+import 'package:taxi_app/domain/repositories/client_auth_repository.dart';
+import 'package:taxi_app/core/auth/simple_auth_repository.dart';
 
 /// ViewModel para gestionar la autenticación de usuario (login/logout, estado y errores).
 class AuthViewModel extends ChangeNotifier {
-  final AuthRepository _authRepository;
+  final ClientAuthRepository _authRepository;
 
   AuthViewModel(this._authRepository);
 
@@ -45,7 +46,14 @@ class AuthViewModel extends ChangeNotifier {
       _errorMessage = null;
       notifyListeners();
 
-      await _authRepository.login(_email, _password);
+      if (_authRepository is LegacyAuthRepository) {
+        await (_authRepository as LegacyAuthRepository).login(_email, _password);
+      } else {
+        _errorMessage = 'Login por email no soportado por el repositorio actual';
+        _isAuthenticated = false;
+        notifyListeners();
+        return;
+      }
       _isAuthenticated = true;
 
       // Detectar rol dinámicamente
@@ -88,8 +96,16 @@ class AuthViewModel extends ChangeNotifier {
     try {
       _isLoading = true;
       notifyListeners();
-      await _authRepository.logout();
+      if (_authRepository is LegacyAuthRepository) {
+        await (_authRepository as LegacyAuthRepository).logout();
+      } else {
+        try {
+          await SessionHelper.clearSession();
+          await SessionHelper.clearActiveSolicitud();
+        } catch (_) {}
+      }
       await SessionHelper.clearSession();
+      await SessionHelper.clearActiveSolicitud();
       _isAuthenticated = false;
       _errorMessage = null;
     } catch (e) {

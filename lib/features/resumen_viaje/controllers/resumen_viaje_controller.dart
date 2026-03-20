@@ -9,12 +9,13 @@ class ResumenViajeController extends ChangeNotifier {
   ResumenViajeController({
     required this.tipoUsuario,
     required this.solicitudId,
-    FirebaseService? firebaseService,
-  }) : _firebaseService = firebaseService ?? FirebaseService();
+    ResumenViajeFirebaseService? firebaseService,
+  }) : _firebaseService =
+           firebaseService ?? ResumenViajeFirebaseService();
 
   final TipoUsuarioResumen tipoUsuario;
   final String solicitudId;
-  final FirebaseService _firebaseService;
+  final ResumenViajeFirebaseService _firebaseService;
 
   bool _guardando = false;
   double _calificacionSeleccionada = 0;

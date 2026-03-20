@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 
 class SolicitudRepository {
   /// Devuelve un stream en tiempo real del estado de la solicitud
@@ -23,7 +24,7 @@ class SolicitudRepository {
           }
         });
       } catch (e) {
-        print('Error al guardar ubicación del conductor: $e');
+        debugPrint('Error al guardar ubicación del conductor: $e');
       }
     }
     
@@ -42,7 +43,7 @@ class SolicitudRepository {
       }
       return null;
     } catch (e) {
-      print('Error al obtener cliente: $e');
+      debugPrint('Error al obtener cliente: $e');
       return null;
     }
   }
@@ -62,7 +63,7 @@ class SolicitudRepository {
       }
       return null;
     } catch (e) {
-      print('Error al obtener conductor: $e');
+      debugPrint('Error al obtener conductor: $e');
       return null;
     }
   }
@@ -85,7 +86,7 @@ class SolicitudRepository {
       }
       return null;
     } catch (e) {
-      print('Error al obtener ubicación del conductor: $e');
+      debugPrint('Error al obtener ubicación del conductor: $e');
       return null;
     }
   }
@@ -108,7 +109,7 @@ class SolicitudRepository {
       }
       return null;
     } catch (e) {
-      print('Error al obtener ubicación del cliente: $e');
+      debugPrint('Error al obtener ubicación del cliente: $e');
       return null;
     }
   }

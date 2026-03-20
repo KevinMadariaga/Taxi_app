@@ -1,12 +1,27 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 import '../models/resumen_viaje_model.dart';
 
-class FirebaseService {
-  FirebaseService({FirebaseFirestore? firestore})
-    : _firestore = firestore ?? FirebaseFirestore.instance;
+class ResumenViajeFirebaseService {
+  ResumenViajeFirebaseService({FirebaseFirestore? firestore})
+    : _firestoreOverride = firestore;
 
-  final FirebaseFirestore _firestore;
+  final FirebaseFirestore? _firestoreOverride;
+
+  FirebaseFirestore get _firestore {
+    if (_firestoreOverride != null) {
+      return _firestoreOverride;
+    }
+
+    if (Firebase.apps.isEmpty) {
+      throw StateError(
+        'Firebase no ha sido inicializado. Llama Firebase.initializeApp() antes de usar ResumenViajeFirebaseService.',
+      );
+    }
+
+    return FirebaseFirestore.instance;
+  }
 
   Stream<ResumenViajeModel> streamResumenViaje(String solicitudId) {
     return _firestore.collection('solicitudes').doc(solicitudId).snapshots().map((snap) {

@@ -16,6 +16,7 @@ class _SeguridadViewState extends State<SeguridadView> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -27,6 +28,7 @@ class _SeguridadViewState extends State<SeguridadView> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -47,6 +49,7 @@ class _SeguridadViewState extends State<SeguridadView> {
               final value = await showDialog<String>(
                 context: context,
                 builder: (dialogCtx) => AlertDialog(
+                  scrollable: true,
                   title: const Text('Nuevo contacto de emergencia'),
                   content: TextField(
                     controller: ctrl,
@@ -62,7 +65,8 @@ class _SeguridadViewState extends State<SeguridadView> {
                       child: const Text('Cancelar'),
                     ),
                     FilledButton(
-                      onPressed: () => Navigator.of(dialogCtx).pop(ctrl.text.trim()),
+                      onPressed: () =>
+                          Navigator.of(dialogCtx).pop(ctrl.text.trim()),
                       child: const Text('Guardar'),
                     ),
                   ],
@@ -115,7 +119,9 @@ class _SeguridadViewState extends State<SeguridadView> {
                           trailing: IconButton(
                             icon: const Icon(Icons.delete_outline),
                             onPressed: () {
-                              setState(() => _emergencyContacts.removeAt(index));
+                              setState(
+                                () => _emergencyContacts.removeAt(index),
+                              );
                               setModalState(() {});
                             },
                           ),

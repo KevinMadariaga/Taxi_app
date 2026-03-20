@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -6,12 +7,12 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:taxi_app/core/app_colores.dart';
-import 'package:taxi_app/features/trip_tracking/viewmodels/trip_route_tracking_viewmodel.dart';
-import 'package:taxi_app/features/trip_tracking/views/trip_route_tracking_screen.dart';
+import 'package:taxi_app/features/trip_tracking_cliente/viewmodels/trip_route_tracking_viewmodel.dart';
+import 'package:taxi_app/features/trip_tracking_cliente/views/trip_route_tracking_screen.dart';
 import 'package:taxi_app/helper/session_helper.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioConductorView.dart';
-import 'package:taxi_app/services/background_tracking_service.dart';
-import 'package:taxi_app/services/route_cache_service.dart';
+import 'package:taxi_app/core/services/background_tracking_service.dart';
+import 'package:taxi_app/core/services/services.dart';
 
 import '../controllers/driver_trip_controller.dart';
 import '../widgets/driver_client_info_card.dart';
@@ -32,6 +33,7 @@ class _DriverTripScreenState extends State<DriverTripScreen>
     with WidgetsBindingObserver {
   late final DriverTripController _controller;
   GoogleMapController? _mapController;
+  BitmapDescriptor? _clientMarkerIcon;
 
   bool _initialCameraApplied = false;
   bool _navigating = false;
@@ -40,13 +42,34 @@ class _DriverTripScreenState extends State<DriverTripScreen>
   BuildContext? _waitingModalContext;
   String? _lastPersistedStatus;
   bool _backgroundTrackingEnabled = false;
+  bool _backgroundTrackingStarting = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _controller = DriverTripController(tripId: widget.tripId);
+    _loadClientMarkerIcon();
     _controller.init();
+  }
+
+  Future<void> _loadClientMarkerIcon() async {
+    try {
+      final dpr = WidgetsBinding
+          .instance
+          .platformDispatcher
+          .views
+          .first
+          .devicePixelRatio;
+      final icon = await BitmapDescriptor.asset(
+        ImageConfiguration(size: const Size(30, 50), devicePixelRatio: dpr),
+        'assets/img/map_pin_red.png',
+      );
+      if (!mounted) return;
+      setState(() {
+        _clientMarkerIcon = icon;
+      });
+    } catch (_) {}
   }
 
   @override
@@ -59,6 +82,8 @@ class _DriverTripScreenState extends State<DriverTripScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive ||
         state == AppLifecycleState.hidden) {
@@ -73,30 +98,41 @@ class _DriverTripScreenState extends State<DriverTripScreen>
   }
 
   Future<void> _startBackgroundTrackingIfNeeded() async {
-    if (_backgroundTrackingEnabled) return;
+    if (_backgroundTrackingEnabled || _backgroundTrackingStarting) return;
 
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null || uid.isEmpty) return;
 
+    _backgroundTrackingStarting = true;
+
     try {
+      await initializeBackgroundService();
       await startBackgroundTrackingService();
       final service = FlutterBackgroundService();
+
+      // Give the isolate a short moment to register listeners before sending the command.
+      await Future<void>.delayed(const Duration(milliseconds: 450));
+
       service.invoke('startTracking', {
         'userId': uid,
         'userType': 'conductor',
         'solicitudId': widget.tripId,
       });
       _backgroundTrackingEnabled = true;
-    } catch (_) {}
+    } catch (_) {
+      _backgroundTrackingEnabled = false;
+    } finally {
+      _backgroundTrackingStarting = false;
+    }
   }
 
   Future<void> _stopBackgroundTrackingIfNeeded() async {
-    if (!_backgroundTrackingEnabled) return;
     try {
       final service = FlutterBackgroundService();
       service.invoke('stop');
     } catch (_) {}
     _backgroundTrackingEnabled = false;
+    _backgroundTrackingStarting = false;
   }
 
   @override
@@ -116,15 +152,11 @@ class _DriverTripScreenState extends State<DriverTripScreen>
                 markerId: const MarkerId('client_marker'),
                 position: controller.clientLatLng!,
                 infoWindow: const InfoWindow(title: 'Cliente'),
-              ),
-            if (controller.driverLatLng != null)
-              Marker(
-                markerId: const MarkerId('driver_marker'),
-                position: controller.driverLatLng!,
-                infoWindow: const InfoWindow(title: 'Conductor'),
-                icon: BitmapDescriptor.defaultMarkerWithHue(
-                  BitmapDescriptor.hueAzure,
-                ),
+                icon:
+                    _clientMarkerIcon ??
+                    BitmapDescriptor.defaultMarkerWithHue(
+                      BitmapDescriptor.hueRed,
+                    ),
               ),
           };
 
@@ -133,7 +165,7 @@ class _DriverTripScreenState extends State<DriverTripScreen>
               Polyline(
                 polylineId: const PolylineId('driver_trip_route'),
                 points: controller.routePoints,
-                color: AppColores.buttonChat,
+                color: AppColores.buttonPrimary,
                 width: 5,
               ),
           };
@@ -145,78 +177,98 @@ class _DriverTripScreenState extends State<DriverTripScreen>
           final width = MediaQuery.of(context).size.width;
           final isTablet = width >= 900;
 
-          return Scaffold(
-            body: Stack(
-              children: [
-                GoogleMap(
-                  initialCameraPosition: CameraPosition(
-                    target: initialTarget,
-                    zoom: 14,
-                  ),
-                  myLocationEnabled: true,
-                  myLocationButtonEnabled: false,
-                  compassEnabled: true,
-                  markers: markers,
-                  polylines: polylines,
-                  onMapCreated: (map) {
-                    _mapController = map;
-                    _fitInitialCameraIfNeeded(controller);
-                  },
-                ),
-                Positioned(
-                  top: MediaQuery.of(context).padding.top + 14,
-                  left: 0,
-                  right: 0,
-                  child: Center(
-                    child: DriverTopStatusCard(
-                      distanceText: controller.distanceText,
-                      etaText: controller.etaText,
+          return AnnotatedRegion<SystemUiOverlayStyle>(
+            value: const SystemUiOverlayStyle(
+              statusBarColor: Colors.transparent,
+              statusBarIconBrightness: Brightness.dark,
+              statusBarBrightness: Brightness.light,
+            ),
+            child: Scaffold(
+              body: Stack(
+                children: [
+                  GoogleMap(
+                    initialCameraPosition: CameraPosition(
+                      target: initialTarget,
+                      zoom: 14,
                     ),
+                    myLocationEnabled: true,
+                    myLocationButtonEnabled: false,
+                    compassEnabled: true,
+                    markers: markers,
+                    polylines: polylines,
+                    onMapCreated: (map) {
+                      _mapController = map;
+                      _fitInitialCameraIfNeeded(controller);
+                    },
                   ),
-                ),
-                Positioned(
-                  right: 16,
-                  bottom: isTablet ? 280 : 230,
-                  child: FloatingActionButton(
-                    heroTag: 'driver_map_focus_btn',
-                    backgroundColor: AppColores.buttonPrimary,
-                    onPressed: () => _toggleFocus(controller),
-                    child: Icon(
-                      controller.focusMode == DriverMapFocusMode.clientOnly
-                          ? Icons.person_pin_circle
-                          : Icons.fit_screen,
-                      color: AppColores.textPrimary,
-                    ),
-                  ),
-                ),
-                Align(
-                  alignment: Alignment.bottomCenter,
-                  child: SafeArea(
-                    top: false,
-                    child: DriverClientInfoCard(
-                      clientName: controller.clientName,
-                      clientAddress: controller.clientAddress,
-                      clientPhotoUrl: controller.clientPhotoUrl,
-                      unreadCount: controller.unreadCount,
-                      onOpenChat: () => _openChat(controller),
-                      onOpenNavigation: () => _openNavigation(controller),
-                      onReportArrival: controller.reportArrival,
-                      isSendingArrival: controller.isSendingArrival,
-                    ),
-                  ),
-                ),
-                if (controller.isLoading)
-                  const Positioned.fill(
-                    child: ColoredBox(
-                      color: AppColores.overlayLight,
-                      child: Center(
-                        child: CircularProgressIndicator(
-                          color: AppColores.primary,
-                        ),
+                  Positioned(
+                    top: MediaQuery.of(context).padding.top + 14,
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: DriverTopStatusCard(
+                        distanceText: controller.distanceText,
+                        etaText: controller.etaText,
                       ),
                     ),
                   ),
-              ],
+                  Positioned(
+                    right: 20,
+                    bottom: isTablet ? 430 : 345,
+                    child: FloatingActionButton(
+                      heroTag: 'driver_trip_panic_btn',
+                      backgroundColor: AppColores.buttonCancel,
+                      onPressed: _onPanicPressed,
+                      child: const Icon(
+                        Icons.warning_amber_rounded,
+                        color: AppColores.textWhite,
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    right: 20,
+                    bottom: isTablet ? 350 : 280,
+                    child: FloatingActionButton(
+                      heroTag: 'driver_map_focus_btn',
+                      backgroundColor: AppColores.buttonPrimary,
+                      onPressed: () => _toggleFocus(controller),
+                      child: Icon(
+                        controller.focusMode == DriverMapFocusMode.clientOnly
+                            ? Icons.person_pin_circle
+                            : Icons.fit_screen,
+                        color: AppColores.textWhite,
+                      ),
+                    ),
+                  ),
+                  Align(
+                    alignment: Alignment.bottomCenter,
+                    child: SafeArea(
+                      top: false,
+                      child: DriverClientInfoCard(
+                        clientName: controller.clientName,
+                        clientAddress: controller.clientAddress,
+                        clientPhotoUrl: controller.clientPhotoUrl,
+                        unreadCount: controller.unreadCount,
+                        onOpenChat: () => _openChat(controller),
+                        onOpenNavigation: () => _openNavigation(controller),
+                        onReportArrival: controller.reportArrival,
+                        isSendingArrival: controller.isSendingArrival,
+                      ),
+                    ),
+                  ),
+                  if (controller.isLoading)
+                    const Positioned.fill(
+                      child: ColoredBox(
+                        color: AppColores.overlayLight,
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            color: AppColores.primary,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
           );
         },
@@ -288,6 +340,74 @@ class _DriverTripScreenState extends State<DriverTripScreen>
     }
 
     await controller.toggleMapFocusMode();
+  }
+
+  void _onPanicPressed() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              20,
+              18,
+              20,
+              MediaQuery.of(ctx).viewInsets.bottom + 16,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                Text(
+                  'Centro de seguridad',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'Selecciona una opcion de ayuda rapida.',
+                  style: TextStyle(color: AppColores.textSecondary),
+                ),
+                SizedBox(height: 16),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.sos, color: AppColores.buttonCancel),
+                  title: Text(
+                    'Emergencia',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  subtitle: Text('Solicitar asistencia urgente.'),
+                ),
+                Divider(height: 1),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.report_problem_outlined),
+                  title: Text(
+                    'Reportar problema',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  subtitle: Text('Reportar incidente durante el viaje.'),
+                ),
+                Divider(height: 1),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.support_agent_outlined),
+                  title: Text(
+                    'Contactar soporte',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  subtitle: Text('Hablar con soporte de Taxi App.'),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   void _fitInitialCameraIfNeeded(DriverTripController controller) {
@@ -363,6 +483,7 @@ class _DriverTripScreenState extends State<DriverTripScreen>
 
   bool _shouldClearSolicitud(String status) {
     return status == 'cancelado' ||
+        status.contains('sin_respu') ||
         status.contains('complet') ||
         status.contains('finaliz');
   }
@@ -371,13 +492,14 @@ class _DriverTripScreenState extends State<DriverTripScreen>
     final target = controller.pendingNavigation;
     if (target == DriverPendingNavigation.none) return;
 
+    final infoMessage = controller.consumePendingInfoMessage();
     controller.consumePendingNavigation();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
 
       if (target == DriverPendingNavigation.inicioConductor) {
-        _goToInicioConductor();
+        _goToInicioConductorWithMessage(infoMessage);
         return;
       }
 
@@ -385,6 +507,24 @@ class _DriverTripScreenState extends State<DriverTripScreen>
         _goToRutaDestino();
       }
     });
+  }
+
+  Future<void> _goToInicioConductorWithMessage(String? message) async {
+    if (message != null && message.trim().isNotEmpty && mounted) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(message),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+
+      await Future<void>.delayed(const Duration(milliseconds: 1200));
+    }
+
+    if (!mounted) return;
+    await _goToInicioConductor();
   }
 
   void _handleWaitingModal(DriverTripController controller) {

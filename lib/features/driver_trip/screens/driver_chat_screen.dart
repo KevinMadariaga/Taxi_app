@@ -126,7 +126,7 @@ class _DriverChatScreenState extends State<DriverChatScreen> {
                       IconButton(
                         onPressed: _send,
                         style: IconButton.styleFrom(
-                          backgroundColor: AppColores.buttonChat,
+                          backgroundColor: AppColores.buttonPrimary,
                           foregroundColor: AppColores.textWhite,
                         ),
                         icon: const Icon(Icons.send),

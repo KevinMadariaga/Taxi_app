@@ -1,5 +1,5 @@
-import 'package:taxi_app/services/map_service.dart';
-import 'package:taxi_app/services/ride_service.dart';
+import 'package:taxi_app/core/services/map_service_adapter.dart';
+import 'package:taxi_app/core/services/services.dart';
 import 'package:taxi_app/data/solicitud_repository.dart';
 import 'dart:async';
 
@@ -12,8 +12,8 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:taxi_app/helper/session_helper.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/chat_message.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/RutaConductorView.dart';
-import 'package:taxi_app/services/chat_service.dart';
-import 'package:taxi_app/services/tracking_service.dart';
+import 'package:taxi_app/core/services/chat_service_adapter.dart';
+import 'package:taxi_app/core/services/tracking_service.dart';
 
 class Rutaclienteviewmodel extends ChangeNotifier {
   // Servicio de mapas

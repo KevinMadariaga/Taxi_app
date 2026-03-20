@@ -1,5 +1,6 @@
 enum AuthNextDestination {
   clientHome,
+  completeClientProfile,
   clientRegistration,
   adminPanel,
   adminRegistration,

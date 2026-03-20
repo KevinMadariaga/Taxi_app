@@ -41,19 +41,12 @@ class DriverLocationService {
   Future<void> startRealtimeSync({required String tripId}) async {
     await ensurePermission();
 
-    // Cost note:
-    // - This is device GPS + Firestore writes (free tier friendly with distanceFilter).
-    // - distanceFilter 15m prevents excessive writes.
+    // In this foreground screen we avoid foreground-service location mode.
+    // Background tracking is handled separately by background_tracking_service.
     _positionStream = Geolocator.getPositionStream(
-      locationSettings: AndroidSettings(
+      locationSettings: const LocationSettings(
         accuracy: LocationAccuracy.high,
-        distanceFilter: 1, //distancia metros
-        intervalDuration: Duration(seconds: 8),
-        foregroundNotificationConfig: ForegroundNotificationConfig(
-          notificationTitle: 'Taxi App - Tracking activo',
-          notificationText: 'Compartiendo ubicacion del conductor',
-          enableWakeLock: true,
-        ),
+        distanceFilter: 8,
       ),
     );
 

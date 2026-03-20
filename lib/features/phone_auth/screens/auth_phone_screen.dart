@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:taxi_app/domain/usecases/client_auth/send_client_phone_otp_usecase.dart';
 import 'package:taxi_app/core/app_colores.dart';
 
 import '../controllers/phone_auth_controller.dart';
@@ -12,64 +13,151 @@ class AuthPhoneScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider<PhoneAuthController>(
-      create: (_) => PhoneAuthController(),
+      create: (context) {
+        try {
+          return PhoneAuthController(
+            sendClientPhoneOtpUseCase: Provider.of<SendClientPhoneOtpUseCase>(
+              context,
+              listen: false,
+            ),
+          );
+        } catch (_) {
+          return PhoneAuthController();
+        }
+      },
       child: Consumer<PhoneAuthController>(
         builder: (context, vm, _) {
           return Scaffold(
             backgroundColor: AppColores.background,
+            resizeToAvoidBottomInset: false,
             body: Container(
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [Color(0xFFFFF6D6), AppColores.background],
+                  colors: [Color(0xFFFFF0B8), Colors.white],
                 ),
               ),
               child: SafeArea(
-                child: Stack(
+                child: Column(
                   children: [
-                    Center(
+                    Expanded(
                       child: SingleChildScrollView(
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 480),
-                          child: PhoneInputForm(
-                            countryCode: vm.countryCode,
-                            countryOptions: vm.countryOptions,
-                            onCountryCodeChanged: (value) {
-                              if (value != null) vm.setCountryCode(value);
-                            },
-                            onPhoneChanged: vm.setPhone,
-                            loading: vm.loading,
-                            adminMode: vm.adminMode,
-                            onSubmit: () async {
-                              await _sendCode(context, vm);
-                            },
-                          ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        keyboardDismissBehavior:
+                            ScrollViewKeyboardDismissBehavior.onDrag,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: IconButton(
+                                onPressed: vm.loading
+                                    ? null
+                                    : () {
+                                        Navigator.of(context).maybePop();
+                                      },
+                                icon: const Icon(
+                                  Icons.arrow_back_ios_new_rounded,
+                                ),
+                                style: IconButton.styleFrom(
+                                  backgroundColor: Colors.white,
+                                  foregroundColor: AppColores.textPrimary,
+                                  side: const BorderSide(
+                                    color: AppColores.grey300,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            PhoneInputForm(
+                              onPhoneChanged: vm.setPhone,
+                              loading: vm.loading,
+                              adminMode: vm.adminMode,
+                              onSubmit: () async {
+                                await _sendCode(context, vm);
+                              },
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                    Positioned(
-                      right: 8,
-                      bottom: 8,
-                      child: TextButton.icon(
-                        onPressed: vm.loading
-                            ? null
-                            : () async {
-                                await _showAdminKeyDialog(context, vm);
-                              },
-                        icon: Icon(
-                          Icons.admin_panel_settings_outlined,
-                          size: 16,
-                          color: AppColores.textSecondary.withValues(alpha: 0.65),
-                        ),
-                        label: Text(
-                          'Acceso gremio',
-                          style: TextStyle(
-                            color: AppColores.textSecondary.withValues(alpha: 0.72),
-                            fontSize: 12,
+                    AnimatedPadding(
+                      duration: const Duration(milliseconds: 180),
+                      curve: Curves.easeOut,
+                      padding: EdgeInsets.fromLTRB(
+                        16,
+                        10,
+                        16,
+                        12 + MediaQuery.of(context).viewInsets.bottom,
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          ElevatedButton(
+                            onPressed: vm.loading
+                                ? null
+                                : () async {
+                                    await _sendCode(context, vm);
+                                  },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColores.buttonPrimary,
+                              foregroundColor: AppColores.textPrimary,
+                              minimumSize: const Size(double.infinity, 56),
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                            child: vm.loading
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: AppColores.textPrimary,
+                                    ),
+                                  )
+                                : const Text(
+                                    'Enviar codigo',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 18,
+                                    ),
+                                  ),
                           ),
-                        ),
+                          const SizedBox(height: 8),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton.icon(
+                              onPressed: vm.loading
+                                  ? null
+                                  : () async {
+                                      await _showAdminKeyDialog(context, vm);
+                                    },
+                              icon: Icon(
+                                Icons.admin_panel_settings_outlined,
+                                size: 16,
+                                color: AppColores.textSecondary.withValues(
+                                  alpha: 0.65,
+                                ),
+                              ),
+                              label: Text(
+                                'Acceso gremio',
+                                style: TextStyle(
+                                  color: AppColores.textSecondary.withValues(
+                                    alpha: 0.72,
+                                  ),
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
@@ -100,7 +188,9 @@ class AuthPhoneScreen extends StatelessWidget {
     } catch (error) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString().replaceFirst('Bad state: ', ''))),
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Bad state: ', '')),
+        ),
       );
     }
   }

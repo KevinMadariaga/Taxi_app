@@ -16,6 +16,7 @@ class _SoporteViewState extends State<SoporteView> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -30,6 +31,7 @@ class _SoporteViewState extends State<SoporteView> {
     final payload = await showDialog<Map<String, String>>(
       context: context,
       builder: (ctx) => AlertDialog(
+        scrollable: true,
         title: const Text('Crear ticket de soporte'),
         content: SizedBox(
           width: 440,

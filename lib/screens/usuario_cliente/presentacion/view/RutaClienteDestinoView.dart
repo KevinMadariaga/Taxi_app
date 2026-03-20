@@ -27,8 +27,8 @@ class _RutaClienteDestinoState extends State<RutaClienteDestino>
   static const SystemUiOverlayStyle _rutaClienteDestinoOverlayStyle =
       SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.light,
-        statusBarBrightness: Brightness.dark,
+        statusBarIconBrightness: Brightness.dark,
+        statusBarBrightness: Brightness.light,
         systemNavigationBarColor: Colors.white,
         systemNavigationBarIconBrightness: Brightness.dark,
         systemNavigationBarDividerColor: Colors.white,

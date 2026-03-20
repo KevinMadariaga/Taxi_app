@@ -24,10 +24,14 @@ class RegistroConductorController extends ChangeNotifier {
   XFile? _fotoConductor;
   XFile? _fotoVehiculo;
   bool _saving = false;
+  String? _generatedEmail;
+  String? _generatedPassword;
 
   XFile? get fotoConductor => _fotoConductor;
   XFile? get fotoVehiculo => _fotoVehiculo;
   bool get saving => _saving;
+  String? get generatedEmail => _generatedEmail;
+  String? get generatedPassword => _generatedPassword;
 
   Future<void> pickFotoConductor() async {
     final picked = await _imagePicker.pickImage(
@@ -79,16 +83,25 @@ class RegistroConductorController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final idConductor = DateTime.now().microsecondsSinceEpoch.toString();
+      final nombreGremio = await _userDataService
+          .obtenerNombreGremioAdministrador(adminId: adminId);
+      final credentials = await _userDataService.generarCredencialesConductor(
+        nombre: nombre,
+        nombreGremio: nombreGremio,
+      );
+      final idConductor = await _userDataService.crearConductorAuth(
+        email: credentials.email,
+        password: credentials.password,
+      );
 
       final fotoConductorUrl = await _storageService.uploadImage(
         file: File(_fotoConductor!.path),
-        path: 'conductores/$idConductor/foto_conductor.jpg',
+        path: 'conductores/$idConductor/foto_conductor.webp',
       );
 
       final fotoVehiculoUrl = await _storageService.uploadImage(
         file: File(_fotoVehiculo!.path),
-        path: 'conductores/$idConductor/foto_vehiculo.jpg',
+        path: 'conductores/$idConductor/foto_vehiculo.webp',
       );
 
       await _userDataService.guardarConductor(
@@ -99,10 +112,17 @@ class RegistroConductorController extends ChangeNotifier {
         fotoConductor: fotoConductorUrl,
         fotoVehiculo: fotoVehiculoUrl,
         adminId: adminId,
+        correo: credentials.email,
+        passwordLogin: credentials.password,
       );
 
+      _generatedEmail = credentials.email;
+      _generatedPassword = credentials.password;
+
       return null;
-    } catch (_) {
+    } catch (e) {
+      final msg = e.toString().replaceFirst('Exception: ', '').trim();
+      if (msg.isNotEmpty) return msg;
       return 'No se pudo registrar el conductor.';
     } finally {
       _saving = false;

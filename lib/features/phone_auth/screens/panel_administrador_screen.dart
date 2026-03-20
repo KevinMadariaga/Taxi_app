@@ -3,8 +3,10 @@ import 'package:provider/provider.dart';
 import 'package:taxi_app/core/app_colores.dart';
 
 import '../controllers/panel_administrador_controller.dart';
+import '../models/admin_model.dart';
 import '../models/driver_model.dart';
 import '../widgets/conductor_list_item.dart';
+import 'admin_detalle_screen.dart';
 import 'conductor_detalle_screen.dart';
 import 'registro_conductor_screen.dart';
 
@@ -30,69 +32,144 @@ class PanelAdministradorScreen extends StatelessWidget {
             body: SafeArea(
               child: Column(
                 children: [
-                  StreamBuilder(
+                  StreamBuilder<AdminModel?>(
                     stream: vm.adminStream,
                     builder: (context, snapshot) {
                       final admin = snapshot.data;
+                      final canOpenDetails = admin != null;
                       return Container(
                         margin: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-                        padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: AppColores.primary.withOpacity(0.22),
+                          border: Border.all(
+                            color: AppColores.primary,
+                            width: 1.2,
+                          ),
                           borderRadius: BorderRadius.circular(14),
                         ),
-                        child: Row(
-                          children: [
-                            CircleAvatar(
-                              radius: 24,
-                              backgroundColor: AppColores.primary,
-                              backgroundImage: admin?.foto.isNotEmpty == true
-                                  ? NetworkImage(admin!.foto)
-                                  : null,
-                              child: admin?.foto.isNotEmpty == true
-                                  ? null
-                                  : const Icon(Icons.admin_panel_settings),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(14),
+                            onTap: canOpenDetails
+                                ? () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            AdminDetalleScreen(admin: admin),
+                                      ),
+                                    );
+                                  }
+                                : null,
+                            child: Padding(
+                              padding: const EdgeInsets.all(14),
+                              child: Row(
                                 children: [
-                                  Text(
-                                    admin?.nombre ?? 'Administrador',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 16,
+                                  CircleAvatar(
+                                    radius: 24,
+                                    backgroundColor: AppColores.primary,
+                                    backgroundImage:
+                                        admin?.foto.isNotEmpty == true
+                                        ? NetworkImage(admin!.foto)
+                                        : null,
+                                    child: admin?.foto.isNotEmpty == true
+                                        ? null
+                                        : const Icon(
+                                            Icons.admin_panel_settings,
+                                          ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          admin?.nombre ?? 'Administrador',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 16,
+                                          ),
+                                        ),
+                                        Text(
+                                          admin?.gremio.isNotEmpty == true
+                                              ? admin!.gremio
+                                              : 'Sin gremio configurado',
+                                          style: const TextStyle(
+                                            color: AppColores.textSecondary,
+                                          ),
+                                        ),
+                                        if (canOpenDetails)
+                                          const Text(
+                                            'Toca para ver detalles',
+                                            style: TextStyle(
+                                              color: AppColores.textSecondary,
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                      ],
                                     ),
                                   ),
-                                  Text(
-                                    admin?.gremio.isNotEmpty == true
-                                        ? admin!.gremio
-                                        : 'Sin gremio configurado',
-                                    style: const TextStyle(
-                                      color: AppColores.textSecondary,
-                                    ),
+                                  Icon(
+                                    Icons.chevron_right,
+                                    color: canOpenDetails
+                                        ? AppColores.textSecondary
+                                        : AppColores.grey300,
                                   ),
                                 ],
                               ),
                             ),
-                          ],
+                          ),
                         ),
                       );
                     },
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                    child: Row(
+                      children: const [
+                        Expanded(
+                          child: Divider(
+                            color: AppColores.borderSubtle,
+                            thickness: 1,
+                          ),
+                        ),
+                        Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 10),
+                          child: Text(
+                            'Conductores',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: AppColores.textSecondary,
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: Divider(
+                            color: AppColores.borderSubtle,
+                            thickness: 1,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                   Expanded(
                     child: StreamBuilder<List<DriverModel>>(
                       stream: vm.conductoresStream,
                       builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting) {
-                          return const Center(child: CircularProgressIndicator());
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
                         }
 
                         if (snapshot.hasError) {
                           return Center(
                             child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 20),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                              ),
                               child: Text(
                                 'Error cargando conductores: ${snapshot.error}',
                                 textAlign: TextAlign.center,
@@ -101,7 +178,8 @@ class PanelAdministradorScreen extends StatelessWidget {
                           );
                         }
 
-                        final conductores = snapshot.data ?? const <DriverModel>[];
+                        final conductores =
+                            snapshot.data ?? const <DriverModel>[];
                         if (conductores.isEmpty) {
                           return const Center(
                             child: Text('Aun no hay conductores registrados.'),

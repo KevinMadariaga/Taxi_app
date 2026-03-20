@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-import 'dart:math' as math;
+import 'package:lottie/lottie.dart';
+ 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:taxi_app/helper/responsive_helper.dart';
 import 'package:taxi_app/core/app_colores.dart';
-import 'package:taxi_app/features/trip_tracking/views/trip_tracking_screen.dart';
+import 'package:taxi_app/features/trip_tracking_cliente/views/trip_tracking_screen.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/home_cliente_view.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/buscando_taxi_viewmodel.dart';
 import 'package:taxi_app/widgets/intermediate_transition_view.dart';
@@ -90,9 +91,9 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
     await _vm.cancelarSolicitud();
     if (!mounted) return;
 
-    Navigator.of(
-      context,
-    ).pushReplacement(MaterialPageRoute(builder: (_) => const HomeClienteView()));
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => const HomeClienteView()),
+    );
   }
 
   @override
@@ -103,6 +104,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
     return Scaffold(
       backgroundColor: const Color(0xFFF6F9FC),
       body: SafeArea(
+        bottom: Theme.of(context).platform == TargetPlatform.android ? false : true,
         child: Stack(
           children: [
             Positioned(
@@ -130,15 +132,29 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
               ),
             ),
             Padding(
-              padding: EdgeInsets.symmetric(
-                horizontal: isTablet ? 36 : 22,
-                vertical: isTablet ? 18 : 12,
+              padding: EdgeInsets.only(
+                left: isTablet ? 36 : 22,
+                right: isTablet ? 36 : 22,
+                top: isTablet ? 18 : 12,
+                bottom: _getBottomPadding(context),
               ),
               child: Column(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Spacer(),
-                  _buildTaxiAnimation(isTablet),
-                  SizedBox(height: isTablet ? 34 : 26),
+                  // Taxi animation centered
+                  Center(
+                    child: SizedBox(
+                      width: isTablet ? 220 : 140,
+                      height: isTablet ? 220 : 140,
+                      child: Lottie.asset(
+                        'assets/gif/taxi.json',
+                        repeat: true,
+                        animate: true,
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: isTablet ? 24 : 16),
                   Text(
                     'Buscando un taxi cerca de ti...',
                     textAlign: TextAlign.center,
@@ -162,48 +178,45 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
                   SizedBox(height: isTablet ? 26 : 20),
                   _buildSearchingDots(isTablet),
                   const Spacer(),
-                  TextButton(
-                    onPressed: _vm.isCancelling ? null : _cancelSolicitud,
-                    style: TextButton.styleFrom(
-                      foregroundColor: const Color(0xFF6A7382),
-                      padding: EdgeInsets.symmetric(
-                        horizontal: isTablet ? 20 : 14,
-                        vertical: isTablet ? 12 : 10,
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _vm.isCancelling ? null : _cancelSolicitud,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColores.buttonPrimary,
+                        foregroundColor: Colors.black,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: isTablet ? 20 : 14,
+                          vertical: isTablet ? 16 : 12,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        textStyle: TextStyle(
+                          fontSize: isTablet
+                              ? 20
+                              : ResponsiveHelper.sp(context, 15),
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
+                      child: _vm.isCancelling
+                          ? Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                SizedBox(
+                                  width: isTablet ? 20 : 16,
+                                  height: isTablet ? 20 : 16,
+                                  child: const CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.black,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Text('Cancelando...'),
+                              ],
+                            )
+                          : const Text('Cancelar búsqueda'),
                     ),
-                    child: _vm.isCancelling
-                        ? Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              SizedBox(
-                                width: isTablet ? 20 : 16,
-                                height: isTablet ? 20 : 16,
-                                child: const CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Color(0xFF6A7382),
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Text(
-                                'Cancelando...',
-                                style: TextStyle(
-                                  fontSize: isTablet
-                                      ? 20
-                                      : ResponsiveHelper.sp(context, 15),
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          )
-                        : Text(
-                            'Cancelar busqueda',
-                            style: TextStyle(
-                              fontSize: isTablet
-                                  ? 20
-                                  : ResponsiveHelper.sp(context, 15),
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
                   ),
                   SizedBox(height: isTablet ? 8 : 4),
                 ],
@@ -211,158 +224,6 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildTaxiAnimation(bool isTablet) {
-    return Container(
-      width: double.infinity,
-      height: isTablet ? 280 : 210,
-      padding: EdgeInsets.symmetric(
-        horizontal: isTablet ? 20 : 14,
-        vertical: isTablet ? 18 : 14,
-      ),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xFFFDFEFF), Color(0xFFF1F6FF)],
-        ),
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: const Color(0xFFD8E4F4), width: 1.2),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x15000000),
-            blurRadius: 22,
-            offset: Offset(0, 12),
-          ),
-        ],
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final taxiSize = isTablet ? 74.0 : 62.0;
-          final taxiTravel = (constraints.maxWidth - taxiSize).clamp(
-            10.0,
-            double.infinity,
-          );
-
-          return AnimatedBuilder(
-            animation: _taxiController,
-            builder: (context, _) {
-              final value = _taxiController.value;
-              final taxiLeft = taxiTravel * value;
-              final bob = math.sin(value * math.pi * 2) * (isTablet ? 4 : 3);
-
-              return Stack(
-                children: [
-                  Positioned(
-                    top: isTablet ? 14 : 8,
-                    left: 12,
-                    right: 12,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: List.generate(6, (index) {
-                        final h = (index % 2 == 0)
-                            ? (isTablet ? 32.0 : 24.0)
-                            : (isTablet ? 24.0 : 18.0);
-                        return Container(
-                          width: isTablet ? 20 : 14,
-                          height: h,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFBFD2E9).withOpacity(0.7),
-                            borderRadius: const BorderRadius.vertical(
-                              top: Radius.circular(6),
-                            ),
-                          ),
-                        );
-                      }),
-                    ),
-                  ),
-                  Positioned(
-                    left: 8,
-                    right: 8,
-                    top: isTablet ? 150 : 116,
-                    child: Container(
-                      height: isTablet ? 14 : 12,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF253046),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    left: 20,
-                    right: 20,
-                    top: isTablet ? 156 : 121,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: List.generate(8, (index) {
-                        final phase = (value + (index * 0.13)) % 1.0;
-                        final active = phase < 0.55;
-                        return Opacity(
-                          opacity: active ? 0.95 : 0.25,
-                          child: Container(
-                            width: isTablet ? 18 : 14,
-                            height: 3,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                          ),
-                        );
-                      }),
-                    ),
-                  ),
-                  Positioned(
-                    left: taxiLeft,
-                    top: (isTablet ? 98 : 78) + bob,
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        Container(
-                          width: taxiSize + 8,
-                          height: taxiSize + 8,
-                          decoration: BoxDecoration(
-                            color: AppColores.primary.withOpacity(0.22),
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        Icon(
-                          Icons.local_taxi_rounded,
-                          color: AppColores.buttonPrimary,
-                          size: taxiSize,
-                        ),
-                      ],
-                    ),
-                  ),
-                  Positioned(
-                    right: 8,
-                    top: isTablet ? 10 : 6,
-                    child: Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: isTablet ? 12 : 9,
-                        vertical: isTablet ? 7 : 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF0C8A52),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        'Buscando',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                          fontSize: isTablet ? 14 : 11,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              );
-            },
-          );
-        },
       ),
     );
   }
@@ -392,5 +253,18 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
         );
       },
     );
+  }
+
+  double _getBottomPadding(BuildContext context) {
+    final platform = Theme.of(context).platform;
+    if (platform == TargetPlatform.android) {
+      // Detecta si hay barra de navegación usando MediaQuery
+      final padding = MediaQuery.of(context).padding.bottom;
+      // Si hay barra de navegación (padding > 0), deja el padding, si no, pon 0
+      return padding > 0 ? padding : 0;
+    } else {
+      // En iOS, sin padding extra (SafeArea ya lo maneja)
+      return 0;
+    }
   }
 }

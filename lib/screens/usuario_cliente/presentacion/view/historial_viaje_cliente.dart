@@ -115,7 +115,6 @@ class HistorialClienteState extends State<HistorialCliente> {
 
     final destinoRaw = data['destino'] ?? 'Destino no disponible';
     final destino = await obtenerDireccion(destinoRaw);
-    final duracion = data['duracion minutos']?.toString() ?? '-';
     final calificacionNum = _extraerCalificacion(data);
     final conductor = _extraerNombreConductor(data);
     final precio = _extraerPrecio(data);
@@ -334,10 +333,8 @@ class HistorialClienteState extends State<HistorialCliente> {
                   final destinoFuture = obtenerDireccion(destinoField);
 
                   final horaFin = (data['completedAt'] ?? data['fecha de terminacion']) as Timestamp?;
-                  final duracion = data['duracion minutos']?.toString() ?? '-';
 
-                  final precio = _extraerPrecio(data);
-                  final calificacionNum = _extraerCalificacion(data);
+                  
 
                   return Card(
                     margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),

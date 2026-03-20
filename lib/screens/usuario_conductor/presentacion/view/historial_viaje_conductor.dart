@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -14,6 +16,93 @@ class HistorialConductor extends StatefulWidget {
 
 class HistorialConductorState extends State<HistorialConductor> {
   // Nota: este estado ya no usa filtros; mostramos solo la lista de solicitudes.
+  double? _lastSyncedAverageRating;
+  int? _lastSyncedRatingsCount;
+  bool _isSyncingConductorRating = false;
+
+  void _scheduleConductorRatingSync({
+    required String conductorId,
+    required double averageRating,
+    required int ratingsCount,
+  }) {
+    if (conductorId.isEmpty) return;
+    if (_isSyncingConductorRating) return;
+
+    final avgRounded = double.parse(averageRating.toStringAsFixed(2));
+    if (_lastSyncedAverageRating == avgRounded &&
+        _lastSyncedRatingsCount == ratingsCount) {
+      return;
+    }
+
+    _isSyncingConductorRating = true;
+    unawaited(
+      _syncConductorRating(
+        conductorId: conductorId,
+        averageRating: avgRounded,
+        ratingsCount: ratingsCount,
+      ),
+    );
+  }
+
+  Future<void> _syncConductorRating({
+    required String conductorId,
+    required double averageRating,
+    required int ratingsCount,
+  }) async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('conductor')
+          .doc(conductorId)
+          .set({
+            'calificacionPromedio': averageRating,
+            'totalCalificaciones': ratingsCount,
+            'ultimaActualizacionCalificacion': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+
+      _lastSyncedAverageRating = averageRating;
+      _lastSyncedRatingsCount = ratingsCount;
+    } catch (_) {
+    } finally {
+      _isSyncingConductorRating = false;
+    }
+  }
+
+  bool _isCompletedStatus(Map<String, dynamic> data) {
+    final estado = (data['estado'] ?? data['status'] ?? '')
+        .toString()
+        .toLowerCase();
+    return estado == 'completado' || estado.contains('complet');
+  }
+
+  double _extractServiceValue(Map<String, dynamic> data) {
+    final tarifa = data['tarifa'];
+    if (tarifa is Map && tarifa['total'] != null) {
+      final total = tarifa['total'];
+      if (total is num) return total.toDouble();
+      return double.tryParse(total.toString()) ?? 0.0;
+    }
+
+    final valor = data['valor'];
+    if (valor is num) return valor.toDouble();
+    return double.tryParse(valor?.toString() ?? '') ?? 0.0;
+  }
+
+  double _extractRatingScore(Map<String, dynamic> data) {
+    final raw = data['calificacion'] ?? data['calificacion_cliente'];
+    if (raw is Map) {
+      final score = raw['score'] ?? raw['puntaje'] ?? raw['valor'];
+      if (score is num) return score.toDouble();
+      return double.tryParse(score?.toString() ?? '') ?? 0.0;
+    }
+    if (raw is num) return raw.toDouble();
+    return double.tryParse(raw?.toString() ?? '') ?? 0.0;
+  }
+
+  String _formatMoney(double value) {
+    final rounded = value.round();
+    final raw = rounded.toString();
+    return raw.replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => '.');
+  }
 
   String formatoFechaHora(Timestamp timestamp) {
     final fecha = timestamp.toDate().toUtc().subtract(const Duration(hours: 5));
@@ -37,14 +126,19 @@ class HistorialConductorState extends State<HistorialConductor> {
       }
     } else if (ubicacion is Map) {
       // Puede venir como { 'title': 'Lugar', 'lat': x, 'lng': y }
-      if (ubicacion['title'] != null && (ubicacion['title'] as String).isNotEmpty) {
+      if (ubicacion['title'] != null &&
+          (ubicacion['title'] as String).isNotEmpty) {
         return ubicacion['title'].toString();
       }
       final latObj = ubicacion['lat'];
       final lngObj = ubicacion['lng'];
       if (latObj != null && lngObj != null) {
-        final lat = (latObj is num) ? latObj.toDouble() : double.tryParse(latObj.toString());
-        final lng = (lngObj is num) ? lngObj.toDouble() : double.tryParse(lngObj.toString());
+        final lat = (latObj is num)
+            ? latObj.toDouble()
+            : double.tryParse(latObj.toString());
+        final lng = (lngObj is num)
+            ? lngObj.toDouble()
+            : double.tryParse(lngObj.toString());
         if (lat != null && lng != null) {
           try {
             final placemarks = await placemarkFromCoordinates(lat, lng);
@@ -69,34 +163,23 @@ class HistorialConductorState extends State<HistorialConductor> {
 
     final destinoRaw = data['destino'] ?? 'Destino no disponible';
     final destino = await obtenerDireccion(destinoRaw);
-    final duracion = data['duracion minutos']?.toString() ?? '-';
-    
-    // Extraer score de la calificación
-    int calificacionNum = 0;
-    final calificacionObj = data['calificacion'] ?? data['calificacion_cliente'];
-    if (calificacionObj is Map && calificacionObj['score'] != null) {
-      calificacionNum = (calificacionObj['score'] as num).toInt();
-    }
-    
+    final calificacionScore = _extractRatingScore(data).clamp(0, 5);
+    final estrellasLlenas = calificacionScore.floor();
+    final tieneMedia = (calificacionScore - estrellasLlenas) >= 0.5;
+
     // Extraer nombre del cliente del objeto cliente
     String cliente = 'Cliente';
     final clienteObj = data['cliente'];
     if (clienteObj is Map) {
-      cliente = (clienteObj['name'] ?? clienteObj['nombre'] ?? cliente).toString();
+      cliente = (clienteObj['name'] ?? clienteObj['nombre'] ?? cliente)
+          .toString();
     }
-    
-    // Extraer precio: preferir 'tarifa.total', si no usar 'valor'
-    String precio = '---';
-    final tarifa = data['tarifa'];
-    if (tarifa is Map && tarifa['total'] != null) {
-      precio = tarifa['total'].toString();
-    } else if (data['valor'] != null) {
-      precio = data['valor'].toString();
-    }
-    
+
+    final precio = _extractServiceValue(data);
+
     final metodoPago = (data['metodoPago'] ?? data['metodo_pago'] ?? 'efectivo')
-      .toString()
-      .toUpperCase();
+        .toString()
+        .toUpperCase();
 
     showDialog(
       context: context,
@@ -189,16 +272,34 @@ class HistorialConductorState extends State<HistorialConductor> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: List.generate(5, (index) {
-                        final esStar = index < calificacionNum;
+                        final esStar = index < estrellasLlenas;
+                        final esMedia = index == estrellasLlenas && tieneMedia;
                         return Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 4),
                           child: Icon(
-                            Icons.star,
+                            esStar
+                                ? Icons.star
+                                : esMedia
+                                ? Icons.star_half
+                                : Icons.star_border,
                             size: 32,
-                            color: esStar ? Colors.amber[600] : Colors.grey[300],
+                            color: (esStar || esMedia)
+                                ? Colors.amber[600]
+                                : Colors.grey[300],
                           ),
                         );
                       }),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      calificacionScore > 0
+                          ? calificacionScore.toStringAsFixed(1)
+                          : 'Sin calificacion',
+                      style: TextStyle(
+                        fontSize: fontSize,
+                        fontWeight: FontWeight.w600,
+                        color: AppColores.textSecondary,
+                      ),
                     ),
 
                     const SizedBox(height: 24),
@@ -213,7 +314,7 @@ class HistorialConductorState extends State<HistorialConductor> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      "\$ $precio",
+                      "\$ ${_formatMoney(precio)}",
                       style: TextStyle(
                         fontSize: fontSize + 6,
                         fontWeight: FontWeight.bold,
@@ -267,11 +368,12 @@ class HistorialConductorState extends State<HistorialConductor> {
         label: const Text('Ver detalle'),
         backgroundColor: Colors.amber,
         onPressed: () {
-          Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => HistorialDetalleConductor(
-              conductorId: conductorId,
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) =>
+                  HistorialDetalleConductor(conductorId: conductorId),
             ),
-          ));
+          );
         },
       ),
       body: FutureBuilder<QuerySnapshot>(
@@ -290,20 +392,44 @@ class HistorialConductorState extends State<HistorialConductor> {
           // Filtrar solo solicitudes con estado 'completado'
           var allViajes = (snapshot.data?.docs ?? []).where((doc) {
             final data = doc.data() as Map<String, dynamic>;
-            final estado = (data['estado'] ?? data['status'] ?? '').toString().toLowerCase();
-            return estado == 'completado';
+            return _isCompletedStatus(data);
           }).toList();
 
           // Ordenar manualmente por fecha de finalización (completedAt o fecha de terminacion)
           allViajes.sort((a, b) {
             final aData = a.data() as Map<String, dynamic>;
             final bData = b.data() as Map<String, dynamic>;
-            final aTime = (aData['completedAt'] ?? aData['fecha de terminacion']) as Timestamp?;
-            final bTime = (bData['completedAt'] ?? bData['fecha de terminacion']) as Timestamp?;
+            final aTime =
+                (aData['completedAt'] ?? aData['fecha de terminacion'])
+                    as Timestamp?;
+            final bTime =
+                (bData['completedAt'] ?? bData['fecha de terminacion'])
+                    as Timestamp?;
             if (aTime == null && bTime == null) return 0;
             if (aTime == null) return 1;
             if (bTime == null) return -1;
             return bTime.compareTo(aTime); // Descendente
+          });
+
+          double scoreTotal = 0.0;
+          int ratedCount = 0;
+          for (final viaje in allViajes) {
+            final viajeData = viaje.data() as Map<String, dynamic>;
+            final score = _extractRatingScore(viajeData).clamp(0, 5).toDouble();
+            if (score > 0) {
+              scoreTotal += score;
+              ratedCount++;
+            }
+          }
+          final promedio = ratedCount > 0 ? (scoreTotal / ratedCount) : 0.0;
+
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            _scheduleConductorRatingSync(
+              conductorId: conductorId,
+              averageRating: promedio,
+              ratingsCount: ratedCount,
+            );
           });
 
           if (allViajes.isEmpty) {
@@ -318,7 +444,11 @@ class HistorialConductorState extends State<HistorialConductor> {
               final data = allViajes[index].data() as Map<String, dynamic>;
               final destinoRaw = data['destino'];
               final destinoFuture = obtenerDireccion(destinoRaw);
-              final horaFin = (data['completedAt'] ?? data['fecha de terminacion']) as Timestamp?;
+              final horaFin =
+                  (data['completedAt'] ?? data['fecha de terminacion'])
+                      as Timestamp?;
+              final valorServicio = _extractServiceValue(data);
+              final calificacion = _extractRatingScore(data).clamp(0, 5);
               // final duracion = data['duracion minutos']?.toString() ?? '-';
 
               return Card(
@@ -327,27 +457,37 @@ class HistorialConductorState extends State<HistorialConductor> {
                   children: [
                     Expanded(
                       child: ListTile(
-                        leading: const Icon(Icons.local_taxi, color: Colors.amber),
+                        leading: const Icon(
+                          Icons.local_taxi,
+                          color: Colors.amber,
+                        ),
                         title: FutureBuilder<String>(
                           future: destinoFuture,
                           builder: (context, snapshot) {
-                            if (snapshot.connectionState == ConnectionState.waiting) {
+                            if (snapshot.connectionState ==
+                                ConnectionState.waiting) {
                               return const Text('Cargando...');
                             }
-                            final text = (snapshot.data ??
+                            final text =
+                                (snapshot.data ??
                                 (destinoRaw is Map
-                                    ? (destinoRaw['title']?.toString() ?? destinoRaw['address']?.toString() ?? 'Destino')
+                                    ? (destinoRaw['title']?.toString() ??
+                                          destinoRaw['address']?.toString() ??
+                                          'Destino')
                                     : (destinoRaw?.toString() ?? 'Destino')));
                             return Text(
                               text.toUpperCase(),
-                              style: const TextStyle(fontWeight: FontWeight.bold),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
                             );
                           },
                         ),
                         subtitle: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            if (horaFin != null) Text("${formatoFechaHora(horaFin)}"),
+                            if (horaFin != null)
+                              Text("${formatoFechaHora(horaFin)}"),
                           ],
                         ),
                         onTap: () => mostrarDetalle(context, data),
@@ -355,12 +495,51 @@ class HistorialConductorState extends State<HistorialConductor> {
                     ),
                     Padding(
                       padding: const EdgeInsets.only(right: 16.0),
-                      child: Row(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          const Icon(Icons.attach_money, size: 18, color: Colors.green),
-                          Text(
-                            (data['valor']?.toString() ?? '-'),
-                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: Colors.green),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.attach_money,
+                                size: 18,
+                                color: Colors.green,
+                              ),
+                              Text(
+                                _formatMoney(valorServicio),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 15,
+                                  color: Colors.green,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.star,
+                                size: 16,
+                                color: calificacion > 0
+                                    ? Colors.amber[700]
+                                    : Colors.grey[400],
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                calificacion > 0
+                                    ? calificacion.toStringAsFixed(1)
+                                    : '-',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13,
+                                  color: AppColores.textSecondary,
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),

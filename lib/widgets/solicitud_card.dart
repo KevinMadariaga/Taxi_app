@@ -34,6 +34,8 @@ class SolicitudCard extends StatelessWidget {
       cercania = '$metros m';
     }
 
+    final pickupText = _pickupText(solicitud);
+
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
       elevation: 1,
@@ -54,10 +56,6 @@ class SolicitudCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Builder(builder: (context) {
-                          final origenTitle = solicitud.origenTitle;
-                          final origenAddress = solicitud.direccion;
-                          final mainName = origenTitle ?? (solicitud.nombreCliente ?? 'Ubicación');
-
                           return Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -78,9 +76,8 @@ class SolicitudCard extends StatelessWidget {
                                             children: [
                                               const Text('Recoger en', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColores.textPrimary,)),
                                               const SizedBox(height: 4),
-                                              if (origenAddress != null && origenAddress.trim().isNotEmpty)
-                                                 Text(
-                                                mainName,
+                                              Text(
+                                                pickupText,
                                                 style: const TextStyle(fontSize: 14,color: AppColores.textPrimary,),
                                                 maxLines: 2,
                                                 overflow: TextOverflow.ellipsis,
@@ -137,6 +134,18 @@ class SolicitudCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String _pickupText(SolicitudItem solicitud) {
+    final title = solicitud.origenTitle?.trim();
+    if (title != null && title.isNotEmpty) return title;
+
+    final address = solicitud.direccion?.trim();
+    if (address != null && address.isNotEmpty) return address;
+
+    final lat = solicitud.ubicacionInicial.latitude.toStringAsFixed(5);
+    final lng = solicitud.ubicacionInicial.longitude.toStringAsFixed(5);
+    return '$lat, $lng';
   }
 
 

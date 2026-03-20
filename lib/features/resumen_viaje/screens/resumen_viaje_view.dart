@@ -5,6 +5,7 @@ import 'package:taxi_app/components/boton.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/InicioClienteView.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioConductorView.dart';
+import 'package:taxi_app/core/services/services.dart';
 
 import '../controllers/resumen_viaje_controller.dart';
 import '../models/resumen_viaje_model.dart';
@@ -29,13 +30,50 @@ class ResumenViajeView extends StatelessWidget {
         tipoUsuario: tipoUsuario,
         solicitudId: solicitudId,
       ),
-      child: const _ResumenViajeBody(),
+      child: _ResumenViajeBody(tipoUsuario: tipoUsuario),
     );
   }
 }
 
-class _ResumenViajeBody extends StatelessWidget {
-  const _ResumenViajeBody();
+class _ResumenViajeBody extends StatefulWidget {
+  const _ResumenViajeBody({required this.tipoUsuario});
+
+  final TipoUsuarioResumen tipoUsuario;
+
+  @override
+  State<_ResumenViajeBody> createState() => _ResumenViajeBodyState();
+}
+
+class _ResumenViajeBodyState extends State<_ResumenViajeBody> {
+  bool _notificationShown = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _showTripFinishedNotification();
+  }
+
+  Future<void> _showTripFinishedNotification() async {
+    if (_notificationShown) return;
+    _notificationShown = true;
+
+    final isConductor = widget.tipoUsuario == TipoUsuarioResumen.conductor;
+    final title = isConductor ? 'Llegaste al destino' : 'Viaje terminado';
+    final body = isConductor
+        ? 'Fin del servicio.'
+        : 'Gracias por confiar en nosotros.';
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        await NotificationService.instance.init();
+        await NotificationService.instance.showNotification(
+          DateTime.now().millisecondsSinceEpoch % 100000,
+          title,
+          body,
+        );
+      } catch (_) {}
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -139,7 +177,10 @@ class _ResumenViajeBody extends StatelessWidget {
                           children: [
                             const ResumenHeader(),
                             const SizedBox(height: 14),
-                            _SummaryCard(resumen: resumen, isCliente: isCliente),
+                            _SummaryCard(
+                              resumen: resumen,
+                              isCliente: isCliente,
+                            ),
                             if (isCliente) ...[
                               const SizedBox(height: 10),
                               CalificacionSection(
@@ -157,19 +198,27 @@ class _ResumenViajeBody extends StatelessWidget {
                   ),
                 ),
               ),
-              bottomNavigationBar: SafeArea(
-                top: false,
-                minimum: EdgeInsets.fromLTRB(horizontalPadding, 8, horizontalPadding, 24),
-                child: CustomButton(
-                  text: isCliente ? 'Continuar' : 'Volver al inicio',
-                  onPressed: vm.guardando
-                      ? null
-                      : () async {
-                          await _onActionPressed(context, vm);
-                        },
-                  width: double.infinity,
-                  height: 52,
-                  color: AppColores.buttonPrimary,
+              bottomNavigationBar: Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: SafeArea(
+                  top: false,
+                  minimum: EdgeInsets.fromLTRB(
+                    horizontalPadding,
+                    8,
+                    horizontalPadding,
+                    20,
+                  ),
+                  child: CustomButton(
+                    text: isCliente ? 'Continuar' : 'Volver al inicio',
+                    onPressed: vm.guardando
+                        ? null
+                        : () async {
+                            await _onActionPressed(context, vm);
+                          },
+                    width: double.infinity,
+                    height: 52,
+                    color: AppColores.buttonPrimary,
+                  ),
                 ),
               ),
             );
@@ -190,9 +239,9 @@ class _ResumenViajeBody extends StatelessWidget {
       if (!context.mounted) return;
 
       if (error != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error)));
         return;
       }
 
@@ -228,7 +277,9 @@ class _SummaryCard extends StatelessWidget {
             ResumenInfoItem(
               icon: Icons.person,
               label: isCliente ? 'Conductor' : 'Cliente',
-              value: isCliente ? resumen.conductorNombre : resumen.clienteNombre,
+              value: isCliente
+                  ? resumen.conductorNombre
+                  : resumen.clienteNombre,
             ),
             const Divider(height: 14),
             ResumenInfoItem(

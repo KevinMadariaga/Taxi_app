@@ -10,11 +10,13 @@ import 'package:taxi_app/widgets/MapaGoogle.dart';
 class SeleccionaUbicacionEnMapaView extends StatefulWidget {
   final LatLng ubicacionInicial;
   final String? titulo;
+  final String? direccionInicial;
 
   const SeleccionaUbicacionEnMapaView({
     super.key,
     required this.ubicacionInicial,
     this.titulo,
+    this.direccionInicial,
   });
 
   @override
@@ -39,13 +41,24 @@ class _SeleccionaUbicacionEnMapaViewState
     super.initState();
     _center = widget.ubicacionInicial;
     _ultimaCoordConsultada = _center;
+    final initialAddress = widget.direccionInicial?.trim() ?? '';
+    if (initialAddress.isNotEmpty) {
+      _direccion = initialAddress;
+      _direccionCache[_keyFromPoint(_center)] = initialAddress;
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       setState(() {
         _contenidoVisible = true;
       });
     });
-    unawaited(_actualizarDireccion(_center));
+    if (initialAddress.isEmpty) {
+      unawaited(_actualizarDireccion(_center));
+    }
+  }
+
+  String _keyFromPoint(LatLng coord) {
+    return '${coord.latitude.toStringAsFixed(5)},${coord.longitude.toStringAsFixed(5)}';
   }
 
   bool _seMovioLoSuficiente(LatLng a, LatLng b) {
@@ -55,8 +68,7 @@ class _SeleccionaUbicacionEnMapaViewState
   }
 
   Future<void> _actualizarDireccion(LatLng coord) async {
-    final key =
-        '${coord.latitude.toStringAsFixed(5)},${coord.longitude.toStringAsFixed(5)}';
+    final key = _keyFromPoint(coord);
     final cached = _direccionCache[key];
     if (cached != null && cached.isNotEmpty) {
       if (!mounted) return;

@@ -38,13 +38,21 @@
 	<key>FirebaseAppDelegateProxyEnabled</key>
 	<true/>
 	<key>GMSApiKey</key>
-	<string>AIzaSyAUYXdeT3cOtyTSGndd-DEV12OMyAmb-40</string>
+	<string>$(GMS_API_KEY)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Necesitamos acceso a la camara para tomar tu foto de perfil y documentos del servicio.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>La aplicación necesita acceder a tu ubicación incluso en segundo plano para mejorar la experiencia de viaje.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>Usamos tu ubicacion en segundo plano para mantener el seguimiento del viaje activo y seguro.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>La aplicación necesita acceder a tu ubicación para ofrecer servicios de taxi.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Necesitamos acceso a tu galeria para seleccionar fotos de perfil y evidencias requeridas.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Necesitamos permiso para guardar comprobantes e imagenes del servicio en tu galeria.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UIBackgroundModes</key>
@@ -55,8 +63,23 @@
 	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
-	<key>UIMainStoryboardFile</key>
-	<string>Main</string>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+		<key>UISceneConfigurations</key>
+		<dict>
+			<key>UIWindowSceneSessionRoleApplication</key>
+			<array>
+				<dict>
+					<key>UISceneConfigurationName</key>
+					<string>Default Configuration</string>
+					<key>UISceneDelegateClassName</key>
+					<string>$(PRODUCT_MODULE_NAME).SceneDelegate</string>
+				</dict>
+			</array>
+		</dict>
+	</dict>
 	<key>UIStatusBarHidden</key>
 	<false/>
 	<key>UISupportedInterfaceOrientations</key>

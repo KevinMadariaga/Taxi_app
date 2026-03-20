@@ -4,23 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:io';
-import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart' as firebase_storage;
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'dart:ui' as ui;
 import 'package:taxi_app/core/app_colores.dart';
-import 'package:cached_network_image/cached_network_image.dart';
-import 'package:provider/provider.dart';
 import 'package:taxi_app/helper/responsive_helper.dart';
 import 'package:taxi_app/helper/session_helper.dart';
 import 'package:taxi_app/screens/cambiar_contrasena_screen.dart';
-import 'package:taxi_app/screens/eliminar_cuenta_screen.dart';
-import 'package:taxi_app/screens/home_screen.dart';
-import 'package:taxi_app/models/AuthModel.dart';
-import 'package:animated_snack_bar/animated_snack_bar.dart';
-import 'package:taxi_app/data/models/viewmodels/perfil_viewmodel.dart';
-import 'package:taxi_app/screens/usuario_conductor/presentacion/view/RutaConductorView.dart';
 import 'package:taxi_app/widgets/editar_perfil.dart';
 
 class PaginaPerfilUsuario extends StatefulWidget {
@@ -33,10 +24,9 @@ class PaginaPerfilUsuario extends StatefulWidget {
 }
 
 class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
-    bool _guardando = false;
+  bool _guardando = false;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final ImagePicker _picker = ImagePicker();
 
   bool _isUploading = false;
   double _uploadProgress = 0.0;
@@ -55,10 +45,7 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
     final uid = _auth.currentUser?.uid;
     if (uid == null) return;
 
-    final snapshot = await _firestore
-        .collection(widget.tipoUsuario)
-        .doc(uid)
-        .get();
+    final snapshot = await _firestore.collection('usuarios').doc(uid).get();
 
     if (snapshot.exists) {
       if (!mounted) return;
@@ -84,7 +71,10 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
       setState(() => _guardando = false);
       return;
     }
-    await _firestore.collection(widget.tipoUsuario).doc(uid).update(nuevosDatos);
+    await _firestore
+        .collection('usuarios')
+        .doc(uid)
+        .set(nuevosDatos, SetOptions(merge: true));
     // Guardar nombre en cache si se actualizó
     try {
       final n = nuevosDatos['nombre']?.toString();
@@ -101,7 +91,7 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
     try {
       final dir = await getTemporaryDirectory();
       final outPath =
-          '${dir.path}/${DateTime.now().millisecondsSinceEpoch}_comp.jpg';
+          '${dir.path}/${DateTime.now().millisecondsSinceEpoch}_comp.webp';
 
       // get original dimensions
       final bytes = await file.readAsBytes();
@@ -111,7 +101,7 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
       final int origW = original.width;
       final int origH = original.height;
 
-      final qualities = [95, 85, 75, 65, 55, 45, 35, 30];
+      final qualities = [80, 70, 60, 50, 45, 40, 35, 30, 25];
       final scales = [1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4];
 
       File? best;
@@ -125,6 +115,7 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
             quality: q,
             minWidth: targetW,
             minHeight: targetH,
+            format: CompressFormat.webp,
           );
           if (result == null) continue;
           final len = await result.length();
@@ -247,6 +238,7 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
     } catch (_) {}
   }
 
+  // ignore: unused_element
   Future<void> _uploadFile(File file) async {
     final uid = _auth.currentUser?.uid;
     if (uid == null) return;
@@ -254,10 +246,7 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
     // obtener url anterior para borrarla luego
     String? previousUrl;
     try {
-      final doc = await _firestore
-          .collection(widget.tipoUsuario)
-          .doc(uid)
-          .get();
+      final doc = await _firestore.collection('usuarios').doc(uid).get();
       previousUrl = doc.data()?['foto'] as String?;
     } catch (_) {}
 
@@ -267,11 +256,12 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
     });
 
     try {
+      final compressed = await _compressFile(file, maxBytes: 100 * 1024);
       final path =
-          '${widget.tipoUsuario}/$uid/profile_${DateTime.now().millisecondsSinceEpoch}.jpg';
+          'usuarios/$uid/profile_${DateTime.now().millisecondsSinceEpoch}.webp';
       final ref = firebase_storage.FirebaseStorage.instance.ref().child(path);
 
-      final uploadTask = ref.putFile(file);
+      final uploadTask = ref.putFile(compressed);
 
       uploadTask.snapshotEvents.listen((event) {
         if (event.totalBytes > 0) {
@@ -287,9 +277,9 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
       final snapshot = await uploadTask;
       final downloadUrl = await snapshot.ref.getDownloadURL();
 
-      await _firestore.collection(widget.tipoUsuario).doc(uid).update({
+      await _firestore.collection('usuarios').doc(uid).set({
         'foto': downloadUrl,
-      });
+      }, SetOptions(merge: true));
 
       // Intentar eliminar la foto anterior en Storage para no acumular archivos
       if (previousUrl != null &&
@@ -339,6 +329,7 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
   }
 
   // Variante que sube un archivo y actualiza un campo arbitrario en Firestore
+  // ignore: unused_element
   Future<void> _uploadFileForField(File file, String fieldName) async {
     final uid = _auth.currentUser?.uid;
     if (uid == null) return;
@@ -346,10 +337,7 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
     // obtener url anterior para borrarla luego
     String? previousUrl;
     try {
-      final doc = await _firestore
-          .collection(widget.tipoUsuario)
-          .doc(uid)
-          .get();
+      final doc = await _firestore.collection('usuarios').doc(uid).get();
       previousUrl = doc.data()?[fieldName] as String?;
     } catch (_) {}
 
@@ -359,11 +347,12 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
     });
 
     try {
+      final compressed = await _compressFile(file, maxBytes: 100 * 1024);
       final path =
-          '${widget.tipoUsuario}/$uid/${fieldName}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+          'usuarios/$uid/${fieldName}_${DateTime.now().millisecondsSinceEpoch}.webp';
       final ref = firebase_storage.FirebaseStorage.instance.ref().child(path);
 
-      final uploadTask = ref.putFile(file);
+      final uploadTask = ref.putFile(compressed);
 
       uploadTask.snapshotEvents.listen((event) {
         if (event.totalBytes > 0) {
@@ -379,9 +368,9 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
       final snapshot = await uploadTask;
       final downloadUrl = await snapshot.ref.getDownloadURL();
 
-      await _firestore.collection(widget.tipoUsuario).doc(uid).update({
+      await _firestore.collection('usuarios').doc(uid).set({
         fieldName: downloadUrl,
-      });
+      }, SetOptions(merge: true));
 
       // Intentar eliminar la foto anterior en Storage
       if (previousUrl != null &&
@@ -437,9 +426,15 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
   }
 
   void _mostrarDialogoEditar() {
-    final nombreController = TextEditingController(text: userData?['nombre'] ?? '');
-    final telefonoController = TextEditingController(text: userData?['telefono'] ?? '');
-    final placaController = TextEditingController(text: userData?['placa'] ?? '');
+    final nombreController = TextEditingController(
+      text: userData?['nombre'] ?? '',
+    );
+    final telefonoController = TextEditingController(
+      text: userData?['telefono'] ?? '',
+    );
+    final placaController = TextEditingController(
+      text: userData?['placa'] ?? '',
+    );
     final esConductor = widget.tipoUsuario == 'conductor';
 
     Navigator.of(context).push(
@@ -505,7 +500,6 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
       ),
     );
   }
-
 
   Widget _buildInfoCard(IconData icon, String title, String value) {
     const double iconSize = 24.0;
@@ -593,12 +587,11 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
   @override
   Widget build(BuildContext context) {
     final nombre = (userData?['nombre'] ?? 'Usuario').toString();
-
-    // Instanciar el viewmodel para censurar correo y teléfono
-    final perfilViewModel = PerfilViewModel(
-      correo: userData?['correo']?.toString(),
-      telefono: userData?['telefono']?.toString(),
-    );
+    final correo =
+        (userData?['correo'] ?? userData?['email'] ?? 'Sin correo registrado')
+            .toString();
+    final telefono = (userData?['telefono'] ?? 'Sin teléfono registrado')
+        .toString();
 
     // Tamaños base estándar
     const double appBarFontSize = 20.0;
@@ -623,597 +616,126 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
       body: userData == null
           ? const Center(child: CircularProgressIndicator())
           : SafeArea(
-              child: Center(
-                child: Container(
-                  width: double.infinity,
-                  padding: EdgeInsets.all(ResponsiveHelper.wp(context, 4)),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Reduce vertical space above profile photo
-                      SizedBox(height: ResponsiveHelper.hp(context, 0.5)),
-                      Center(
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            CircleAvatar(
-                              radius: avatarRadius,
-                              backgroundColor: Colors.grey.shade200,
-                              backgroundImage:
-                                  _cachedImageFile != null &&
-                                      _cachedImageFile!.existsSync()
-                                  ? FileImage(_cachedImageFile!)
-                                        as ImageProvider
-                                  : (userData != null &&
-                                        userData!['foto'] != null &&
-                                        (userData!['foto'] as String)
-                                            .isNotEmpty)
-                                  ? NetworkImage(userData!['foto'] as String)
-                                  : null,
-                              child:
-                                  (_cachedImageFile == null ||
-                                          !(_cachedImageFile?.existsSync() ??
-                                              false)) &&
-                                      (userData == null ||
-                                          userData!['foto'] == null ||
-                                          (userData!['foto'] as String).isEmpty)
-                                  ? Icon(
-                                      Icons.person,
-                                      size: avatarIconSize,
-                                      color: Colors.white,
-                                    )
-                                  : null,
-                            ),
-                            if (_isUploading)
-                              Positioned(
-                                bottom: -6,
-                                child: SizedBox(
-                                  width: avatarRadius * 1.8,
-                                  child: LinearProgressIndicator(
-                                    value: _uploadProgress,
-                                  ),
-                                ),
-                              ),
-                            // Edit overlay removed from main avatar: editing available only inside the edit dialog
-                          ],
-                        ),
-                      ),
-                      SizedBox(height: ResponsiveHelper.hp(context, 2)),
-                      Center(
-                        child: ConstrainedBox(
-                          constraints: BoxConstraints(
-                            maxWidth: ResponsiveHelper.wp(context, 80),
-                          ),
-                          child: Text(
-                            nombre.toUpperCase(),
-                            textAlign: TextAlign.center,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: computedNameFontSize,
-                              fontWeight: FontWeight.bold,
-                              color: AppColores.textPrimary,
-                            ),
-                          ),
-                        ),
-                      ),
-                      SizedBox(height: ResponsiveHelper.hp(context, 1)),
-                      // Conductor connection toggle moved to driver home view
-                      SizedBox(height: ResponsiveHelper.hp(context, 1)),
-                      // Cards para ambos tipos de usuario
-                      if (widget.tipoUsuario == 'conductor') ...[
-                        _buildVehiclePhotoCard(),
-                        SizedBox(height: ResponsiveHelper.hp(context, 0.4)),
-                        _buildInfoCard(
-                          Icons.local_taxi,
-                          'Placa',
-                          userData?['placa'] ?? 'Sin placa registrada',
-                        ),
-                        SizedBox(height: ResponsiveHelper.hp(context, 0.4)),
-                        _buildInfoCard(
-                          Icons.email,
-                          'Correo',
-                          perfilViewModel.correoCensurado,
-                        ),
-                        SizedBox(height: ResponsiveHelper.hp(context, 0.4)),
-                        _buildInfoCard(
-                          Icons.phone,
-                          'Teléfono',
-                          perfilViewModel.telefonoCensurado,
-                        ),
-                        SizedBox(height: ResponsiveHelper.hp(context, 0.4)),
-                        // Cards de acción juntos y con mismo espacio
-                        Column(
-                          children: [
-                            Card(
-                              margin: EdgeInsets.symmetric(vertical: ResponsiveHelper.hp(context, 0.4)),
-                              child: InkWell(
-                                onTap: () {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => const CambiarContrasenaScreen(),
-                                    ),
-                                  );
-                                },
-                                child: Container(
-                                  constraints: const BoxConstraints(minHeight: 56),
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: ResponsiveHelper.wp(context, 4),
-                                    vertical: ResponsiveHelper.hp(context, 1.5),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Icon(Icons.lock, color: AppColores.primary, size: 24.0),
-                                      SizedBox(width: 12),
-                                      Expanded(
-                                        child: Text(
-                                          'Cambiar contraseña',
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.w600,
-                                            fontSize: 16.0,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                            SizedBox(height: ResponsiveHelper.hp(context, 0.8)),
-                            Card(
-                              margin: EdgeInsets.symmetric(vertical: ResponsiveHelper.hp(context, 0.4)),
-                              child: InkWell(
-                                onTap: () {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => const EliminarCuentaScreen()
-                                    ),
-                                  );
-                                },
-                                child: Container(
-                                  constraints: const BoxConstraints(minHeight: 56),
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: ResponsiveHelper.wp(context, 4),
-                                    vertical: ResponsiveHelper.hp(context, 1.5),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Icon(Icons.delete, color: Colors.red, size: 24.0),
-                                      SizedBox(width: 12),
-                                      Expanded(
-                                        child: Text(
-                                          'Eliminar cuenta',
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.w600,
-                                            fontSize: 16.0,
-                                            color: Colors.red,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                            SizedBox(height: ResponsiveHelper.hp(context, 1.2)),
-                          ],
-                        ),
-                      ]
-                      else ...[
-                        _buildInfoCard(
-                          Icons.email,
-                          'Correo',
-                          perfilViewModel.correoCensurado,
-                        ),
-                        SizedBox(height: ResponsiveHelper.hp(context, 0.4)),
-                        _buildInfoCard(
-                          Icons.phone,
-                          'Teléfono',
-                          perfilViewModel.telefonoCensurado,
-                        ),
-                        SizedBox(height: ResponsiveHelper.hp(context, 0.4)),
-                        // Cards de acción juntos y con mismo espacio
-                        Column(
-                          children: [
-                            Card(
-                              margin: EdgeInsets.symmetric(vertical: ResponsiveHelper.hp(context, 0.4)),
-                              child: InkWell(
-                                onTap: () {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => const CambiarContrasenaScreen(),
-                                    ),
-                                  );
-                                },
-                                child: Container(
-                                  constraints: const BoxConstraints(minHeight: 56),
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: ResponsiveHelper.wp(context, 4),
-                                    vertical: ResponsiveHelper.hp(context, 1.5),
-                                  ),
-                                  child: Row(
-                                    
-                                    children: [
-                                      Icon(Icons.lock, color: AppColores.primary, size: 24.0),
-                                      SizedBox(width: 12),
-                                      Expanded(
-                                        child: Text(
-                                          'Cambiar contraseña',
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.w600,
-                                            fontSize: 16.0,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                            SizedBox(height: ResponsiveHelper.hp(context, 0.8)),
-                            Card(
-                              margin: EdgeInsets.symmetric(vertical: ResponsiveHelper.hp(context, 0.4)),
-                              child: InkWell(
-                                onTap: () {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => const EliminarCuentaScreen(),
-                                    ),
-                                  );
-                                },
-                                child: Container(
-                                  constraints: const BoxConstraints(minHeight: 56),
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: ResponsiveHelper.wp(context, 4),
-                                    vertical: ResponsiveHelper.hp(context, 1.5),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Icon(Icons.delete, color: Colors.red, size: 24.0),
-                                      SizedBox(width: 12),
-                                      Expanded(
-                                        child: Text(
-                                          'Eliminar cuenta',
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.w600,
-                                            fontSize: 16.0,
-                                            color: Colors.red,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                            SizedBox(height: ResponsiveHelper.hp(context, 1.2)),
-                          ],
-                        ),
-                      ],
-                      Row(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.all(ResponsiveHelper.wp(context, 4)),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SizedBox(height: ResponsiveHelper.hp(context, 0.5)),
+                    Center(
+                      child: Stack(
+                        alignment: Alignment.center,
                         children: [
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              onPressed: _mostrarDialogoEditar,
-                              icon: const Icon(
-                                Icons.edit,
-                                size: buttonIconSize,
-                              ),
-                              label: const Text(
-                                "Editar Datos",
-                                style: TextStyle(fontSize: buttonFontSize),
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColores.buttonPrimary,
-                                foregroundColor: AppColores.textWhite,
-                                padding: EdgeInsets.symmetric(
-                                  vertical: ResponsiveHelper.hp(context, 1.5),
-                                  horizontal: ResponsiveHelper.wp(context, 2),
+                          CircleAvatar(
+                            radius: avatarRadius,
+                            backgroundColor: Colors.grey.shade200,
+                            backgroundImage:
+                                _cachedImageFile != null &&
+                                    _cachedImageFile!.existsSync()
+                                ? FileImage(_cachedImageFile!) as ImageProvider
+                                : (userData != null &&
+                                      userData!['foto'] != null &&
+                                      (userData!['foto'] as String).isNotEmpty)
+                                ? NetworkImage(userData!['foto'] as String)
+                                : null,
+                            child:
+                                (_cachedImageFile == null ||
+                                        !(_cachedImageFile?.existsSync() ??
+                                            false)) &&
+                                    (userData == null ||
+                                        userData!['foto'] == null ||
+                                        (userData!['foto'] as String).isEmpty)
+                                ? Icon(
+                                    Icons.person,
+                                    size: avatarIconSize,
+                                    color: Colors.white,
+                                  )
+                                : null,
+                          ),
+                          if (_isUploading)
+                            Positioned(
+                              bottom: -6,
+                              child: SizedBox(
+                                width: avatarRadius * 1.8,
+                                child: LinearProgressIndicator(
+                                  value: _uploadProgress,
                                 ),
                               ),
                             ),
-                          ),
-                          SizedBox(width: ResponsiveHelper.wp(context, 3)),
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              onPressed: () async {
-                                // Tamaños fijos para el diálogo de confirmación
-                                const double dialogIconSize = 38.0;
-                                const double dialogTextSize = 18.0;
-                                const double dialogButtonSize = 14.0;
-
-                                final confirm = await showDialog<bool>(
-                                  context: context,
-                                  barrierDismissible: false,
-                                  builder: (context) {
-                                    // Diálogo responsive sin altura fija
-                                    final dialogWidth = ResponsiveHelper.wp(
-                                      context,
-                                      75,
-                                    );
-
-                                    return Dialog(
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(
-                                          12.0,
-                                        ),
-                                      ),
-                                      child: Container(
-                                        width: dialogWidth,
-                                        padding: EdgeInsets.symmetric(
-                                          horizontal: ResponsiveHelper.wp(
-                                            context,
-                                            4,
-                                          ),
-                                          vertical: ResponsiveHelper.hp(
-                                            context,
-                                            2.5,
-                                          ),
-                                        ),
-                                        child: Column(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            // Ícono
-                                            const Icon(
-                                              Icons.logout,
-                                              color: Colors.redAccent,
-                                              size: dialogIconSize,
-                                            ),
-
-                                            SizedBox(
-                                              height: ResponsiveHelper.hp(
-                                                context,
-                                                2,
-                                              ),
-                                            ),
-
-                                            // Texto
-                                            Padding(
-                                              padding: EdgeInsets.symmetric(
-                                                horizontal: ResponsiveHelper.wp(
-                                                  context,
-                                                  2,
-                                                ),
-                                              ),
-                                              child: const Text(
-                                                '¿Deseas cerrar sesión?',
-                                                textAlign: TextAlign.center,
-                                                style: TextStyle(
-                                                  fontSize: dialogTextSize,
-                                                  height: 1.3,
-                                                  color: Colors.black87,
-                                                ),
-                                              ),
-                                            ),
-
-                                            SizedBox(
-                                              height: ResponsiveHelper.hp(
-                                                context,
-                                                3,
-                                              ),
-                                            ),
-
-                                            // Botones
-                                            Row(
-                                              children: [
-                                                Expanded(
-                                                  child: OutlinedButton(
-                                                    onPressed: () =>
-                                                        Navigator.of(
-                                                          context,
-                                                        ).pop(false),
-                                                    style: OutlinedButton.styleFrom(
-                                                      side: const BorderSide(
-                                                        color: Colors.redAccent,
-                                                      ),
-                                                      padding: EdgeInsets.symmetric(
-                                                        vertical:
-                                                            ResponsiveHelper.hp(
-                                                              context,
-                                                              1.5,
-                                                            ),
-                                                      ),
-                                                      shape: RoundedRectangleBorder(
-                                                        borderRadius:
-                                                            BorderRadius.circular(
-                                                              8,
-                                                            ),
-                                                      ),
-                                                    ),
-                                                    child: Text(
-                                                      'Cancelar',
-                                                      style: TextStyle(
-                                                        fontSize:
-                                                            dialogButtonSize,
-                                                        color: AppColores
-                                                            .buttonCancel,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ),
-
-                                                SizedBox(
-                                                  width: ResponsiveHelper.wp(
-                                                    context,
-                                                    3,
-                                                  ),
-                                                ),
-
-                                                Expanded(
-                                                  child: ElevatedButton(
-                                                    onPressed: () =>
-                                                        Navigator.of(
-                                                          context,
-                                                        ).pop(true),
-                                                    style: ElevatedButton.styleFrom(
-                                                      backgroundColor:
-                                                          Colors.redAccent,
-                                                      foregroundColor:
-                                                          AppColores.textWhite,
-                                                      padding: EdgeInsets.symmetric(
-                                                        vertical:
-                                                            ResponsiveHelper.hp(
-                                                              context,
-                                                              1.5,
-                                                            ),
-                                                      ),
-                                                      shape: RoundedRectangleBorder(
-                                                        borderRadius:
-                                                            BorderRadius.circular(
-                                                              8,
-                                                            ),
-                                                      ),
-                                                    ),
-                                                    child: const Text(
-                                                      'Cerrar sesión',
-                                                      style: TextStyle(
-                                                        fontSize:
-                                                            dialogButtonSize,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                );
-
-                                if (confirm == true) {
-                                  // Capture the BuildContext and NavigatorState before async gaps.
-                                  final BuildContext ctx = context;
-                                  final navigator = Navigator.of(ctx);
-
-                                  // Mostrar diálogo de progreso mientras se cierra la sesión
-                                  showDialog<void>(
-                                    context: context,
-                                    barrierDismissible: false,
-                                    builder: (ctx) {
-                                      return AlertDialog(
-                                        content: SizedBox(
-                                          height: 60,
-                                          child: Row(
-                                            children: const [
-                                              CircularProgressIndicator(),
-                                              SizedBox(width: 16),
-                                              Expanded(
-                                                child: Text(
-                                                  'Cerrando sesión...',
-                                                  style: TextStyle(
-                                                    fontSize: 16,
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      );
-                                    },
-                                  );
-                                  try {
-                                    // Usar el ViewModel / repositorio para cerrar sesión
-                                    final vm = Provider.of<AuthViewModel>(
-                                      context,
-                                      listen: false,
-                                    );
-                                    final uidBeforeLogout =
-                                        _auth.currentUser?.uid;
-
-                                    // Este logout ya limpia SessionHelper, rutas activas
-                                    // y caches de ruta en FirebaseDataSource.logout
-                                    await vm.logout();
-
-                                    // Refuerzo: limpiar cualquier dato de sesión
-                                    // residual y solicitud activa.
-                                    try {
-                                      await SessionHelper.clearSession();
-                                    } catch (_) {}
-                                    try {
-                                      await SessionHelper.clearActiveSolicitud();
-                                    } catch (_) {}
-
-                                    // Borrar cache local de fotos (perfil y vehículo)
-                                    try {
-                                      if (uidBeforeLogout != null) {
-                                        // Foto de perfil en disco
-                                        final f = await _cacheFileForUid(
-                                          uidBeforeLogout,
-                                        );
-                                        if (f.existsSync()) {
-                                          await f.delete();
-                                        }
-
-                                        // Foto de vehículo en disco (si existe)
-                                        await _deleteCachedVehicleFile(
-                                          uidBeforeLogout,
-                                        );
-
-                                        if (mounted) {
-                                          setState(() {
-                                            _cachedImageFile = null;
-                                            _cachedVehicleFile = null;
-                                          });
-                                        }
-                                      }
-                                    } catch (_) {}
-                                  } finally {
-                                    // Mantener el diálogo de progreso visible un poco más
-                                    await Future.delayed(
-                                      const Duration(milliseconds: 1500),
-                                    );
-
-                                    // Use the captured BuildContext's mounted flag before using it.
-                                    if (ctx.mounted) {
-                                      if (navigator.mounted) {
-                                        try {
-                                          navigator.pop();
-                                        } catch (_) {}
-                                        try {
-                                          navigator.pushReplacement(
-                                            MaterialPageRoute(
-                                              builder: (_) => const HomeView(),
-                                            ),
-                                          );
-                                        } catch (_) {}
-                                      } else {
-                                        try {
-                                          Navigator.pushReplacement(
-                                            ctx,
-                                            MaterialPageRoute(
-                                              builder: (_) => const HomeView(),
-                                            ),
-                                          );
-                                        } catch (_) {}
-                                      }
-                                    }
-                                  }
-                                }
-                              },
-                              icon: const Icon(
-                                Icons.logout,
-                                size: buttonIconSize,
-                              ),
-                              label: const Text(
-                                'Cerrar Sesión',
-                                style: TextStyle(fontSize: buttonFontSize),
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.redAccent,
-                                foregroundColor: Colors.white,
-                                padding: EdgeInsets.symmetric(
-                                  vertical: ResponsiveHelper.hp(context, 1.5),
-                                  horizontal: ResponsiveHelper.wp(context, 2),
-                                ),
-                              ),
-                            ),
-                          ),
                         ],
                       ),
+                    ),
+                    SizedBox(height: ResponsiveHelper.hp(context, 2)),
+                    Center(
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: ResponsiveHelper.wp(context, 80),
+                        ),
+                        child: Text(
+                          nombre.toUpperCase(),
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: computedNameFontSize,
+                            fontWeight: FontWeight.bold,
+                            color: AppColores.textPrimary,
+                          ),
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: ResponsiveHelper.hp(context, 1.2)),
+                    if (widget.tipoUsuario == 'conductor') ...[
+                      _buildVehiclePhotoCard(),
+                      SizedBox(height: ResponsiveHelper.hp(context, 0.4)),
                     ],
-                  ),
+                    _buildInfoCard(Icons.email, 'Correo', correo),
+                    SizedBox(height: ResponsiveHelper.hp(context, 0.4)),
+                    _buildInfoCard(Icons.phone, 'Teléfono', telefono),
+                    SizedBox(height: ResponsiveHelper.hp(context, 1.4)),
+                    ElevatedButton.icon(
+                      onPressed: _mostrarDialogoEditar,
+                      icon: const Icon(Icons.edit, size: buttonIconSize),
+                      label: const Text(
+                        'Editar Datos',
+                        style: TextStyle(fontSize: buttonFontSize),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColores.buttonPrimary,
+                        foregroundColor: AppColores.textWhite,
+                        padding: EdgeInsets.symmetric(
+                          vertical: ResponsiveHelper.hp(context, 1.5),
+                          horizontal: ResponsiveHelper.wp(context, 2),
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: ResponsiveHelper.hp(context, 1)),
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const CambiarContrasenaScreen(),
+                          ),
+                        );
+                      },
+                      icon: const Icon(
+                        Icons.lock_outline,
+                        size: buttonIconSize,
+                      ),
+                      label: const Text(
+                        'Cambiar contraseña',
+                        style: TextStyle(fontSize: buttonFontSize),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColores.textPrimary,
+                        side: const BorderSide(color: AppColores.borderSubtle),
+                        padding: EdgeInsets.symmetric(
+                          vertical: ResponsiveHelper.hp(context, 1.5),
+                          horizontal: ResponsiveHelper.wp(context, 2),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),

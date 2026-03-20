@@ -31,6 +31,47 @@ class _MapPreviewState extends State<MapPreview> {
   String? _origenDireccionActual;
   bool _resolviendoOrigenDireccion = false;
 
+  PageRouteBuilder<T> _buildSmoothRoute<T>(Widget page) {
+    return PageRouteBuilder<T>(
+      pageBuilder: (context, animation, secondaryAnimation) => page,
+      transitionDuration: const Duration(milliseconds: 260),
+      reverseTransitionDuration: const Duration(milliseconds: 220),
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeInCubic,
+        );
+        return FadeTransition(
+          opacity: curved,
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, 0.02),
+              end: Offset.zero,
+            ).animate(curved),
+            child: child,
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _handleBackNavigation() async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    await SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
+    if (!mounted) return;
+
+    final navigator = Navigator.of(context);
+    final popped = await navigator.maybePop();
+    if (popped || !mounted) return;
+
+    await navigator.pushReplacement(
+      _buildSmoothRoute(
+        BuscarDestinoView(currentLocation: widget.origen.position),
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -182,7 +223,7 @@ class _MapPreviewState extends State<MapPreview> {
   }
 
   Widget _buildMap(BuildContext context) {
-    final mapHeight = MediaQuery.of(context).size.height * 0.62;
+    final mapHeight = MediaQuery.of(context).size.height * 0.55;
     return SizedBox(
       height: mapHeight,
       child: Consumer<MapapreviewViewModel>(
@@ -200,19 +241,9 @@ class _MapPreviewState extends State<MapPreview> {
                 (origen.longitude + destino.longitude) / 2,
               ),
               initialZoom: 13,
+              myLocationEnabled: true,
               onMapCreated: _onMapCreated,
               markers: {
-                Marker(
-                  markerId: const MarkerId('ubicacion'),
-                  position: origen,
-                  infoWindow: InfoWindow(
-                    title: vm.origen.title ?? 'Ubicación',
-                    snippet: vm.origen.subtitle,
-                  ),
-                  icon: BitmapDescriptor.defaultMarkerWithHue(
-                    BitmapDescriptor.hueBlue,
-                  ),
-                ),
                 Marker(
                   markerId: const MarkerId('destino'),
                   position: destino,
@@ -359,43 +390,56 @@ class _MapPreviewState extends State<MapPreview> {
   ) async {
     await showModalBottomSheet<void>(
       context: context,
+      backgroundColor: Colors.transparent,
       builder: (ctx) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                title: const Text(
-                  'Metodo de pago',
-                  style: TextStyle(fontWeight: FontWeight.w700),
-                ),
-                subtitle: Text('Seleccionado: ${vm.metodoPago}'),
+        final media = MediaQuery.of(ctx);
+        final bottomGap = media.viewPadding.bottom + 10;
+
+        return Padding(
+          padding: EdgeInsets.fromLTRB(12, 0, 12, bottomGap),
+          child: Material(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            clipBehavior: Clip.antiAlias,
+            child: SafeArea(
+              top: false,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ListTile(
+                    title: const Text(
+                      'Metodo de pago',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    subtitle: Text('Seleccionado: ${vm.metodoPago}'),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.payments_outlined),
+                    title: const Text('Efectivo'),
+                    selected: vm.metodoPago == 'Efectivo',
+                    trailing: vm.metodoPago == 'Efectivo'
+                        ? const Icon(Icons.check_circle, color: Colors.green)
+                        : null,
+                    onTap: () {
+                      vm.setMetodoPago('Efectivo');
+                      Navigator.of(ctx).pop();
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.account_balance_wallet),
+                    title: const Text('Nequi'),
+                    selected: vm.metodoPago == 'Nequi',
+                    trailing: vm.metodoPago == 'Nequi'
+                        ? const Icon(Icons.check_circle, color: Colors.green)
+                        : null,
+                    onTap: () {
+                      vm.setMetodoPago('Nequi');
+                      Navigator.of(ctx).pop();
+                    },
+                  ),
+                ],
               ),
-              ListTile(
-                leading: const Icon(Icons.payments_outlined),
-                title: const Text('Efectivo'),
-                selected: vm.metodoPago == 'Efectivo',
-                trailing: vm.metodoPago == 'Efectivo'
-                    ? const Icon(Icons.check_circle, color: Colors.green)
-                    : null,
-                onTap: () {
-                  vm.setMetodoPago('Efectivo');
-                  Navigator.of(ctx).pop();
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.account_balance_wallet),
-                title: const Text('Nequi'),
-                selected: vm.metodoPago == 'Nequi',
-                trailing: vm.metodoPago == 'Nequi'
-                    ? const Icon(Icons.check_circle, color: Colors.green)
-                    : null,
-                onTap: () {
-                  vm.setMetodoPago('Nequi');
-                  Navigator.of(ctx).pop();
-                },
-              ),
-            ],
+            ),
           ),
         );
       },
@@ -438,79 +482,93 @@ class _MapPreviewState extends State<MapPreview> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (ctx) {
+        final media = MediaQuery.of(ctx);
+        final keyboardInset = media.viewInsets.bottom;
+        final bottomGap = keyboardInset > 0
+            ? keyboardInset + 10
+            : media.viewPadding.bottom + 10;
+
         return StatefulBuilder(
           builder: (ctx, setSheetState) {
             return Padding(
-              padding: EdgeInsets.fromLTRB(
-                16,
-                16,
-                16,
-                MediaQuery.of(ctx).viewInsets.bottom + 16,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Comentario para el conductor',
-                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
+              padding: EdgeInsets.fromLTRB(12, 16, 12, bottomGap),
+              child: Material(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                clipBehavior: Clip.antiAlias,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Comentario para el conductor',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 18,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        vm.comentario.isEmpty
+                            ? 'Sin comentario guardado'
+                            : 'Guardado: ${vm.comentario}',
+                        style: const TextStyle(color: Colors.black54),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        children: sugerencias
+                            .map(
+                              (s) => ActionChip(
+                                label: Text(s),
+                                onPressed: () {
+                                  setSheetState(() {
+                                    draft = s;
+                                    controller.text = s;
+                                    controller.selection =
+                                        TextSelection.collapsed(
+                                          offset: controller.text.length,
+                                        );
+                                  });
+                                },
+                              ),
+                            )
+                            .toList(),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: controller,
+                        maxLines: 3,
+                        onChanged: (value) {
+                          setSheetState(() {
+                            draft = value.trim();
+                          });
+                        },
+                        decoration: const InputDecoration(
+                          hintText: 'Escribe un comentario...',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            vm.setComentario(draft);
+                            Navigator.of(ctx).pop();
+                          },
+                          child: const Text('Guardar comentario'),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    vm.comentario.isEmpty
-                        ? 'Sin comentario guardado'
-                        : 'Guardado: ${vm.comentario}',
-                    style: const TextStyle(color: Colors.black54),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    children: sugerencias
-                        .map(
-                          (s) => ActionChip(
-                            label: Text(s),
-                            onPressed: () {
-                              setSheetState(() {
-                                draft = s;
-                                controller.text = s;
-                                controller.selection = TextSelection.collapsed(
-                                  offset: controller.text.length,
-                                );
-                              });
-                            },
-                          ),
-                        )
-                        .toList(),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: controller,
-                    maxLines: 3,
-                    onChanged: (value) {
-                      setSheetState(() {
-                        draft = value.trim();
-                      });
-                    },
-                    decoration: const InputDecoration(
-                      hintText: 'Escribe un comentario...',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        vm.setComentario(draft);
-                        Navigator.of(ctx).pop();
-                      },
-                      child: const Text('Guardar comentario'),
-                    ),
-                  ),
-                ],
+                ),
               ),
             );
           },
@@ -532,7 +590,9 @@ class _MapPreviewState extends State<MapPreview> {
               onPressed: () => _abrirModalMetodoPago(context, vm),
               style: OutlinedButton.styleFrom(
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(ResponsiveHelper.wp(context, 2)),
+                  borderRadius: BorderRadius.circular(
+                    ResponsiveHelper.wp(context, 2),
+                  ),
                 ),
                 side: const BorderSide(color: Colors.black26),
                 foregroundColor: Colors.black87,
@@ -561,6 +621,7 @@ class _MapPreviewState extends State<MapPreview> {
                   : () async {
                       final navigator = Navigator.of(context);
                       final messenger = ScaffoldMessenger.of(context);
+
                       final solicitudId = await vm.crearSolicitud();
                       if (!mounted) return;
                       if (solicitudId != null) {
@@ -609,16 +670,16 @@ class _MapPreviewState extends State<MapPreview> {
               onPressed: () => _abrirModalComentarios(context, vm),
               style: OutlinedButton.styleFrom(
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(ResponsiveHelper.wp(context, 2)),
+                  borderRadius: BorderRadius.circular(
+                    ResponsiveHelper.wp(context, 2),
+                  ),
                 ),
                 side: const BorderSide(color: Colors.black26),
                 foregroundColor: Colors.black87,
                 padding: EdgeInsets.zero,
               ),
               child: Icon(
-                vm.comentario.isEmpty
-                    ? Icons.comment_outlined
-                    : Icons.comment,
+                vm.comentario.isEmpty ? Icons.comment_outlined : Icons.comment,
               ),
             ),
           ),
@@ -637,19 +698,7 @@ class _MapPreviewState extends State<MapPreview> {
         elevation: 4,
         child: InkWell(
           customBorder: const CircleBorder(),
-          onTap: () async {
-            final navigator = Navigator.of(context);
-            final popped = await navigator.maybePop();
-            if (popped || !mounted) return;
-
-            navigator.pushReplacement(
-              MaterialPageRoute(
-                builder: (_) => BuscarDestinoView(
-                  currentLocation: widget.origen.position,
-                ),
-              ),
-            );
-          },
+          onTap: _handleBackNavigation,
           child: Padding(
             padding: EdgeInsets.all(ResponsiveHelper.wp(context, 2)),
             child: Icon(

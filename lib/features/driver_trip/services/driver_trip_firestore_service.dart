@@ -73,10 +73,12 @@ class DriverTripFirestoreService {
     required String tripId,
     required String status,
   }) {
-    return _tripRef(tripId).set({
+    final payload = <String, dynamic>{
       'estado': status,
       'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    };
+
+    return _tripRef(tripId).set(payload, SetOptions(merge: true));
   }
 
   Future<void> updateDriverLocation({

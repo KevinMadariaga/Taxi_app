@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -7,7 +6,7 @@ import 'package:taxi_app/screens/usuario_conductor/presentacion/navigation/inici
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/preview_solicitud.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/InicioConductorViewModel.dart';
 import 'package:provider/provider.dart';
-import 'package:taxi_app/services/notification_service.dart';
+import 'package:taxi_app/core/services/services.dart';
 import 'package:taxi_app/widgets/google_maps_widget.dart';
 import 'package:taxi_app/helper/permisos_helper.dart';
 import 'package:taxi_app/widgets/preview_solicitud_card.dart';
@@ -22,40 +21,11 @@ class InicioConductor extends StatefulWidget {
 
 class _InicioConductorState extends State<InicioConductor> {
   GoogleMapController? _mapController;
+  int _selectedIndex = 1;
   bool _hasCentered = false;
   String? _lastFittedPreviewId;
   bool _hasCenteredForPreview = false;
   bool _navigatingToRuta = false;
-
-  // Expande el mapa ocultando la barra; luego centra los marcadores tras 2s
-  Future<void> _expandMapAndCenter(
-    PreviewSolicitud preview,
-    InicioConductorViewmodel vm,
-  ) async {
-    if (!mounted) return;
-    vm.setMapExpanded(true);
-
-    // Wait 2 seconds to allow UI animation / bottom bar hiding
-    await Future.delayed(const Duration(seconds: 2));
-    if (!mounted) return;
-
-    try {
-      final s = preview.solicitud;
-      final client = LatLng(
-        s.ubicacionInicial.latitude,
-        s.ubicacionInicial.longitude,
-      );
-      if (vm.currentLocation != null) {
-        await _animateToInclude(vm.currentLocation!, client);
-        // Try to fetch route for better polyline (non-blocking)
-        vm.fetchRouteOSRM(s.id, vm.currentLocation!, client);
-      } else {
-        await _mapController?.animateCamera(
-          CameraUpdate.newLatLngZoom(client, 16),
-        );
-      }
-    } catch (_) {}
-  }
 
   // Centraliza el cierre/retroceso de la preview para poder invocarlo
   // desde el listener cuando la solicitud cambie a cancelada.
@@ -68,28 +38,6 @@ class _InicioConductorState extends State<InicioConductor> {
         await _mapController?.animateCamera(
           CameraUpdate.newLatLngZoom(vm.currentLocation!, 16),
         );
-      } catch (_) {}
-    }
-  }
-
-  Future<void> _animateToInclude(LatLng a, LatLng b) async {
-    if (_mapController == null) return;
-    try {
-      final south = LatLng(
-        math.min(a.latitude, b.latitude),
-        math.min(a.longitude, b.longitude),
-      );
-      final north = LatLng(
-        math.max(a.latitude, b.latitude),
-        math.max(a.longitude, b.longitude),
-      );
-      final bounds = LatLngBounds(southwest: south, northeast: north);
-      await _mapController!.animateCamera(
-        CameraUpdate.newLatLngBounds(bounds, 100),
-      );
-    } catch (_) {
-      try {
-        await _mapController!.animateCamera(CameraUpdate.newLatLngZoom(b, 16));
       } catch (_) {}
     }
   }
@@ -151,7 +99,33 @@ class _InicioConductorState extends State<InicioConductor> {
     }
   }
 
-  double get _previewHeight => MediaQuery.of(context).size.height * 0.35;
+  double get _previewHeight {
+    final screenHeight = MediaQuery.of(context).size.height;
+    final proposedHeight = screenHeight * 0.44;
+    return proposedHeight.clamp(220.0, screenHeight * 0.45).toDouble();
+  }
+
+  bool _hasPreviewComment(PreviewSolicitud preview) {
+    final raw = preview.comentarioCliente?.trim();
+    if (raw == null || raw.isEmpty) return false;
+    final lower = raw.toLowerCase();
+    return lower != 'null' &&
+        lower != 'sin comentario' &&
+        lower != 'ninguno' &&
+        lower != 'n/a' &&
+        lower != 'na' &&
+        raw != '-';
+  }
+
+  double _previewHeightFor(PreviewSolicitud preview) {
+    final screenHeight = MediaQuery.of(context).size.height;
+    if (_hasPreviewComment(preview)) {
+      return _previewHeight;
+    }
+
+    final proposedHeight = screenHeight * 0.35;
+    return proposedHeight.clamp(196.0, screenHeight * 0.38).toDouble();
+  }
 
   // Centrar la cámara en la perspectiva del conductor hacia el cliente al seleccionar una solicitud
   Future<void> _centerPreviewOnConductorToClient(
@@ -233,6 +207,30 @@ class _InicioConductorState extends State<InicioConductor> {
       },
       child: Consumer<InicioConductorViewmodel>(
         builder: (context, vm, _) {
+          if (vm.isLoading) {
+            return const Scaffold(
+              backgroundColor: AppColores.background,
+              body: SafeArea(
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(),
+                      SizedBox(height: 12),
+                      Text(
+                        'Cargando panel del conductor...',
+                        style: TextStyle(
+                          color: AppColores.textPrimary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }
+
           // Si ya tenemos controlador y ubicación, centrar el mapa una sola vez.
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!_hasCentered &&
@@ -264,8 +262,13 @@ class _InicioConductorState extends State<InicioConductor> {
             }
           });
 
+          final selectedPreview = vm.isConnected ? vm.selectedPreview : null;
+          final previewCardHeight = selectedPreview != null
+              ? _previewHeightFor(selectedPreview)
+              : _previewHeight;
+
           // Suscribirse una sola vez a cambios del nombre guardado en cache
-          final bool _hasPreview = vm.selectedPreview != null;
+          final bool _hasPreview = vm.isConnected && vm.selectedPreview != null;
           return Scaffold(
             backgroundColor: AppColores.background,
             appBar: _hasPreview
@@ -335,71 +338,91 @@ class _InicioConductorState extends State<InicioConductor> {
                                       // Estrellas de calificación desde el ViewModel
                                       Builder(
                                         builder: (ctx) {
-                                          final double promedio = vm.rating;
-                                          final promedioInt = promedio.toInt();
-                                          final tieneMedia =
-                                              (promedio - promedioInt) >= 0.5;
+                                          final double promedio = vm.rating
+                                              .clamp(0.0, 5.0)
+                                              .toDouble();
 
-                                          return Row(
+                                          return Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
                                             children: [
                                               Row(
                                                 mainAxisSize: MainAxisSize.min,
-                                                children: List.generate(5, (
-                                                  index,
-                                                ) {
-                                                  if (index < promedioInt) {
-                                                    return const Padding(
-                                                      padding: EdgeInsets.only(
-                                                        right: 4,
-                                                      ),
-                                                      child: Icon(
-                                                        Icons.star,
-                                                        color:
-                                                            AppColores.primary,
-                                                        size: 18,
-                                                      ),
-                                                    );
-                                                  } else if (index ==
-                                                          promedioInt &&
-                                                      tieneMedia) {
-                                                    return const Padding(
-                                                      padding: EdgeInsets.only(
-                                                        right: 4,
-                                                      ),
-                                                      child: Icon(
-                                                        Icons.star_half,
-                                                        color:
-                                                            AppColores.primary,
-                                                        size: 18,
-                                                      ),
-                                                    );
-                                                  } else {
-                                                    return const Padding(
-                                                      padding: EdgeInsets.only(
-                                                        right: 4,
-                                                      ),
-                                                      child: Icon(
-                                                        Icons.star_border,
-                                                        color:
-                                                            AppColores.grey400,
-                                                        size: 18,
-                                                      ),
-                                                    );
-                                                  }
-                                                }),
-                                              ),
-                                              const SizedBox(width: 8),
-                                              Text(
-                                                promedio > 0
-                                                    ? promedio.toStringAsFixed(
-                                                        1,
+                                                children:
+                                                    List.generate(5, (index) {
+                                                        final icon =
+                                                            promedio >=
+                                                                index + 1
+                                                            ? Icons.star
+                                                            : (promedio >=
+                                                                      index +
+                                                                          0.5
+                                                                  ? Icons
+                                                                        .star_half
+                                                                  : Icons
+                                                                        .star_border);
+                                                        return Padding(
+                                                          padding:
+                                                              const EdgeInsets.only(
+                                                                right: 4,
+                                                              ),
+                                                          child: Icon(
+                                                            icon,
+                                                            color:
+                                                                icon ==
+                                                                    Icons
+                                                                        .star_border
+                                                                ? AppColores
+                                                                      .grey400
+                                                                : AppColores
+                                                                      .primary,
+                                                            size: 18,
+                                                          ),
+                                                        );
+                                                      })
+                                                      ..add(
+                                                        const SizedBox(
+                                                          width: 6,
+                                                        ),
                                                       )
-                                                    : '0.0',
+                                                      ..add(
+                                                        Text(
+                                                          promedio
+                                                              .toStringAsFixed(
+                                                                1,
+                                                              ),
+                                                          style: const TextStyle(
+                                                            color: AppColores
+                                                                .textPrimary,
+                                                            fontSize: 16,
+                                                            fontWeight:
+                                                                FontWeight.w800,
+                                                          ),
+                                                        ),
+                                                      )
+                                                      ..add(
+                                                        const Text(
+                                                          '/5.0',
+                                                          style: TextStyle(
+                                                            color: AppColores
+                                                                .textSecondary,
+                                                            fontSize: 13,
+                                                            fontWeight:
+                                                                FontWeight.w600,
+                                                          ),
+                                                        ),
+                                                      ),
+                                              ),
+                                              const SizedBox(height: 6),
+                                              Text(
+                                                vm.totalRatings > 0
+                                                    ? 'Basado en ${vm.totalRatings} calificaciones de clientes'
+                                                    : 'Aun sin calificaciones de clientes',
                                                 style: const TextStyle(
-                                                  fontSize: 14,
                                                   color:
                                                       AppColores.textSecondary,
-                                                  fontWeight: FontWeight.w700,
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w600,
                                                 ),
                                               ),
                                             ],
@@ -480,10 +503,9 @@ class _InicioConductorState extends State<InicioConductor> {
                       // Espacio entre la tarjeta de información del conductor y el mapa
                       const SizedBox(height: 12),
 
-                      // Reserva espacio para la preview cuando está seleccionada
-                      // pero solo si NO hemos expandido el mapa (tap reciente).
-                      if (vm.selectedPreview != null && !vm.isMapExpanded)
-                        SizedBox(height: _previewHeight + 0),
+                      // Mantener layout fijo: información arriba y mapa abajo.
+                      if (vm.isConnected && vm.selectedPreview != null)
+                        SizedBox(height: previewCardHeight),
 
                       // Mapa colocado justo bajo el contenedor de información y ocupa el espacio restante
                       Expanded(
@@ -641,7 +663,7 @@ class _InicioConductorState extends State<InicioConductor> {
                                   child: Builder(
                                     builder: (context) {
                                       final sols = vm.solicitudes;
-                                      if (sols.isEmpty)
+                                      if (!vm.isConnected || sols.isEmpty)
                                         return const SizedBox.shrink();
 
                                       return Align(
@@ -680,7 +702,8 @@ class _InicioConductorState extends State<InicioConductor> {
                                             const SizedBox(height: 8),
 
                                             // Contenedor desplazable con máximo alto para no tapar todo el mapa
-                                            if (vm.selectedPreview == null)
+                                            if (vm.isConnected &&
+                                                vm.selectedPreview == null)
                                               ConstrainedBox(
                                                 constraints: BoxConstraints(
                                                   maxHeight:
@@ -860,47 +883,44 @@ class _InicioConductorState extends State<InicioConductor> {
                     ],
                   ),
                   // Selected solicitud preview: in-flow so the map appears below it
-                  if (vm.selectedPreview != null)
+                  if (vm.isConnected && vm.selectedPreview != null)
                     Builder(
                       builder: (context) {
-                        final preview = vm.selectedPreview!;
+                        final preview = selectedPreview!;
                         final s = preview.solicitud;
                         return Positioned(
                           top: 10,
                           left: 5,
                           right: 5,
-                          height: _previewHeight,
-                          child: GestureDetector(
-                            onTap: () => _expandMapAndCenter(preview, vm),
-                            child: PreviewSolicitudCard(
-                              preview: preview,
-                              clientPhotoUrl: vm.fotoClientePorId(s.clienteId),
-                              isLoading: _navigatingToRuta,
-                              onClose: () async {
-                                if (_navigatingToRuta) return;
-                                await _closePreview(vm);
-                              },
-                              onCancel: () async {
-                                if (_navigatingToRuta) return;
-                                await _closePreview(vm);
-                              },
-                              onAccept: () async {
-                                try {
-                                  await vm.aceptarSolicitud(s.id);
-                                  await _navegarARutaConductor(vm, s.id);
-                                } catch (e) {
-                                  if (mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          'Error al aceptar servicio: $e',
-                                        ),
+                          height: previewCardHeight,
+                          child: PreviewSolicitudCard(
+                            preview: preview,
+                            clientPhotoUrl: vm.fotoClientePorId(s.clienteId),
+                            isLoading: _navigatingToRuta,
+                            onClose: () async {
+                              if (_navigatingToRuta) return;
+                              await _closePreview(vm);
+                            },
+                            onCancel: () async {
+                              if (_navigatingToRuta) return;
+                              await _closePreview(vm);
+                            },
+                            onAccept: () async {
+                              try {
+                                await vm.aceptarSolicitud(s.id);
+                                await _navegarARutaConductor(vm, s.id);
+                              } catch (e) {
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        'Error al aceptar servicio: $e',
                                       ),
-                                    );
-                                  }
+                                    ),
+                                  );
                                 }
-                              },
-                            ),
+                              }
+                            },
                           ),
                         );
                       },
@@ -911,39 +931,24 @@ class _InicioConductorState extends State<InicioConductor> {
             // floatingActionButton removed — button is placed below the map in the Column
             bottomNavigationBar: !vm.isMapExpanded && vm.selectedPreview == null
                 ? BottomNavigationBar(
-                    currentIndex: 0,
+                    currentIndex: _selectedIndex,
                     selectedItemColor: AppColores.primary,
                     unselectedItemColor: AppColores.textSecondary,
                     items: const [
                       BottomNavigationBarItem(
-                        icon: Icon(Icons.map),
-                        label: 'Mapa',
+                        icon: Icon(Icons.menu),
+                        label: 'Mas opciones',
                       ),
                       BottomNavigationBarItem(
-                        icon: Icon(Icons.history),
-                        label: 'Historial',
+                        icon: Icon(Icons.map),
+                        label: 'Mapa',
                       ),
                       BottomNavigationBarItem(
                         icon: Icon(Icons.person_outline),
                         label: 'Tú',
                       ),
                     ],
-                    onTap: (index) async {
-                      if (index == 0) {
-                        // Ya nos encontramos en el inicio, no es necesario hacer pushReplacement
-                        return;
-                      }
-                      if (index == 1) {
-                        // Navegar al historial del conductor
-                        await InicioConductorNavigation.irAHistorialConductor(
-                          context,
-                        );
-                        return;
-                      }
-                      if (index == 2) {
-                        await _navigateToPerfilConductor();
-                      }
-                    },
+                    onTap: _onBottomNavTap,
                   )
                 : null,
           );
@@ -960,5 +965,97 @@ class _InicioConductorState extends State<InicioConductor> {
 
   Future<void> _navigateToPerfilConductor() {
     return InicioConductorNavigation.irAPerfilConductor(context);
+  }
+
+  Future<void> _onBottomNavTap(int index) async {
+    if (index == 0) {
+      setState(() => _selectedIndex = 0);
+      await _showMoreOptionsSheet();
+      if (!mounted) return;
+      setState(() => _selectedIndex = 1);
+    } else if (index == 2) {
+      setState(() => _selectedIndex = 2);
+      await _navigateToPerfilConductor();
+      if (!mounted) return;
+      setState(() => _selectedIndex = 1);
+    } else {
+      setState(() => _selectedIndex = index);
+    }
+  }
+
+  Future<void> _showMoreOptionsSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.security),
+                title: const Text('Seguridad'),
+                onTap: () async {
+                  Navigator.of(ctx).pop();
+                  await InicioConductorNavigation.irASeguridad(context);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.settings),
+                title: const Text('Configuracion'),
+                onTap: () async {
+                  Navigator.of(ctx).pop();
+                  await InicioConductorNavigation.irAConfiguracion(context);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.help_outline),
+                title: const Text('Ayuda'),
+                onTap: () async {
+                  Navigator.of(ctx).pop();
+                  await InicioConductorNavigation.irAAyuda(context);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.support_agent),
+                title: const Text('Soporte'),
+                onTap: () async {
+                  Navigator.of(ctx).pop();
+                  await InicioConductorNavigation.irASoporte(context);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.notifications_none),
+                title: const Text('Notificaciones'),
+                onTap: () async {
+                  Navigator.of(ctx).pop();
+                  await InicioConductorNavigation.irANotificaciones(context);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.comment_outlined),
+                title: const Text('Comentarios'),
+                onTap: () async {
+                  Navigator.of(ctx).pop();
+                  await InicioConductorNavigation.irAComentarios(context);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.history),
+                title: const Text('Historial'),
+                onTap: () async {
+                  Navigator.of(ctx).pop();
+                  await InicioConductorNavigation.irAHistorialConductor(
+                    context,
+                  );
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 }

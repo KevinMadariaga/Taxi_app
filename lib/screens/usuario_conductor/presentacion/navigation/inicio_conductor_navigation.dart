@@ -1,4 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/view/ayuda_view.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/view/configuracion_aplicacion_view.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/view/notificaciones_view.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/view/seguridad_view.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/view/soporte_view.dart';
+import 'package:taxi_app/screens/usuario_conductor/presentacion/view/comentarios_conductor_view.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/RutaConductorView.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/historial_viaje_conductor.dart';
 import 'package:taxi_app/widgets/intermediate_transition_view.dart';
@@ -31,6 +37,42 @@ class InicioConductorNavigation {
     return Navigator.of(
       context,
     ).push(MaterialPageRoute(builder: (_) => const HistorialConductor()));
+  }
+
+  static Future<void> irAConfiguracion(BuildContext context) {
+    return Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const ConfiguracionAplicacionView()),
+    );
+  }
+
+  static Future<void> irASeguridad(BuildContext context) {
+    return Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const SeguridadView()));
+  }
+
+  static Future<void> irAAyuda(BuildContext context) {
+    return Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const AyudaView()));
+  }
+
+  static Future<void> irASoporte(BuildContext context) {
+    return Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const SoporteView()));
+  }
+
+  static Future<void> irANotificaciones(BuildContext context) {
+    return Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const NotificacionesView()));
+  }
+
+  static Future<void> irAComentarios(BuildContext context) {
+    return Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const ComentariosConductorView()));
   }
 
   static Future<void> irAPerfilConductor(BuildContext context) {

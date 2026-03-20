@@ -8,8 +8,8 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/resumen_conductor_view.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/RutaDestinoViewModel.dart';
-import 'package:taxi_app/services/DireccionesServicio.dart';
-import 'package:taxi_app/services/background_tracking_service.dart';
+import 'package:taxi_app/core/services/map_service_adapter.dart';
+import 'package:taxi_app/core/services/background_tracking_service.dart';
 import 'package:taxi_app/widgets/MapaGoogle.dart';
 import 'package:taxi_app/widgets/intermediate_transition_view.dart';
 import 'package:taxi_app/core/app_colores.dart';
@@ -31,8 +31,8 @@ class _RutaDestinoState extends State<RutaDestino> with WidgetsBindingObserver {
   static const SystemUiOverlayStyle _rutaDestinoOverlayStyle =
       SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.light,
-        statusBarBrightness: Brightness.dark,
+        statusBarIconBrightness: Brightness.dark,
+        statusBarBrightness: Brightness.light,
         systemNavigationBarColor: Colors.white,
         systemNavigationBarIconBrightness: Brightness.dark,
         systemNavigationBarDividerColor: Colors.white,
@@ -215,15 +215,13 @@ class _RutaDestinoState extends State<RutaDestino> with WidgetsBindingObserver {
           _loadingPolyline = true;
         });
         try {
-          final direcciones = Direcciones();
-          String? polyline = await direcciones.getPolyline(
-            _ubicacionConductor!.latitude,
-            _ubicacionConductor!.longitude,
-            vm.latDestino!,
-            vm.lngDestino!,
+          final mapService = const MapService();
+          final points = await mapService.getRoutePolyline(
+            _ubicacionConductor!,
+            LatLng(vm.latDestino!, vm.lngDestino!),
           );
-          if (polyline != null && polyline.isNotEmpty) {
-            _polylinePoints = _decodePolyline(polyline);
+          if (points.isNotEmpty) {
+            _polylinePoints = points;
             // Ajusta la cámara para mostrar la polyline completa
             if (_mapController != null && _polylinePoints.isNotEmpty) {
               final bounds = _calcularBoundsPolyline(_polylinePoints);
@@ -391,15 +389,13 @@ class _RutaDestinoState extends State<RutaDestino> with WidgetsBindingObserver {
         _loadingPolyline = true;
       });
       try {
-        final direcciones = Direcciones();
-        String? polyline = await direcciones.getPolyline(
-          _ubicacionConductor!.latitude,
-          _ubicacionConductor!.longitude,
-          vm.latDestino!,
-          vm.lngDestino!,
+        final mapService = const MapService();
+        final points = await mapService.getRoutePolyline(
+          _ubicacionConductor!,
+          LatLng(vm.latDestino!, vm.lngDestino!),
         );
-        if (polyline != null && polyline.isNotEmpty) {
-          _polylinePoints = _decodePolyline(polyline);
+        if (points.isNotEmpty) {
+          _polylinePoints = points;
           // Ajusta la cámara para mostrar la polyline completa
           if (_mapController != null && _polylinePoints.isNotEmpty) {
             final bounds = _calcularBoundsPolyline(_polylinePoints);
@@ -423,32 +419,7 @@ class _RutaDestinoState extends State<RutaDestino> with WidgetsBindingObserver {
     }
   }
 
-  List<LatLng> _decodePolyline(String encoded) {
-    List<LatLng> points = [];
-    int index = 0, len = encoded.length;
-    int lat = 0, lng = 0;
-    while (index < len) {
-      int b, shift = 0, result = 0;
-      do {
-        b = encoded.codeUnitAt(index++) - 63;
-        result |= (b & 0x1f) << shift;
-        shift += 5;
-      } while (b >= 0x20);
-      int dlat = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
-      lat += dlat;
-      shift = 0;
-      result = 0;
-      do {
-        b = encoded.codeUnitAt(index++) - 63;
-        result |= (b & 0x1f) << shift;
-        shift += 5;
-      } while (b >= 0x20);
-      int dlng = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
-      lng += dlng;
-      points.add(LatLng(lat / 1E5, lng / 1E5));
-    }
-    return points;
-  }
+  
 
   void _centerOnConductor() {
     if (_mapController != null && _ubicacionConductor != null) {
@@ -530,12 +501,12 @@ class _RutaDestinoState extends State<RutaDestino> with WidgetsBindingObserver {
     LatLng? destinoLatLng;
     if (vm.latDestino != null && vm.lngDestino != null) {
       destinoLatLng = LatLng(vm.latDestino!, vm.lngDestino!);
-      print(
+      debugPrint(
         "✅ Ubicación destino encontrada: lat=${vm.latDestino}, lng=${vm.lngDestino}",
       );
     } else {
       destinoLatLng = null;
-      print("❌ Ubicación destino NO encontrada");
+      debugPrint("❌ Ubicación destino NO encontrada");
     }
     final target = _ubicacionConductor ?? destinoLatLng ?? _initialTarget;
     final markers = <Marker>{
@@ -583,11 +554,11 @@ class _RutaDestinoState extends State<RutaDestino> with WidgetsBindingObserver {
         ),
     };
     if (_polylinePoints.isEmpty) {
-      print("⚠️ POLYLINE VACÍA → usando línea recta");
+      debugPrint("⚠️ POLYLINE VACÍA → usando línea recta");
     } else {
-      print("✅ POLYLINE DE GOOGLE DIRECTIONS");
+      debugPrint("✅ POLYLINE DE GOOGLE DIRECTIONS");
     }
-    print("📍 Puntos polyline cargados: ${_polylinePoints.length}");
+    debugPrint("📍 Puntos polyline cargados: ${_polylinePoints.length}");
     return Stack(
       children: [
         Mapagoogle(

@@ -1,17 +1,23 @@
 import 'package:flutter/foundation.dart';
+import 'package:taxi_app/domain/repositories/client_auth_repository.dart';
+import 'package:taxi_app/data/repositories/client_auth/client_auth_repository_impl.dart';
+import 'package:taxi_app/domain/usecases/client_auth/send_client_phone_otp_usecase.dart';
 
 import '../models/phone_code_result_model.dart';
-import '../services/phone_auth_service.dart';
 
 class PhoneAuthController extends ChangeNotifier {
-  PhoneAuthController({PhoneAuthService? authService})
-    : _authService = authService ?? PhoneAuthService();
+  PhoneAuthController({
+    SendClientPhoneOtpUseCase? sendClientPhoneOtpUseCase,
+    ClientAuthRepository? clientAuthRepository,
+  }) : _sendClientPhoneOtpUseCase =
+          sendClientPhoneOtpUseCase ??
+          SendClientPhoneOtpUseCase(clientAuthRepository ?? ClientAuthRepositoryImpl());
 
-  final PhoneAuthService _authService;
+  final SendClientPhoneOtpUseCase _sendClientPhoneOtpUseCase;
 
   static const String adminSecret = '0210';
 
-  final List<String> countryOptions = const ['+57', '+52', '+1', '+34', '+51'];
+  final List<String> countryOptions = const ['+57'];
 
   String _countryCode = '+57';
   String _phone = '';
@@ -29,6 +35,7 @@ class PhoneAuthController extends ChangeNotifier {
   }
 
   void setCountryCode(String value) {
+    if (value != '+57') return;
     if (_countryCode == value) return;
     _countryCode = value;
     notifyListeners();
@@ -58,8 +65,8 @@ class PhoneAuthController extends ChangeNotifier {
     if (digits.isEmpty) {
       return 'Ingresa tu numero telefonico.';
     }
-    if (digits.length < 7 || digits.length > 12) {
-      return 'El numero debe tener entre 7 y 12 digitos.';
+    if (_countryCode == '+57' && !RegExp(r'^3\d{9}$').hasMatch(digits)) {
+      return 'Ingresa numero valido de 10 digitos.';
     }
     return null;
   }
@@ -74,7 +81,13 @@ class PhoneAuthController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      return await _authService.sendCode(phoneNumber: fullPhone);
+      final result = await _sendClientPhoneOtpUseCase(
+        SendClientPhoneOtpParams(phoneNumber: fullPhone),
+      );
+      return PhoneCodeResultModel(
+        verificationId: result.verificationId,
+        resendToken: result.resendToken,
+      );
     } finally {
       _loading = false;
       notifyListeners();

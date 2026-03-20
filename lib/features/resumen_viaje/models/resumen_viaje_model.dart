@@ -51,8 +51,13 @@ class ResumenViajeModel {
       data['direccion_seleccionada'],
     ], fallback: 'No disponible');
 
+    final tarifaMap = _asMap(data['tarifa']);
     final valorServicio = _toDouble(
-      data['valorServicio'] ?? data['valor'] ?? data['precio'],
+      tarifaMap?['total'] ??
+          data['tarifaTotal'] ??
+          data['valorServicio'] ??
+          data['valor'] ??
+          data['precio'],
     );
 
     final fechaViaje = _toDateTime(

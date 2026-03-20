@@ -29,17 +29,23 @@ class PreviewSolicitudCard extends StatelessWidget {
     final onCancel = this.onCancel;
     final onAccept = this.onAccept;
 
-    final double avatarSize = ResponsiveHelper.sp(context, 70);
-
     final String cercania = (preview.distanciaKm != null)
         ? (preview.distanciaKm! <= 1.0 ? 'Cerca' : 'Lejos')
         : '—';
+    final comentario = _normalizeComment(preview.comentarioCliente);
+    final hasComentario = comentario != null;
 
     return Padding(
       // Asegura que respetamos notch, barras de sistema y gestos
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       child: LayoutBuilder(
         builder: (context, constraints) {
+          final isCompact = constraints.maxWidth < 380;
+          final avatarSize = isCompact
+              ? ResponsiveHelper.sp(context, 56)
+              : ResponsiveHelper.sp(context, 70);
+          final sectionGap = isCompact ? 1.2 : 2.0;
+
           final media = MediaQuery.of(context);
           // Altura útil descontando las zonas seguras del sistema
           final usableHeight = media.size.height - media.padding.vertical;
@@ -55,14 +61,18 @@ class PreviewSolicitudCard extends StatelessWidget {
               minWidth: constraints.maxWidth,
             ),
             child: Container(
-              color: AppColores.cardBackground,
+              decoration: BoxDecoration(
+                color: AppColores.cardBackground,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColores.borderSubtle),
+              ),
               // Menos padding lateral y superior para que la foto se vea más protagonista
               padding: ResponsiveHelper.padding(
                 context,
-                top: 12,
-                left: 14,
-                right: 14,
-                bottom: 0,
+                top: isCompact ? 10 : 12,
+                left: isCompact ? 12 : 14,
+                right: isCompact ? 12 : 14,
+                bottom: isCompact ? 10 : 12,
               ),
               child: SingleChildScrollView(
                 child: Column(
@@ -83,7 +93,10 @@ class PreviewSolicitudCard extends StatelessWidget {
                               'Solicitud seleccionada',
                               style: TextStyle(
                                 fontWeight: FontWeight.w700,
-                                fontSize: ResponsiveHelper.sp(context, 17),
+                                fontSize: ResponsiveHelper.sp(
+                                  context,
+                                  isCompact ? 15 : 17,
+                                ),
                               ),
                             ),
                           ],
@@ -105,7 +118,7 @@ class PreviewSolicitudCard extends StatelessWidget {
                         ),
                       ],
                     ),
-                    SizedBox(height: ResponsiveHelper.hp(context, 2)),
+                    SizedBox(height: ResponsiveHelper.hp(context, sectionGap)),
                     Row(
                       children: [
                         Expanded(
@@ -131,7 +144,7 @@ class PreviewSolicitudCard extends StatelessWidget {
                                           color: AppColores.textWhite,
                                           size: ResponsiveHelper.sp(
                                             context,
-                                            25,
+                                            isCompact ? 22 : 25,
                                           ),
                                         )
                                       : null,
@@ -142,11 +155,14 @@ class PreviewSolicitudCard extends StatelessWidget {
                                 child: Text(
                                   (preview.clientName ?? 'Cliente')
                                       .toUpperCase(),
-                                  maxLines: 1,
+                                  maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
                                     fontWeight: FontWeight.w800,
-                                    fontSize: ResponsiveHelper.sp(context, 15),
+                                    fontSize: ResponsiveHelper.sp(
+                                      context,
+                                      isCompact ? 14 : 15,
+                                    ),
                                     color: AppColores.textPrimary,
                                   ),
                                 ),
@@ -174,7 +190,10 @@ class PreviewSolicitudCard extends StatelessWidget {
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
                                   color: AppColores.textPrimary,
-                                  fontSize: ResponsiveHelper.sp(context, 16),
+                                  fontSize: ResponsiveHelper.sp(
+                                    context,
+                                    isCompact ? 15 : 16,
+                                  ),
                                 ),
                               ),
                             ],
@@ -182,122 +201,175 @@ class PreviewSolicitudCard extends StatelessWidget {
                         ),
                       ],
                     ),
-                    SizedBox(height: ResponsiveHelper.hp(context, 2)),
-                    // Show origin (recoger) and client location side-by-side using a Table
-                    Table(
-                      columnWidths: const {
-                        0: FlexColumnWidth(1),
-                        1: FlexColumnWidth(0.8),
-                      },
-                      children: [
-                        TableRow(
-                          children: [
-                            Padding(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: ResponsiveHelper.wp(context, 1),
-                                vertical: ResponsiveHelper.hp(context, 0.1),
+                    SizedBox(height: ResponsiveHelper.hp(context, sectionGap)),
+                    if (isCompact)
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _InfoBlock(
+                            label: 'Recoger en:',
+                            child: Text(
+                              _pickupText(preview),
+                              style: TextStyle(
+                                fontSize: ResponsiveHelper.sp(context, 13),
+                                color: AppColores.textPrimary,
                               ),
-                              child: Text(
-                                'Recoger en:',
-                                style: TextStyle(
-                                  fontSize: ResponsiveHelper.sp(context, 14),
-                                  color: AppColores.textPrimary,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
+                              maxLines: 3,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            Padding(
-                              padding: EdgeInsets.only(
-                                left: ResponsiveHelper.wp(context, 5),
-                                right: ResponsiveHelper.wp(context, 2),
-                                top: ResponsiveHelper.hp(context, 0.1),
-                                bottom: ResponsiveHelper.hp(context, 0.1),
-                              ),
-                              child: Text(
-                                'Pagará con:',
-                                style: TextStyle(
-                                  fontSize: ResponsiveHelper.sp(context, 12),
-                                  color: AppColores.textPrimary,
-                                  fontWeight: FontWeight.bold,
+                          ),
+                          SizedBox(height: ResponsiveHelper.hp(context, 0.9)),
+                          _InfoBlock(
+                            label: 'Pagará con:',
+                            child: Row(
+                              children: [
+                                Icon(
+                                  _paymentIcon(preview.paymentMethod),
+                                  color: AppColores.primary,
+                                  size: ResponsiveHelper.sp(context, 16),
                                 ),
-                              ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    _formatMetodoPreview(preview.paymentMethod),
+                                    style: TextStyle(
+                                      fontSize: ResponsiveHelper.sp(
+                                        context,
+                                        14,
+                                      ),
+                                      color: AppColores.textPrimary,
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
-                        TableRow(
-                          children: [
-                            Padding(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: ResponsiveHelper.wp(context, 1),
-                              ),
+                          ),
+                        ],
+                      )
+                    else
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: _InfoBlock(
+                              label: 'Recoger en:',
                               child: Text(
-                                preview.solicitud.origenTitle ??
-                                    '${preview.solicitud.ubicacionInicial.latitude.toStringAsFixed(5)}, ${preview.solicitud.ubicacionInicial.longitude.toStringAsFixed(5)}',
+                                _pickupText(preview),
                                 style: TextStyle(
                                   fontSize: ResponsiveHelper.sp(context, 13),
                                   color: AppColores.textPrimary,
                                 ),
-                                maxLines: 2,
+                                maxLines: 3,
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
-                            Padding(
-                              padding: EdgeInsets.only(
-                                left: ResponsiveHelper.wp(context, 4),
-                                right: 0,
-                                top: ResponsiveHelper.hp(context, 0.1),
-                                bottom: ResponsiveHelper.hp(context, 0.1),
-                              ),
-                              child: Builder(
-                                builder: (context) {
-                                  final metodo = (preview.paymentMethod ?? '')
-                                      .toLowerCase();
-                                  IconData icon = Icons.payment;
-                                  if (metodo.contains('efectivo')) {
-                                    icon = Icons.attach_money;
-                                  } else if (metodo.contains('transfer')) {
-                                    icon = Icons.credit_card;
-                                  }
-                                  return Row(
-                                    children: [
-                                      Icon(
-                                        icon,
-                                        color: AppColores.primary,
-                                        size: ResponsiveHelper.sp(context, 16),
+                          ),
+                          SizedBox(width: ResponsiveHelper.wp(context, 4)),
+                          Expanded(
+                            child: _InfoBlock(
+                              label: 'Pagará con:',
+                              alignEnd: true,
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  Icon(
+                                    _paymentIcon(preview.paymentMethod),
+                                    color: AppColores.primary,
+                                    size: ResponsiveHelper.sp(context, 16),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Flexible(
+                                    child: Text(
+                                      _formatMetodoPreview(
+                                        preview.paymentMethod,
                                       ),
-                                      SizedBox(width: 3),
-                                      Flexible(
-                                        fit: FlexFit.tight,
-                                        child: Align(
-                                          alignment: Alignment.centerRight,
-                                          child: Text(
-                                            _formatMetodoPreview(
-                                              preview.paymentMethod,
-                                            ),
-                                            style: TextStyle(
-                                              fontSize: ResponsiveHelper.sp(
-                                                context,
-                                                14,
-                                              ),
-                                              color: AppColores.textPrimary,
-                                            ),
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
+                                      textAlign: TextAlign.right,
+                                      style: TextStyle(
+                                        fontSize: ResponsiveHelper.sp(
+                                          context,
+                                          14,
                                         ),
+                                        color: AppColores.textPrimary,
                                       ),
-                                    ],
-                                  );
-                                },
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: ResponsiveHelper.hp(context, sectionGap)),
+                    if (hasComentario) ...[
+                      SizedBox(height: ResponsiveHelper.hp(context, 1.2)),
+                      Container(
+                        width: double.infinity,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: ResponsiveHelper.wp(context, 2.5),
+                          vertical: ResponsiveHelper.hp(context, 0.9),
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColores.background,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: AppColores.borderSubtle),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              Icons.chat_bubble_outline,
+                              size: ResponsiveHelper.sp(context, 15),
+                              color: AppColores.textSecondary,
+                            ),
+                            SizedBox(width: ResponsiveHelper.wp(context, 2)),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Comentario del cliente',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: ResponsiveHelper.sp(
+                                        context,
+                                        12,
+                                      ),
+                                      color: AppColores.textPrimary,
+                                    ),
+                                  ),
+                                  SizedBox(
+                                    height: ResponsiveHelper.hp(context, 0.2),
+                                  ),
+                                  Text(
+                                    comentario,
+                                    maxLines: isCompact ? 3 : 4,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: ResponsiveHelper.sp(
+                                        context,
+                                        12.5,
+                                      ),
+                                      color: AppColores.textSecondary,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
                         ),
-                      ],
-                    ),
-                    SizedBox(height: ResponsiveHelper.hp(context, 2)),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                      ),
+                      SizedBox(height: ResponsiveHelper.hp(context, 1.8)),
+                    ] else ...[
+                      SizedBox(height: ResponsiveHelper.hp(context, 0.1)),
+                    ],
+                    Wrap(
+                      spacing: ResponsiveHelper.wp(context, 3),
+                      runSpacing: ResponsiveHelper.hp(context, 0.8),
+                      alignment: WrapAlignment.center,
                       children: [
                         CustomButton(
                           text: 'Cancelar',
@@ -305,19 +377,22 @@ class PreviewSolicitudCard extends StatelessWidget {
                           textColor: AppColores.buttonPrimary,
                           borderColor: AppColores.buttonPrimary,
                           onPressed: isLoading ? null : onCancel,
-                          width: ResponsiveHelper.wp(context, 36),
-                          height: ResponsiveHelper.hp(context, 6),
+                          width: isCompact
+                              ? constraints.maxWidth * 0.42
+                              : ResponsiveHelper.wp(context, 36),
+                          height: ResponsiveHelper.hp(context, 5.6),
                           fontSize: ResponsiveHelper.sp(context, 14),
                         ),
-                        SizedBox(width: ResponsiveHelper.wp(context, 4)),
                         CustomButton(
                           text: 'Aceptar',
                           color: AppColores.buttonPrimary,
                           textColor: AppColores.textWhite,
                           isLoading: isLoading,
                           onPressed: isLoading ? null : onAccept,
-                          width: ResponsiveHelper.wp(context, 36),
-                          height: ResponsiveHelper.hp(context, 6),
+                          width: isCompact
+                              ? constraints.maxWidth * 0.42
+                              : ResponsiveHelper.wp(context, 36),
+                          height: ResponsiveHelper.hp(context, 5.6),
                           fontSize: ResponsiveHelper.sp(context, 14),
                         ),
                       ],
@@ -336,5 +411,75 @@ class PreviewSolicitudCard extends StatelessWidget {
     if (metodo == null || metodo.isEmpty) return '—';
     final lower = metodo.toLowerCase();
     return '${lower[0].toUpperCase()}${lower.substring(1)}';
+  }
+
+  static IconData _paymentIcon(String? metodo) {
+    final lower = (metodo ?? '').toLowerCase();
+    if (lower.contains('efectivo')) return Icons.attach_money;
+    if (lower.contains('transfer') || lower.contains('nequi')) {
+      return Icons.credit_card;
+    }
+    return Icons.payment;
+  }
+
+  static String _pickupText(PreviewSolicitud preview) {
+    final title = preview.solicitud.origenTitle?.trim();
+    if (title != null && title.isNotEmpty) return title;
+
+    final address = preview.solicitud.direccion?.trim();
+    if (address != null && address.isNotEmpty) return address;
+
+    final lat = preview.solicitud.ubicacionInicial.latitude.toStringAsFixed(5);
+    final lng = preview.solicitud.ubicacionInicial.longitude.toStringAsFixed(5);
+    return '$lat, $lng';
+  }
+
+  static String? _normalizeComment(String? raw) {
+    final text = raw?.trim();
+    if (text == null || text.isEmpty) return null;
+    final lower = text.toLowerCase();
+    if (lower == 'null' ||
+        lower == 'ninguno' ||
+        lower == 'sin comentario' ||
+        lower == 'n/a' ||
+        lower == 'na' ||
+        text == '-') {
+      return null;
+    }
+    return text;
+  }
+}
+
+class _InfoBlock extends StatelessWidget {
+  const _InfoBlock({
+    required this.label,
+    required this.child,
+    this.alignEnd = false,
+  });
+
+  final String label;
+  final Widget child;
+  final bool alignEnd;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: alignEnd
+          ? CrossAxisAlignment.end
+          : CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          textAlign: alignEnd ? TextAlign.right : TextAlign.left,
+          style: TextStyle(
+            fontSize: ResponsiveHelper.sp(context, 13),
+            color: AppColores.textPrimary,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        SizedBox(height: ResponsiveHelper.hp(context, 0.2)),
+        child,
+      ],
+    );
   }
 }

@@ -8,10 +8,10 @@ import 'package:flutter/foundation.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
+import 'package:taxi_app/core/constants/solicitud_estado.dart';
 import 'package:taxi_app/helper/map_helper.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/location_model.dart';
-import 'package:taxi_app/services/map_service.dart';
-import 'package:taxi_app/services/ubicacion_servicio.dart';
+import 'package:taxi_app/core/services/map_service_adapter.dart';
 
 /// ViewModel unificado para:
 /// - Selección/previsualización de destino (pantalla de mapa con pin centrado).
@@ -172,10 +172,7 @@ class MapapreviewViewModel extends ChangeNotifier {
     return _coordsText(destino.position);
   }
 
-  String? _firstNonEmptyValue(
-    Map<String, dynamic>? source,
-    List<String> keys,
-  ) {
+  String? _firstNonEmptyValue(Map<String, dynamic>? source, List<String> keys) {
     if (source == null) return null;
     for (final key in keys) {
       final raw = source[key]?.toString().trim();
@@ -317,9 +314,7 @@ class MapapreviewViewModel extends ChangeNotifier {
         '?overview=full&geometries=geojson',
       );
 
-      final response = await http
-          .get(uri)
-          .timeout(const Duration(seconds: 8));
+      final response = await http.get(uri).timeout(const Duration(seconds: 8));
 
       if (response.statusCode == 200) {
         final body = jsonDecode(response.body) as Map<String, dynamic>;
@@ -330,12 +325,14 @@ class MapapreviewViewModel extends ChangeNotifier {
           final rawCoords = geometry?['coordinates'] as List<dynamic>?;
 
           if (rawCoords != null && rawCoords.length >= 2) {
-            final points = rawCoords.map((entry) {
-              final item = entry as List<dynamic>;
-              final lng = (item[0] as num).toDouble();
-              final lat = (item[1] as num).toDouble();
-              return LatLng(lat, lng);
-            }).toList(growable: false);
+            final points = rawCoords
+                .map((entry) {
+                  final item = entry as List<dynamic>;
+                  final lng = (item[0] as num).toDouble();
+                  final lat = (item[1] as num).toDouble();
+                  return LatLng(lat, lng);
+                })
+                .toList(growable: false);
 
             polylines = {
               _mapService.createPolyline(
@@ -410,8 +407,10 @@ class MapapreviewViewModel extends ChangeNotifier {
 
     for (int i = 0; i <= safeSegments; i++) {
       final t = i / safeSegments;
-      final baseLat = origin.latitude + (destination.latitude - origin.latitude) * t;
-      final baseLng = origin.longitude + (destination.longitude - origin.longitude) * t;
+      final baseLat =
+          origin.latitude + (destination.latitude - origin.latitude) * t;
+      final baseLng =
+          origin.longitude + (destination.longitude - origin.longitude) * t;
 
       // Onda senoidal para no salir en extremos y curvar en la mitad.
       final curveFactor = math.sin(math.pi * t) * maxCurve;
@@ -440,7 +439,7 @@ class MapapreviewViewModel extends ChangeNotifier {
       Map<String, dynamic>? clienteDocData;
       try {
         final doc = await FirebaseFirestore.instance
-            .collection('cliente')
+            .collection('usuarios')
             .doc(clienteId)
             .get();
         if (doc.exists) {
@@ -476,11 +475,8 @@ class MapapreviewViewModel extends ChangeNotifier {
         clienteNombre = words.isNotEmpty ? words : null;
       }
 
-        final gpsOrigenPos = await UbicacionService().obtenerUbicacionActual();
-        final origenPos = gpsOrigenPos ?? origen.position;
-        final origenAddress = gpsOrigenPos != null
-          ? await _resolveAddressFromCoordinates(origenPos)
-          : await _resolveOrigenAddressForSolicitud();
+      final origenPos = origen.position;
+      final origenAddress = await _resolveOrigenAddressForSolicitud();
       final destinoAddress = _resolveDestinoAddressForSolicitud();
 
       // intentar obtener foto de perfil del usuario (Auth) o desde doc 'cliente'
@@ -499,27 +495,11 @@ class MapapreviewViewModel extends ChangeNotifier {
           ? 'Cliente'
           : clienteNombre.trim();
       final resolvedClientePhotoUrl = clientePhotoUrl?.trim() ?? '';
-      final metodoPagoSanitizado =
-          metodoPago.trim().isEmpty ? 'Efectivo' : metodoPago.trim();
+      final metodoPagoSanitizado = metodoPago.trim().isEmpty
+          ? 'Efectivo'
+          : metodoPago.trim();
       final comentarioSanitizado = comentario.trim();
       final valorServicioNumerico = _parseValorServicio();
-
-      // Sincronizar ubicación actual en el perfil del cliente si se pudo leer GPS.
-      if (gpsOrigenPos != null) {
-        try {
-          await FirebaseFirestore.instance
-              .collection('cliente')
-              .doc(clienteId)
-              .set({
-                'ubicacion': {
-                  'lat': origenPos.latitude,
-                  'lng': origenPos.longitude,
-                  'direccion': origenAddress,
-                  'lastUpdated': FieldValue.serverTimestamp(),
-                },
-              }, SetOptions(merge: true));
-        } catch (_) {}
-      }
 
       final solicitud = <String, dynamic>{
         'cliente': {
@@ -532,20 +512,25 @@ class MapapreviewViewModel extends ChangeNotifier {
             'direccion': origenAddress,
           },
         },
+        'origen': {
+          'lat': origenPos.latitude,
+          'lng': origenPos.longitude,
+          'address': origenAddress,
+          'title': origenAddress,
+        },
+        'ubicacion_inicial': GeoPoint(origenPos.latitude, origenPos.longitude),
 
         'destino': {
           'direccion': destinoAddress,
           'lat': destino.position.latitude,
           'lng': destino.position.longitude,
         },
-        'estado': 'buscando',
+        'estado': SolicitudEstado.buscando,
         'metodoPago': metodoPagoSanitizado,
         'comentario': comentarioSanitizado,
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
-        'tarifa': {
-          'total': valorServicioNumerico,
-        },
+        'tarifa': {'total': valorServicioNumerico},
       };
 
       final docRef = await FirebaseFirestore.instance

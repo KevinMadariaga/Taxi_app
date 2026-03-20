@@ -1,10 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:taxi_app/services/auth_service.dart';
-import 'package:taxi_app/services/map_service.dart';
-import 'package:taxi_app/services/route_cache_service.dart';
-import 'package:taxi_app/services/notificacion_servicio.dart';
-import 'package:taxi_app/services/notification_service.dart';
-import 'package:taxi_app/services/ubicacion_servicio.dart';
+import 'package:taxi_app/core/services/services.dart';
+import 'package:taxi_app/core/services/map_service_adapter.dart';
+import 'package:taxi_app/core/services/ubicacion_servicio.dart';
 
 void main() {
   group('Servicios principales', () {

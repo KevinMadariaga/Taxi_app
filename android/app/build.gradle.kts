@@ -1,3 +1,6 @@
+import java.util.Properties
+import org.gradle.api.GradleException
+
 plugins {
     id("com.android.application")
     // START: FlutterFire Configuration
@@ -8,18 +11,73 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+val keystoreProperties = Properties()
+val keystorePropertiesFile = rootProject.file("key.properties")
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.inputStream().use { stream ->
+        keystoreProperties.load(stream)
+    }
+}
+
+val localProperties = Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.inputStream().use { stream ->
+        localProperties.load(stream)
+    }
+}
+
+fun resolveStoreFile(path: String?): java.io.File? {
+    if (path.isNullOrBlank()) return null
+    val candidate = file(path)
+    if (candidate.isAbsolute) return candidate
+
+    val fromRoot = rootProject.file(path)
+    return if (fromRoot.exists()) fromRoot else candidate
+}
+
+val releaseStoreFile = resolveStoreFile(keystoreProperties.getProperty("storeFile"))
+
+val mapsApiKey = sequenceOf(
+    project.findProperty("MAPS_API_KEY") as String?,
+    localProperties.getProperty("MAPS_API_KEY"),
+    System.getenv("MAPS_API_KEY")
+).firstOrNull { !it.isNullOrBlank() } ?: ""
+
+val isReleaseBuildRequested = gradle.startParameter.taskNames.any {
+    it.contains("Release", ignoreCase = true)
+}
+
+fun hasReleaseSigningConfig(): Boolean {
+    return releaseStoreFile?.exists() == true &&
+        listOf("storePassword", "keyAlias", "keyPassword")
+            .all { !keystoreProperties.getProperty(it).isNullOrBlank() }
+}
+
+if (isReleaseBuildRequested && !hasReleaseSigningConfig()) {
+    throw GradleException(
+        "Release signing is not configured. Create android/key.properties based on android/key.properties.example and provide a valid keystore."
+    )
+}
+
+if (isReleaseBuildRequested && mapsApiKey.isBlank()) {
+    throw GradleException(
+        "MAPS_API_KEY is missing for release build. Define it in local.properties, gradle.properties, or as environment variable MAPS_API_KEY."
+    )
+}
+
 android {
-        packaging {
-            resources {
-                excludes += setOf(
-                    "META-INF/DEPENDENCIES",
-                    "META-INF/LICENSE",
-                    "META-INF/LICENSE.txt",
-                    "META-INF/NOTICE",
-                    "META-INF/NOTICE.txt"
-                )
-            }
+    packaging {
+        resources {
+            excludes += setOf(
+                "META-INF/DEPENDENCIES",
+                "META-INF/LICENSE",
+                "META-INF/LICENSE.txt",
+                "META-INF/NOTICE",
+                "META-INF/NOTICE.txt"
+            )
         }
+    }
     namespace = "com.taxiya.taxiapp"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
@@ -45,19 +103,32 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
     }
 
     signingConfigs {
         create("release") {
-            storeFile = file("taxiapp-release-key.jks")
-            storePassword = "Lomejor123"
-            keyAlias = "taxiapp_release"
-            keyPassword = "Lomejor123"
+            if (hasReleaseSigningConfig()) {
+                storeFile = releaseStoreFile
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
         }
     }
+
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("release")
+            isMinifyEnabled = true
+            isShrinkResources = false
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+            if (hasReleaseSigningConfig()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 }

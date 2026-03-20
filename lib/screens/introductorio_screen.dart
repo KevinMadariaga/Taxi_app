@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:taxi_app/presentation/screens/login/login_view.dart';
 import 'package:taxi_app/screens/home_screen.dart';
 
 @Deprecated('Usa LoginView desde presentation/screens/login.')

@@ -10,5 +10,6 @@ class PreviewSolicitud {
   String get id => solicitud.id;
   String? get clientName => solicitud.nombreCliente;
   String? get paymentMethod => solicitud.metodoPago;
+  String? get comentarioCliente => solicitud.comentarioCliente;
   double? get distanciaKm => solicitud.distanciaKm;
 }

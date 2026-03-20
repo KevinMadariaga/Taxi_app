@@ -10,6 +10,8 @@ class DriverModel {
     required this.fotoVehiculo,
     required this.adminId,
     required this.estado,
+    required this.correo,
+    required this.passwordLogin,
     this.fechaRegistro,
   });
 
@@ -21,6 +23,8 @@ class DriverModel {
   final String fotoVehiculo;
   final String adminId;
   final String estado;
+  final String correo;
+  final String passwordLogin;
   final DateTime? fechaRegistro;
 
   factory DriverModel.fromFirestore(String id, Map<String, dynamic> data) {
@@ -30,10 +34,13 @@ class DriverModel {
       nombre: (data['nombre'] ?? '').toString(),
       telefono: (data['telefono'] ?? '').toString(),
       placa: (data['placa'] ?? '').toString(),
-      fotoConductor: (data['fotoConductor'] ?? '').toString(),
+      fotoConductor: (data['foto'] ?? data['fotoConductor'] ?? '').toString(),
       fotoVehiculo: (data['fotoVehiculo'] ?? '').toString(),
       adminId: (data['adminId'] ?? '').toString(),
       estado: (data['estado'] ?? 'activo').toString(),
+      correo: (data['correo'] ?? '').toString(),
+      passwordLogin: (data['passwordLogin'] ?? data['contrasena'] ?? '')
+          .toString(),
       fechaRegistro: timestamp is Timestamp ? timestamp.toDate() : null,
     );
   }

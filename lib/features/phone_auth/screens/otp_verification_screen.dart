@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:taxi_app/domain/repositories/client_auth_repository.dart';
+import 'package:taxi_app/domain/usecases/client_auth/verify_client_phone_otp_usecase.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/presentation/screens/auth/complete_profile_page.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/home_cliente_view.dart';
 
 import '../controllers/otp_verification_controller.dart';
@@ -27,14 +30,32 @@ class OtpVerificationScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider<OtpVerificationController>(
-      create: (_) => OtpVerificationController(
-        verificationId: verificationId,
-        resendToken: resendToken,
-        phoneNumber: phoneNumber,
-        isAdminMode: isAdminMode,
-      )..startTimer(),
+      create: (context) {
+        try {
+          return OtpVerificationController(
+            verificationId: verificationId,
+            resendToken: resendToken,
+            phoneNumber: phoneNumber,
+            isAdminMode: isAdminMode,
+            verifyClientPhoneOtpUseCase: Provider.of<VerifyClientPhoneOtpUseCase>(
+              context,
+              listen: false,
+            ),
+            clientAuthRepository: Provider.of<ClientAuthRepository>(context, listen: false),
+          )..startTimer();
+        } catch (_) {
+          return OtpVerificationController(
+            verificationId: verificationId,
+            resendToken: resendToken,
+            phoneNumber: phoneNumber,
+            isAdminMode: isAdminMode,
+          )..startTimer();
+        }
+      },
       child: Consumer<OtpVerificationController>(
         builder: (context, vm, _) {
+          final displayPhone = _displayPhoneNumber(phoneNumber);
+
           return Scaffold(
             backgroundColor: AppColores.background,
             appBar: AppBar(
@@ -46,12 +67,17 @@ class OtpVerificationScreen extends StatelessWidget {
             body: SafeArea(
               child: Center(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 22,
+                    vertical: 16,
+                  ),
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 440),
                     child: Card(
                       elevation: 2,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                       child: Padding(
                         padding: const EdgeInsets.all(16),
                         child: Column(
@@ -67,8 +93,10 @@ class OtpVerificationScreen extends StatelessWidget {
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              'El codigo fue enviado a $phoneNumber',
-                              style: const TextStyle(color: AppColores.textSecondary),
+                              'El codigo fue enviado a $displayPhone',
+                              style: const TextStyle(
+                                color: AppColores.textSecondary,
+                              ),
                             ),
                             const SizedBox(height: 16),
                             OtpCodeField(
@@ -84,15 +112,23 @@ class OtpVerificationScreen extends StatelessWidget {
                                         try {
                                           await vm.resendCode();
                                           if (!context.mounted) return;
-                                          ScaffoldMessenger.of(context).showSnackBar(
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
                                             const SnackBar(
-                                              content: Text('Codigo reenviado correctamente.'),
+                                              content: Text(
+                                                'Codigo reenviado correctamente.',
+                                              ),
                                             ),
                                           );
                                         } catch (e) {
                                           if (!context.mounted) return;
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            SnackBar(content: Text(e.toString())),
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
+                                            SnackBar(
+                                              content: Text(e.toString()),
+                                            ),
                                           );
                                         }
                                       }
@@ -123,7 +159,9 @@ class OtpVerificationScreen extends StatelessWidget {
                                   ? const SizedBox(
                                       width: 20,
                                       height: 20,
-                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
                                     )
                                   : const Text('Verificar codigo'),
                             ),
@@ -154,6 +192,18 @@ class OtpVerificationScreen extends StatelessWidget {
           Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(
               builder: (_) => HomeClienteView(authUid: resolution.uid),
+            ),
+            (route) => false,
+          );
+          break;
+        case AuthNextDestination.completeClientProfile:
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(
+              builder: (_) => CompleteProfilePage(
+                uid: resolution.uid,
+                initialTelefono: resolution.phoneNumber,
+                fromOtpFlow: true,
+              ),
             ),
             (route) => false,
           );
@@ -195,5 +245,12 @@ class OtpVerificationScreen extends StatelessWidget {
         SnackBar(content: Text(e.toString().replaceFirst('Bad state: ', ''))),
       );
     }
+  }
+
+  String _displayPhoneNumber(String raw) {
+    final digits = raw.replaceAll(RegExp(r'\D'), '');
+    if (digits.isEmpty) return raw;
+    if (digits.length <= 10) return digits;
+    return digits.substring(digits.length - 10);
   }
 }

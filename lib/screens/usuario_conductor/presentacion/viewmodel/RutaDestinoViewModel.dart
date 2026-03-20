@@ -9,11 +9,8 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import 'package:taxi_app/helper/session_helper.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/chat_message.dart';
-import 'package:taxi_app/services/background_tracking_service.dart';
-import 'package:taxi_app/services/chat_service.dart';
-import 'package:taxi_app/services/firebase_service.dart';
-import 'package:taxi_app/services/route_cache_service.dart';
-import 'package:taxi_app/services/tracking_service.dart';
+import 'package:taxi_app/core/services/chat_service_adapter.dart';
+import 'package:taxi_app/core/services/services.dart';
 
 class RutaDestinoViewModel extends ChangeNotifier {
   late final FirebaseService _firebaseService;
@@ -49,10 +46,6 @@ class RutaDestinoViewModel extends ChangeNotifier {
         final latLng = LatLng(posInicial.latitude, posInicial.longitude);
         debugPrint(
           '[RutaDestinoViewModel] Ubicación obtenida con GPS: lat=${latLng.latitude}, lng=${latLng.longitude}',
-        );
-        await _firebaseService.guardarUbicacionConductor(
-          conductorId: uid,
-          position: latLng,
         );
         await _firebaseService.actualizarUbicacionConductorEnSolicitud(
           solicitudId: solicitudId,

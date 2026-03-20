@@ -29,6 +29,7 @@ class _InicioClienteViewState extends State<InicioClienteView> {
     viewportFraction: 0.98,
   );
   int _carouselPage = 0;
+  bool _isPreparingNavigation = false;
 
   // Configuración visual
   final double _cardScale = 1.0;
@@ -47,10 +48,14 @@ class _InicioClienteViewState extends State<InicioClienteView> {
     _vmListener = () => setState(() {});
     vm.addListener(_vmListener);
     vm.init();
+    _bootstrapClienteLocationFlow();
+  }
+
+  Future<void> _bootstrapClienteLocationFlow() async {
     if (widget.authUid != null && widget.authUid!.isNotEmpty) {
-      vm.hydrateFromUid(widget.authUid!);
+      await vm.hydrateFromUid(widget.authUid!);
     }
-    _loadCurrentLocation();
+    await _loadCurrentLocation();
   }
 
   @override
@@ -92,26 +97,80 @@ class _InicioClienteViewState extends State<InicioClienteView> {
                   isTablet ? 48.0 : 16.0 * scale,
                   isTablet ? 32.0 : 18.0 * scale,
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildSaludoYNombre(scale),
-                    SizedBox(height: isTablet ? 32 : 14 * scale),
-                    _buildSubtitle(scale),
-                    SizedBox(height: isTablet ? 36 : 18 * scale),
-                    _buildSearchBox(scale),
-                    SizedBox(height: isTablet ? 8 : 1 * scale),
-                    _buildFavoritos(scale),
-                    SizedBox(height: carouselHeight, child: _buildCarousel()),
-                    SizedBox(height: isTablet ? 8 : 2 * scale),
-                    _buildLocationLabel(scale),
-                    SizedBox(height: isTablet ? 12 : 8 * scale),
-                    Expanded(child: _buildMap()),
-                    SizedBox(height: isTablet ? 18 : 10 * scale),
-                  ],
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final compactThreshold = isTablet ? 720.0 : 540.0;
+                    final useScrollableLayout =
+                        constraints.maxHeight < compactThreshold;
+
+                    if (!useScrollableLayout) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildSaludoYNombre(scale),
+                          SizedBox(height: isTablet ? 20 : 14 * scale),
+                          _buildSubtitle(scale),
+                          SizedBox(height: isTablet ? 22 : 18 * scale),
+                          _buildSearchBox(scale),
+                          SizedBox(height: isTablet ? 4 : 1 * scale),
+                          _buildFavoritos(scale),
+                          SizedBox(
+                            height: carouselHeight,
+                            child: _buildCarousel(),
+                          ),
+                          SizedBox(height: isTablet ? 6 : 2 * scale),
+                          _buildLocationLabel(scale),
+                          SizedBox(height: isTablet ? 8 : 8 * scale),
+                          Expanded(child: _buildMap()),
+                          SizedBox(height: isTablet ? 8 : 10 * scale),
+                        ],
+                      );
+                    }
+
+                    final compactCarouselHeight = (carouselHeight * 0.82)
+                        .clamp(120.0, 180.0)
+                        .toDouble();
+                    final compactMapHeight = (constraints.maxHeight * 0.34)
+                        .clamp(140.0, 220.0)
+                        .toDouble();
+
+                    return SingleChildScrollView(
+                      keyboardDismissBehavior:
+                          ScrollViewKeyboardDismissBehavior.onDrag,
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          minHeight: constraints.maxHeight,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildSaludoYNombre(scale),
+                            SizedBox(height: 10 * scale),
+                            _buildSubtitle(scale),
+                            SizedBox(height: 10 * scale),
+                            _buildSearchBox(scale),
+                            _buildFavoritos(scale),
+                            SizedBox(
+                              height: compactCarouselHeight,
+                              child: _buildCarousel(),
+                            ),
+                            SizedBox(height: 6 * scale),
+                            _buildLocationLabel(scale),
+                            SizedBox(height: 6 * scale),
+                            SizedBox(
+                              height: compactMapHeight,
+                              child: _buildMap(),
+                            ),
+                            SizedBox(height: 8 * scale),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ),
               if (vm.isLoadingLocation) _buildLoader(),
+              if (_isPreparingNavigation) _buildNavigationLoader(),
             ],
           ),
         ),
@@ -350,6 +409,27 @@ class _InicioClienteViewState extends State<InicioClienteView> {
     );
   }
 
+  Widget _buildNavigationLoader() {
+    return Positioned.fill(
+      child: Container(
+        color: AppColores.overlayDark,
+        child: const Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 12),
+              Text(
+                'Preparando destino...',
+                style: TextStyle(color: AppColores.textWhite, fontSize: 16),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildBottomNavigationBar() {
     return Container(
       decoration: BoxDecoration(
@@ -430,10 +510,37 @@ class _InicioClienteViewState extends State<InicioClienteView> {
   }
 
   Future<void> _navigateToDestinoSeleccion() async {
-    await InicioClienteNavigation.irADestinoSeleccion(
-      context,
-      vm.currentLocation,
-    );
+    if (_isPreparingNavigation) return;
+
+    if (mounted) {
+      setState(() => _isPreparingNavigation = true);
+    }
+
+    try {
+      String? origenDireccionInicial;
+      final currentLocation = vm.currentLocation;
+      if (currentLocation != null) {
+        final resolved = await vm.obtenerDireccionDesdeCoordenadas(
+          currentLocation,
+        );
+        final cleaned = resolved.trim();
+        if (cleaned.isNotEmpty) {
+          origenDireccionInicial = cleaned;
+        }
+      }
+
+      if (!mounted) return;
+
+      await InicioClienteNavigation.irADestinoSeleccion(
+        context,
+        vm.currentLocation,
+        origenDireccionInicial: origenDireccionInicial,
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isPreparingNavigation = false);
+      }
+    }
   }
 
   Future<void> _onBottomNavTap(int index) async {
@@ -597,211 +704,233 @@ class _InicioClienteViewState extends State<InicioClienteView> {
     final double pageWidth = availableWidth * viewportFraction;
     final double screenH = MediaQuery.of(context).size.height;
     final double baseCardHeight = math.min(180.0, screenH * 0.50);
-    final double cardHeight = (baseCardHeight * _cardScale).clamp(
+    final double desiredCardHeight = (baseCardHeight * _cardScale).clamp(
       100.0,
       screenH * 0.6,
     );
-    final double indicatorsHeight = 20.0;
-    final double verticalSpacing = 8.0;
-    final double totalHeight = cardHeight + indicatorsHeight + verticalSpacing;
-    return SizedBox(
-      height: totalHeight,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SizedBox(
-            height: cardHeight,
-            child: Stack(
-              children: [
-                PageView.builder(
-                  controller: _carouselController,
-                  itemCount: items.length,
-                  onPageChanged: (idx) => setState(() => _carouselPage = idx),
-                  itemBuilder: (context, index) {
-                    final item = items[index];
-                    final double titleFont =
-                        (cardHeight * 0.12 * _titleFontScale)
-                            .clamp(12.0, 36.0)
-                            .toDouble();
-                    final double subtitleFont =
-                        (cardHeight * 0.08 * _titleFontScale)
-                            .clamp(10.0, 20.0)
-                            .toDouble();
-                    return Center(
-                      child: SizedBox(
-                        width: pageWidth,
-                        height: cardHeight,
-                        child: Card(
-                          elevation: 4,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          clipBehavior: Clip.hardEdge,
-                          child: Stack(
-                            fit: StackFit.expand,
-                            children: [
-                              Container(color: AppColores.grey300),
-                              Container(
-                                decoration: const BoxDecoration(
-                                  gradient: LinearGradient(
-                                    begin: Alignment.bottomCenter,
-                                    end: Alignment.topCenter,
-                                    colors: [
-                                      AppColores.overlayLight,
-                                      Colors.transparent,
-                                    ],
-                                  ),
-                                ),
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double indicatorsHeight = 20.0;
+        final double verticalSpacing = 8.0;
+        final bool hasBoundedHeight = constraints.maxHeight.isFinite;
+
+        final double availableTotalHeight = hasBoundedHeight
+            ? constraints.maxHeight
+            : (desiredCardHeight + indicatorsHeight + verticalSpacing);
+        final double minCardHeight = 84.0;
+        final double maxCardHeight = math.max(
+          minCardHeight,
+          availableTotalHeight - indicatorsHeight - verticalSpacing,
+        );
+        final double cardHeight = desiredCardHeight
+            .clamp(minCardHeight, maxCardHeight)
+            .toDouble();
+        final double totalHeight =
+            cardHeight + indicatorsHeight + verticalSpacing;
+
+        return SizedBox(
+          height: totalHeight,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                height: cardHeight,
+                child: Stack(
+                  children: [
+                    PageView.builder(
+                      controller: _carouselController,
+                      itemCount: items.length,
+                      onPageChanged: (idx) =>
+                          setState(() => _carouselPage = idx),
+                      itemBuilder: (context, index) {
+                        final item = items[index];
+                        final double titleFont =
+                            (cardHeight * 0.12 * _titleFontScale)
+                                .clamp(12.0, 36.0)
+                                .toDouble();
+                        final double subtitleFont =
+                            (cardHeight * 0.08 * _titleFontScale)
+                                .clamp(10.0, 20.0)
+                                .toDouble();
+                        return Center(
+                          child: SizedBox(
+                            width: pageWidth,
+                            height: cardHeight,
+                            child: Card(
+                              elevation: 4,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
                               ),
-                              Padding(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: _cardPadding,
-                                  vertical: _cardPadding,
-                                ),
-                                child: Center(
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        (item['title'] ?? 'Promo').toString(),
-                                        textAlign: TextAlign.center,
-                                        style: TextStyle(
-                                          fontSize: titleFont,
-                                          fontWeight: FontWeight.w700,
-                                          color: AppColores.textWhite,
-                                          shadows: const [
-                                            Shadow(
-                                              color: AppColores.overlayDark,
-                                              offset: Offset(0, 1),
-                                              blurRadius: 4,
+                              clipBehavior: Clip.hardEdge,
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  Container(color: AppColores.grey300),
+                                  Container(
+                                    decoration: const BoxDecoration(
+                                      gradient: LinearGradient(
+                                        begin: Alignment.bottomCenter,
+                                        end: Alignment.topCenter,
+                                        colors: [
+                                          AppColores.overlayLight,
+                                          Colors.transparent,
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                  Padding(
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: _cardPadding,
+                                      vertical: _cardPadding,
+                                    ),
+                                    child: Center(
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            (item['title'] ?? 'Promo')
+                                                .toString(),
+                                            textAlign: TextAlign.center,
+                                            style: TextStyle(
+                                              fontSize: titleFont,
+                                              fontWeight: FontWeight.w700,
+                                              color: AppColores.textWhite,
+                                              shadows: const [
+                                                Shadow(
+                                                  color: AppColores.overlayDark,
+                                                  offset: Offset(0, 1),
+                                                  blurRadius: 4,
+                                                ),
+                                              ],
                                             ),
-                                          ],
-                                        ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            (item['subtitle'] ?? '').toString(),
+                                            textAlign: TextAlign.center,
+                                            style: TextStyle(
+                                              fontSize: subtitleFont,
+                                              color: AppColores.textWhiteMuted,
+                                            ),
+                                          ),
+                                        ],
                                       ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        (item['subtitle'] ?? '').toString(),
-                                        textAlign: TextAlign.center,
-                                        style: TextStyle(
-                                          fontSize: subtitleFont,
-                                          color: AppColores.textWhiteMuted,
-                                        ),
-                                      ),
-                                    ],
+                                    ),
                                   ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    if (items.length > 1)
+                      Positioned(
+                        left: 6,
+                        top: 0,
+                        bottom: 0,
+                        child: Center(
+                          child: GestureDetector(
+                            onTap: () {
+                              final prev = (_carouselPage - 1) < 0
+                                  ? (items.length - 1)
+                                  : (_carouselPage - 1);
+                              _carouselController.animateToPage(
+                                prev,
+                                duration: const Duration(milliseconds: 300),
+                                curve: Curves.easeInOut,
+                              );
+                              setState(() => _carouselPage = prev);
+                            },
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: _carouselNavButtonColor,
+                                shape: BoxShape.circle,
+                                boxShadow: const [
+                                  BoxShadow(
+                                    color: AppColores.borderSubtle,
+                                    blurRadius: 6,
+                                  ),
+                                ],
+                              ),
+                              child: const Padding(
+                                padding: EdgeInsets.all(6.0),
+                                child: Icon(
+                                  Icons.chevron_left,
+                                  size: 28,
+                                  color: AppColores.textPrimary,
                                 ),
                               ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-                if (items.length > 1)
-                  Positioned(
-                    left: 6,
-                    top: 0,
-                    bottom: 0,
-                    child: Center(
-                      child: GestureDetector(
-                        onTap: () {
-                          final prev = (_carouselPage - 1) < 0
-                              ? (items.length - 1)
-                              : (_carouselPage - 1);
-                          _carouselController.animateToPage(
-                            prev,
-                            duration: const Duration(milliseconds: 300),
-                            curve: Curves.easeInOut,
-                          );
-                          setState(() => _carouselPage = prev);
-                        },
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: _carouselNavButtonColor,
-                            shape: BoxShape.circle,
-                            boxShadow: const [
-                              BoxShadow(
-                                color: AppColores.borderSubtle,
-                                blurRadius: 6,
-                              ),
-                            ],
-                          ),
-                          child: const Padding(
-                            padding: EdgeInsets.all(6.0),
-                            child: Icon(
-                              Icons.chevron_left,
-                              size: 28,
-                              color: AppColores.textPrimary,
                             ),
                           ),
                         ),
                       ),
-                    ),
-                  ),
-                if (items.length > 1)
-                  Positioned(
-                    right: 6,
-                    top: 0,
-                    bottom: 0,
-                    child: Center(
-                      child: GestureDetector(
-                        onTap: () {
-                          final next = (_carouselPage + 1) % items.length;
-                          _carouselController.animateToPage(
-                            next,
-                            duration: const Duration(milliseconds: 300),
-                            curve: Curves.easeInOut,
-                          );
-                          setState(() => _carouselPage = next);
-                        },
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: _carouselNavButtonColor,
-                            shape: BoxShape.circle,
-                            boxShadow: const [
-                              BoxShadow(
-                                color: AppColores.borderSubtle,
-                                blurRadius: 6,
+                    if (items.length > 1)
+                      Positioned(
+                        right: 6,
+                        top: 0,
+                        bottom: 0,
+                        child: Center(
+                          child: GestureDetector(
+                            onTap: () {
+                              final next = (_carouselPage + 1) % items.length;
+                              _carouselController.animateToPage(
+                                next,
+                                duration: const Duration(milliseconds: 300),
+                                curve: Curves.easeInOut,
+                              );
+                              setState(() => _carouselPage = next);
+                            },
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: _carouselNavButtonColor,
+                                shape: BoxShape.circle,
+                                boxShadow: const [
+                                  BoxShadow(
+                                    color: AppColores.borderSubtle,
+                                    blurRadius: 6,
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
-                          child: const Padding(
-                            padding: EdgeInsets.all(6.0),
-                            child: Icon(
-                              Icons.chevron_right,
-                              size: 28,
-                              color: AppColores.textPrimary,
+                              child: const Padding(
+                                padding: EdgeInsets.all(6.0),
+                                child: Icon(
+                                  Icons.chevron_right,
+                                  size: 28,
+                                  color: AppColores.textPrimary,
+                                ),
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(items.length, (i) {
-              final active = i == _carouselPage;
-              return AnimatedContainer(
-                duration: const Duration(milliseconds: 250),
-                margin: const EdgeInsets.symmetric(horizontal: 4),
-                width: active ? 14 : 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: active
-                      ? AppColores.textPrimary
-                      : AppColores.overlayLight,
-                  borderRadius: BorderRadius.circular(8),
+                  ],
                 ),
-              );
-            }),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(items.length, (i) {
+                  final active = i == _carouselPage;
+                  return AnimatedContainer(
+                    duration: const Duration(milliseconds: 250),
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    width: active ? 14 : 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: active
+                          ? AppColores.textPrimary
+                          : AppColores.overlayLight,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  );
+                }),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

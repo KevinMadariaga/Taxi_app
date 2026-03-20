@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:taxi_app/core/utils/app_dependencies.dart';
-import 'package:taxi_app/presentation/screens/login/login_view.dart';
 import 'package:taxi_app/presentation/screens/splash/splash_view.dart';
 import 'package:taxi_app/presentation/viewmodels/login/login_viewmodel.dart';
 import 'package:taxi_app/presentation/viewmodels/splash/splash_viewmodel.dart';

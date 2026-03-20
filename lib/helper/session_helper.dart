@@ -24,27 +24,47 @@ class SessionHelper {
   static Future<void> clearSession() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      // Attempt to delete any local files cached for this user (profile image, etc.)
-      try {
-        final uid = prefs.getString(_keyUid);
-        if (uid != null && uid.isNotEmpty) {
-          try {
-            final dir = await getApplicationDocumentsDirectory();
-            final profileFile = File('${dir.path}/profile_$uid.jpg');
-            if (profileFile.existsSync()) {
-              await profileFile.delete();
+      final uid = prefs.getString(_keyUid);
+
+      // Delete local profile/vehicle files cached per user.
+      if (uid != null && uid.isNotEmpty) {
+        try {
+          final dir = await getApplicationDocumentsDirectory();
+          final profileJpg = File('${dir.path}/profile_$uid.jpg');
+          final profileWebp = File('${dir.path}/profile_$uid.webp');
+          final vehicleJpg = File('${dir.path}/vehicle_$uid.jpg');
+          final vehicleWebp = File('${dir.path}/vehicle_$uid.webp');
+
+          for (final f in [profileJpg, profileWebp, vehicleJpg, vehicleWebp]) {
+            if (f.existsSync()) {
+              await f.delete();
             }
-            // If you have other per-user cached files following a naming pattern,
-            // you can delete them here as well.
-          } catch (_) {}
-        }
-      } catch (_) {}
+          }
+        } catch (_) {}
+      }
 
       await prefs.remove(_keyIsLogged);
       await prefs.remove(_keyRole);
       await prefs.remove(_keyUid);
+      await prefs.remove(_keyCachedName);
+      await prefs.remove(_keyActiveSolicitud);
+      await prefs.remove('conductor_solicitud_activa');
+      await prefs.remove('cliente_solicitud_activa');
+
+      final keys = prefs.getKeys().toList(growable: false);
+      for (final key in keys) {
+        if (key.startsWith('route_cache_') ||
+            key.startsWith('trip_cache_') ||
+            key.startsWith('solicitud_progreso_')) {
+          await prefs.remove(key);
+        }
+      }
+
       try {
-        await prefs.remove(_keyCachedName);
+        _cachedNameController.add(null);
+      } catch (_) {}
+      try {
+        _activeSolicitudController.add(null);
       } catch (_) {}
     } catch (_) {}
   }

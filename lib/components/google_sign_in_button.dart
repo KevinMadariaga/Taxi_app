@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../services/google_sign_in_service.dart';
+import 'package:taxi_app/core/services/google_sign_in_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class GoogleSignInButton extends StatelessWidget {

@@ -9,20 +9,26 @@ import 'package:taxi_app/helper/permisos_helper.dart';
 import 'package:taxi_app/core/constants/app_constants.dart';
 import 'package:taxi_app/core/theme/app_theme.dart';
 import 'package:taxi_app/core/utils/app_dependencies.dart';
+import 'package:taxi_app/domain/usecases/client_auth/sign_in_google_client_usecase.dart';
+import 'package:taxi_app/domain/usecases/client_auth/send_client_phone_otp_usecase.dart';
+import 'package:taxi_app/domain/usecases/client_auth/verify_client_phone_otp_usecase.dart';
+import 'package:taxi_app/domain/usecases/client_auth/get_client_user_usecase.dart';
+import 'package:taxi_app/domain/usecases/client_auth/complete_client_profile_usecase.dart';
 import 'package:taxi_app/routes/app_routes.dart';
-import 'package:taxi_app/screens/usuario_cliente/data/Auth.dart';
-import 'package:taxi_app/screens/usuario_cliente/data/firebaseDB.dart';
+import 'package:taxi_app/features/client/data/firebaseDB.dart';
+import 'package:taxi_app/core/auth/app_auth_adapter.dart';
+import 'package:taxi_app/domain/repositories/client_auth_repository.dart';
 import 'package:taxi_app/models/AuthModel.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/RutaClienteViewModel.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/RutaConductorViewModel.dart';
-import 'package:taxi_app/services/background_tracking_service.dart';
-import 'package:taxi_app/services/notificacion_servicio.dart';
-import 'package:taxi_app/services/tracking_service.dart';
+import 'package:taxi_app/core/services/background_tracking_service.dart';
+import 'package:taxi_app/core/services/notificacion_servicio.dart';
+import 'package:taxi_app/core/services/tracking_service.dart';
 
 const SystemUiOverlayStyle _globalSystemOverlayStyle = SystemUiOverlayStyle(
   statusBarColor: Colors.transparent,
-  statusBarIconBrightness: Brightness.light,
-  statusBarBrightness: Brightness.dark,
+  statusBarIconBrightness: Brightness.dark,
+  statusBarBrightness: Brightness.light,
 );
 
 /// Entry point for the Taxi App.
@@ -49,7 +55,9 @@ Future<void> _initializeCoreServices() async {
     );
 
     if (kDebugMode) {
-      debugPrint('FirebaseAuth test app verification is enabled (non-release).');
+      debugPrint(
+        'FirebaseAuth test app verification is enabled (non-release).',
+      );
     }
   }
 
@@ -63,9 +71,10 @@ Future<void> _initializeCoreServices() async {
 /// Root widget for the Taxi App.
 /// Sets up providers, theming, and navigation.
 class MyApp extends StatelessWidget {
-  const MyApp({super.key, required this.dependencies});
+  MyApp({super.key, required this.dependencies}) : _authAdapter = AppAuthAdapter(FirebaseDataSource());
 
   final AppDependencies dependencies;
+  final AppAuthAdapter _authAdapter;
 
   @override
   Widget build(BuildContext context) {
@@ -76,9 +85,27 @@ class MyApp extends StatelessWidget {
       builder: (context, child) {
         return MultiProvider(
           providers: [
+            Provider<ClientAuthRepository>.value(value: _authAdapter),
+
+            // Domain usecases provided centrally so consumers can obtain them
+            Provider<SignInGoogleClientUseCase>(
+              create: (ctx) => SignInGoogleClientUseCase(ctx.read<ClientAuthRepository>()),
+            ),
+            Provider<SendClientPhoneOtpUseCase>(
+              create: (ctx) => SendClientPhoneOtpUseCase(ctx.read<ClientAuthRepository>()),
+            ),
+            Provider<VerifyClientPhoneOtpUseCase>(
+              create: (ctx) => VerifyClientPhoneOtpUseCase(ctx.read<ClientAuthRepository>()),
+            ),
+            Provider<GetClientUserUseCase>(
+              create: (ctx) => GetClientUserUseCase(ctx.read<ClientAuthRepository>()),
+            ),
+            Provider<CompleteClientProfileUseCase>(
+              create: (ctx) => CompleteClientProfileUseCase(ctx.read<ClientAuthRepository>()),
+            ),
+
             ChangeNotifierProvider(
-              create: (_) =>
-                  AuthViewModel(AuthRepository(FirebaseDataSource())),
+              create: (_) => AuthViewModel(_authAdapter),
             ),
             ChangeNotifierProvider(create: (_) => RutaConductorViewModel()),
             ChangeNotifierProvider(create: (_) => Rutaclienteviewmodel()),

@@ -2,7 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:taxi_app/services/notification_service.dart';
+import 'package:taxi_app/core/constants/solicitud_estado.dart';
+import 'package:taxi_app/core/services/services.dart';
 
 import '../models/driver_chat_message.dart';
 import '../models/driver_trip_model.dart';
@@ -63,6 +64,14 @@ class DriverTripController extends ChangeNotifier {
   bool _messageBootstrapComplete = false;
   bool _notificationsReady = false;
   bool _loadNotificationShown = false;
+  bool _timeoutStatusUpdating = false;
+  String? _pendingInfoMessage;
+
+  String? consumePendingInfoMessage() {
+    final message = _pendingInfoMessage;
+    _pendingInfoMessage = null;
+    return message;
+  }
 
   String get currentDriverId => _locationService.currentDriverUid ?? '';
 
@@ -274,6 +283,21 @@ class DriverTripController extends ChangeNotifier {
 
     if (status == 'cancelado') {
       _closeWaitingModal();
+      unawaited(_notify('Viaje cancelado', 'Viaje cancelado.'));
+      _setPendingNavigation(DriverPendingNavigation.inicioConductor);
+      return;
+    }
+
+    if (status == 'sin_respuesta') {
+      _closeWaitingModal();
+      _pendingInfoMessage =
+          'El cliente no respondio a tiempo. La solicitud fue cancelada por sin respuesta.';
+      unawaited(
+        _notify(
+          'Solicitud cancelada',
+          'La solicitud ha sido cancelada, por no haber respuesta del cliente.',
+        ),
+      );
       _setPendingNavigation(DriverPendingNavigation.inicioConductor);
       return;
     }
@@ -357,6 +381,7 @@ class DriverTripController extends ChangeNotifier {
       if (waitingRemainingSeconds <= 0) {
         waitingRemainingSeconds = 0;
         _stopWaitingTimer();
+        unawaited(_handleWaitingTimeoutNoResponse());
         _safeNotify();
         return;
       }
@@ -391,7 +416,7 @@ class DriverTripController extends ChangeNotifier {
   Future<void> _notifyLoadIfNeeded() async {
     if (_loadNotificationShown) return;
     _loadNotificationShown = true;
-    await _notify('Servicio activo', 'Viaja a recoger al cliente.');
+    await _notify('Cliente asignado', 'Viaja a recoger al cliente.');
   }
 
   Future<void> _notify(String title, String body) async {
@@ -411,6 +436,30 @@ class DriverTripController extends ChangeNotifier {
     _safeNotify();
   }
 
+  Future<void> _handleWaitingTimeoutNoResponse() async {
+    if (_timeoutStatusUpdating) return;
+    final statusActual = normalizeStatus(trip?.status ?? '');
+    if (statusActual == 'en_camino' ||
+        statusActual == 'en_ruta' ||
+        statusActual == 'cancelado' ||
+        statusActual == 'sin_respuesta') {
+      return;
+    }
+
+    _timeoutStatusUpdating = true;
+    try {
+      await _firestoreService.updateTripStatus(
+        tripId: tripId,
+        status: SolicitudEstado.sinRespuesta,
+      );
+    } catch (e) {
+      errorText = 'No se pudo marcar sin respuesta: $e';
+      _safeNotify();
+    } finally {
+      _timeoutStatusUpdating = false;
+    }
+  }
+
   static String normalizeStatus(String raw) {
     final value = raw
         .toLowerCase()
@@ -419,6 +468,9 @@ class DriverTripController extends ChangeNotifier {
         .replaceAll('-', ' ');
 
     if (value.contains('cancel')) return 'cancelado';
+    if (value.contains('sin respuesta') || value.contains('sinrespuesta')) {
+      return 'sin_respuesta';
+    }
     if (value.contains('en ruta') || value.contains('enruta')) return 'en_ruta';
     if (value.contains('en camino') || value.contains('encam'))
       return 'en_camino';

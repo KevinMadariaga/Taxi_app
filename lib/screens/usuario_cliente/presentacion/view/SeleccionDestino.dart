@@ -15,15 +15,28 @@ import 'home_cliente_view.dart';
 
 class DestinoSeleccionView extends StatefulWidget {
   final LatLng? currentLocation;
+  final String? origenDireccionInicial;
 
-  const DestinoSeleccionView({super.key, this.currentLocation});
+  const DestinoSeleccionView({
+    super.key,
+    this.currentLocation,
+    this.origenDireccionInicial,
+  });
 
   @override
   State<DestinoSeleccionView> createState() => _DestinoSeleccionViewState();
 }
 
 class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
+  bool _isPreparingNavigation = false;
+  String _navigationMessage = 'Preparando vista...';
+  final Map<String, String> _direccionPrecargadaCache = <String, String>{};
+
   LatLng get _origenActual => widget.currentLocation ?? const LatLng(0, 0);
+
+  String _keyFromLatLng(LatLng point) {
+    return '${point.latitude.toStringAsFixed(5)},${point.longitude.toStringAsFixed(5)}';
+  }
 
   String _coordsText(LatLng point) {
     return '${point.latitude.toStringAsFixed(6)}, ${point.longitude.toStringAsFixed(6)}';
@@ -54,29 +67,109 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
     return _coordsText(origen);
   }
 
+  Future<String> _resolverDireccionParaPunto(LatLng point) async {
+    final key = _keyFromLatLng(point);
+    final cached = _direccionPrecargadaCache[key];
+    if (cached != null && cached.trim().isNotEmpty) {
+      return cached;
+    }
+
+    try {
+      final placemarks = await placemarkFromCoordinates(
+        point.latitude,
+        point.longitude,
+      );
+      if (placemarks.isNotEmpty) {
+        final resolved = _buildDireccionAmigable(placemarks.first, point);
+        _direccionPrecargadaCache[key] = resolved;
+        return resolved;
+      }
+    } catch (_) {}
+
+    final fallback = _coordsText(point);
+    _direccionPrecargadaCache[key] = fallback;
+    return fallback;
+  }
+
+  PageRouteBuilder<T> _buildSmoothRoute<T>(Widget page) {
+    return PageRouteBuilder<T>(
+      pageBuilder: (context, animation, secondaryAnimation) => page,
+      transitionDuration: const Duration(milliseconds: 260),
+      reverseTransitionDuration: const Duration(milliseconds: 220),
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeInCubic,
+        );
+        return FadeTransition(
+          opacity: curved,
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, 0.02),
+              end: Offset.zero,
+            ).animate(curved),
+            child: child,
+          ),
+        );
+      },
+    );
+  }
+
+  Future<T?> _runPreparedNavigation<T>({
+    required String message,
+    required Future<T?> Function() action,
+  }) async {
+    if (_isPreparingNavigation) return null;
+    if (mounted) {
+      setState(() {
+        _isPreparingNavigation = true;
+        _navigationMessage = message;
+      });
+    }
+
+    try {
+      return await action();
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isPreparingNavigation = false;
+          _navigationMessage = 'Preparando vista...';
+        });
+      }
+    }
+  }
+
   Future<void> _abrirMapPreviewConDestino({
     required LatLng destino,
     required String tituloDestino,
     String? direccionDestino,
   }) async {
-    final direccionOrigen = await _resolverDireccionOrigenActual();
-    if (!mounted) return;
+    await _runPreparedNavigation<void>(
+      message: 'Preparando ruta...',
+      action: () async {
+        final direccionOrigen = await _resolverDireccionOrigenActual();
+        if (!mounted) return null;
 
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => MapPreview(
-          origen: LocationModel(
-            position: _origenActual,
-            title: direccionOrigen,
-            subtitle: direccionOrigen,
+        await Navigator.of(context).push(
+          _buildSmoothRoute(
+            MapPreview(
+              origen: LocationModel(
+                position: _origenActual,
+                title: direccionOrigen,
+                subtitle: direccionOrigen,
+              ),
+              destino: LocationModel(
+                position: destino,
+                title: tituloDestino,
+                subtitle: direccionDestino,
+              ),
+            ),
           ),
-          destino: LocationModel(
-            position: destino,
-            title: tituloDestino,
-            subtitle: direccionDestino,
-          ),
-        ),
-      ),
+        );
+
+        return null;
+      },
     );
   }
 
@@ -117,20 +210,32 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
     required String titulo,
     LatLng? ubicacionInicial,
   }) async {
-    await _cerrarTecladoAntesDeNavegar();
-    if (!mounted) return null;
+    return _runPreparedNavigation<LatLng>(
+      message: 'Preparando mapa...',
+      action: () async {
+        await _cerrarTecladoAntesDeNavegar();
+        if (!mounted) return null;
 
-    final resultado = await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => SeleccionaUbicacionEnMapaView(
-          ubicacionInicial: ubicacionInicial ?? _origenActual,
-          titulo: titulo,
-        ),
-      ),
+        final puntoInicial = ubicacionInicial ?? _origenActual;
+        final direccionInicial = await _resolverDireccionParaPunto(
+          puntoInicial,
+        );
+        if (!mounted) return null;
+
+        final resultado = await Navigator.of(context).push(
+          _buildSmoothRoute(
+            SeleccionaUbicacionEnMapaView(
+              ubicacionInicial: puntoInicial,
+              titulo: titulo,
+              direccionInicial: direccionInicial,
+            ),
+          ),
+        );
+
+        if (resultado is LatLng) return resultado;
+        return null;
+      },
     );
-
-    if (resultado is LatLng) return resultado;
-    return null;
   }
 
   Future<void> _abrirFlujoMapaYPreviewDesdeLista({
@@ -549,9 +654,9 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
     if (user == null) return;
 
     final snapshot = await FirebaseFirestore.instance
-      .collection('usuarios')
-      .doc(user.uid)
-      .collection('favoritos')
+        .collection('usuarios')
+        .doc(user.uid)
+        .collection('favoritos')
         .where('tipo', isEqualTo: tipo)
         .limit(1)
         .get();
@@ -592,9 +697,7 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
   final FocusNode _destinoFocus = FocusNode();
   List<UbicacionResultado> _sugerencias = [];
   bool _initialKeyboardOpened = false;
-  static const double _keyboardOpenAnimationThreshold = 0.90;
   Animation<double>? _routeAnimation;
-  VoidCallback? _routeAnimationValueListener;
   AnimationStatusListener? _routeAnimationStatusListener;
 
   void _requestInitialDestinoFocus() {
@@ -609,22 +712,20 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
   void _openKeyboardWhenRouteIsVisible() {
     if (_initialKeyboardOpened || !mounted) return;
     _initialKeyboardOpened = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+      if (!mounted) return;
       _requestInitialDestinoFocus();
     });
   }
 
   void _clearRouteAnimationListeners() {
     if (_routeAnimation != null) {
-      if (_routeAnimationValueListener != null) {
-        _routeAnimation!.removeListener(_routeAnimationValueListener!);
-      }
       if (_routeAnimationStatusListener != null) {
         _routeAnimation!.removeStatusListener(_routeAnimationStatusListener!);
       }
     }
     _routeAnimation = null;
-    _routeAnimationValueListener = null;
     _routeAnimationStatusListener = null;
   }
 
@@ -643,40 +744,23 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
       return;
     }
 
-    final bool shouldOpenNow =
-        animation.status == AnimationStatus.completed ||
-        animation.value >= _keyboardOpenAnimationThreshold;
-
-    if (shouldOpenNow) {
+    if (animation.status == AnimationStatus.completed) {
       _clearRouteAnimationListeners();
       _openKeyboardWhenRouteIsVisible();
       return;
     }
 
-    if (_routeAnimationValueListener != null ||
-        _routeAnimationStatusListener != null) {
+    if (_routeAnimationStatusListener != null) {
       return;
     }
 
     _routeAnimation = animation;
-    _routeAnimationValueListener = () {
-      final activeAnimation = _routeAnimation;
-      if (activeAnimation == null) return;
-      final bool ready =
-          activeAnimation.status == AnimationStatus.completed ||
-          activeAnimation.value >= _keyboardOpenAnimationThreshold;
-      if (!ready) return;
-
-      _clearRouteAnimationListeners();
-      _openKeyboardWhenRouteIsVisible();
-    };
     _routeAnimationStatusListener = (status) {
       if (status != AnimationStatus.completed) return;
       _clearRouteAnimationListeners();
       _openKeyboardWhenRouteIsVisible();
     };
 
-    _routeAnimation!.addListener(_routeAnimationValueListener!);
     _routeAnimation!.addStatusListener(_routeAnimationStatusListener!);
   }
 
@@ -685,8 +769,12 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
     super.initState();
     _destinoFocus.addListener(() => setState(() {}));
     _origenFocus.addListener(() => setState(() {}));
-    // Si se recibió ubicación actual, mostrarla en el campo Origen
-    if (widget.currentLocation != null) {
+
+    final origenInicial = widget.origenDireccionInicial?.trim() ?? '';
+    if (origenInicial.isNotEmpty) {
+      _origenController.text = origenInicial;
+    } else if (widget.currentLocation != null) {
+      // Si no vino una dirección precargada, resolverla localmente.
       _setOrigenDesdeCoordenadas(widget.currentLocation!);
     }
   }
@@ -957,15 +1045,22 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
       if (!mounted) return;
       FocusScope.of(context).unfocus();
 
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => MapaPreviewView(
-            location: destinoLatLng,
-            direccion: _destinoController.text,
-            origenLocation: widget.currentLocation,
-            origenDireccion: _origenController.text,
-          ),
-        ),
+      await _runPreparedNavigation<void>(
+        message: 'Abriendo vista previa...',
+        action: () async {
+          if (!mounted) return null;
+          await Navigator.of(context).push(
+            _buildSmoothRoute(
+              MapaPreviewView(
+                location: destinoLatLng,
+                direccion: _destinoController.text,
+                origenLocation: widget.currentLocation,
+                origenDireccion: _origenController.text,
+              ),
+            ),
+          );
+          return null;
+        },
       );
     } catch (_) {
       if (!mounted) return;
@@ -1137,7 +1232,8 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
 
     final navigator = Navigator.of(context);
     if (navigator.canPop()) {
-      return true;
+      navigator.pop();
+      return false;
     }
 
     _irAInicioCliente();
@@ -1192,9 +1288,9 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
     if (user == null) return;
 
     final snapshot = await FirebaseFirestore.instance
-      .collection('usuarios')
-      .doc(user.uid)
-      .collection('favoritos')
+        .collection('usuarios')
+        .doc(user.uid)
+        .collection('favoritos')
         .where('tipo', isEqualTo: 'Favorito')
         .get();
     final favoritos = snapshot.docs;
@@ -1660,6 +1756,44 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
     );
   }
 
+  Widget _buildNavigationOverlay() {
+    return Positioned.fill(
+      child: Container(
+        color: Colors.black45,
+        child: Center(
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 28),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2.2),
+                ),
+                const SizedBox(width: 12),
+                Flexible(
+                  child: Text(
+                    _navigationMessage,
+                    style: const TextStyle(
+                      color: Colors.black87,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
@@ -1689,75 +1823,81 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
           centerTitle: true,
         ),
         body: SafeArea(
-          child: Center(
-            child: Container(
-              padding: EdgeInsets.symmetric(
-                horizontal: isTablet ? 64.0 : 16.0,
-                vertical: 16.0,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _buildOrigenSection(
-                    labelFontSize: labelFontSize,
-                    textFieldFontSize: textFieldFontSize,
+          child: Stack(
+            children: [
+              Center(
+                child: Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isTablet ? 64.0 : 16.0,
+                    vertical: 16.0,
                   ),
-                  const SizedBox(height: 6),
-                  const SizedBox(height: 8),
-                  _buildDestinoSection(
-                    labelFontSize: labelFontSize,
-                    textFieldFontSize: textFieldFontSize,
-                  ),
-                  const SizedBox(height: 8),
-                  if (_sugerencias.isNotEmpty) _buildSugerenciasSection(),
-                  if (_sugerencias.isEmpty) SizedBox(height: screenW * 0.04),
-                  if (_sugerencias.isEmpty) _buildQuickAccessSection(),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _buildOrigenSection(
+                        labelFontSize: labelFontSize,
+                        textFieldFontSize: textFieldFontSize,
+                      ),
+                      const SizedBox(height: 6),
+                      const SizedBox(height: 8),
+                      _buildDestinoSection(
+                        labelFontSize: labelFontSize,
+                        textFieldFontSize: textFieldFontSize,
+                      ),
+                      const SizedBox(height: 8),
+                      if (_sugerencias.isNotEmpty) _buildSugerenciasSection(),
+                      if (_sugerencias.isEmpty)
+                        SizedBox(height: screenW * 0.04),
+                      if (_sugerencias.isEmpty) _buildQuickAccessSection(),
 
-                  // SizedBox(height: 16),
-                  // Divider(thickness: 1, color: Colors.grey[300]),
-                  // const SizedBox(height: 8),
-                  // // Sección de acciones debajo del divider
-                  // Row(
-                  //   children: [
-                  //     Icon(Icons.add, color: Colors.black54),
-                  //     SizedBox(width: 8),
-                  //     Text('Agregar ubicación', style: TextStyle(fontSize: 16, color: Colors.black87)),
-                  //     Spacer(),
-                  //   ],
-                  // ),
-                  // SizedBox(height: 12),
-                  // Row(
-                  //   children: [
-                  //     Icon(Icons.edit, color: Colors.black54),
-                  //     SizedBox(width: 8),
-                  //     Text('Editar ubicación', style: TextStyle(fontSize: 16, color: Colors.black87)),
-                  //     Spacer(),
-                  //   ],
-                  // ),
-                  // SizedBox(height: 12),
-                  // Row(
-                  //   children: [
-                  //     Icon(Icons.notes, color: Colors.black54),
-                  //     SizedBox(width: 8),
-                  //     Text('Otros comentarios', style: TextStyle(fontSize: 16, color: Colors.black87)),
-                  //     Spacer(),
-                  //   ],
-                  // ),
-                  // SizedBox(height: 12),
-                  // Row(
-                  //   children: [
-                  //     Icon(Icons.gps_fixed, color: Colors.black87),
-                  //     SizedBox(width: 8),
-                  //     TextButton(
-                  //       onPressed: _usarUbicacionDesdeTextoCompartido,
-                  //       child: Text('Pegar ubicación', style: TextStyle(fontSize: 16, color: Colors.black87)),
-                  //     ),
-                  //     Spacer(),
-                  //   ],
-                  // ),
-                ],
+                      // SizedBox(height: 16),
+                      // Divider(thickness: 1, color: Colors.grey[300]),
+                      // const SizedBox(height: 8),
+                      // // Sección de acciones debajo del divider
+                      // Row(
+                      //   children: [
+                      //     Icon(Icons.add, color: Colors.black54),
+                      //     SizedBox(width: 8),
+                      //     Text('Agregar ubicación', style: TextStyle(fontSize: 16, color: Colors.black87)),
+                      //     Spacer(),
+                      //   ],
+                      // ),
+                      // SizedBox(height: 12),
+                      // Row(
+                      //   children: [
+                      //     Icon(Icons.edit, color: Colors.black54),
+                      //     SizedBox(width: 8),
+                      //     Text('Editar ubicación', style: TextStyle(fontSize: 16, color: Colors.black87)),
+                      //     Spacer(),
+                      //   ],
+                      // ),
+                      // SizedBox(height: 12),
+                      // Row(
+                      //   children: [
+                      //     Icon(Icons.notes, color: Colors.black54),
+                      //     SizedBox(width: 8),
+                      //     Text('Otros comentarios', style: TextStyle(fontSize: 16, color: Colors.black87)),
+                      //     Spacer(),
+                      //   ],
+                      // ),
+                      // SizedBox(height: 12),
+                      // Row(
+                      //   children: [
+                      //     Icon(Icons.gps_fixed, color: Colors.black87),
+                      //     SizedBox(width: 8),
+                      //     TextButton(
+                      //       onPressed: _usarUbicacionDesdeTextoCompartido,
+                      //       child: Text('Pegar ubicación', style: TextStyle(fontSize: 16, color: Colors.black87)),
+                      //     ),
+                      //     Spacer(),
+                      //   ],
+                      // ),
+                    ],
+                  ),
+                ),
               ),
-            ),
+              if (_isPreparingNavigation) _buildNavigationOverlay(),
+            ],
           ),
         ),
       ),

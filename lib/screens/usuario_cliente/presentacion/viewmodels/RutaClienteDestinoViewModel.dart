@@ -1,4 +1,4 @@
-import 'package:taxi_app/services/map_service.dart';
+import 'package:taxi_app/core/services/map_service_adapter.dart';
 import 'package:taxi_app/data/solicitud_repository.dart';
 import 'dart:async';
 

@@ -1,5 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Location permissions required by Geolocator / permission_handler -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
@@ -9,13 +11,13 @@
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <!-- Permiso para servicios en primer plano requerido por Geolocator -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!-- Android 14+ requiere permiso explicito para FGS de ubicacion -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <application
         android:label="Taxi Ya"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
-        <!-- Google Maps API key (replace the value with your actual API key).
-             Without this meta-data on Android the Google Maps plugin can crash
-             the app when the map view is created. -->
+        <!-- Google Maps API key configured directly in manifest. -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
             android:value="AIzaSyCZT4vsvNa5yn6QcAhM0kEEYlnRGY3QbX8" />

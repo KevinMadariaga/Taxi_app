@@ -19,6 +19,15 @@ class DriverTripParty {
 
   bool get hasLocation => lat != null && lng != null;
 
+  static String _firstText(Iterable<dynamic> candidates) {
+    for (final raw in candidates) {
+      if (raw == null) continue;
+      final text = raw.toString().trim();
+      if (text.isNotEmpty) return text;
+    }
+    return '';
+  }
+
   factory DriverTripParty.fromMap(Map<String, dynamic>? map) {
     if (map == null) {
       return const DriverTripParty(
@@ -39,11 +48,28 @@ class DriverTripParty {
     if (ubicacion is Map<String, dynamic>) {
       lat = (ubicacion['lat'] as num?)?.toDouble();
       lng = (ubicacion['lng'] as num?)?.toDouble();
-      address = (ubicacion['address'] ?? '').toString();
+      address = _firstText([
+        ubicacion['direccion'],
+        ubicacion['address'],
+        ubicacion['texto'],
+        ubicacion['title'],
+        ubicacion['address_text'],
+        ubicacion['formatted_address'],
+        ubicacion['descripcion'],
+      ]);
+    } else if (ubicacion is String) {
+      address = ubicacion.trim();
     }
 
     lat ??= (map['lat'] as num?)?.toDouble();
     lng ??= (map['lng'] as num?)?.toDouble();
+    address = _firstText([
+      address,
+      map['direccion'],
+      map['address'],
+      map['direccion_recoger'],
+      map['direccion_origen'],
+    ]);
 
     final rawPhoto =
         map['foto'] ?? map['photo'] ?? map['photoUrl'] ?? map['imagen'];
@@ -82,7 +108,7 @@ class DriverTripModel {
 
   factory DriverTripModel.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data() ?? <String, dynamic>{};
-    final rawStatus = data['estado'];
+    final rawStatus = data['estado'] ?? data['status'];
     final rawUpdated = data['updatedAt'];
 
     return DriverTripModel(

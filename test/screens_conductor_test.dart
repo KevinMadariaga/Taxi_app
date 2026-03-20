@@ -1,16 +1,14 @@
-import 'package:firebase_core/firebase_core.dart';
-import 'package:taxi_app/firebase_options.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/historial_viaje_conductor.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioConductorView.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/login_conductor_view.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/registro_conductor_view.dart';
+import 'test_helpers/firebase_test_setup.dart';
 
 void main() {
   setUpAll(() async {
-    TestWidgetsFlutterBinding.ensureInitialized();
-    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+    await setupFirebaseForTests();
   });
   group('Vistas conductor', () {
     testWidgets('HistorialConductor se puede construir', (tester) async {

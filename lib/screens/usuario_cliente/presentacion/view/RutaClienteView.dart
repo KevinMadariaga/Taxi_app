@@ -6,8 +6,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:taxi_app/features/trip_tracking/viewmodels/trip_route_tracking_viewmodel.dart';
-import 'package:taxi_app/features/trip_tracking/views/trip_route_tracking_screen.dart';
+import 'package:taxi_app/features/trip_tracking_cliente/viewmodels/trip_route_tracking_viewmodel.dart';
+import 'package:taxi_app/features/trip_tracking_cliente/views/trip_route_tracking_screen.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/InicioClienteView.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/ResumenClienteView.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -33,9 +33,8 @@ class _RutaClienteState extends State<RutaCliente> with WidgetsBindingObserver {
   static const SystemUiOverlayStyle _rutaClienteOverlayStyle =
       SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.light,
-        // En iOS, dark aqui produce iconos/texto claros.
-        statusBarBrightness: Brightness.dark,
+        statusBarIconBrightness: Brightness.dark,
+        statusBarBrightness: Brightness.light,
       );
 
   // Calcula la distancia entre dos coordenadas en metros (Haversine)

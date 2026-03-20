@@ -10,14 +10,14 @@ import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/helper/responsive_helper.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/resumen_conductor_view.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/ruta_conductor_viewmodel.dart';
-import 'package:taxi_app/services/firebase_service.dart';
-import 'package:taxi_app/services/tracking_service.dart';
+import 'package:taxi_app/core/services/firebase_service.dart';
+import 'package:taxi_app/core/services/tracking_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:taxi_app/services/route_cache_service.dart';
+import 'package:taxi_app/core/services/services.dart';
 import 'package:taxi_app/widgets/google_maps_widget.dart';
 import 'package:taxi_app/widgets/map_loading_widget.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:taxi_app/services/notificacion_servicio.dart';
+import 'package:taxi_app/core/services/notificacion_servicio.dart';
 
 class RutaDestinoConductorView extends StatefulWidget {
   final String solicitudId;
@@ -100,10 +100,6 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView>
           _driverLocation = latlng;
           final uid = FirebaseAuth.instance.currentUser?.uid;
           if (uid != null) {
-            await _firebaseService.guardarUbicacionConductor(
-              conductorId: uid,
-              position: latlng,
-            );
             await _firebaseService.actualizarUbicacionConductorEnSolicitud(
               solicitudId: widget.solicitudId,
               position: latlng,
