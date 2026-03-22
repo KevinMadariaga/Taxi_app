@@ -45,7 +45,7 @@ class TripRouteTrackingViewModel extends ChangeNotifier {
   int? _lastNearestIndex;
 
   StreamSubscription<Map<String, dynamic>>? _solicitudSub;
-  StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
+  StreamSubscription<dynamic>? _connectivitySub;
   StreamSubscription<Position>? _driverLocationSub;
   TrackingService? _foregroundTrackingService;
 
@@ -88,6 +88,11 @@ class TripRouteTrackingViewModel extends ChangeNotifier {
 
     if (isConductor) {
       await _startDriverLocationTracking();
+    } else {
+      // Cliente: no escuchar la ubicación del conductor desde Firestore para
+      // mover el marcador localmente. Iniciamos tracking en el dispositivo
+      // cliente y actualizamos el marcador de coche con la posición local.
+      await _startClientLocationTracking();
     }
   }
 
@@ -198,34 +203,76 @@ class TripRouteTrackingViewModel extends ChangeNotifier {
 
   void _bindSolicitud() {
     _solicitudSub?.cancel();
-    _solicitudSub = _firebaseService
-        .watchSolicitudRaw(solicitudId)
-        .listen(
-          (raw) async {
-            isLoading = false;
-            await _hydrateFromSolicitud(raw);
-            _handleStateTransitions();
 
-            if (!_routeBootstrapped && routePoints.length >= 2) {
-              _routeBootstrapped = true;
-            }
+    if (isConductor) {
+      // Conductor: escuchar cambios en la solicitud en tiempo real.
+      _solicitudSub = _firebaseService
+          .watchSolicitudRaw(solicitudId)
+          .listen(
+            (raw) async {
+              isLoading = false;
+              await _hydrateFromSolicitud(raw);
+              _handleStateTransitions();
 
-            final routeExistsInFirestore = _extractRoutePoints(raw).length >= 2;
-            if (!routeExistsInFirestore && !_routeBootstrapped) {
-              await _ensurePersistedRoute(forceRecalculate: false);
-            }
+              if (!_routeBootstrapped && routePoints.length >= 2) {
+                _routeBootstrapped = true;
+              }
 
-            if (!isOffline && isConductor) {
-              await _flushPendingDriverLocations();
-            }
+              final routeExistsInFirestore = _extractRoutePoints(raw).length >= 2;
+              if (!routeExistsInFirestore && !_routeBootstrapped) {
+                await _ensurePersistedRoute(forceRecalculate: false);
+              }
 
-            _safeNotify();
-          },
-          onError: (error) {
-            isLoading = false;
-            _safeNotify();
-          },
-        );
+              if (!isOffline && isConductor) {
+                await _flushPendingDriverLocations();
+              }
+
+              _safeNotify();
+            },
+            onError: (error) {
+              isLoading = false;
+              _safeNotify();
+            },
+          );
+    } else {
+      // Cliente: escuchar en tiempo real la solicitud para recibir la
+      // ubicación del conductor y mover el marcador mientras se actualiza.
+      _solicitudSub = _firebaseService
+          .watchSolicitudRaw(solicitudId)
+          .listen((raw) async {
+        try {
+          isLoading = false;
+          // Hidratamos campos comunes (destino, ruta, user info, etc.)
+          await _hydrateFromSolicitud(raw);
+
+          if (!_routeBootstrapped && routePoints.length >= 2) {
+            _routeBootstrapped = true;
+          }
+
+          // Verificar transiciones de estado (p.ej. completar viaje)
+          _handleStateTransitions();
+
+          // Extraer explícitamente la ubicación del conductor desde el
+          // documento y asignarla en cliente (hydrate solo asigna para
+          // el conductor local).
+          final conductorMap = _asStringMap(raw['conductor']);
+          final remoteConductor = _extractPoint(conductorMap);
+          if (remoteConductor != null) {
+            conductorLatLng = remoteConductor;
+          }
+
+          _updateRemainingMetrics();
+        } catch (_) {
+          // Ignorar errores de parseo/lectura, pero asegurar estado de carga
+          isLoading = false;
+        }
+
+        _safeNotify();
+      }, onError: (error) {
+        isLoading = false;
+        _safeNotify();
+      });
+    }
   }
 
   Future<void> _bindConnectivity() async {
@@ -247,9 +294,16 @@ class TripRouteTrackingViewModel extends ChangeNotifier {
     });
   }
 
-  bool _isOfflineFromConnectivity(List<ConnectivityResult> result) {
-    if (result.isEmpty) return true;
-    return result.every((entry) => entry == ConnectivityResult.none);
+  bool _isOfflineFromConnectivity(dynamic result) {
+    if (result == null) return true;
+    if (result is ConnectivityResult) {
+      return result == ConnectivityResult.none;
+    }
+    if (result is List) {
+      if (result.isEmpty) return true;
+      return result.every((entry) => entry == ConnectivityResult.none);
+    }
+    return true;
   }
 
   Future<void> _startDriverLocationTracking() async {
@@ -263,6 +317,15 @@ class TripRouteTrackingViewModel extends ChangeNotifier {
         solicitudId: solicitudId,
         distanceFilter: 1.0,
         timeInterval: 10,
+        onLocationUpdate: (position) {
+          try {
+            final latLng = LatLng(position.latitude, position.longitude);
+            // Forward device location into the viewmodel processing pipeline.
+            unawaited(_onDriverPositionFromDevice(latLng));
+          } catch (e) {
+            if (kDebugMode) debugPrint('[TripRouteTrackingViewModel] onLocationUpdate error: $e');
+          }
+        },
       );
       if (kDebugMode) {
         debugPrint('[TripRouteTrackingViewModel] TrackingService.iniciarTrackingConEnvio started: $started');
@@ -418,7 +481,12 @@ class TripRouteTrackingViewModel extends ChangeNotifier {
     final clienteMap = _asStringMap(data['cliente']);
     final destinoMap = _asStringMap(data['destino']);
 
-    conductorLatLng = _extractPoint(conductorMap);
+    // Solo actualizar conductorLatLng desde Firestore si estamos en la app del
+    // conductor. En cliente preferimos mover el marcador localmente desde
+    // el GPS del propio dispositivo.
+    if (isConductor) {
+      conductorLatLng = _extractPoint(conductorMap);
+    }
     try {
       if (conductorLatLng != null) {
         debugPrint('[TripRouteTrackingViewModel] conductorLatLng set: ${conductorLatLng!.latitude}, ${conductorLatLng!.longitude}');
@@ -524,6 +592,61 @@ class TripRouteTrackingViewModel extends ChangeNotifier {
     } finally {
       isUpdatingRoute = false;
       _safeNotify();
+    }
+  }
+
+  // ------------------ Cliente: tracking local para mover marcador -------------
+  Future<void> _startClientLocationTracking() async {
+    try {
+      _foregroundTrackingService?.dispose();
+      _foregroundTrackingService = TrackingService();
+
+      final started = await _foregroundTrackingService!.iniciarTrackingConEnvio(
+        userId: currentUserId,
+        userType: 'cliente',
+        solicitudId: solicitudId,
+        distanceFilter: 1.0,
+        timeInterval: 5,
+        onLocationUpdate: (position) {
+          try {
+            final latLng = LatLng(position.latitude, position.longitude);
+            // Move the car marker locally on the client device (no persistence)
+            _onClientPositionFromDevice(latLng);
+          } catch (e) {
+            if (kDebugMode) debugPrint('[TripRouteTrackingViewModel] client onLocationUpdate error: $e');
+          }
+        },
+      );
+      if (kDebugMode) {
+        debugPrint('[TripRouteTrackingViewModel] Client tracking started: $started');
+      }
+    } catch (e) {
+      if (kDebugMode) debugPrint('[TripRouteTrackingViewModel] Error starting client tracking: $e');
+    }
+  }
+
+  void _onClientPositionFromDevice(LatLng point) {
+    // Update the displayed car marker using the device GPS without writing
+    // to Firestore or altering server-side conductor state.
+    try {
+      // If we have a route, snap to nearest route point for smoothness
+      if (routePoints.length >= 2) {
+        final minDist = _mathService.minDistanceToPolylineMeters(point, routePoints);
+        if (minDist <= 50.0) {
+          final nearestIdx = _mathService.nearestPointIndex(point, routePoints);
+          final snapped = routePoints[nearestIdx];
+          conductorLatLng = snapped;
+        } else {
+          conductorLatLng = point;
+        }
+      } else {
+        conductorLatLng = point;
+      }
+
+      _updateRemainingMetrics();
+      _safeNotify();
+    } catch (e) {
+      if (kDebugMode) debugPrint('[TripRouteTrackingViewModel] _onClientPositionFromDevice error: $e');
     }
   }
 

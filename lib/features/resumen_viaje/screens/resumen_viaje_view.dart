@@ -235,15 +235,9 @@ class _ResumenViajeBodyState extends State<_ResumenViajeBody> {
     final isCliente = vm.tipoUsuario == TipoUsuarioResumen.cliente;
 
     if (isCliente) {
-      final error = await vm.guardarCalificacionCliente();
+      // Start saving rating in background and navigate immediately for smooth UX.
+      vm.guardarCalificacionCliente();
       if (!context.mounted) return;
-
-      if (error != null) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error)));
-        return;
-      }
 
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const InicioClienteView()),

@@ -70,18 +70,21 @@ class InicioConductorViewmodel extends ChangeNotifier {
     isLoading = true;
     loadingLocation = true;
     _safeNotify();
-
     _listenCachedName();
-    await _loadProfile();
-    await _requestBackgroundLocationPermission();
-    await _loadLocation();
-    _subscribeConductorStatus();
-    _subscribeSolicitudes();
-    _subscribeRatings();
+      // Kick off async startup tasks but do not await them so UI can render fast.
+      _loadProfile();
+      _requestBackgroundLocationPermission();
+      _loadLocation();
 
-    isLoading = false;
-    loadingLocation = false;
-    _safeNotify();
+      // Subscriptions can be registered immediately; they will react when data arrives.
+      _subscribeConductorStatus();
+      _subscribeSolicitudes();
+      _subscribeRatings();
+
+      // Mark initial loading as false to avoid blocking UI; specific flags (like loadingLocation)
+      // remain true until their respective tasks complete and update the VM.
+      isLoading = false;
+      _safeNotify();
   }
 
   void _listenCachedName() {
@@ -102,8 +105,7 @@ class InicioConductorViewmodel extends ChangeNotifier {
   }
 
   Future<void> _loadProfile() async {
-    // Guardar ubicación apenas ingresa a la clase
-    await _loadLocation();
+    // Cargar perfil (no solicitar ubicación aquí para evitar bloqueos duplicados)
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {

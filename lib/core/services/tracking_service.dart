@@ -80,6 +80,8 @@ class TrackingService {
     Function(Position)? onLocationUpdate,
     double distanceFilter = 1.0,
     int timeInterval = 10,
+    // When true, skip interactive permission requests (useful for background isolates).
+    bool skipPermissionRequest = false,
   }) async {
     if (_isTracking) {
       developer.log(
@@ -94,14 +96,18 @@ class TrackingService {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
 
     if (!serviceEnabled) {
-      await Geolocator.openLocationSettings();
+      if (!skipPermissionRequest) {
+        await Geolocator.openLocationSettings();
+      }
       throw Exception("Activa el GPS para continuar");
     }
 
-    // Verificar permisos de ubicación
-    final hasPermission = await PermissionsHelper.requestLocationPermission();
-    if (!hasPermission) {
-      throw Exception('No se tienen permisos de ubicación');
+    // Verificar permisos de ubicación (omitimos en background isolates)
+    if (!skipPermissionRequest) {
+      final hasPermission = await PermissionsHelper.requestLocationPermission();
+      if (!hasPermission) {
+        throw Exception('No se tienen permisos de ubicación');
+      }
     }
 
     // Configuración de precisión para tracking en tiempo real
@@ -192,6 +198,8 @@ class TrackingService {
   /// Útil para obtener la posición inicial sin iniciar el tracking continuo.
   Future<Position?> obtenerUbicacionActual() async {
     try {
+      // By default, request permission; callers can ensure permissions were
+      // already granted and avoid calling this method in background isolates.
       final hasPermission = await PermissionsHelper.requestLocationPermission();
       if (!hasPermission) {
         throw Exception('No se tienen permisos de ubicación');
@@ -231,10 +239,27 @@ class TrackingService {
     String? solicitudId,
     double distanceFilter = 1.0,
     int timeInterval = 10,
+    /// Optional callback invoked on every new Position received by the GPS stream.
+    /// Use this to update UI markers without waiting for Firestore roundtrips.
+    Function(Position)? onLocationUpdate,
+    // When true, skip interactive permission requests (useful for background isolates).
+    bool skipPermissionRequest = false,
   }) async {
     // Send one immediate point so background mode persists location quickly
     // even when the user is not moving.
-    final initial = await obtenerUbicacionActual();
+    Position? initial;
+    if (skipPermissionRequest) {
+      try {
+        initial = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+        );
+      } catch (e) {
+        initial = null;
+      }
+    } else {
+      final pos = await obtenerUbicacionActual();
+      initial = pos;
+    }
     if (initial != null) {
       try {
         await enviarUbicacion(
@@ -245,6 +270,10 @@ class TrackingService {
         );
         _lastSentPosition = initial;
         _lastSentTime = DateTime.now();
+        try {
+          // Notify caller immediately about initial position
+          onLocationUpdate?.call(initial);
+        } catch (_) {}
       } catch (e) {
         developer.log(
           "❌ Error enviando ubicación inicial: $e",
@@ -256,6 +285,7 @@ class TrackingService {
     return await iniciarEscuchaGPS(
       distanceFilter: distanceFilter,
       timeInterval: timeInterval,
+      skipPermissionRequest: skipPermissionRequest,
       onLocationUpdate: (position) async {
         // NUEVO: evitar enviar si no se movió realmente
         if (_lastSentPosition != null) {
@@ -287,6 +317,10 @@ class TrackingService {
 
           _lastSentPosition = position;
           _lastSentTime = DateTime.now();
+          try {
+            // Notify caller after successful send to firebase (best-effort)
+            onLocationUpdate?.call(position);
+          } catch (_) {}
         } catch (e) {
           developer.log(
             "❌ Error enviando ubicación (reintentará): $e",

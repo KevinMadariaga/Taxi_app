@@ -22,6 +22,11 @@ class ResumenViajeController extends ChangeNotifier {
   String _comentarioCalificacion = '';
   bool _sincronizadoDesdeBackend = false;
   bool _formularioEditado = false;
+  bool _disposed = false;
+
+  void _safeNotify() {
+    if (!_disposed) notifyListeners();
+  }
 
   Stream<ResumenViajeModel> get resumenStream => _firebaseService.streamResumenViaje(solicitudId);
 
@@ -41,17 +46,18 @@ class ResumenViajeController extends ChangeNotifier {
       _comentarioCalificacion = '';
     }
 
-    notifyListeners();
+    _safeNotify();
   }
 
   void setComentario(String value) {
     if (_comentarioCalificacion == value) return;
     _comentarioCalificacion = value;
     _formularioEditado = true;
-    notifyListeners();
+    _safeNotify();
   }
 
   void sincronizarFormulario(ResumenViajeModel resumen) {
+    if (_disposed) return;
     if (_sincronizadoDesdeBackend || _formularioEditado) return;
 
     _sincronizadoDesdeBackend = true;
@@ -80,7 +86,7 @@ class ResumenViajeController extends ChangeNotifier {
     if (validacion != null) return validacion;
 
     _guardando = true;
-    notifyListeners();
+    _safeNotify();
 
     try {
       await _firebaseService.guardarCalificacion(
@@ -93,7 +99,13 @@ class ResumenViajeController extends ChangeNotifier {
       return 'No se pudo guardar la calificacion. Intenta nuevamente.';
     } finally {
       _guardando = false;
-      notifyListeners();
+      _safeNotify();
     }
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
   }
 }

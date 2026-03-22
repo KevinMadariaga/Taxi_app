@@ -84,6 +84,16 @@ void onStart(ServiceInstance service) async {
       userId: userId,
       userType: userType,
       solicitudId: solicitudId,
+      // Background isolate: assume permissions were already granted by foreground.
+      // Avoid triggering permission_handler calls from the background isolate.
+      // This prevents MissingPluginException in the background isolate.
+      // The TrackingService will skip interactive permission requests when this flag is true.
+      // Note: Ensure the app requested permissions in foreground before starting background tracking.
+      //
+      // See permisos_helper.requestAllPermissions usage in UI flow.
+      //
+      
+      skipPermissionRequest: true,
     );
 
   });

@@ -8,6 +8,7 @@ class SolicitudItem {
   String? metodoPago;
   String? nombreCliente;
   String? comentarioCliente;
+  String? clienteFoto;
   String? direccion; // origin title/address
   String? origenTitle;
   String? destinoTitle;
@@ -21,6 +22,7 @@ class SolicitudItem {
     this.metodoPago,
     this.nombreCliente,
     this.comentarioCliente,
+    this.clienteFoto,
     this.direccion,
     this.origenTitle,
     this.destinoTitle,
@@ -103,6 +105,16 @@ class SolicitudItem {
       cliente?['comentarioCalificacion'],
     ]);
 
+    // Try to extract client photo from nested cliente object or common fields
+    String? clienteFoto = _firstText([
+      cliente?['foto'],
+      cliente?['fotoUrl'],
+      cliente?['photoUrl'],
+      cliente?['imagen'],
+      map['clienteFoto'],
+      map['cliente_foto'],
+    ]);
+
     final direccion = origenTitle;
 
     return SolicitudItem(
@@ -113,6 +125,7 @@ class SolicitudItem {
       metodoPago: metodo,
       nombreCliente: nombreCliente,
       comentarioCliente: comentarioCliente,
+      clienteFoto: clienteFoto,
       direccion: direccion,
       origenTitle: origenTitle,
       destinoTitle: destinoTitle,

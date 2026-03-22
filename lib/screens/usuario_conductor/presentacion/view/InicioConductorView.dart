@@ -5,6 +5,7 @@ import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/navigation/inicio_conductor_navigation.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/preview_solicitud.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/InicioConductorViewModel.dart';
+import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 import 'package:taxi_app/core/services/services.dart';
 import 'package:taxi_app/widgets/google_maps_widget.dart';
@@ -190,18 +191,26 @@ class _InicioConductorState extends State<InicioConductor> {
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider<InicioConductorViewmodel>(
-      create: (context) {
+        create: (context) {
         final vm = InicioConductorViewmodel();
-        // Request necessary permissions for drivers (notifications, foreground and background location)
-        WidgetsBinding.instance.addPostFrameCallback((_) async {
-          try {
-            await PermissionsHelper.requestAllPermissions(isDriver: true);
-          } catch (_) {}
-          // Initialize local notifications
-          try {
-            await NotificationService.instance.init();
-          } catch (_) {}
-          await vm.init();
+        // Request necessary permissions and initialize services without blocking UI
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          // fire-and-forget permission request
+          () async {
+            try {
+              await PermissionsHelper.requestAllPermissions(isDriver: true);
+            } catch (_) {}
+          }();
+
+          // fire-and-forget notification init
+          () async {
+            try {
+              await NotificationService.instance.init();
+            } catch (_) {}
+          }();
+
+          // Start viewmodel initialization in background so UI isn't blocked
+          unawaited(vm.init());
         });
         return vm;
       },
@@ -895,7 +904,9 @@ class _InicioConductorState extends State<InicioConductor> {
                           height: previewCardHeight,
                           child: PreviewSolicitudCard(
                             preview: preview,
-                            clientPhotoUrl: vm.fotoClientePorId(s.clienteId),
+                            clientPhotoUrl: preview.solicitud.clienteFoto != null && preview.solicitud.clienteFoto!.isNotEmpty
+                                ? preview.solicitud.clienteFoto
+                                : vm.fotoClientePorId(s.clienteId),
                             isLoading: _navigatingToRuta,
                             onClose: () async {
                               if (_navigatingToRuta) return;

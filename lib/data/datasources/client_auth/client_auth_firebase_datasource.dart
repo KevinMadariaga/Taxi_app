@@ -18,6 +18,17 @@ class ClientAuthFirebaseDataSource {
   final GoogleSignIn _googleSignIn;
 
   Future<AuthIdentityEntity?> signInWithGoogle() async {
+    try {
+      // Ensure account chooser is shown when user wants to pick a different
+      // Google account. Signing out any previous GoogleSignIn session forces
+      // the system picker on subsequent `signIn()` calls.
+      if (_googleSignIn.currentUser != null) {
+        try {
+          await _googleSignIn.signOut();
+        } catch (_) {}
+      }
+    } catch (_) {}
+
     final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
     if (googleUser == null) return null;
 

@@ -28,9 +28,15 @@ class DriverClientInfoCard extends StatelessWidget {
     final width = MediaQuery.of(context).size.width;
     final isTablet = width >= 900;
 
+    final bottomInset = MediaQuery.of(context).padding.bottom;
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.fromLTRB(isTablet ? 20 : 14, 14, isTablet ? 20 : 14, 18),
+      padding: EdgeInsets.fromLTRB(
+        isTablet ? 20 : 14,
+        14,
+        isTablet ? 20 : 14,
+        18 + bottomInset,
+      ),
       decoration: BoxDecoration(
         color: AppColores.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(isTablet ? 28 : 20)),

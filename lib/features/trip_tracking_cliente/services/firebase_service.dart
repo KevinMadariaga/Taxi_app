@@ -39,6 +39,18 @@ class TripTrackingFirebaseService {
     });
   }
 
+  /// Obtiene la data de la solicitud una sola vez (lectura puntual).
+  Future<Map<String, dynamic>?> getSolicitudOnce(String solicitudId) async {
+    try {
+      final doc = await _solicitudDatasource.ref(solicitudId).get();
+      if (!doc.exists) return null;
+      return doc.data();
+    } catch (e) {
+      if (kDebugMode) debugPrint('[TripTrackingFirebaseService] getSolicitudOnce error: $e');
+      return null;
+    }
+  }
+
   Future<void> guardarRutaPersistida({
     required String solicitudId,
     required List<LatLng> points,
