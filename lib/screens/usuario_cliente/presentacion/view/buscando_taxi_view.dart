@@ -145,18 +145,18 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
                   // Taxi animation centered
                   Center(
                     child: SizedBox(
-                      width: isTablet ? 220 : 140,
-                      height: isTablet ? 220 : 140,
+                      width: isTablet ? 250 : 190,
+                      height: isTablet ? 250 : 190,
                       child: Lottie.asset(
-                        'assets/gif/taxi.json',
+                        'assets/gif/car.json',
                         repeat: true,
                         animate: true,
                       ),
                     ),
                   ),
-                  SizedBox(height: isTablet ? 24 : 16),
+                  SizedBox(height: isTablet ? 20 : 12),
                   Text(
-                    'Buscando un taxi cerca de ti...',
+                    'Buscando un taxi...',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: isTablet ? 34 : 27,
