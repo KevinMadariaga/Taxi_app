@@ -14,15 +14,17 @@ class SolicitudRepository {
     /// Guarda la ubicación del conductor en la solicitud
     Future<void> guardarUbicacionConductor(String solicitudId, double lat, double lng) async {
       try {
-        await FirebaseFirestore.instance
-            .collection('solicitudes')
-            .doc(solicitudId)
-            .update({
-          'conductor.ubicacion': {
-            'lat': lat,
-            'lng': lng,
-          }
-        });
+          // Log before write for validation in debug builds.
+          debugPrint('[SolicitudRepository] guardarUbicacionConductor -> solicitud:$solicitudId lat:$lat lng:$lng');
+          await FirebaseFirestore.instance
+              .collection('solicitudes')
+              .doc(solicitudId)
+              .update({
+            'conductor.ubicacion': {
+              'lat': lat,
+              'lng': lng,
+            }
+          });
       } catch (e) {
         debugPrint('Error al guardar ubicación del conductor: $e');
       }

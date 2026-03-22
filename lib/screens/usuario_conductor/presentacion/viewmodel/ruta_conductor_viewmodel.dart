@@ -392,7 +392,7 @@ class RutaConductorUsuarioViewModel {
           userId: uid,
           userType: 'conductor',
           solicitudId: solicitudId,
-          distanceFilter: 10,
+          distanceFilter: 1,
           timeInterval: 10,
         )
         .then((started) {

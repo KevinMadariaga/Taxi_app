@@ -46,7 +46,7 @@ class DriverLocationService {
     _positionStream = Geolocator.getPositionStream(
       locationSettings: const LocationSettings(
         accuracy: LocationAccuracy.high,
-        distanceFilter: 8,
+        distanceFilter: 1,
       ),
     );
 

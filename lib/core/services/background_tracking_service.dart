@@ -17,7 +17,7 @@ Future<void> initializeBackgroundService() async {
       isForegroundMode: true,
       notificationChannelId: 'tracking_channel',
       initialNotificationTitle: 'Taxi App',
-      initialNotificationContent: 'Tracking activo',
+      initialNotificationContent: '',
     ),
     iosConfiguration: IosConfiguration(
       autoStart: false,
@@ -56,11 +56,6 @@ void onStart(ServiceInstance service) async {
 
   if (service is AndroidServiceInstance) {
     await service.setAsForegroundService();
-    await service.setForegroundNotificationInfo(
-      title: 'Taxi Ya',
-      content: 'Recolectando ubicación en segundo plano',
-      // El sistema usará el ícono por defecto del app (mipmap/ic_launcher). El plugin no permite especificar ícono personalizado desde Dart.
-    );
   }
 
   final tracking = TrackingService();
@@ -75,6 +70,15 @@ void onStart(ServiceInstance service) async {
 
     if (userId == null || userId.isEmpty) return;
     if (userType == null || userType.isEmpty) return;
+
+    if (service is AndroidServiceInstance) {
+      try {
+        await service.setForegroundNotificationInfo(
+          title: 'Taxi Ya',
+          content: userType == 'conductor' ? 'Recolectando ubicación en segundo plano' : '',
+        );
+      } catch (_) {}
+    }
 
     await tracking.iniciarTrackingConEnvio(
       userId: userId,

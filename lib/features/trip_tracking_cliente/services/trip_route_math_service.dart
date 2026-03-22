@@ -125,4 +125,19 @@ class TripRouteMathService {
   }
 
   double _degToRad(double deg) => deg * (math.pi / 180.0);
+
+  /// Bearing in degrees from point [a] to [b]. 0 = north, 90 = east.
+  double bearingBetween(LatLng a, LatLng b) {
+    final lat1 = _degToRad(a.latitude);
+    final lat2 = _degToRad(b.latitude);
+    final dLng = _degToRad(b.longitude - a.longitude);
+
+    final y = math.sin(dLng) * math.cos(lat2);
+    final x = math.cos(lat1) * math.sin(lat2) -
+        math.sin(lat1) * math.cos(lat2) * math.cos(dLng);
+    final bearingRad = math.atan2(y, x);
+    var bearingDeg = bearingRad * (180.0 / math.pi);
+    bearingDeg = (bearingDeg + 360.0) % 360.0;
+    return bearingDeg;
+  }
 }

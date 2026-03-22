@@ -42,7 +42,7 @@ class UbicacionService {
 
   /// Comienza a escuchar cambios de ubicación y publica en `onLocationChanged`.
   /// Si ya está escuchando, no reinicia la suscripción.
-  void startListening({int distanceFilter = 10, LocationAccuracy accuracy = LocationAccuracy.high}) {
+  void startListening({int distanceFilter = 1, LocationAccuracy accuracy = LocationAccuracy.high}) {
     if (_positionStream != null) return;
     _positionStream = Geolocator.getPositionStream(
       locationSettings: LocationSettings(
@@ -62,7 +62,7 @@ class UbicacionService {
     _positionStream = Geolocator.getPositionStream(
       locationSettings: const LocationSettings(
         accuracy: LocationAccuracy.high,
-        distanceFilter: 10,
+        distanceFilter: 1,
       ),
     ).listen(onUbicacionCambio);
   }
@@ -94,7 +94,7 @@ class UbicacionService {
 
   /// Inicia la escucha (si no está iniciada) y suscribe un callback al stream
   /// broadcast; devuelve la suscripción para que el llamador la cancele cuando quiera.
-  StreamSubscription<LatLng> listenWithCallback(void Function(LatLng) onData, {int distanceFilter = 10, LocationAccuracy accuracy = LocationAccuracy.high}) {
+  StreamSubscription<LatLng> listenWithCallback(void Function(LatLng) onData, {int distanceFilter = 1, LocationAccuracy accuracy = LocationAccuracy.high}) {
     startListening(distanceFilter: distanceFilter, accuracy: accuracy);
     return onLocationChanged.listen(onData);
   }

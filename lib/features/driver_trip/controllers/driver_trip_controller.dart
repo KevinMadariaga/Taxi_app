@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:taxi_app/core/constants/solicitud_estado.dart';
+import 'package:taxi_app/features/trip_tracking_cliente/services/trip_route_math_service.dart';
 import 'package:taxi_app/core/services/services.dart';
 
 import '../models/driver_chat_message.dart';
@@ -29,12 +30,14 @@ class DriverTripController extends ChangeNotifier {
   final DriverTripFirestoreService _firestoreService;
   final DriverRouteService _routeService;
   final DriverLocationService _locationService;
+  final TripRouteMathService _mathService = const TripRouteMathService();
 
   DriverTripModel? trip;
   List<DriverChatMessage> messages = const [];
   List<LatLng> routePoints = const [];
   double? distanceMeters;
   Duration? eta;
+  double driverHeading = 0.0;
 
   bool isLoading = true;
   bool isRouteLoading = false;
@@ -355,6 +358,25 @@ class DriverTripController extends ChangeNotifier {
       routePoints = polyline;
       distanceMeters = dist;
       eta = _routeService.etaFromDistance(dist);
+
+      // Update heading after route refresh.
+      try {
+        final current = driverLatLng;
+        if (current != null && routePoints.length >= 2) {
+          final nearest = _mathService.nearestPointIndex(current, routePoints);
+          LatLng? target;
+          if (nearest < routePoints.length - 1) {
+            target = routePoints[nearest + 1];
+          } else if (nearest > 0) {
+            target = routePoints[nearest];
+          }
+          if (target != null) {
+            driverHeading = _mathService.bearingBetween(current, target);
+          }
+        }
+      } catch (_) {
+        driverHeading = 0.0;
+      }
 
       _lastFrom = from;
       _lastTo = to;

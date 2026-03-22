@@ -134,6 +134,9 @@ class _TripRouteTrackingScreenState extends State<TripRouteTrackingScreen>
   void dispose() {
     if (_isConductorRole) {
       _stopBackgroundTrackingIfNeeded();
+      try {
+        NotificacionesServicio.instance.cancelAll();
+      } catch (_) {}
     }
     WidgetsBinding.instance.removeObserver(this);
     _markerAnimationTimer?.cancel();
@@ -209,7 +212,7 @@ class _TripRouteTrackingScreenState extends State<TripRouteTrackingScreen>
       child: Consumer<TripRouteTrackingViewModel>(
         builder: (context, vm, _) {
           _syncSolicitudPersistence(vm);
-          _syncAnimatedConductor(vm.conductorLatLng, vm.destinoLatLng);
+          _syncAnimatedConductor(vm.conductorLatLng, vm.destinoLatLng, vm.conductorHeading);
           _fitCameraIfNeeded(vm);
           _handleCompletionNavigation(vm);
 
@@ -444,7 +447,7 @@ class _TripRouteTrackingScreenState extends State<TripRouteTrackingScreen>
     );
   }
 
-  void _syncAnimatedConductor(LatLng? target, LatLng? destination) {
+  void _syncAnimatedConductor(LatLng? target, LatLng? destination, double headingTarget) {
     if (target == null) return;
 
     final key =
@@ -467,7 +470,7 @@ class _TripRouteTrackingScreenState extends State<TripRouteTrackingScreen>
 
       final from = current;
       final to = target;
-      final heading = _bearingBetween(from, to);
+      final heading = headingTarget;
       const totalTicks = 18;
       var tick = 0;
 
@@ -492,11 +495,10 @@ class _TripRouteTrackingScreenState extends State<TripRouteTrackingScreen>
 
         if (t >= 1.0) {
           timer.cancel();
-          if (destination != null) {
-            setState(() {
-              _conductorRotation = _bearingBetween(to, destination);
-            });
-          }
+          // Ensure final rotation matches viewmodel heading (points along polyline).
+          setState(() {
+            _conductorRotation = headingTarget;
+          });
         }
       });
     });
@@ -595,6 +597,12 @@ class _TripRouteTrackingScreenState extends State<TripRouteTrackingScreen>
         try {
           await SessionHelper.clearActiveSolicitud();
           await RouteCacheService.clearSolicitud(widget.solicitudId);
+          try {
+            await _stopBackgroundTrackingIfNeeded();
+          } catch (_) {}
+          try {
+            await NotificacionesServicio.instance.cancelAll();
+          } catch (_) {}
         } catch (_) {}
       }
     });
@@ -624,8 +632,8 @@ class _TripRouteTrackingScreenState extends State<TripRouteTrackingScreen>
 
       final bool isDriver = widget.tipoUsuario == TipoUsuarioTracking.conductor;
       unawaited(_clearTripSessionCache());
-
-      await Navigator.of(context).pushReplacement(
+      // Navigate without awaiting to avoid blocking UI/frame
+      Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (_) => isDriver
               ? ResumenConductorView(solicitudId: widget.solicitudId)

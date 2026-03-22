@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import '../services/trip_route_math_service.dart';
 import 'package:taxi_app/core/services/services.dart';
 
 import '../models/mensaje_model.dart';
@@ -38,6 +39,7 @@ class TripTrackingViewModel extends ChangeNotifier {
 
   final TripTrackingFirebaseService _firebaseService;
   final MapService _mapService;
+  final TripRouteMathService _mathService = const TripRouteMathService();
   final ChatService _chatService;
   final LocalCacheService _localCacheService;
 
@@ -66,6 +68,9 @@ class TripTrackingViewModel extends ChangeNotifier {
   bool _chatBootstrapped = false;
   bool _notificationInitialized = false;
 
+  // Heading (degrees) for the conductor marker; 0 = north, 90 = east.
+  double conductorHeading = 0.0;
+
   LatLng? _lastFrom;
   LatLng? _lastTo;
 
@@ -74,6 +79,30 @@ class TripTrackingViewModel extends ChangeNotifier {
     await _bindConnectivity();
     _bindSolicitud();
     _bindMessages();
+  }
+
+  void _updateConductorHeading() {
+    try {
+      final current = conductorLatLng;
+      if (current == null || routePoints.length < 2) {
+        conductorHeading = 0.0;
+        return;
+      }
+
+      final nearest = _mathService.nearestPointIndex(current, routePoints);
+      LatLng? target;
+      if (nearest < routePoints.length - 1) {
+        target = routePoints[nearest + 1];
+      } else if (nearest > 0) {
+        target = routePoints[nearest];
+      }
+      if (target != null) {
+        conductorHeading = _mathService.bearingBetween(current, target);
+      }
+    } catch (_) {
+      conductorHeading = 0.0;
+    }
+    _safeNotify();
   }
 
   LatLng? get clienteLatLng {
@@ -202,13 +231,22 @@ class TripTrackingViewModel extends ChangeNotifier {
         .listen(
           (item) async {
             solicitud = item;
+            try {
+              final d = solicitud?.conductor;
+              if (d != null && d.hasLocation) {
+                debugPrint('[TripTrackingViewModel] Conductor location update: ${d.lat}, ${d.lng}');
+              } else {
+                debugPrint('[TripTrackingViewModel] Conductor location update: none');
+              }
+            } catch (_) {}
             isLoading = false;
             errorText = null;
             _safeNotify();
 
             await _localCacheService.saveSolicitud(item);
 
-            await _updateRouteIfNeeded();
+                  await _updateRouteIfNeeded();
+                  _updateConductorHeading();
           },
           onError: (error) async {
             isLoading = false;

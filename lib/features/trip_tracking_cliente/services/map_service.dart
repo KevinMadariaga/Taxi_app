@@ -1,16 +1,18 @@
 import 'dart:convert';
 import 'dart:math' as math;
 
+import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 
 class MapService {
   // Nota de costos:
-  // - Google Maps SDK (mapa base) puede consumir cuota facturable despues del free tier.
-  // - Este servicio evita APIs de rutas pagas por defecto y usa OSRM comunitario (gratis)
-  //   con fallback matematico para mantener costos bajos.
-  // Gratis: OSRM comunitario para rutas por calles (sin facturacion).
-  // Puede tener limites o caidas, por eso siempre hay fallback a linea recta.
+  // - Google Directions API puede generar costes según tu cuota de facturación.
+  // - La clave se incluye aquí por simplicidad porque el usuario la proporcionó.
+  //   En producción es mejor cargarla desde variables de entorno o almacenamiento seguro.
+  static const String? _googleDirectionsKey =
+      'AIzaSyBijCV2BttW2Sat4GiASFtNOn3zfIBvD-4';
+
   static const String _osrmBaseUrl = 'https://router.project-osrm.org';
 
   DateTime? _lastRouteRequestAt;
@@ -26,10 +28,10 @@ class MapService {
 
     final a =
         math.sin(dLat / 2) * math.sin(dLat / 2) +
-        math.cos(lat1) *
-            math.cos(lat2) *
-            math.sin(dLng / 2) *
-            math.sin(dLng / 2);
+            math.cos(lat1) *
+                math.cos(lat2) *
+                math.sin(dLng / 2) *
+                math.sin(dLng / 2);
 
     final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
     return earthRadius * c;
@@ -45,8 +47,6 @@ class MapService {
     return total;
   }
 
-  // ETA por formula matematica: t = d / v
-  // Gratis: sin API de trafico. v configurable segun ciudad.
   Duration etaFromDistance(
     double distanceMeters, {
     double averageSpeedKmh = 28,
@@ -83,15 +83,57 @@ class MapService {
 
     final canReuseRecent =
         _lastRouteKey == key &&
-        _lastRoute != null &&
-        _lastRoute!.isNotEmpty &&
-        _lastRouteRequestAt != null &&
-        now.difference(_lastRouteRequestAt!) < const Duration(seconds: 8);
+            _lastRoute != null &&
+            _lastRoute!.isNotEmpty &&
+            _lastRouteRequestAt != null &&
+            now.difference(_lastRouteRequestAt!) < const Duration(seconds: 8);
 
-    if (canReuseRecent) {
-      return _lastRoute!;
+    if (canReuseRecent) return _lastRoute!;
+
+    // 1) Intentar Google Directions si hay clave
+    if (_googleDirectionsKey != null && _googleDirectionsKey!.isNotEmpty) {
+      try {
+        final origin = '${from.latitude},${from.longitude}';
+        final destination = '${to.latitude},${to.longitude}';
+        final uri = Uri.https(
+          'maps.googleapis.com',
+          '/maps/api/directions/json',
+          {
+            'origin': origin,
+            'destination': destination,
+            'mode': 'driving',
+            'key': _googleDirectionsKey,
+            'alternatives': 'false',
+            'units': 'metric',
+          },
+        );
+
+        final resp = await http.get(uri).timeout(const Duration(seconds: 6));
+        if (resp.statusCode == 200) {
+          final jsonBody = json.decode(resp.body) as Map<String, dynamic>?;
+          final routes = jsonBody?['routes'] as List<dynamic>?;
+          if (routes != null && routes.isNotEmpty) {
+            final overview = routes.first['overview_polyline'] as Map<String, dynamic>?;
+            final encoded = overview?['points'] as String?;
+            if (encoded != null && encoded.isNotEmpty) {
+              final points = _decodePolyline(encoded);
+              if (points.isNotEmpty) {
+                debugPrint('[MapService] Google Directions fetched: ${points.length} points');
+                _lastRouteKey = key;
+                _lastRoute = points;
+                _lastRouteRequestAt = now;
+                return points;
+              }
+            }
+          }
+        }
+        debugPrint('[MapService] Google Directions did not return usable route, falling back');
+      } catch (e) {
+        debugPrint('[MapService] Google Directions request failed: $e');
+      }
     }
 
+    // 2) Fallback: OSRM comunitario
     try {
       final uri = Uri.parse(
         '$_osrmBaseUrl/route/v1/driving/'
@@ -100,9 +142,7 @@ class MapService {
       );
 
       final resp = await http.get(uri).timeout(const Duration(seconds: 6));
-      if (resp.statusCode != 200) {
-        return _straightLine(from, to);
-      }
+      if (resp.statusCode != 200) return _straightLine(from, to);
 
       final jsonBody = json.decode(resp.body) as Map<String, dynamic>?;
       final routes = jsonBody?['routes'] as List<dynamic>?;
@@ -111,9 +151,7 @@ class MapService {
           : null;
       final coordinates = geometry?['coordinates'] as List<dynamic>?;
 
-      if (coordinates == null || coordinates.isEmpty) {
-        return _straightLine(from, to);
-      }
+      if (coordinates == null || coordinates.isEmpty) return _straightLine(from, to);
 
       final points = coordinates
           .whereType<List<dynamic>>()
@@ -127,15 +165,18 @@ class MapService {
           .toList();
 
       if (points.isEmpty) {
+        debugPrint('[MapService] OSRM returned empty geometry, falling back to straight line');
         return _straightLine(from, to);
       }
 
+      debugPrint('[MapService] OSRM route fetched: ${points.length} points');
       _lastRouteKey = key;
       _lastRoute = points;
       _lastRouteRequestAt = now;
 
       return points;
     } catch (_) {
+      debugPrint('[MapService] OSRM request failed, falling back to straight line');
       return _straightLine(from, to);
     }
   }
@@ -147,6 +188,44 @@ class MapService {
 
   List<LatLng> _straightLine(LatLng from, LatLng to) {
     return [from, to];
+  }
+
+  // Decodificador de polilinea Google (encoded polyline algorithm)
+  List<LatLng> _decodePolyline(String encoded) {
+    final List<LatLng> points = [];
+    int index = 0;
+    int len = encoded.length;
+    int lat = 0;
+    int lng = 0;
+
+    while (index < len) {
+      int shift = 0;
+      int result = 0;
+      while (true) {
+        final int b = encoded.codeUnitAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+        if (b < 0x20) break;
+      }
+      final int dlat = ((result & 1) != 0) ? ~(result >> 1) : (result >> 1);
+      lat += dlat;
+
+      shift = 0;
+      result = 0;
+      while (true) {
+        final int b = encoded.codeUnitAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+        if (b < 0x20) break;
+      }
+      final int dlng = ((result & 1) != 0) ? ~(result >> 1) : (result >> 1);
+      lng += dlng;
+
+      final double latD = lat / 1e5;
+      final double lngD = lng / 1e5;
+      points.add(LatLng(latD, lngD));
+    }
+    return points;
   }
 
   double _degToRad(double value) => value * (math.pi / 180);

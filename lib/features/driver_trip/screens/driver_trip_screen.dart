@@ -75,6 +75,9 @@ class _DriverTripScreenState extends State<DriverTripScreen>
   @override
   void dispose() {
     _stopBackgroundTrackingIfNeeded();
+    try {
+      NotificacionesServicio.instance.cancelAll();
+    } catch (_) {}
     WidgetsBinding.instance.removeObserver(this);
     _controller.dispose();
     super.dispose();
@@ -157,6 +160,8 @@ class _DriverTripScreenState extends State<DriverTripScreen>
                     BitmapDescriptor.defaultMarkerWithHue(
                       BitmapDescriptor.hueRed,
                     ),
+                rotation: controller.driverHeading,
+                anchor: const Offset(0.5, 0.5),
               ),
           };
 
@@ -467,6 +472,13 @@ class _DriverTripScreenState extends State<DriverTripScreen>
 
       if (_shouldClearSolicitud(status)) {
         try {
+          try {
+            await _stopBackgroundTrackingIfNeeded();
+          } catch (_) {}
+          try {
+            await NotificacionesServicio.instance.cancelAll();
+          } catch (_) {}
+
           await SessionHelper.clearActiveSolicitud();
           await RouteCacheService.clearSolicitud(widget.tripId);
         } catch (_) {}

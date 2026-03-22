@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:flutter/foundation.dart';
 import 'package:taxi_app/core/services/solicitud_firestore_datasource.dart';
 
 /// Servicio centralizado para operaciones de Firebase relacionadas con:
@@ -107,6 +108,9 @@ class FirebaseService {
     required LatLng position,
   }) async {
     try {
+      try {
+        debugPrint('[FirebaseService] actualizarUbicacionConductorEnSolicitud -> solicitud:$solicitudId lat:${position.latitude} lng:${position.longitude}');
+      } catch (_) {}
       await _firestore.collection('solicitudes').doc(solicitudId).update({
         'conductor.lat': position.latitude,
         'conductor.lng': position.longitude,

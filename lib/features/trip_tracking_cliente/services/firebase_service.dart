@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:taxi_app/core/services/solicitud_firestore_datasource.dart';
 
@@ -77,6 +78,14 @@ class TripTrackingFirebaseService {
       'conductor.ubicacion.timestampMs': timestampMs,
       'updatedAt': FieldValue.serverTimestamp(),
     };
+
+    try {
+      // Log exact payload being persisted for runtime validation during testing.
+      // This helps confirm writes happen roughly every meter as configured.
+      // Remove or lower verbosity in production if needed.
+      // ignore: avoid_print
+      debugPrint('[TripTrackingFirebaseService] Persistiendo ubicación conductor -> solicitud:$solicitudId lat:${location.latitude} lng:${location.longitude} ts:$timestampMs appendHistory:$appendRouteHistory');
+    } catch (_) {}
 
     if (appendRouteHistory) {
       updateData['tracking.driverHistory'] = FieldValue.arrayUnion([

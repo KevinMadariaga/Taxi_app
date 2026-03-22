@@ -78,7 +78,7 @@ class TrackingService {
   /// Retorna `true` si el tracking se inició correctamente, `false` si ya estaba activo.
   Future<bool> iniciarEscuchaGPS({
     Function(Position)? onLocationUpdate,
-    double distanceFilter = 15.0,
+    double distanceFilter = 1.0,
     int timeInterval = 10,
   }) async {
     if (_isTracking) {
@@ -229,7 +229,7 @@ class TrackingService {
     required String userId,
     required String userType,
     String? solicitudId,
-    double distanceFilter = 15.0,
+    double distanceFilter = 1.0,
     int timeInterval = 10,
   }) async {
     // Send one immediate point so background mode persists location quickly
@@ -266,7 +266,7 @@ class TrackingService {
             position.longitude,
           );
 
-          if (distancia < 5) {
+          if (distancia < 1) {
             return;
           }
         }

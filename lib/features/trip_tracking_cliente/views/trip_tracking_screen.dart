@@ -97,6 +97,8 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
                     BitmapDescriptor.defaultMarkerWithHue(
                       BitmapDescriptor.hueAzure,
                     ),
+                rotation: vm.conductorHeading,
+                anchor: const Offset(0.5, 0.5),
               ),
           };
 

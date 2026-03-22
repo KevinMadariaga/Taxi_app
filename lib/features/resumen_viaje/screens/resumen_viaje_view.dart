@@ -212,8 +212,8 @@ class _ResumenViajeBodyState extends State<_ResumenViajeBody> {
                     text: isCliente ? 'Continuar' : 'Volver al inicio',
                     onPressed: vm.guardando
                         ? null
-                        : () async {
-                            await _onActionPressed(context, vm);
+                        : () {
+                            _onActionPressed(context, vm);
                           },
                     width: double.infinity,
                     height: 52,

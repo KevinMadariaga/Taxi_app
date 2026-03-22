@@ -58,6 +58,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "1011373106222-4a52rp4748ntdt2kfecvrcv4uda1os6l.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.taxiya.taxiapp",
+            "certificate_hash": "0615ad3df02f2e5b1e9d6db6c4c9cf5fd4f2e5e4"
+          }
+        },
+        {
           "client_id": "1011373106222-ak6qavf5tna9l10lcp2prtlk15pe3ofq.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {

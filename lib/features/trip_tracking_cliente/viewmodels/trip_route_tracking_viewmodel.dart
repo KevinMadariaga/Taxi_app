@@ -4,6 +4,11 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:taxi_app/core/services/tracking_service.dart';
+import 'package:flutter_background_service/flutter_background_service.dart';
+import 'package:taxi_app/core/services/notificacion_servicio.dart';
+import 'package:taxi_app/core/services/route_cache_service.dart';
+import 'package:taxi_app/helper/session_helper.dart';
 import 'package:taxi_app/core/constants/solicitud_estado.dart';
 
 import '../services/firebase_service.dart';
@@ -37,10 +42,12 @@ class TripRouteTrackingViewModel extends ChangeNotifier {
   final LocalCacheService _localCacheService;
   final TripRouteMathService _mathService;
   final tracking_map.MapService _routeService;
+  int? _lastNearestIndex;
 
   StreamSubscription<Map<String, dynamic>>? _solicitudSub;
   StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
   StreamSubscription<Position>? _driverLocationSub;
+  TrackingService? _foregroundTrackingService;
 
   bool _disposed = false;
   bool _completionHandled = false;
@@ -48,6 +55,7 @@ class TripRouteTrackingViewModel extends ChangeNotifier {
 
   DateTime? _lastDriverWriteAt;
   LatLng? _lastDriverSentPoint;
+  DateTime? _lastRouteRecalcAt;
 
   String estadoSolicitud = '';
   bool isLoading = true;
@@ -65,6 +73,7 @@ class TripRouteTrackingViewModel extends ChangeNotifier {
 
   double? distanceRemainingMeters;
   Duration? etaRemaining;
+  double conductorHeading = 0.0;
 
   String userDisplayName = '';
   String userPhotoUrl = '';
@@ -118,11 +127,17 @@ class TripRouteTrackingViewModel extends ChangeNotifier {
     if (points.length < 2 || current == null) {
       return points;
     }
-
     final nearest = _mathService.nearestPointIndex(current, points);
     final start = nearest.clamp(0, points.length - 1);
     final tail = points.sublist(start);
     if (tail.isEmpty) return points;
+
+    try {
+      if (_lastNearestIndex == null || _lastNearestIndex != nearest) {
+        debugPrint('[TripRouteTrackingViewModel] nearest route index: $nearest, tail length: ${tail.length}');
+        _lastNearestIndex = nearest;
+      }
+    } catch (_) {}
 
     return [current, ...tail];
   }
@@ -141,24 +156,44 @@ class TripRouteTrackingViewModel extends ChangeNotifier {
 
   Future<void> finalizarViajePorConductor() async {
     if (!isConductor || isCompletingTrip) return;
-
-    isCompletingTrip = true;
+    // Optimistic flow: navigate immediately, perform network/cleanup in background
+    isCompletingTrip = false;
+    _completionHandled = true;
+    shouldNavigateToSummary = true;
     _safeNotify();
 
-    try {
-      await _firebaseService.actualizarEstadoSolicitud(
-        solicitudId: solicitudId,
-        estado: SolicitudEstado.completado,
-      );
+    unawaited(Future<void>(() async {
+      try {
+        await _firebaseService.actualizarEstadoSolicitud(
+          solicitudId: solicitudId,
+          estado: SolicitudEstado.completado,
+        );
+      } catch (e) {
+        // Log or handle failure to update remote state; do not block navigation
+        if (kDebugMode) debugPrint('[TripRouteTrackingViewModel] Error updating estado remotely: $e');
+      }
 
-      _completionHandled = true;
-      shouldNavigateToSummary = true;
-    } catch (_) {
-      isCompletingTrip = false;
-      rethrow;
-    }
+      try {
+        _foregroundTrackingService?.dispose();
+      } catch (_) {}
 
-    _safeNotify();
+      try {
+        final service = FlutterBackgroundService();
+        service.invoke('stop');
+      } catch (_) {}
+
+      try {
+        await NotificacionesServicio.instance.cancelAll();
+      } catch (_) {}
+
+      try {
+        await SessionHelper.clearActiveSolicitud();
+      } catch (_) {}
+
+      try {
+        await RouteCacheService.clearSolicitud(solicitudId);
+      } catch (_) {}
+      }));
   }
 
   void _bindSolicitud() {
@@ -219,37 +254,49 @@ class TripRouteTrackingViewModel extends ChangeNotifier {
 
   Future<void> _startDriverLocationTracking() async {
     try {
-      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) return;
+      _foregroundTrackingService?.dispose();
+      _foregroundTrackingService = TrackingService();
 
-      var permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
+      final started = await _foregroundTrackingService!.iniciarTrackingConEnvio(
+        userId: currentUserId,
+        userType: 'conductor',
+        solicitudId: solicitudId,
+        distanceFilter: 1.0,
+        timeInterval: 10,
+      );
+      if (kDebugMode) {
+        debugPrint('[TripRouteTrackingViewModel] TrackingService.iniciarTrackingConEnvio started: $started');
       }
-      if (permission == LocationPermission.denied ||
-          permission == LocationPermission.deniedForever) {
-        return;
-      }
-
-      _driverLocationSub?.cancel();
-      _driverLocationSub =
-          Geolocator.getPositionStream(
-            locationSettings: const LocationSettings(
-              accuracy: LocationAccuracy.high,
-              // Reduce writes: no se envia ubicacion por micro-variaciones.
-              distanceFilter: 20,
-            ),
-          ).listen((position) {
-            final point = LatLng(position.latitude, position.longitude);
-            _onDriverPositionFromDevice(point);
-          });
-    } catch (_) {
-      // Keep UI responsive even if location permission fails.
+    } catch (e) {
+      if (kDebugMode) debugPrint('[TripRouteTrackingViewModel] Error starting foreground tracking: $e');
     }
   }
 
   Future<void> _onDriverPositionFromDevice(LatLng point) async {
-    conductorLatLng = point;
+    // If we have a persisted route, snap the marker to the nearest point
+    // on the polyline so temporary GPS jumps don't move the marker off-route.
+    if (routePoints.length >= 2) {
+      final minDist = _mathService.minDistanceToPolylineMeters(point, routePoints);
+      if (minDist <= 50.0) {
+        final nearestIdx = _mathService.nearestPointIndex(point, routePoints);
+        final snapped = routePoints[nearestIdx];
+        conductorLatLng = snapped;
+        debugPrint('[TripRouteTrackingViewModel] Snapped conductor to route index $nearestIdx (dist ${minDist.toStringAsFixed(1)} m)');
+      } else {
+        // Off-route by more than threshold: use raw point and trigger route rebuild.
+        conductorLatLng = point;
+        debugPrint('[TripRouteTrackingViewModel] Conductor off-route by ${minDist.toStringAsFixed(1)} m — will request route recalculation');
+        // Throttle route recalculation to avoid calling routing repeatedly.
+        final nowMs = DateTime.now();
+        if (_lastRouteRecalcAt == null || nowMs.difference(_lastRouteRecalcAt!) > const Duration(seconds: 30)) {
+          _lastRouteRecalcAt = nowMs;
+          unawaited(_ensurePersistedRoute(forceRecalculate: true));
+        }
+      }
+    } else {
+      conductorLatLng = point;
+    }
+
     _updateRemainingMetrics();
     _safeNotify();
 
@@ -261,7 +308,7 @@ class TripRouteTrackingViewModel extends ChangeNotifier {
 
     if (_lastDriverSentPoint != null) {
       final moved = _mathService.haversineMeters(_lastDriverSentPoint!, point);
-      if (moved < 8) {
+      if (moved < 1) {
         return;
       }
     }
@@ -279,13 +326,19 @@ class TripRouteTrackingViewModel extends ChangeNotifier {
     }
 
     try {
+      // When we snapped to the route, persist the snapped point so the
+      // stored conductor position stays on the polyline. If we were off-route
+      // we persist the raw GPS point.
+      final toPersist = (routePoints.length >= 2 && conductorLatLng != null)
+          ? conductorLatLng!
+          : point;
       await _firebaseService.actualizarUbicacionConductorEnSolicitud(
         solicitudId: solicitudId,
-        location: point,
+        location: toPersist,
         timestampMs: now.millisecondsSinceEpoch,
         appendRouteHistory: true,
       );
-      _lastDriverSentPoint = point;
+      _lastDriverSentPoint = toPersist;
     } catch (_) {
       await _localCacheService.appendPendingConductorLocation(
         solicitudId: solicitudId,
@@ -366,6 +419,13 @@ class TripRouteTrackingViewModel extends ChangeNotifier {
     final destinoMap = _asStringMap(data['destino']);
 
     conductorLatLng = _extractPoint(conductorMap);
+    try {
+      if (conductorLatLng != null) {
+        debugPrint('[TripRouteTrackingViewModel] conductorLatLng set: ${conductorLatLng!.latitude}, ${conductorLatLng!.longitude}');
+      } else {
+        debugPrint('[TripRouteTrackingViewModel] conductorLatLng set: null');
+      }
+    } catch (_) {}
     destinoLatLng = _extractPoint(destinoMap);
 
     final firestoreRoute = _extractRoutePoints(data);
@@ -435,6 +495,7 @@ class TripRouteTrackingViewModel extends ChangeNotifier {
         from: from,
         to: to,
       );
+      debugPrint('[TripRouteTrackingViewModel] Generated route points: ${generated.length}');
       if (generated.length < 2) return;
 
       routePoints = generated;
@@ -471,15 +532,29 @@ class TripRouteTrackingViewModel extends ChangeNotifier {
     if (current == null || routePoints.length < 2) {
       distanceRemainingMeters = null;
       etaRemaining = null;
+      conductorHeading = 0.0;
       return;
     }
-
     final remaining = _mathService.remainingDistanceMeters(
       current,
       routePoints,
     );
     distanceRemainingMeters = remaining;
     etaRemaining = _mathService.etaFromDistance(remaining);
+
+    try {
+      final nearest = _mathService.nearestPointIndex(current, routePoints);
+      // Prefer next point for heading, otherwise previous.
+      LatLng? target;
+      if (nearest < routePoints.length - 1) {
+        target = routePoints[nearest + 1];
+      } else if (nearest > 0) {
+        target = routePoints[nearest];
+      }
+      if (target != null) {
+        conductorHeading = _mathService.bearingBetween(current, target);
+      }
+    } catch (_) {}
   }
 
   void _handleStateTransitions() {
@@ -578,6 +653,9 @@ class TripRouteTrackingViewModel extends ChangeNotifier {
     _solicitudSub?.cancel();
     _connectivitySub?.cancel();
     _driverLocationSub?.cancel();
+    try {
+      _foregroundTrackingService?.dispose();
+    } catch (_) {}
     super.dispose();
   }
 }
