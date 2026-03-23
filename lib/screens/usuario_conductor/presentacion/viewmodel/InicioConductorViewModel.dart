@@ -71,20 +71,20 @@ class InicioConductorViewmodel extends ChangeNotifier {
     loadingLocation = true;
     _safeNotify();
     _listenCachedName();
-      // Kick off async startup tasks but do not await them so UI can render fast.
-      _loadProfile();
-      _requestBackgroundLocationPermission();
-      _loadLocation();
+    // Kick off async startup tasks but do not await them so UI can render fast.
+    _loadProfile();
+    _requestBackgroundLocationPermission();
+    _loadLocation();
 
-      // Subscriptions can be registered immediately; they will react when data arrives.
-      _subscribeConductorStatus();
-      _subscribeSolicitudes();
-      _subscribeRatings();
+    // Subscriptions can be registered immediately; they will react when data arrives.
+    _subscribeConductorStatus();
+    _subscribeSolicitudes();
+    _subscribeRatings();
 
-      // Mark initial loading as false to avoid blocking UI; specific flags (like loadingLocation)
-      // remain true until their respective tasks complete and update the VM.
-      isLoading = false;
-      _safeNotify();
+    // Mark initial loading as false to avoid blocking UI; specific flags (like loadingLocation)
+    // remain true until their respective tasks complete and update the VM.
+    isLoading = false;
+    _safeNotify();
   }
 
   void _listenCachedName() {
@@ -184,6 +184,12 @@ class InicioConductorViewmodel extends ChangeNotifier {
     } catch (_) {}
     loadingLocation = false;
     _safeNotify();
+
+    // Si ahora ya tenemos ubicación y el conductor está conectado, re-subscribimos
+    // para asegurar que la lista de solicitudes se reevalúe con la distancia correcta.
+    if (currentLocation != null && isConnected) {
+      ensureSolicitudesSubscription();
+    }
   }
 
   Future<void> _requestBackgroundLocationPermission() async {
@@ -287,6 +293,12 @@ class InicioConductorViewmodel extends ChangeNotifier {
         });
   }
 
+  /// Asegura que el listener de solicitudes esté activo si el conductor está conectado.
+  void ensureSolicitudesSubscription() {
+    if (!isConnected) return;
+    _subscribeSolicitudes();
+  }
+
   void _handleSolicitudesQuerySnapshot(QuerySnapshot snap) {
     if (!isConnected) {
       return;
@@ -300,23 +312,26 @@ class InicioConductorViewmodel extends ChangeNotifier {
         final item = _buildPendingSolicitudItem(doc);
         if (item == null) continue;
 
-        // Require driver's current location to compute distance; if unavailable, skip
-        if (currentLocation == null) continue;
+        if (currentLocation != null) {
+          item.distanciaKm = _distanceKm(
+            currentLocation!.latitude,
+            currentLocation!.longitude,
+            item.ubicacionInicial.latitude,
+            item.ubicacionInicial.longitude,
+          );
 
-        item.distanciaKm = _distanceKm(
-          currentLocation!.latitude,
-          currentLocation!.longitude,
-          item.ubicacionInicial.latitude,
-          item.ubicacionInicial.longitude,
-        );
+          // Only include solicitudes within 3 km
+          if (item.distanciaKm == null || item.distanciaKm! > 3.0) {
+            continue;
+          }
 
-        // Only include solicitudes within 3 km
-        if (item.distanciaKm == null ||
-            (item.distanciaKm ?? double.infinity) > 3.0)
-          continue;
-
-        // mark as pending for notification comparison (only when within range)
-        currentPendingIds.add(doc.id);
+          // mark as pending for notification comparison (only when within range)
+          currentPendingIds.add(doc.id);
+        } else {
+          // If current location is not yet available, keep solicitudes and show them.
+          item.distanciaKm = null;
+          currentPendingIds.add(doc.id);
+        }
 
         parsedSolicitudes.add(item);
         unawaited(_completarDatosSolicitud(item));

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:math' as math;
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:taxi_app/helper/permisos_helper.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/navigation/inicio_cliente_navigation.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/location_model.dart';
 import 'package:taxi_app/widgets/google_maps_widget.dart';
@@ -19,7 +21,8 @@ class InicioClienteView extends StatefulWidget {
   State<InicioClienteView> createState() => _InicioClienteViewState();
 }
 
-class _InicioClienteViewState extends State<InicioClienteView> {
+class _InicioClienteViewState extends State<InicioClienteView>
+    with WidgetsBindingObserver {
   // --- Variables ---
   late InicioClienteViewModel vm;
   late VoidCallback _vmListener;
@@ -30,6 +33,9 @@ class _InicioClienteViewState extends State<InicioClienteView> {
   );
   int _carouselPage = 0;
   bool _isPreparingNavigation = false;
+  bool _gpsPromptShown = false;
+  bool _isRequestingPermissions = false;
+  bool _isGpsDialogOpen = false;
 
   // Configuración visual
   final double _cardScale = 1.0;
@@ -44,26 +50,212 @@ class _InicioClienteViewState extends State<InicioClienteView> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     vm = InicioClienteViewModel();
     _vmListener = () => setState(() {});
     vm.addListener(_vmListener);
     vm.init();
-    _bootstrapClienteLocationFlow();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _bootstrapClienteLocationFlow();
+    });
   }
 
   Future<void> _bootstrapClienteLocationFlow() async {
     if (widget.authUid != null && widget.authUid!.isNotEmpty) {
       await vm.hydrateFromUid(widget.authUid!);
     }
+
+    final ready = await _ensureLocationServiceAndPermission();
+    if (!ready) return;
+
     await _loadCurrentLocation();
+  }
+
+  Future<bool> _ensureLocationServiceAndPermission() async {
+    if (!mounted) return false;
+    if (_isRequestingPermissions) return false;
+
+    _isRequestingPermissions = true;
+    try {
+      bool serviceEnabled = await PermissionsHelper.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        final shouldOpenSettings = await _showGpsDisabledDialog();
+        if (!shouldOpenSettings) {
+          _gpsPromptShown = true;
+          _showGpsSnackBar('GPS no está activo. Actívelo para continuar.');
+          return false;
+        }
+
+        await Geolocator.openLocationSettings();
+        await Future.delayed(const Duration(milliseconds: 800));
+        serviceEnabled = await PermissionsHelper.isLocationServiceEnabled();
+      }
+
+      if (!serviceEnabled) {
+        _gpsPromptShown = true;
+        _showGpsSnackBar('GPS no está activo. Actívelo para continuar.');
+        return false;
+      }
+
+      _gpsPromptShown = false;
+      final hasPermission = await PermissionsHelper.hasLocationPermission();
+      if (!hasPermission) {
+        final shouldRequest = await _showRequestLocationPermissionDialog();
+        if (!shouldRequest) return false;
+
+        final granted = await PermissionsHelper.requestLocationPermission();
+        if (!granted && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Permiso de ubicación no concedido.')),
+          );
+        }
+        if (!granted) return false;
+      }
+
+      return true;
+    } finally {
+      _isRequestingPermissions = false;
+    }
+  }
+
+  Future<bool> _showGpsDisabledDialog() async {
+    if (!mounted) return false;
+
+    _isGpsDialogOpen = true;
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('GPS desactivado'),
+          content: const Text(
+            'El GPS está desactivado. Por favor actívelo para que la app pueda obtener su ubicación.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Activar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    _isGpsDialogOpen = false;
+    return result == true;
+  }
+
+  Future<bool> _showRequestLocationPermissionDialog() async {
+    if (!mounted) return false;
+
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Permiso de ubicación'),
+          content: const Text(
+            'Necesitamos permiso de ubicación para mostrar su posición en el mapa. Por favor permita el permiso.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Permitir'),
+            ),
+          ],
+        );
+      },
+    );
+
+    return result == true;
+  }
+
+  void _showGpsSnackBar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+    );
+  }
+
+  void _showGpsRetrySnackBar() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('GPS sigue desactivado.'),
+        action: SnackBarAction(
+          label: 'Reintentar',
+          onPressed: () {
+            _handleAppResumed();
+          },
+        ),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _carouselController.dispose();
     vm.removeListener(_vmListener);
     vm.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+
+    if (state == AppLifecycleState.resumed) {
+      _handleAppResumed();
+    }
+  }
+
+  Future<void> _handleAppResumed() async {
+    if (!mounted) return;
+
+    if (_isGpsDialogOpen && Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+      _isGpsDialogOpen = false;
+    }
+
+    bool serviceEnabled = await PermissionsHelper.isLocationServiceEnabled();
+
+    if (!serviceEnabled) {
+      if (_gpsPromptShown) {
+        _showGpsRetrySnackBar();
+        return;
+      }
+
+      final shouldOpenSettings = await _showGpsDisabledDialog();
+      if (!shouldOpenSettings) {
+        _gpsPromptShown = true;
+        _showGpsSnackBar('GPS no está activo. Actívelo para continuar.');
+        return;
+      }
+
+      await Geolocator.openLocationSettings();
+      await Future.delayed(const Duration(milliseconds: 800));
+      serviceEnabled = await PermissionsHelper.isLocationServiceEnabled();
+
+      if (!serviceEnabled) {
+        _gpsPromptShown = true;
+        _showGpsSnackBar('GPS no está activo. Actívelo para continuar.');
+        return;
+      }
+    }
+
+    _gpsPromptShown = false;
+    await _ensureLocationServiceAndPermission();
+    await _loadCurrentLocation();
   }
 
   // --- Métodos de UI ---

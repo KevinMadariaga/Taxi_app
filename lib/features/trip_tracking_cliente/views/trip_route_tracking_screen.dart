@@ -39,15 +39,17 @@ class TripRouteTrackingScreen extends StatefulWidget {
 }
 
 class _TripRouteTrackingScreenState extends State<TripRouteTrackingScreen>
-    with WidgetsBindingObserver {
+  with WidgetsBindingObserver, TickerProviderStateMixin {
   GoogleMapController? _mapController;
   BitmapDescriptor? _conductorMarkerIcon;
   BitmapDescriptor? _destinationMarkerIcon;
 
   LatLng? _animatedConductor;
-  Timer? _markerAnimationTimer;
+  AnimationController? _markerAnimationController;
+  Animation<LatLng>? _markerAnimation;
   String? _lastConductorTargetKey;
   double _conductorRotation = 0;
+  static const double _snapThresholdMeters = 40.0;
 
   bool _initialCameraApplied = false;
   bool _navigatingToSummary = false;
@@ -139,7 +141,7 @@ class _TripRouteTrackingScreenState extends State<TripRouteTrackingScreen>
       } catch (_) {}
     }
     WidgetsBinding.instance.removeObserver(this);
-    _markerAnimationTimer?.cancel();
+    _markerAnimationController?.dispose();
     _mapController?.dispose();
     super.dispose();
   }
@@ -212,7 +214,18 @@ class _TripRouteTrackingScreenState extends State<TripRouteTrackingScreen>
       child: Consumer<TripRouteTrackingViewModel>(
         builder: (context, vm, _) {
           _syncSolicitudPersistence(vm);
-          _syncAnimatedConductor(vm.conductorLatLng, vm.destinoLatLng, vm.conductorHeading);
+          // Snap conductor GPS to visible route and compute heading along polyline
+          if (vm.conductorLatLng != null) {
+            final snapped = _snapToPolyline(vm.conductorLatLng!, vm.visibleRoutePoints);
+            final headingTarget = vm.visibleRoutePoints.isNotEmpty
+                ? _computePolylineHeading(snapped, vm.visibleRoutePoints)
+                : vm.conductorHeading;
+            final meters = _metersBetween(vm.conductorLatLng!, snapped);
+            final targetToUse = meters <= _snapThresholdMeters ? snapped : vm.conductorLatLng!;
+            _syncAnimatedConductor(targetToUse, vm.destinoLatLng, headingTarget);
+          } else {
+            _syncAnimatedConductor(vm.conductorLatLng, vm.destinoLatLng, vm.conductorHeading);
+          }
           _fitCameraIfNeeded(vm);
           _handleCompletionNavigation(vm);
 
@@ -450,56 +463,38 @@ class _TripRouteTrackingScreenState extends State<TripRouteTrackingScreen>
   void _syncAnimatedConductor(LatLng? target, LatLng? destination, double headingTarget) {
     if (target == null) return;
 
-    final key =
-        '${target.latitude.toStringAsFixed(7)},${target.longitude.toStringAsFixed(7)}';
+    final key = '${target.latitude.toStringAsFixed(7)},${target.longitude.toStringAsFixed(7)}';
     if (_lastConductorTargetKey == key) return;
     _lastConductorTargetKey = key;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
 
-      final current = _animatedConductor;
-      if (current == null) {
-        setState(() {
-          _animatedConductor = target;
-        });
-        return;
-      }
+      final from = _animatedConductor ?? target;
 
-      _markerAnimationTimer?.cancel();
+      _markerAnimationController?.stop();
+      _markerAnimationController?.dispose();
 
-      final from = current;
-      final to = target;
-      final heading = headingTarget;
-      const totalTicks = 18;
-      var tick = 0;
+      _markerAnimationController = AnimationController(
+        vsync: this,
+        duration: const Duration(milliseconds: 300),
+      );
 
-      _markerAnimationTimer = Timer.periodic(const Duration(milliseconds: 16), (
-        timer,
-      ) {
-        tick += 1;
-        final t = (tick / totalTicks).clamp(0.0, 1.0);
-
-        final lat = from.latitude + ((to.latitude - from.latitude) * t);
-        final lng = from.longitude + ((to.longitude - from.longitude) * t);
-
-        if (!mounted) {
-          timer.cancel();
-          return;
-        }
-
-        setState(() {
-          _animatedConductor = LatLng(lat, lng);
-          _conductorRotation = _lerpAngle(_conductorRotation, heading, 0.45);
-        });
-
-        if (t >= 1.0) {
-          timer.cancel();
-          // Ensure final rotation matches viewmodel heading (points along polyline).
+      _markerAnimation = LatLngTween(begin: from, end: target).animate(
+        CurvedAnimation(parent: _markerAnimationController!, curve: Curves.easeOut),
+      )..addListener(() {
+          if (!mounted) return;
           setState(() {
-            _conductorRotation = headingTarget;
+            _animatedConductor = _markerAnimation!.value;
+            _conductorRotation = _lerpAngle(_conductorRotation, headingTarget, 0.45);
           });
-        }
+        });
+
+      _markerAnimationController!.forward().whenComplete(() {
+        if (!mounted) return;
+        setState(() {
+          _conductorRotation = headingTarget;
+        });
       });
     });
   }
@@ -753,6 +748,83 @@ class _TripRouteTrackingScreenState extends State<TripRouteTrackingScreen>
     await launchUrl(webUri, mode: LaunchMode.externalApplication);
   }
 
+  // Proyecta la posición GPS sobre la polyline y devuelve el punto "snapped".
+  LatLng _snapToPolyline(LatLng gps, List<LatLng> polyline) {
+    if (polyline.isEmpty) return gps;
+    if (polyline.length == 1) return polyline.first;
+
+    double minDist = double.infinity;
+    LatLng best = polyline.first;
+
+    for (var i = 0; i < polyline.length - 1; i++) {
+      final a = polyline[i];
+      final b = polyline[i + 1];
+      final proj = _projectPointOnSegment(gps, a, b);
+      final d = _distance2D(proj, gps);
+      if (d < minDist) {
+        minDist = d;
+        best = proj;
+      }
+    }
+
+    return best;
+  }
+
+  LatLng _projectPointOnSegment(LatLng p, LatLng a, LatLng b) {
+    final x1 = a.longitude;
+    final y1 = a.latitude;
+    final x2 = b.longitude;
+    final y2 = b.latitude;
+    final x3 = p.longitude;
+    final y3 = p.latitude;
+
+    final dx = x2 - x1;
+    final dy = y2 - y1;
+    final denom = dx * dx + dy * dy;
+    if (denom == 0) return a;
+
+    var t = ((x3 - x1) * dx + (y3 - y1) * dy) / denom;
+    if (t < 0) t = 0;
+    if (t > 1) t = 1;
+
+    final projLon = x1 + t * dx;
+    final projLat = y1 + t * dy;
+    return LatLng(projLat, projLon);
+  }
+
+  double _distance2D(LatLng a, LatLng b) {
+    final dx = a.longitude - b.longitude;
+    final dy = a.latitude - b.latitude;
+    return math.sqrt(dx * dx + dy * dy);
+  }
+
+  // Calcula el heading usando el segmento más cercano de la polyline.
+  double _computePolylineHeading(LatLng snapped, List<LatLng> polyline) {
+    if (polyline.length < 2) return 0.0;
+
+    int nearestIndex = 0;
+    double minDist = double.infinity;
+    for (var i = 0; i < polyline.length; i++) {
+      final d = _distance2D(snapped, polyline[i]);
+      if (d < minDist) {
+        minDist = d;
+        nearestIndex = i;
+      }
+    }
+
+    LatLng from;
+    LatLng to;
+    if (nearestIndex < polyline.length - 1) {
+      from = polyline[nearestIndex];
+      to = polyline[nearestIndex + 1];
+    } else {
+      from = polyline[nearestIndex - 1];
+      to = polyline[nearestIndex];
+    }
+
+    return _bearingBetween(from, to);
+  }
+
   void _onPanicPressed() {
     showModalBottomSheet<void>(
       context: context,
@@ -835,5 +907,31 @@ class _TripRouteTrackingScreenState extends State<TripRouteTrackingScreen>
   double _normalizeAngle(double angle) {
     final normalized = angle % 360;
     return normalized < 0 ? normalized + 360 : normalized;
+  }
+
+  double _degToRad(double deg) => deg * (math.pi / 180.0);
+
+  double _metersBetween(LatLng a, LatLng b) {
+    const R = 6371000.0; // meters
+    final lat1 = _degToRad(a.latitude);
+    final lat2 = _degToRad(b.latitude);
+    final dLat = lat2 - lat1;
+    final dLon = _degToRad(b.longitude - a.longitude);
+    final hav = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(lat1) * math.cos(lat2) * math.sin(dLon / 2) * math.sin(dLon / 2);
+    final c = 2 * math.atan2(math.sqrt(hav), math.sqrt(1 - hav));
+    return R * c;
+  }
+
+}
+
+class LatLngTween extends Tween<LatLng> {
+  LatLngTween({LatLng? begin, LatLng? end}) : super(begin: begin, end: end);
+
+  @override
+  LatLng lerp(double t) {
+    final lat = begin!.latitude + (end!.latitude - begin!.latitude) * t;
+    final lon = begin!.longitude + (end!.longitude - begin!.longitude) * t;
+    return LatLng(lat, lon);
   }
 }
