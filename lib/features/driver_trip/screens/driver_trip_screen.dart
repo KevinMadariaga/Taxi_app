@@ -52,6 +52,10 @@ class _DriverTripScreenState extends State<DriverTripScreen>
     _controller = DriverTripController(tripId: widget.tripId);
     _loadClientMarkerIcon();
     _controller.init();
+    // Persist current screen so reload restores DriverTripScreen when assigned
+    try {
+      SessionHelper.setActiveSolicitudScreen('driver_trip');
+    } catch (_) {}
   }
 
   Future<void> _loadClientMarkerIcon() async {
@@ -190,91 +194,115 @@ class _DriverTripScreenState extends State<DriverTripScreen>
               statusBarBrightness: Brightness.light,
             ),
             child: Scaffold(
-              body: Stack(
-                children: [
-                  GoogleMap(
-                    initialCameraPosition: CameraPosition(
-                      target: initialTarget,
-                      zoom: 14,
+              body: Builder(builder: (ctx) {
+                final mq = MediaQuery.of(ctx);
+                final screenH = mq.size.height;
+                final safeBottom = mq.padding.bottom;
+                final mapH = (screenH * 0.65).clamp(200.0, screenH - 120.0);
+                final panelH = screenH - mapH;
+
+                return Stack(
+                  children: [
+                    Column(
+                      children: [
+                        SizedBox(
+                          height: mapH,
+                          width: double.infinity,
+                          child: Stack(
+                            children: [
+                              GoogleMap(
+                                initialCameraPosition: CameraPosition(
+                                  target: initialTarget,
+                                  zoom: 14,
+                                ),
+                                myLocationEnabled: true,
+                                myLocationButtonEnabled: false,
+                                compassEnabled: true,
+                                markers: markers,
+                                polylines: polylines,
+                                onMapCreated: (map) {
+                                  _mapController = map;
+                                  _fitInitialCameraIfNeeded(controller);
+                                },
+                              ),
+                              Positioned(
+                                top: mq.padding.top + 14,
+                                
+                                left: 20,
+                                child: Center(
+                                  child: DriverTopStatusCard(
+                                    distanceText: controller.distanceText,
+                                    etaText: controller.etaText,
+                                  ),
+                                ),
+                              ),
+                              Positioned(
+                                right: 20,
+                                bottom: isTablet ? 86 : 76,
+                                child: FloatingActionButton(
+                                  heroTag: 'driver_trip_panic_btn',
+                                  backgroundColor: AppColores.buttonCancel,
+                                  onPressed: _onPanicPressed,
+                                  child: const Icon(
+                                    Icons.warning_amber_rounded,
+                                    color: AppColores.textWhite,
+                                  ),
+                                ),
+                              ),
+                              Positioned(
+                                right: 20,
+                                bottom: 16,
+                                child: FloatingActionButton(
+                                  heroTag: 'driver_map_focus_btn',
+                                  backgroundColor: AppColores.buttonPrimary,
+                                  onPressed: () => _toggleFocus(controller),
+                                  child: Icon(
+                                    controller.focusMode == DriverMapFocusMode.clientOnly
+                                        ? Icons.person_pin_circle
+                                        : Icons.fit_screen,
+                                    color: AppColores.textWhite,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        // Bottom panel (30%)
+                        SizedBox(
+                          height: panelH,
+                          width: double.infinity,
+                          child: SafeArea(
+                            top: false,
+                            child: DriverClientInfoCard(
+                              clientName: controller.clientName,
+                              clientAddress: controller.clientAddress,
+                              clientPhotoUrl: controller.clientPhotoUrl,
+                              unreadCount: controller.unreadCount,
+                              onOpenChat: () => _openChat(controller),
+                              onOpenNavigation: () => _openNavigation(controller),
+                              onReportArrival: controller.reportArrival,
+                              isSendingArrival: controller.isSendingArrival,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                    myLocationEnabled: true,
-                    myLocationButtonEnabled: false,
-                    compassEnabled: true,
-                    markers: markers,
-                    polylines: polylines,
-                    onMapCreated: (map) {
-                      _mapController = map;
-                      _fitInitialCameraIfNeeded(controller);
-                    },
-                  ),
-                  Positioned(
-                    top: MediaQuery.of(context).padding.top + 14,
-                    left: 0,
-                    right: 0,
-                    child: Center(
-                      child: DriverTopStatusCard(
-                        distanceText: controller.distanceText,
-                        etaText: controller.etaText,
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    right: 20,
-                    bottom: isTablet ? 430 : 345,
-                    child: FloatingActionButton(
-                      heroTag: 'driver_trip_panic_btn',
-                      backgroundColor: AppColores.buttonCancel,
-                      onPressed: _onPanicPressed,
-                      child: const Icon(
-                        Icons.warning_amber_rounded,
-                        color: AppColores.textWhite,
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    right: 20,
-                    bottom: isTablet ? 350 : 280,
-                    child: FloatingActionButton(
-                      heroTag: 'driver_map_focus_btn',
-                      backgroundColor: AppColores.buttonPrimary,
-                      onPressed: () => _toggleFocus(controller),
-                      child: Icon(
-                        controller.focusMode == DriverMapFocusMode.clientOnly
-                            ? Icons.person_pin_circle
-                            : Icons.fit_screen,
-                        color: AppColores.textWhite,
-                      ),
-                    ),
-                  ),
-                  Align(
-                    alignment: Alignment.bottomCenter,
-                    child: SafeArea(
-                      top: false,
-                      child: DriverClientInfoCard(
-                        clientName: controller.clientName,
-                        clientAddress: controller.clientAddress,
-                        clientPhotoUrl: controller.clientPhotoUrl,
-                        unreadCount: controller.unreadCount,
-                        onOpenChat: () => _openChat(controller),
-                        onOpenNavigation: () => _openNavigation(controller),
-                        onReportArrival: controller.reportArrival,
-                        isSendingArrival: controller.isSendingArrival,
-                      ),
-                    ),
-                  ),
-                  if (controller.isLoading)
-                    const Positioned.fill(
-                      child: ColoredBox(
-                        color: AppColores.overlayLight,
-                        child: Center(
-                          child: CircularProgressIndicator(
-                            color: AppColores.primary,
+
+                    if (controller.isLoading)
+                      const Positioned.fill(
+                        child: ColoredBox(
+                          color: AppColores.overlayLight,
+                          child: Center(
+                            child: CircularProgressIndicator(
+                              color: AppColores.primary,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                ],
-              ),
+                  ],
+                );
+              }),
             ),
           );
         },
@@ -640,6 +668,7 @@ class _DriverTripScreenState extends State<DriverTripScreen>
     _navigating = true;
 
     try {
+      try { await SessionHelper.setActiveSolicitudScreen('ruta_destino'); } catch (_) {}
       await Navigator.of(context, rootNavigator: true).pushReplacement(
         MaterialPageRoute(
           builder: (_) => RutaDestino(
@@ -661,6 +690,7 @@ class _DriverTripScreenState extends State<DriverTripScreen>
 
     try {
       await SessionHelper.clearActiveSolicitud();
+      try { await SessionHelper.clearActiveSolicitudScreen(); } catch (_) {}
       await RouteCacheService.clearSolicitud(widget.tripId);
 
       if (!mounted) return;

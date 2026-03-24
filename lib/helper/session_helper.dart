@@ -11,6 +11,7 @@ class SessionHelper {
   static const String _keyUid = 'user_uid';
   static const String _keyCachedName = 'cached_user_name';
   static const String _keyActiveSolicitud = 'active_solicitud_id';
+  static const String _keyActiveSolicitudScreen = 'active_solicitud_screen';
 
   static Future<void> saveSession(String role, String uid) async {
     try {
@@ -152,6 +153,31 @@ class SessionHelper {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_keyActiveSolicitud);
       try { _activeSolicitudController.add(null); } catch (_) {}
+    } catch (_) {}
+  }
+
+  // Persist the last active pantalla for a solicitud so the app can restore
+  // the exact screen after a restart/hot-reload.
+  static Future<void> setActiveSolicitudScreen(String screenId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_keyActiveSolicitudScreen, screenId);
+    } catch (_) {}
+  }
+
+  static Future<String?> getActiveSolicitudScreen() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString(_keyActiveSolicitudScreen);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<void> clearActiveSolicitudScreen() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_keyActiveSolicitudScreen);
     } catch (_) {}
   }
 

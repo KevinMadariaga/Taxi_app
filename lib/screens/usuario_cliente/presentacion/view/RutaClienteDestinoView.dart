@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:taxi_app/core/services/route_cache_service.dart';
 import 'package:taxi_app/helper/session_helper.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/RutaClienteDestinoViewModel.dart';
 import 'package:taxi_app/widgets/MapaGoogle.dart';
@@ -96,6 +97,17 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       await SessionHelper.setActiveSolicitud(widget.idSolicitud);
+      try { await SessionHelper.setActiveSolicitudScreen('ruta_cliente_destino'); } catch (_) {}
+            try {
+              await SessionHelper.clearActiveSolicitud();
+              try { await SessionHelper.clearActiveSolicitudScreen(); } catch (_) {}
+              await RouteCacheService.clearSolicitud(widget.idSolicitud);
+            } catch (_) {}
+      // Persist that the user is on the RutaClienteDestino screen so reload
+      // keeps this exact view when the solicitud está 'asignado'.
+      try {
+        await SessionHelper.setActiveSolicitudScreen('ruta_cliente_destino');
+      } catch (_) {}
       _viewModel!.inicializarNotificaciones();
       await _viewModel!.mostrarNotificacion(
         'Conductor en marcha',
@@ -453,172 +465,212 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
                   ),
               };
               return Column(
+                mainAxisSize: MainAxisSize.max,
                 children: [
-                  Expanded(
-                    child: Stack(
-                      children: [
-                        _MapWidget(
-                          markers: markers,
-                          conductorLatLng: conductorLatLng,
-                          destinoLatLng: destinoLatLng,
-                          mapControllerSetter: (controller) =>
-                              _mapController = controller,
-                          polylines: _polylines,
+                  Flexible(flex: 2, child: Stack(
+                    children: [
+                      _MapWidget(
+                        markers: markers,
+                        conductorLatLng: conductorLatLng,
+                        destinoLatLng: destinoLatLng,
+                        mapControllerSetter: (controller) =>
+                            _mapController = controller,
+                        polylines: _polylines,
+                      ),
+                      Positioned(
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        child: IgnorePointer(
+                          child: Container(
+                            height: MediaQuery.of(context).padding.top + 28,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Colors.black.withOpacity(0.28),
+                                  Colors.transparent,
+                                ],
+                              ),
+                            ),
+                          ),
                         ),
-                        Positioned(
-                          top: 0,
-                          left: 0,
-                          right: 0,
-                          child: IgnorePointer(
+                      ),
+                      Positioned(
+                        top: MediaQuery.of(context).padding.top + 12,
+                        left: 0,
+                        right: 0,
+                        child: Center(
+                          child: Material(
+                            elevation: 8,
+                            borderRadius: BorderRadius.circular(16),
+                            color: Colors.white,
                             child: Container(
-                              height: MediaQuery.of(context).padding.top + 28,
+                              width: 260,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 18,
+                                vertical: 16,
+                              ),
                               decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  colors: [
-                                    Colors.black.withOpacity(0.28),
-                                    Colors.transparent,
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          top: MediaQuery.of(context).padding.top + 12,
-                          left: 0,
-                          right: 0,
-                          child: Center(
-                            child: Material(
-                              elevation: 8,
-                              borderRadius: BorderRadius.circular(16),
-                              color: Colors.white,
-                              child: Container(
-                                width: 260,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 18,
-                                  vertical: 16,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    const Icon(
-                                      Icons.access_time,
-                                      color: AppColores.primary,
-                                      size: 22,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      vm.tiempoEstimado,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16,
-                                        color: AppColores.textSecondary,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 16),
-                                    const Icon(
-                                      Icons.route,
-                                      color: AppColores.primary,
-                                      size: 22,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      _distancia,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16,
-                                        color: AppColores.textSecondary,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          right: 20,
-                          bottom: 20,
-                          child: SafeArea(
-                            top: false,
-                            child: FloatingActionButton(
-                              backgroundColor: AppColores.primary,
-                              child: Icon(
-                                _mostrarSoloDestino
-                                    ? Icons.flag
-                                    : Icons.person_pin_circle,
                                 color: Colors.white,
+                                borderRadius: BorderRadius.circular(16),
                               ),
-                              onPressed: () async {
-                                setState(() {
-                                  _mostrarSoloDestino = !_mostrarSoloDestino;
-                                });
-
-                                if (_mapController == null) return;
-
-                                if (_mostrarSoloDestino &&
-                                    destinoLatLng != null) {
-                                  await _mapController!.animateCamera(
-                                    CameraUpdate.newCameraPosition(
-                                      CameraPosition(
-                                        target: destinoLatLng,
-                                        zoom: 15.8,
-                                        tilt: 0,
-                                      ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(
+                                    Icons.access_time,
+                                    color: AppColores.primary,
+                                    size: 22,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    vm.tiempoEstimado,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                      color: AppColores.textSecondary,
                                     ),
-                                  );
-                                  return;
-                                }
-
-                                await _fitConductorDestinoCamera(
-                                  conductorLatLng,
-                                  destinoLatLng,
-                                );
-                              },
+                                  ),
+                                  const SizedBox(width: 16),
+                                  const Icon(
+                                    Icons.route,
+                                    color: AppColores.primary,
+                                    size: 22,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    _distancia,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                      color: AppColores.textSecondary,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                  SafeArea(
-                    top: false,
-                    child: SingleChildScrollView(
-                      child: Container(
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.only(
-                            topLeft: Radius.circular(isTablet ? 24 : 16),
-                            topRight: Radius.circular(isTablet ? 24 : 16),
+                      ),
+                      Positioned(
+                        right: 20,
+                        bottom: 20,
+                        child: SafeArea(
+                          top: false,
+                          child: FloatingActionButton(
+                            backgroundColor: AppColores.primary,
+                            child: Icon(
+                              _mostrarSoloDestino
+                                  ? Icons.flag
+                                  : Icons.person_pin_circle,
+                              color: Colors.white,
+                            ),
+                            onPressed: () async {
+                              setState(() {
+                                _mostrarSoloDestino = !_mostrarSoloDestino;
+                              });
+
+                              if (_mapController == null) return;
+
+                              if (_mostrarSoloDestino && destinoLatLng != null) {
+                                await _mapController!.animateCamera(
+                                  CameraUpdate.newCameraPosition(
+                                    CameraPosition(
+                                      target: destinoLatLng,
+                                      zoom: 15.8,
+                                      tilt: 0,
+                                    ),
+                                  ),
+                                );
+                                return;
+                              }
+
+                              await _fitConductorDestinoCamera(
+                                conductorLatLng,
+                                destinoLatLng,
+                              );
+                            },
                           ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.08),
-                              blurRadius: 12,
-                              offset: const Offset(0, 4),
+                        ),
+                      ),
+                    ],
+                  )),
+                  Flexible(
+                    flex: 1,
+                    child: Container(
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.vertical(
+                          top: Radius.circular(isTablet ? 30 : 20),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.18),
+                            blurRadius: 18,
+                            offset: const Offset(0, -6),
+                          ),
+                        ],
+                      ),
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: isTablet ? 12 : 8,
+                          vertical: isTablet ? 8 : 6,
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.max,
+                          children: [
+                            Center(
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.route,
+                                    color: AppColores.buttonPrimary,
+                                    size: 26,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Ruta al destino',
+                                    style: TextStyle(
+                                      fontSize: isTablet ? 20 : 18,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.black,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Divider(),
+                            Expanded(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 0,
+                                      horizontal: 5,
+                                    ),
+                                    child: _infoRow(),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 0,
+                                      horizontal: 4,
+                                    ),
+                                    child: SafeArea(
+                                      top: false,
+                                      bottom: true,
+                                      minimum: const EdgeInsets.only(bottom: 8),
+                                      child: _bottomButtons(),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
-                        ),
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: isTablet ? 24 : 12,
-                            vertical: isTablet ? 24 : 12,
-                          ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _infoRow(),
-                              SizedBox(height: isTablet ? 12 : 8),
-                              _bottomButtons(),
-                            ],
-                          ),
                         ),
                       ),
                     ),
@@ -699,8 +751,10 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
             SizedBox(height: spacing / 2),
             Row(
               crossAxisAlignment: CrossAxisAlignment.center,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Padding(
                       padding: EdgeInsets.all(
@@ -731,6 +785,7 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
                         vm.nombreConductor.isNotEmpty
                             ? vm.nombreConductor
                             : 'Conductor',
+                        textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: nameFontSize,
                           fontWeight: FontWeight.bold,
@@ -739,16 +794,14 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
                     ),
                   ],
                 ),
-                SizedBox(
-                  width: isTablet
-                      ? 48
-                      : screenW < 350
-                      ? 8
-                      : size.width * 0.12,
-                ),
+                // Spacer(),
+                SizedBox(width: isTablet ? 80 : (screenW < 350 ? 8 : 120)),
                 if (vm.fotoVehiculo.isNotEmpty)
-                  Column(
-                    children: [
+                  Container(
+                    padding: EdgeInsets.zero,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
                       Padding(
                         padding: EdgeInsets.all(
                           isTablet
@@ -792,6 +845,7 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
                         ),
                       ),
                     ],
+                  ),
                   ),
               ],
             ),
@@ -862,7 +916,8 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColores.primary,
-                padding: EdgeInsets.symmetric(vertical: paddingV * 2),
+                minimumSize: Size(double.infinity, isTablet ? 56 : (screenW < 350 ? 44 : 48)),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(buttonBorderRadius),
                 ),
@@ -969,7 +1024,8 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColores.primary,
-                padding: EdgeInsets.symmetric(vertical: paddingV * 2),
+                minimumSize: Size(double.infinity, isTablet ? 56 : (screenW < 350 ? 44 : 48)),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(buttonBorderRadius),
                 ),

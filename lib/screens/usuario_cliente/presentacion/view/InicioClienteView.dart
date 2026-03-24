@@ -578,6 +578,7 @@ class _InicioClienteViewState extends State<InicioClienteView>
                 }
               },
             ),
+            // (overlay removed) map will now occupy full area
             Positioned(
               right: 8,
               bottom: 8,

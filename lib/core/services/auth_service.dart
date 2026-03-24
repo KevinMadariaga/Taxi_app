@@ -9,9 +9,12 @@ import 'package:taxi_app/features/trip_tracking_cliente/views/trip_route_trackin
 import 'package:taxi_app/presentation/screens/auth/complete_profile_page.dart';
 import 'package:taxi_app/features/phone_auth/screens/panel_administrador_screen.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/home_cliente_view.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/view/RutaClienteDestinoView.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/RutaConductorView.dart';
+import 'package:taxi_app/screens/usuario_conductor/presentacion/view/RutaDestinoView.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioConductorView.dart';
 import 'package:taxi_app/features/trip_tracking_cliente/viewmodels/trip_route_tracking_viewmodel.dart';
+import 'package:taxi_app/features/driver_trip/screens/driver_trip_screen.dart';
 
 import 'package:taxi_app/core/services/services.dart';
 
@@ -133,7 +136,32 @@ class AuthService {
         candidateSolicitudId = solicitudActivaCliente;
       }
 
+      // Prepare current uid early so saved-screen restore can include it.
+      final currentUid = currentUser?.uid;
+
       // --- PATCH: Forzar restauración correcta para clientes ---
+      // Respect the explicit saved screen for an active solicitud (if any).
+      final savedActiveScreen = await SessionHelper.getActiveSolicitudScreen();
+      if (savedActiveScreen != null && savedActiveScreen.isNotEmpty && candidateSolicitudId != null && candidateSolicitudId.isNotEmpty) {
+        // If the user had a specific view open (client or driver), restore it.
+        if (savedActiveScreen == 'trip_tracking') {
+          return TripTrackingScreen(
+            solicitudId: candidateSolicitudId,
+            currentUserId: currentUid ?? '',
+            cancelledBy: 'cliente',
+          );
+        }
+        if (savedActiveScreen == 'ruta_cliente_destino') {
+          return RutaClienteDestino(idSolicitud: candidateSolicitudId);
+        }
+        if (savedActiveScreen == 'driver_trip') {
+          return DriverTripScreen(tripId: candidateSolicitudId);
+        }
+        if (savedActiveScreen == 'ruta_destino') {
+          return RutaDestino(idSolicitud: candidateSolicitudId);
+        }
+      }
+
       // Si el usuario es cliente y está autenticado, siempre restaurar InicioClienteView
       if (currentUser != null && (role == 'cliente' || role == null)) {
         // Si hay una solicitud activa, seguir el flujo normal
@@ -149,8 +177,6 @@ class AuthService {
         // Si no hay solicitud activa, ir siempre a InicioClienteView
         return const HomeClienteView();
       }
-
-      final currentUid = currentUser?.uid;
 
       // Si el usuario está autenticado
       if (currentUser != null) {
@@ -332,6 +358,16 @@ class AuthService {
         try {
           final cache = await RouteCacheService.loadForSolicitud(solicitudId);
           if (cache != null) {
+            // If the cached role is 'conductor' and the trip is already in-progress,
+            // restore the in-route UI (`RutaDestino`). Otherwise, restore the
+            // driver trip UI (`RutaConductor`) which maps to `DriverTripScreen`.
+            if (cache.role == 'conductor') {
+              if (conductorInProgress) {
+                return RutaDestino(idSolicitud: solicitudId);
+              }
+              return RutaConductor(idSolicitud: solicitudId);
+            }
+            // Fallback: return the legacy conductor wrapper
             return RutaConductor(idSolicitud: solicitudId);
           }
         } catch (_) {}
@@ -346,14 +382,15 @@ class AuthService {
           await _notifyActiveSolicitudOnAppOpen();
         }
 
-        // if (estadoNormalizado == 'en_ruta') {
-        //   return TripRouteTrackingScreen(
-        //     solicitudId: solicitudId,
-        //     currentUserId: currentUid ?? clienteId ?? '',
-        //     tipoUsuario: TipoUsuarioTracking.cliente,
-        //   );
-        // }
+        // If we have cached route UI for this solicitud (cliente), restore RutaClienteDestino
+        try {
+          final cache = await RouteCacheService.loadForSolicitud(solicitudId);
+          if (cache != null && cache.role == 'cliente') {
+            return RutaClienteDestino(idSolicitud: solicitudId);
+          }
+        } catch (_) {}
 
+        // Fallback: default tracking screen
         return TripTrackingScreen(
           solicitudId: solicitudId,
           currentUserId: currentUid ?? clienteId ?? '',

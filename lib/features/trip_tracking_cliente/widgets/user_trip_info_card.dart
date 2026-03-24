@@ -30,65 +30,63 @@ class UserTripInfoCard extends StatelessWidget {
     final isNarrow = width < 390;
     final useVerticalButtons = width < 360;
 
-    final avatarRadius = isTablet ? 44.0 : (isNarrow ? 30.0 : 36.0);
+    // increased avatar size for better visibility
+    final avatarRadius = isTablet ? 52.0 : (isNarrow ? 36.0 : 44.0);
     final nameFontSize = isTablet ? 36.0 : (isNarrow ? 20.0 : 22.0);
     final plateFontSize = isTablet ? 20.0 : (isNarrow ? 14.0 : 16.0);
     final textSpacing = isTablet ? 6.0 : 4.0;
-    final vehicleThumbWidth = isTablet ? 102.0 : (isNarrow ? 66.0 : 76.0);
-    final vehicleThumbHeight = isTablet ? 68.0 : (isNarrow ? 44.0 : 52.0);
+    // larger vehicle thumbnail
+    final vehicleThumbWidth = isTablet ? 122.0 : (isNarrow ? 86.0 : 96.0);
+    final vehicleThumbHeight = isTablet ? 82.0 : (isNarrow ? 58.0 : 68.0);
     final buttonHeight = isTablet ? 60.0 : (isNarrow ? 48.0 : 54.0);
     final cardPadding = EdgeInsets.fromLTRB(
       isTablet ? 26 : (isNarrow ? 14 : 20),
       isTablet ? 22 : (isNarrow ? 14 : 20),
       isTablet ? 26 : (isNarrow ? 14 : 20),
-      isTablet ? 24 : (isNarrow ? 16 : 20),
+       // reduce bottom padding so buttons can reach nearer to the safe area
+       isTablet ? 12 : (isNarrow ? 10 : 12),
     );
 
     return Container(
       width: double.infinity,
-      constraints: BoxConstraints(minHeight: isTablet ? 246 : 216),
+       // let parent decide height; fill it
+       height: double.infinity,
       padding: cardPadding,
-      decoration: BoxDecoration(
-        color: AppColores.surface,
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(isTablet ? 32 : 24),
-        ),
-        boxShadow: const [
-          BoxShadow(
-            color: AppColores.borderSubtle,
-            blurRadius: 14,
-            offset: Offset(0, -3),
-          ),
-        ],
+      decoration: const BoxDecoration(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.zero,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           SizedBox(height: isTablet ? 8 : 10),
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              CircleAvatar(
-                radius: avatarRadius,
-                backgroundColor: AppColores.primary,
-                backgroundImage: userPhotoUrl.isNotEmpty
-                    ? NetworkImage(userPhotoUrl)
-                    : null,
-                child: userPhotoUrl.isEmpty
-                    ? const Icon(
-                        Icons.person,
-                        color: AppColores.textWhite,
-                        size: 30,
-                      )
-                    : null,
-              ),
-              const SizedBox(width: 12),
+              // Conductor: foto encima del nombre
               Expanded(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
+                    CircleAvatar(
+                      radius: avatarRadius,
+                      backgroundColor: AppColores.primary,
+                      backgroundImage: userPhotoUrl.isNotEmpty
+                          ? NetworkImage(userPhotoUrl)
+                          : null,
+                      child: userPhotoUrl.isEmpty
+                          ? const Icon(
+                              Icons.person,
+                              color: AppColores.textWhite,
+                              size: 30,
+                            )
+                          : null,
+                    ),
+                    const SizedBox(height: 8),
                     Text(
                       name.isNotEmpty ? name : 'Usuario',
+                      textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: nameFontSize,
                         fontWeight: FontWeight.w700,
@@ -97,36 +95,61 @@ class UserTripInfoCard extends StatelessWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    if (vehiclePlate.trim().isNotEmpty) ...[
-                      SizedBox(height: textSpacing),
-                      Text(
-                        'Placa: ${vehiclePlate.trim().toUpperCase()}',
-                        style: TextStyle(
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              // Vehiculo: foto encima de la placa
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    if (vehiclePhotoUrl.isNotEmpty)
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: Image.network(
+                          vehiclePhotoUrl,
+                          width: vehicleThumbWidth,
+                          height: vehicleThumbHeight,
+                          fit: BoxFit.cover,
+                        ),
+                      )
+                    else
+                      Container(
+                        width: vehicleThumbWidth,
+                        height: vehicleThumbHeight,
+                        decoration: BoxDecoration(
+                          color: AppColores.overlayLight,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(
+                          Icons.directions_car,
                           color: AppColores.textSecondary,
+                          size: 28,
+                        ),
+                      ),
+                    const SizedBox(height: 8),
+                    if (vehiclePlate.trim().isNotEmpty)
+                      Text(
+                        vehiclePlate.trim().toUpperCase(),
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: AppColores.textPrimary,
                           fontWeight: FontWeight.w600,
                           fontSize: plateFontSize,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                    ],
-                    SizedBox(height: textSpacing),
                   ],
                 ),
               ),
-              if (vehiclePhotoUrl.isNotEmpty)
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: Image.network(
-                    vehiclePhotoUrl,
-                    width: vehicleThumbWidth,
-                    height: vehicleThumbHeight,
-                    fit: BoxFit.cover,
-                  ),
-                ),
             ],
           ),
           SizedBox(height: isTablet ? 20 : 16),
+          // flexible spacer to push buttons toward the bottom (above safe area)
+          const Expanded(child: SizedBox.shrink()),
           if (useVerticalButtons) ...[
             SizedBox(
               width: double.infinity,
@@ -268,7 +291,7 @@ class UserTripInfoCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 15),
                 Expanded(
                   child: ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(

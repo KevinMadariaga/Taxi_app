@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/navigation/inicio_conductor_navigation.dart';
@@ -42,9 +44,11 @@ class _InicioConductorState extends State<InicioConductor>
       final ready = await _validateGpsAndPermissionsOnStart();
       if (!ready) return;
 
-      setState(() {
-        _isPreparingLocation = true;
-      });
+      if (mounted) {
+        setState(() {
+          _isPreparingLocation = true;
+        });
+      }
 
       await _bootstrapConductorLocationFlow();
 
@@ -1222,6 +1226,19 @@ class _InicioConductorState extends State<InicioConductor>
         vm.currentLocation = currentLocation;
       } catch (_) {
         // Puede ocurrir antes de que exista contexto del provider (según ciclo de vida)
+      }
+
+      // Guardar la ubicación del conductor en Firestore para la colección conductores_conectados
+      try {
+        final uid = FirebaseAuth.instance.currentUser?.uid;
+        if (uid != null) {
+          await FirebaseFirestore.instance.collection('conductores_conectados').doc(uid).set({
+            'ubicacion': {'lat': currentLocation.latitude, 'lng': currentLocation.longitude},
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+        }
+      } catch (_) {
+        // ignore write errors
       }
 
       // Centrar en el mapa si tenemos ubicación válida.

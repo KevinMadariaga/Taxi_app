@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:taxi_app/helper/session_helper.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/resumen_conductor_view.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/RutaDestinoViewModel.dart';
 import 'package:taxi_app/core/services/map_service_adapter.dart';
@@ -122,6 +123,8 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent> with WidgetsBi
       final vm = Provider.of<RutaDestinoViewModel>(context, listen: false);
       // Guardar el idSolicitud en cache al ingresar a la clase
       await vm.guardarSolicitudActiva(widget.idSolicitud);
+      // Persistir que estamos en la pantalla de ruta conductor para restaurar en reload
+      try { await SessionHelper.setActiveSolicitudScreen('ruta_destino'); } catch (_) {}
       await vm.cargarDatosCliente(widget.idSolicitud);
       await _cargarMarcadoresPersonalizados();
       vm.iniciarChat(widget.idSolicitud);
@@ -636,7 +639,7 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent> with WidgetsBi
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           CircleAvatar(
-            radius: 40,
+            radius: 45,
             backgroundColor: AppColores.primary,
             backgroundImage: vm.fotoCliente.isNotEmpty
                 ? CachedNetworkImageProvider(vm.fotoCliente)
@@ -645,7 +648,7 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent> with WidgetsBi
                 ? const Icon(Icons.person, color: Colors.white)
                 : null,
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 15),
           Expanded(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -654,8 +657,8 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent> with WidgetsBi
                 LayoutBuilder(
                   builder: (context, constraints) {
                     final screenW = constraints.maxWidth;
-                    double nameFont = 25;
-                    double addressFont = 18;
+                    double nameFont = 30;
+                    double addressFont = 20;
                     double spacing = 6;
                     if (screenW >= 1000) {
                       nameFont = 32;
@@ -702,42 +705,6 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent> with WidgetsBi
               ],
             ),
           ),
-          // Stack(
-          //   children: [
-          //     IconButton(
-          //       icon: Image.asset(
-          //         'assets/img/icon_location.png',
-          //         width: 40,
-          //         height: 40,
-          //       ),
-          //       onPressed: () async {
-          //         for (final m in vm.mensajes) {
-          //           if (m.senderId != conductorId && !(m.readBy[conductorId] ?? false)) {
-          //             await vm.chatService.markMessageRead(
-          //               solicitudId: widget.idSolicitud,
-          //               messageId: m.id,
-          //               userId: conductorId,
-          //             );
-          //           }
-          //         }
-          //         if (_ubicacionConductor != null && vm.latDestino != null && vm.lngDestino != null) {
-          //           final origen = '${_ubicacionConductor!.latitude},${_ubicacionConductor!.longitude}';
-          //           final destino = '${vm.latDestino},${vm.lngDestino}';
-          //           final url = 'https://www.google.com/maps/dir/?api=1&origin=$origen&destination=$destino&travelmode=driving';
-          //           try {
-          //             await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-          //           } catch (e) {
-          //             debugPrint('No se pudo abrir Google Maps: $e');
-          //           }
-          //         } else {
-          //           ScaffoldMessenger.of(context).showSnackBar(
-          //             SnackBar(content: Text('Ubicación no disponible')),
-          //           );
-          //         }
-          //       },
-          //     ),
-          //   ],
-          // ),
         ],
       ),
     );

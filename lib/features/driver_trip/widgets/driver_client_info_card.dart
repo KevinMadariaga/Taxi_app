@@ -29,32 +29,39 @@ class DriverClientInfoCard extends StatelessWidget {
     final isTablet = width >= 900;
 
     final bottomInset = MediaQuery.of(context).padding.bottom;
+    final hasNavBar = bottomInset > 0;
+
+    // When the system reports a bottom inset (native nav bar / home indicator),
+    // preserve that space plus a small extra gap. When there's no inset (gesture
+    // navigation), use a modest bottom padding and push the content down a bit
+    // by increasing the top padding so the panel doesn't show too much empty space.
+    final bottomPadding = hasNavBar
+      ? bottomInset + (isTablet ? 8.0 : 12.0)
+      : (isTablet ? 12.0 : 8.0);
+    final topPadding = (isTablet ? 18.0 : 16.0) + (hasNavBar ? 0.0 : (isTablet ? 6.0 : 8.0));
+
     return Container(
       width: double.infinity,
+      // fill the parent panel height so we can push buttons to bottom
+      height: double.infinity,
       padding: EdgeInsets.fromLTRB(
         isTablet ? 20 : 14,
-        14,
+        topPadding,
         isTablet ? 20 : 14,
-        18 + bottomInset,
-      ),
-      decoration: BoxDecoration(
-        color: AppColores.surface,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(isTablet ? 28 : 20)),
-        boxShadow: const [
-          BoxShadow(
-            color: AppColores.borderSubtle,
-            blurRadius: 12,
-            offset: Offset(0, -2),
-          ),
-        ],
+        bottomPadding,
       ),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: MainAxisSize.max,
         children: [
+          // push the top content slightly down from the panel top
+          SizedBox(height: isTablet ? 6 : 6),
+
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Client photo on the left (bigger)
               CircleAvatar(
-                radius: isTablet ? 34 : 28,
+                radius: isTablet ? 52 : 44,
                 backgroundColor: AppColores.grey200,
                 backgroundImage: clientPhotoUrl.isNotEmpty ? NetworkImage(clientPhotoUrl) : null,
                 child: clientPhotoUrl.isEmpty
@@ -62,6 +69,7 @@ class DriverClientInfoCard extends StatelessWidget {
                     : null,
               ),
               const SizedBox(width: 12),
+              // Name and below it the icon + address
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -69,27 +77,37 @@ class DriverClientInfoCard extends StatelessWidget {
                     Text(
                       clientName,
                       style: TextStyle(
-                        fontSize: isTablet ? 23 : 18,
+                        fontSize: isTablet ? 24 : 20,
                         fontWeight: FontWeight.w700,
                         color: AppColores.textPrimary,
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      clientAddress.isNotEmpty ? clientAddress : 'Ubicacion del cliente',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColores.textSecondary,
-                        fontSize: 13,
-                      ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        const Icon(Icons.location_on_outlined, color: AppColores.buttonPrimary, size: 18),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            clientAddress.isNotEmpty ? clientAddress : 'Ubicacion del cliente',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: AppColores.textSecondary,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: isTablet ? 10 : 8),
+          // use a fixed spacer to bring buttons up a bit (instead of Expanded)
+          SizedBox(height: isTablet ? 6 : 6),
           Row(
             children: [
               Expanded(
@@ -99,7 +117,7 @@ class DriverClientInfoCard extends StatelessWidget {
                     OutlinedButton.icon(
                       onPressed: onOpenChat,
                       style: OutlinedButton.styleFrom(
-                        minimumSize: const Size.fromHeight(48),
+                        minimumSize: const Size.fromHeight(52),
                         side: const BorderSide(color: AppColores.buttonPrimary, width: 1.8),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
@@ -137,7 +155,7 @@ class DriverClientInfoCard extends StatelessWidget {
                 child: ElevatedButton.icon(
                   onPressed: onOpenNavigation,
                   style: ElevatedButton.styleFrom(
-                    minimumSize: const Size.fromHeight(48),
+                      minimumSize: const Size.fromHeight(52),
                     backgroundColor: AppColores.buttonPrimary,
                     foregroundColor: AppColores.textWhite,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -148,30 +166,30 @@ class DriverClientInfoCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: isSendingArrival ? null : onReportArrival,
-              style: ElevatedButton.styleFrom(
-                minimumSize: const Size.fromHeight(50),
-                backgroundColor: AppColores.success ,
-                foregroundColor: AppColores.textWhite,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              icon: isSendingArrival
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColores.textWhite),
-                    )
-                  : const Icon(Icons.my_location_rounded),
-              label: Text(
-                isSendingArrival ? 'Enviando...' : 'Ya llegue',
-                style: const TextStyle(fontWeight: FontWeight.w700),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: isSendingArrival ? null : onReportArrival,
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(52),
+                  backgroundColor: AppColores.success ,
+                  foregroundColor: AppColores.textWhite,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                icon: isSendingArrival
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: AppColores.textWhite),
+                      )
+                    : const Icon(Icons.my_location_rounded),
+                label: Text(
+                  isSendingArrival ? 'Enviando...' : 'Ya llegue',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
               ),
             ),
-          ),
         ],
       ),
     );

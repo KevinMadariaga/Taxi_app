@@ -9,6 +9,7 @@ import 'package:taxi_app/helper/session_helper.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/InicioClienteView.dart';
 import 'package:taxi_app/features/trip_tracking_cliente/views/trip_route_tracking_screen.dart';
 import 'package:taxi_app/core/services/services.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/RutaClienteDestinoView.dart';
 
 import '../controllers/solicitud_estado_controller.dart';
@@ -43,6 +44,7 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
   bool _cancelledNavigationDone = false;
   bool _rutaDestinoNavigationDone = false;
   bool _assignmentNotificationShown = false;
+  static final Set<String> _globalAssignmentNotificationsShown = <String>{};
   String? _lastEstadoProcesado;
   String? _lastPersistedStatus;
 
@@ -52,13 +54,26 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
     _estadoController = SolicitudEstadoController();
     _loadTaxiMarkerIcon();
     _showDriverAssignedNotification();
+    // Persist current screen so reload restores this exact view
+    try {
+      SessionHelper.setActiveSolicitudScreen('trip_tracking');
+    } catch (_) {}
   }
 
   Future<void> _showDriverAssignedNotification() async {
     if (_assignmentNotificationShown) return;
+
+    final sid = widget.solicitudId;
+    if (sid.isNotEmpty && _globalAssignmentNotificationsShown.contains(sid)) {
+      _assignmentNotificationShown = true;
+      return;
+    }
+
     _assignmentNotificationShown = true;
+    if (sid.isNotEmpty) _globalAssignmentNotificationsShown.add(sid);
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
       try {
         await NotificationService.instance.init();
         await NotificationService.instance.showNotification(
@@ -128,123 +143,157 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
               statusBarBrightness: Brightness.light,
             ),
             child: Scaffold(
-              body: Stack(
-                children: [
-                  GoogleMap(
-                    initialCameraPosition: CameraPosition(
-                      target: initialTarget,
-                      zoom: 14,
-                    ),
-                    myLocationEnabled: true,
-                    myLocationButtonEnabled: false,
-                    compassEnabled: true,
-                    markers: markers,
-                    polylines: polylines,
-                    onMapCreated: (controller) {
-                      _mapController = controller;
-                      _fitInitialCameraIfNeeded(vm);
-                    },
-                  ),
-                  Positioned(
-                    top: MediaQuery.of(context).padding.top + 14,
-                    left: 0,
-                    right: 0,
-                    child: Center(
-                      child: TripStatusOverlay(
-                        distanceText: vm.distanciaTexto,
-                        etaText: vm.etaTexto,
-                        isOffline: vm.isOffline,
-                      ),
-                    ),
-                  ),
-                  if (vm.isOffline ||
-                      vm.errorText?.toLowerCase().contains('cache') == true)
-                    Positioned(
-                      top: MediaQuery.of(context).padding.top + 74,
-                      left: 20,
-                      right: 20,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
+              body: Builder(builder: (ctx) {
+                final mq = MediaQuery.of(ctx);
+                final screenH = mq.size.height;
+                final safeBottom = mq.padding.bottom;
+                final mapH = (screenH * 0.70).clamp(200.0, screenH - 120.0);
+                final panelH = screenH - mapH;
+
+                return Stack(
+                  children: [
+                    Column(
+                      children: [
+                        // Map area (70%)
+                        SizedBox(
+                          height: mapH,
+                          width: double.infinity,
+                          child: Stack(
+                            children: [
+                              GoogleMap(
+                                initialCameraPosition: CameraPosition(
+                                  target: initialTarget,
+                                  zoom: 14,
+                                ),
+                                myLocationEnabled: true,
+                                myLocationButtonEnabled: false,
+                                compassEnabled: true,
+                                markers: markers,
+                                polylines: polylines,
+                                onMapCreated: (controller) {
+                                  _mapController = controller;
+                                  _fitInitialCameraIfNeeded(vm);
+                                },
+                              ),
+                              Positioned(
+                                top: mq.padding.top + 14,
+                                left: 0,
+                                right: 0,
+                                child: Center(
+                                  child: TripStatusOverlay(
+                                    distanceText: vm.distanciaTexto,
+                                    etaText: vm.etaTexto,
+                                    isOffline: vm.isOffline,
+                                  ),
+                                ),
+                              ),
+                              if (vm.isOffline ||
+                                  vm.errorText?.toLowerCase().contains('cache') == true)
+                                Positioned(
+                                  top: mq.padding.top + 74,
+                                  left: 20,
+                                  right: 20,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 8,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: AppColores.warning,
+                                      borderRadius: BorderRadius.circular(10),
+                                      boxShadow: const [
+                                        BoxShadow(
+                                          color: AppColores.overlayLight,
+                                          blurRadius: 8,
+                                          offset: Offset(0, 3),
+                                        ),
+                                      ],
+                                    ),
+                                    child: const Row(
+                                      children: [
+                                        Icon(
+                                          Icons.wifi_off_rounded,
+                                          color: AppColores.textWhite,
+                                          size: 18,
+                                        ),
+                                        SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            'Sin conexion. Mostrando datos guardados.',
+                                            style: TextStyle(
+                                              color: AppColores.textWhite,
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              Positioned(
+                                right: 16,
+                                bottom: 16,
+                                child: FloatingActionButton(
+                                  heroTag: 'focus_trip_tracking',
+                                  backgroundColor: AppColores.buttonPrimary,
+                                  onPressed: () => _toggleFocus(vm),
+                                  child: Icon(
+                                    vm.focusMode == MapFocusMode.clientOnly
+                                        ? Icons.person_pin_circle
+                                        : Icons.fit_screen,
+                                    color: AppColores.textWhite,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                        decoration: BoxDecoration(
-                          color: AppColores.warning,
-                          borderRadius: BorderRadius.circular(10),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: AppColores.overlayLight,
-                              blurRadius: 8,
-                              offset: Offset(0, 3),
-                            ),
-                          ],
-                        ),
-                        child: const Row(
-                          children: [
-                            Icon(
-                              Icons.wifi_off_rounded,
-                              color: AppColores.textWhite,
-                              size: 18,
-                            ),
-                            SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'Sin conexion. Mostrando datos guardados.',
-                                style: TextStyle(
-                                  color: AppColores.textWhite,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 12,
+
+                        // Bottom panel (30%)
+                        SizedBox(
+                          height: panelH,
+                          width: double.infinity,
+                          child: Container(
+                            color: AppColores.cardBackground,
+                            child: SafeArea(
+                              top: false,
+                              child: Center(
+                                child: SizedBox(
+                                  height: (panelH - safeBottom).clamp(120.0, double.infinity),
+                                  width: isTablet ? 700 : (width - 32).clamp(260.0, double.infinity),
+                                  child: UserTripInfoCard(
+                                    name: vm.nombreUsuarioCard,
+                                    vehiclePlate: vm.placaVehiculo,
+                                    userPhotoUrl: vm.fotoUsuario,
+                                    vehiclePhotoUrl: vm.fotoVehiculo,
+                                    unreadCount: vm.unreadCount,
+                                    isCancelling: vm.isCancelling,
+                                    onOpenChat: () => _openChat(vm),
+                                    onCancel: () => _onCancelPressed(vm),
+                                  ),
                                 ),
                               ),
                             ),
-                          ],
+                          ),
                         ),
-                      ),
+                      ],
                     ),
-                  Positioned(
-                    right: 16,
-                    bottom: isTablet ? 280 : 270,
-                    child: FloatingActionButton(
-                      heroTag: 'focus_trip_tracking',
-                      backgroundColor: AppColores.buttonPrimary,
-                      onPressed: () => _toggleFocus(vm),
-                      child: Icon(
-                        vm.focusMode == MapFocusMode.clientOnly
-                            ? Icons.person_pin_circle
-                            : Icons.fit_screen,
-                        color: AppColores.textWhite,
-                      ),
-                    ),
-                  ),
-                  Align(
-                    alignment: Alignment.bottomCenter,
-                    child: SafeArea(
-                      top: false,
-                      child: UserTripInfoCard(
-                        name: vm.nombreUsuarioCard,
-                        vehiclePlate: vm.placaVehiculo,
-                        userPhotoUrl: vm.fotoUsuario,
-                        vehiclePhotoUrl: vm.fotoVehiculo,
-                        unreadCount: vm.unreadCount,
-                        isCancelling: vm.isCancelling,
-                        onOpenChat: () => _openChat(vm),
-                        onCancel: () => _onCancelPressed(vm),
-                      ),
-                    ),
-                  ),
-                  if (vm.isLoading)
-                    const Positioned.fill(
-                      child: ColoredBox(
-                        color: AppColores.overlayLight,
-                        child: Center(
-                          child: CircularProgressIndicator(
-                            color: AppColores.primary,
+
+                    if (vm.isLoading)
+                      const Positioned.fill(
+                        child: ColoredBox(
+                          color: AppColores.overlayLight,
+                          child: Center(
+                            child: CircularProgressIndicator(
+                              color: AppColores.primary,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                ],
-              ),
+                  ],
+                );
+              }),
             ),
           );
         },
@@ -257,6 +306,13 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
     if (estado == null || estado.isEmpty) return;
 
     final normalizado = SolicitudEstadoController.normalizeEstado(estado);
+    // Avoid triggering navigation on initial load when status is 'asignado'.
+    // This prevents reload from immediately replacing this screen.
+    if (_lastEstadoProcesado == null && normalizado == 'asignado') {
+      _lastEstadoProcesado = normalizado;
+      return;
+    }
+
     if (_lastEstadoProcesado == normalizado) return;
     _lastEstadoProcesado = normalizado;
 
@@ -332,6 +388,10 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
   Future<void> _goToRutaClienteDestino() async {
     if (_rutaDestinoNavigationDone || !mounted) return;
     _rutaDestinoNavigationDone = true;
+    // Mark the intended screen so reloads will open RutaClienteDestino
+    try {
+      await SessionHelper.setActiveSolicitudScreen('ruta_cliente_destino');
+    } catch (_) {}
 
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
@@ -354,6 +414,38 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
     } catch (error) {
       cancelError = error;
     }
+
+    // After attempting cancel, verify remote state and delete the solicitud
+    // from Firestore if it is actually cancelled.
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('solicitudes')
+          .doc(widget.solicitudId)
+          .get();
+
+      if (doc.exists) {
+        final data = doc.data();
+        final estadoRaw = (data?['status'] ?? data?['estado'] ?? '')
+            .toString();
+        final estadoNorm = SolicitudEstadoController.normalizeEstado(estadoRaw);
+        if (estadoNorm == SolicitudEstado.cancelado ||
+            estadoNorm == SolicitudEstado.sinRespuesta) {
+          try {
+            await FirebaseFirestore.instance
+                .collection('solicitudes')
+                .doc(widget.solicitudId)
+                .delete();
+          } catch (_) {}
+
+          try {
+            await SessionHelper.clearActiveSolicitud();
+          } catch (_) {}
+          try {
+            await RouteCacheService.clearSolicitud(widget.solicitudId);
+          } catch (_) {}
+        }
+      }
+    } catch (_) {}
 
     if (!mounted) return;
     _navigateToInicioCliente();
@@ -474,6 +566,7 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       try {
         await SessionHelper.clearActiveSolicitud();
+        try { await SessionHelper.clearActiveSolicitudScreen(); } catch (_) {}
         await RouteCacheService.clearSolicitud(widget.solicitudId);
       } catch (_) {}
 
