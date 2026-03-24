@@ -341,7 +341,7 @@ class _RutaClienteState extends State<RutaCliente> with WidgetsBindingObserver {
     if (esEnRuta) {
       if (_enCaminoFlowHandled) return;
       _enCaminoFlowHandled = true;
-      _navegarARutaClienteDestino();
+      //_navegarARutaClienteDestino();
       return;
     }
 
@@ -427,19 +427,19 @@ class _RutaClienteState extends State<RutaCliente> with WidgetsBindingObserver {
     );
   }
 
-  void _navegarARutaClienteDestino() {
-    if (!mounted) return;
-    navigateWithIntermediateLoader(
-      context: context,
-      nextBuilder: (context) => TripRouteTrackingScreen(
-        solicitudId: widget.idSolicitud,
-        currentUserId: FirebaseAuth.instance.currentUser?.uid ?? '',
-        tipoUsuario: TipoUsuarioTracking.cliente,
-      ),
-      title: 'Ruta confirmada',
-      subtitle: 'Preparando el viaje al destino...',
-    );
-  }
+  // void _navegarARutaClienteDestino() {
+  //   if (!mounted) return;
+  //   navigateWithIntermediateLoader(
+  //     context: context,
+  //     nextBuilder: (context) => TripRouteTrackingScreen(
+  //       solicitudId: widget.idSolicitud,
+  //       currentUserId: FirebaseAuth.instance.currentUser?.uid ?? '',
+  //       tipoUsuario: TipoUsuarioTracking.cliente,
+  //     ),
+  //     title: 'Ruta confirmada',
+  //     subtitle: 'Preparando el viaje al destino...',
+  //   );
+  // }
 
   @override
   Widget build(BuildContext context) {

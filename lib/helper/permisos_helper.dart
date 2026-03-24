@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -6,6 +8,38 @@ import 'package:permission_handler/permission_handler.dart';
 /// - Ubicación (primer plano y segundo plano)
 /// - Notificaciones
 class PermissionsHelper {
+  static bool _isPermissionRequestInProgress = false;
+  static final List<Future<void> Function()> _permissionQueue = [];
+
+  static Future<T> _runExclusive<T>(Future<T> Function() callback) {
+    final completer = Completer<T>();
+
+    Future<void> execute() async {
+      try {
+        final result = await callback();
+        if (!completer.isCompleted) completer.complete(result);
+      } catch (error, stack) {
+        if (!completer.isCompleted) completer.completeError(error, stack);
+      } finally {
+        _isPermissionRequestInProgress = false;
+        if (_permissionQueue.isNotEmpty) {
+          final next = _permissionQueue.removeAt(0);
+          _isPermissionRequestInProgress = true;
+          next();
+        }
+      }
+    }
+
+    if (_isPermissionRequestInProgress) {
+      _permissionQueue.add(execute);
+    } else {
+      _isPermissionRequestInProgress = true;
+      execute();
+    }
+
+    return completer.future;
+  }
+
   // ============================================================================
   // UBICACIÓN - Verificación
   // ============================================================================
@@ -42,55 +76,60 @@ class PermissionsHelper {
   /// Retorna `true` si el permiso fue concedido.
   /// Si es denegado permanentemente, abre la configuración de la app.
   static Future<bool> requestLocationPermission() async {
-    // Verificar si el servicio está habilitado
-    if (!await isLocationServiceEnabled()) {
-      debugPrint('⚠️ Servicio de ubicación desactivado');
-      return false;
-    }
+    return await _runExclusive(() async {
+      // Verificar si el servicio está habilitado
+      if (!await isLocationServiceEnabled()) {
+        debugPrint('⚠️ Servicio de ubicación desactivado');
+        return false;
+      }
 
-    var permission = await Geolocator.checkPermission();
+      var permission = await Geolocator.checkPermission();
 
-    // Si ya está denegado, pedir permiso
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-    }
+      // Si ya está denegado, pedir permiso
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
 
-    // Si fue denegado permanentemente, abrir configuración
-    if (permission == LocationPermission.deniedForever) {
-      debugPrint('⚠️ Permiso de ubicación denegado permanentemente');
-      await openAppSettings();
-      return false;
-    }
+      // Si fue denegado permanentemente, abrir configuración
+      if (permission == LocationPermission.deniedForever) {
+        debugPrint('⚠️ Permiso de ubicación denegado permanentemente');
+        await openAppSettings();
+        return false;
+      }
 
-    final granted = permission == LocationPermission.whileInUse ||
-        permission == LocationPermission.always;
+      final granted =
+          permission == LocationPermission.whileInUse ||
+          permission == LocationPermission.always;
 
-    if (granted) {
-      debugPrint('✅ Permiso de ubicación concedido');
-    } else {
-      debugPrint('❌ Permiso de ubicación denegado');
-    }
+      if (granted) {
+        debugPrint('✅ Permiso de ubicación concedido');
+      } else {
+        debugPrint('❌ Permiso de ubicación denegado');
+      }
 
-    return granted;
+      return granted;
+    });
   }
 
   /// Solicita permiso de ubicación en segundo plano (solo para conductores).
   ///
   /// Retorna `true` si el permiso fue concedido.
   static Future<bool> requestBackgroundLocationPermission() async {
-    final backgroundPermission = await Permission.locationAlways.request();
+    return await _runExclusive(() async {
+      final backgroundPermission = await Permission.locationAlways.request();
 
-    if (backgroundPermission.isGranted) {
-      debugPrint('✅ Ubicación en segundo plano permitida (conductor)');
-      return true;
-    } else {
-      debugPrint('❌ Ubicación en segundo plano no permitida');
+      if (backgroundPermission.isGranted) {
+        debugPrint('✅ Ubicación en segundo plano permitida (conductor)');
+        return true;
+      } else {
+        debugPrint('❌ Ubicación en segundo plano no permitida');
 
-      if (await Permission.locationAlways.isPermanentlyDenied) {
-        await openAppSettings();
+        if (await Permission.locationAlways.isPermanentlyDenied) {
+          await openAppSettings();
+        }
+        return false;
       }
-      return false;
-    }
+    });
   }
 
   // ============================================================================
@@ -107,18 +146,20 @@ class PermissionsHelper {
   ///
   /// Retorna `true` si el permiso fue concedido.
   static Future<bool> requestNotificationPermission() async {
-    final permission = await Permission.notification.request();
+    return await _runExclusive(() async {
+      final permission = await Permission.notification.request();
 
-    if (permission.isGranted) {
-      debugPrint('✅ Notificaciones permitidas');
-      return true;
-    } else {
-      debugPrint('❌ Notificaciones no permitidas');
-      if (await Permission.notification.isPermanentlyDenied) {
-        await openAppSettings();
+      if (permission.isGranted) {
+        debugPrint('✅ Notificaciones permitidas');
+        return true;
+      } else {
+        debugPrint('❌ Notificaciones no permitidas');
+        if (await Permission.notification.isPermanentlyDenied) {
+          await openAppSettings();
+        }
+        return false;
       }
-      return false;
-    }
+    });
   }
 
   // ============================================================================

@@ -13,16 +13,42 @@ import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/utils/marker_icon_helper.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-class RutaClienteDestino extends StatefulWidget {
+class RutaClienteDestino extends StatelessWidget {
   final String idSolicitud;
   const RutaClienteDestino({Key? key, required this.idSolicitud})
-    : super(key: key);
+      : super(key: key);
 
   @override
-  State<RutaClienteDestino> createState() => _RutaClienteDestinoState();
+  Widget build(BuildContext context) {
+    var hasProvider = true;
+    try {
+      Provider.of<Rutaclientedestinoviewmodel>(context, listen: false);
+    } catch (_) {
+      hasProvider = false;
+    }
+
+    if (hasProvider) {
+      return _RutaClienteDestinoContent(idSolicitud: idSolicitud);
+    }
+
+    return ChangeNotifierProvider<Rutaclientedestinoviewmodel>(
+      create: (_) => Rutaclientedestinoviewmodel(),
+      child: _RutaClienteDestinoContent(idSolicitud: idSolicitud),
+    );
+  }
 }
 
-class _RutaClienteDestinoState extends State<RutaClienteDestino>
+class _RutaClienteDestinoContent extends StatefulWidget {
+  final String idSolicitud;
+  const _RutaClienteDestinoContent({Key? key, required this.idSolicitud})
+      : super(key: key);
+
+  @override
+  State<_RutaClienteDestinoContent> createState() =>
+      _RutaClienteDestinoContentState();
+}
+
+class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
     with WidgetsBindingObserver {
   static const SystemUiOverlayStyle _rutaClienteDestinoOverlayStyle =
       SystemUiOverlayStyle(

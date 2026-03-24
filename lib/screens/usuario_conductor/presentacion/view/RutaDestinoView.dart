@@ -18,16 +18,41 @@ import 'package:geolocator/geolocator.dart';
 import 'package:taxi_app/utils/marker_icon_helper.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-class RutaDestino extends StatefulWidget {
+class RutaDestino extends StatelessWidget {
   final String idSolicitud;
 
   const RutaDestino({super.key, required this.idSolicitud});
 
   @override
-  State<RutaDestino> createState() => _RutaDestinoState();
+  Widget build(BuildContext context) {
+    var hasProvider = true;
+    try {
+      Provider.of<RutaDestinoViewModel>(context, listen: false);
+    } catch (_) {
+      hasProvider = false;
+    }
+
+    if (hasProvider) {
+      return _RutaDestinoContent(idSolicitud: idSolicitud);
+    }
+
+    return ChangeNotifierProvider<RutaDestinoViewModel>(
+      create: (_) => RutaDestinoViewModel(),
+      child: _RutaDestinoContent(idSolicitud: idSolicitud),
+    );
+  }
 }
 
-class _RutaDestinoState extends State<RutaDestino> with WidgetsBindingObserver {
+class _RutaDestinoContent extends StatefulWidget {
+  final String idSolicitud;
+
+  const _RutaDestinoContent({super.key, required this.idSolicitud});
+
+  @override
+  State<_RutaDestinoContent> createState() => _RutaDestinoContentState();
+}
+
+class _RutaDestinoContentState extends State<_RutaDestinoContent> with WidgetsBindingObserver {
   static const SystemUiOverlayStyle _rutaDestinoOverlayStyle =
       SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,

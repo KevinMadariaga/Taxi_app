@@ -131,4 +131,10 @@ class TripTrackingFirebaseService {
       estado: estado,
     );
   }
+
+  Future<void> eliminarSolicitud({
+    required String solicitudId,
+  }) async {
+    await _solicitudDatasource.eliminarSolicitud(solicitudId: solicitudId);
+  }
 }

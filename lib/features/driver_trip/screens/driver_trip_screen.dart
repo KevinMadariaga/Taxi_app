@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
+import 'package:taxi_app/screens/usuario_conductor/presentacion/view/RutaDestinoView.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:taxi_app/core/app_colores.dart';
@@ -641,10 +642,11 @@ class _DriverTripScreenState extends State<DriverTripScreen>
     try {
       await Navigator.of(context, rootNavigator: true).pushReplacement(
         MaterialPageRoute(
-          builder: (_) => TripRouteTrackingScreen(
-            solicitudId: widget.tripId,
-            currentUserId: FirebaseAuth.instance.currentUser?.uid ?? '',
-            tipoUsuario: TipoUsuarioTracking.conductor,
+          builder: (_) => RutaDestino(
+            idSolicitud: widget.tripId,
+            // previously passed as tripId; RutaDestino expects `idSolicitud`
+            // currentUserId: FirebaseAuth.instance.currentUser?.uid ?? '',
+            // tipoUsuario: TipoUsuarioTracking.conductor,
           ),
         ),
       );

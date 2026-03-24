@@ -321,13 +321,13 @@ class AuthService {
             estado.contains('camino') ||
             estado.contains('encam');
 
-        if (conductorInProgress) {
-          return TripRouteTrackingScreen(
-            solicitudId: solicitudId,
-            currentUserId: currentUid ?? conductorId ?? '',
-            tipoUsuario: TipoUsuarioTracking.conductor,
-          );
-        }
+        // if (conductorInProgress) {
+        //   return TripRouteTrackingScreen(
+        //     solicitudId: solicitudId,
+        //     currentUserId: currentUid ?? conductorId ?? '',
+        //     tipoUsuario: TipoUsuarioTracking.conductor,
+        //   );
+        // }
         // Try to restore cached route data to preserve UI state after reload (non in-progress)
         try {
           final cache = await RouteCacheService.loadForSolicitud(solicitudId);
@@ -346,13 +346,13 @@ class AuthService {
           await _notifyActiveSolicitudOnAppOpen();
         }
 
-        if (estadoNormalizado == 'en_ruta') {
-          return TripRouteTrackingScreen(
-            solicitudId: solicitudId,
-            currentUserId: currentUid ?? clienteId ?? '',
-            tipoUsuario: TipoUsuarioTracking.cliente,
-          );
-        }
+        // if (estadoNormalizado == 'en_ruta') {
+        //   return TripRouteTrackingScreen(
+        //     solicitudId: solicitudId,
+        //     currentUserId: currentUid ?? clienteId ?? '',
+        //     tipoUsuario: TipoUsuarioTracking.cliente,
+        //   );
+        // }
 
         return TripTrackingScreen(
           solicitudId: solicitudId,

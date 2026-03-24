@@ -1,6 +1,12 @@
+import 'dart:async';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:lottie/lottie.dart';
- 
+import 'package:geolocator/geolocator.dart';
+import 'package:lottie/lottie.dart' as lottie;
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:taxi_app/widgets/MapaGoogle.dart';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:taxi_app/helper/responsive_helper.dart';
 import 'package:taxi_app/core/app_colores.dart';
@@ -24,9 +30,23 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
   late final AnimationController _taxiController;
   late final AnimationController _dotsController;
 
+  GoogleMapController? _mapController;
+  BitmapDescriptor? _taxiIcon;
+  double _sonarRadius = 120.0;
+  Timer? _sonarTimer;
+  final LatLng _defaultCenter = const LatLng(
+    8.2595534,
+    -73.353469,
+  ); // centro (ejemplo)
+  LatLng? _clientLocation;
+  Set<Marker> _taxiMarkers = {};
+  Set<Circle> _sonarCircles = {};
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _conductoresSub;
+
   @override
   void initState() {
     super.initState();
+    _initializeSonarMap();
 
     _taxiController = AnimationController(
       vsync: this,
@@ -76,8 +96,142 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
     );
   }
 
+  void _initializeSonarMap() {
+    _loadTaxiIcon();
+    _initClientLocation();
+    _subscribeConductores();
+
+    _sonarCircles = {
+      Circle(
+        circleId: const CircleId('sonar'),
+        center: _clientLocation ?? _defaultCenter,
+        radius: _sonarRadius,
+        strokeColor: AppColores.primary.withOpacity(0.4),
+        strokeWidth: 2,
+        fillColor: AppColores.primary.withOpacity(0.12),
+      ),
+    };
+
+    _sonarTimer = Timer.periodic(const Duration(milliseconds: 350), (_) {
+      if (!mounted) return;
+      setState(() {
+        _sonarRadius += 8;
+        if (_sonarRadius > 220) {
+          _sonarRadius = 120;
+        }
+        _sonarCircles = {
+          Circle(
+            circleId: const CircleId('sonar'),
+            center: _clientLocation ?? _defaultCenter,
+            radius: _sonarRadius,
+            strokeColor: AppColores.primary.withOpacity(0.4),
+            strokeWidth: 2,
+            fillColor: AppColores.primary.withOpacity(0.12),
+          ),
+        };
+      });
+    });
+  }
+
+  Future<void> _loadTaxiIcon() async {
+    try {
+      final icon = await BitmapDescriptor.fromAssetImage(
+        const ImageConfiguration(size: Size(20, 20)),
+        'assets/img/taxi_icon.png',
+      );
+      _taxiIcon = icon;
+      setState(() {
+        _taxiMarkers = _taxiMarkers
+            .map(
+              (marker) => marker.copyWith(iconParam: _taxiIcon ?? marker.icon),
+            )
+            .toSet();
+      });
+    } catch (_) {
+      // fallback si no existe el asset o hay error
+    }
+  }
+
+  Future<void> _initClientLocation() async {
+    try {
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+      if (!mounted) return;
+      setState(() {
+        _clientLocation = LatLng(position.latitude, position.longitude);
+      });
+      _mapController?.animateCamera(
+        CameraUpdate.newLatLngZoom(_clientLocation!, 14),
+      );
+    } catch (_) {
+      // No se pudo obtener, se queda en default
+    }
+  }
+
+  void _subscribeConductores() {
+    _conductoresSub?.cancel();
+    _conductoresSub = FirebaseFirestore.instance
+        .collection('usuarios')
+        .where('tipoUsuario', isEqualTo: 'conductor')
+        .where('disponible', isEqualTo: true)
+        .snapshots()
+        .listen(
+          (snapshot) {
+            final markers = snapshot.docs
+                .map((doc) {
+                  final data = doc.data();
+                  final ubicacion = data['ubicacion'];
+                  if (ubicacion is! Map) return null;
+                  final lat = ubicacion['lat'] ?? ubicacion['latitude'];
+                  final lng = ubicacion['lng'] ?? ubicacion['longitude'];
+                  if (lat == null || lng == null) return null;
+                  return Marker(
+                    markerId: MarkerId('taxi_${doc.id}'),
+                    position: LatLng(
+                      (lat as num).toDouble(),
+                      (lng as num).toDouble(),
+                    ),
+                    icon:
+                        _taxiIcon ??
+                        BitmapDescriptor.defaultMarkerWithHue(
+                          BitmapDescriptor.hueYellow,
+                        ),
+                    infoWindow: InfoWindow(
+                      title: 'Taxi cercano',
+                      snippet:
+                          data['nombre']?.toString() ?? 'Conductor conectado',
+                    ),
+                  );
+                })
+                .whereType<Marker>()
+                .toSet();
+
+            if (!mounted) return;
+            setState(() {
+              _taxiMarkers = markers;
+            });
+          },
+          onError: (_) {
+            // ignore
+          },
+        );
+  }
+
+  void _onMapCreated(GoogleMapController controller) {
+    _mapController = controller;
+    if (_clientLocation != null) {
+      _mapController!.animateCamera(
+        CameraUpdate.newLatLngZoom(_clientLocation!, 14),
+      );
+    }
+  }
+
   @override
   void dispose() {
+    _conductoresSub?.cancel();
+    _sonarTimer?.cancel();
+    _mapController?.dispose();
     _vm.removeListener(_onVmChanged);
     _vm.dispose();
     _taxiController.dispose();
@@ -98,13 +252,18 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
 
   @override
   Widget build(BuildContext context) {
-    final screenW = MediaQuery.of(context).size.width;
+    final media = MediaQuery.of(context);
+    final screenW = media.size.width;
+    final bottomInset = media.viewPadding.bottom > 0
+        ? media.viewPadding.bottom
+        : media.padding.bottom;
     final isTablet = screenW >= 1000;
+    final bottomSpace = bottomInset + (isTablet ? 24.0 : 18.0);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF6F9FC),
       body: SafeArea(
-        bottom: Theme.of(context).platform == TargetPlatform.android ? false : true,
+        bottom: false,
         child: Stack(
           children: [
             Positioned(
@@ -142,19 +301,20 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Spacer(),
+                  SizedBox(height: isTablet ? 50 : 38),
                   // Taxi animation centered
                   Center(
                     child: SizedBox(
                       width: isTablet ? 250 : 190,
                       height: isTablet ? 250 : 190,
-                      child: Lottie.asset(
+                      child: lottie.Lottie.asset(
                         'assets/gif/car.json',
                         repeat: true,
                         animate: true,
                       ),
                     ),
                   ),
-                  SizedBox(height: isTablet ? 20 : 12),
+                  SizedBox(height: isTablet ? 25 : 15),
                   Text(
                     'Buscando un taxi...',
                     textAlign: TextAlign.center,
@@ -175,7 +335,10 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
                       height: 1.35,
                     ),
                   ),
-                  SizedBox(height: isTablet ? 26 : 20),
+                  SizedBox(height: isTablet ? 30 : 22),
+
+                  _buildSonarMap(isTablet),
+                  SizedBox(height: isTablet ? 18 : 14),
                   _buildSearchingDots(isTablet),
                   const Spacer(),
                   SizedBox(
@@ -219,12 +382,53 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
                     ),
                   ),
                   SizedBox(height: isTablet ? 8 : 4),
+                  SizedBox(height: bottomSpace),
                 ],
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildSonarMap(bool isTablet) {
+    final mapHeight = isTablet ? 190.0 : 150.0;
+    return Column(
+      children: [
+        Container(
+          width: double.infinity,
+          height: mapHeight,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.black12),
+            boxShadow: const [
+              BoxShadow(
+                color: Colors.black12,
+                blurRadius: 8,
+                offset: Offset(0, 2),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Mapagoogle(
+              initialTarget: _clientLocation ?? _defaultCenter,
+              initialZoom: 14,
+              markers: _taxiMarkers,
+              circles: _sonarCircles,
+              onMapCreated: _onMapCreated,
+              myLocationEnabled: false,
+              zoomGesturesEnabled: false,
+              rotateGesturesEnabled: false,
+              tiltGesturesEnabled: false,
+              compassEnabled: false,
+              mapToolbarEnabled: false,
+            ),
+          ),
+        ),
+      ],
     );
   }
 

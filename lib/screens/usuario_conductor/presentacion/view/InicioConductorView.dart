@@ -788,33 +788,44 @@ class _InicioConductorState extends State<InicioConductor>
                                             : const <Circle>{},
                                         onMapCreated: (controller) async {
                                           _mapController = controller;
-                                          if (vm.currentLocation != null &&
-                                              preview != null) {
-                                            final driver = vm.currentLocation!;
-                                            final client = LatLng(
-                                              preview
-                                                  .solicitud
-                                                  .ubicacionInicial
-                                                  .latitude,
-                                              preview
-                                                  .solicitud
-                                                  .ubicacionInicial
-                                                  .longitude,
-                                            );
-                                            final bearing = vm.calculateBearing(
-                                              driver,
-                                              client,
-                                            );
-                                            await _mapController!.animateCamera(
-                                              CameraUpdate.newCameraPosition(
-                                                CameraPosition(
-                                                  target: driver,
-                                                  zoom: 16,
-                                                  bearing: bearing,
-                                                  tilt: 0,
+
+                                          // If driver location is already available, center map.
+                                          if (vm.currentLocation != null) {
+                                            if (preview != null) {
+                                              final driver =
+                                                  vm.currentLocation!;
+                                              final client = LatLng(
+                                                preview
+                                                    .solicitud
+                                                    .ubicacionInicial
+                                                    .latitude,
+                                                preview
+                                                    .solicitud
+                                                    .ubicacionInicial
+                                                    .longitude,
+                                              );
+                                              final bearing = vm
+                                                  .calculateBearing(
+                                                    driver,
+                                                    client,
+                                                  );
+                                              await _mapController!.animateCamera(
+                                                CameraUpdate.newCameraPosition(
+                                                  CameraPosition(
+                                                    target: driver,
+                                                    zoom: 16,
+                                                    bearing: bearing,
+                                                    tilt: 0,
+                                                  ),
                                                 ),
-                                              ),
-                                            );
+                                              );
+                                            } else if (!_hasCentered) {
+                                              _hasCentered = true;
+                                              await vm.centerMapOnMarker(
+                                                _mapController!,
+                                                zoom: 16.0,
+                                              );
+                                            }
                                           }
                                         },
                                       );
@@ -1195,6 +1206,8 @@ class _InicioConductorState extends State<InicioConductor>
   Future<void> _requestAndCenterCurrentLocation() async {
     if (!mounted) return;
 
+    InicioConductorViewmodel? vm;
+
     try {
       final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
@@ -1205,22 +1218,42 @@ class _InicioConductorState extends State<InicioConductor>
 
       // Actualiza VM si está disponible
       try {
-        final vm = Provider.of<InicioConductorViewmodel>(
-          context,
-          listen: false,
-        );
+        vm = Provider.of<InicioConductorViewmodel>(context, listen: false);
         vm.currentLocation = currentLocation;
       } catch (_) {
         // Puede ocurrir antes de que exista contexto del provider (según ciclo de vida)
       }
 
-      // Centrar en el mapa si tenemos ubicación válida
+      // Centrar en el mapa si tenemos ubicación válida.
+      // Esto garantiza que cuando pase la pantalla de carga de ubicación,
+      // el conductor quede centrado inmediatamente si ya hay mapa creado.
       if (_mapController != null) {
-        await _mapController!.animateCamera(
-          CameraUpdate.newCameraPosition(
-            CameraPosition(target: currentLocation, zoom: 16.0),
-          ),
-        );
+        try {
+          if (vm != null) {
+            await vm.centerMapOnMarker(_mapController!, zoom: 16.0);
+          } else {
+            await _mapController!.animateCamera(
+              CameraUpdate.newCameraPosition(
+                CameraPosition(target: currentLocation, zoom: 16.0),
+              ),
+            );
+          }
+          _hasCentered = true;
+        } catch (_) {
+          try {
+            await _mapController!.animateCamera(
+              CameraUpdate.newCameraPosition(
+                CameraPosition(target: currentLocation, zoom: 16.0),
+              ),
+            );
+            _hasCentered = true;
+          } catch (_) {
+            // Ignorar si no se puede centrar, pero persistimos location en VM.
+          }
+        }
+      } else {
+        // Si el mapa aún no está listo, el callback de onMapCreated se encargará de centrar.
+        _hasCentered = false;
       }
     } catch (_) {
       // no hacemos crash, puede haber servicios desactivados/etc.

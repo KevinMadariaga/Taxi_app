@@ -205,16 +205,33 @@ class _MapPreviewState extends State<MapPreview> {
           statusBarBrightness: Brightness.light,
         ),
         child: Scaffold(
-          extendBodyBehindAppBar: true,
-          body: Stack(
-            children: [
-              Column(
-                children: [
-                  _buildMap(context),
-                  Expanded(child: _buildBottomContent(context)),
-                ],
+          extendBodyBehindAppBar: false,
+          appBar: AppBar(
+            backgroundColor: AppColores.surface.withOpacity(0.95),
+            elevation: 0,
+            centerTitle: true,
+            title: const Text(
+              'Detalle de la solicitud',
+              style: TextStyle(
+                color: Colors.black87,
+                fontWeight: FontWeight.bold,
               ),
-              _buildBackButton(context),
+            ),
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.black87),
+              onPressed: _handleBackNavigation,
+            ),
+            systemOverlayStyle: const SystemUiOverlayStyle(
+              statusBarColor: Colors.transparent,
+              statusBarIconBrightness: Brightness.dark,
+            ),
+          ),
+          body: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SizedBox(height: 8),
+              _buildMap(context),
+              Expanded(child: _buildBottomContent(context)),
             ],
           ),
         ),
@@ -223,45 +240,62 @@ class _MapPreviewState extends State<MapPreview> {
   }
 
   Widget _buildMap(BuildContext context) {
-    final mapHeight = MediaQuery.of(context).size.height * 0.55;
-    return SizedBox(
-      height: mapHeight,
-      child: Consumer<MapapreviewViewModel>(
-        builder: (context, vm, _) {
-          final origen = vm.origen.position;
-          final destino = vm.destino.position;
-          return ClipRRect(
-            borderRadius: BorderRadius.only(
-              bottomLeft: Radius.circular(ResponsiveHelper.wp(context, 4)),
-              bottomRight: Radius.circular(ResponsiveHelper.wp(context, 4)),
+    final size = MediaQuery.of(context).size;
+    final isTablet = size.width >= 1000;
+    final mapHeight = isTablet
+        ? size.height * 0.50
+        : size.height * 0.50; // responsivo para diferentes pantallas
+
+    return Center(
+      child: Container(
+        width: size.width * 0.92,
+        height: mapHeight,
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.black, width: 1.5),
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black12,
+              blurRadius: 8,
+              offset: Offset(0, 3),
             ),
-            child: Mapagoogle(
-              initialTarget: LatLng(
-                (origen.latitude + destino.latitude) / 2,
-                (origen.longitude + destino.longitude) / 2,
-              ),
-              initialZoom: 13,
-              myLocationEnabled: true,
-              onMapCreated: _onMapCreated,
-              markers: {
-                Marker(
-                  markerId: const MarkerId('destino'),
-                  position: destino,
-                  infoWindow: InfoWindow(
-                    title: vm.destino.title ?? 'Destino',
-                    snippet: vm.destino.subtitle,
-                  ),
-                  icon:
-                      _destIcon ??
-                      BitmapDescriptor.defaultMarkerWithHue(
-                        BitmapDescriptor.hueRed,
-                      ),
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Consumer<MapapreviewViewModel>(
+          builder: (context, vm, _) {
+            final origen = vm.origen.position;
+            final destino = vm.destino.position;
+            return ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Mapagoogle(
+                initialTarget: LatLng(
+                  (origen.latitude + destino.latitude) / 2,
+                  (origen.longitude + destino.longitude) / 2,
                 ),
-              },
-              polylines: vm.polylines,
-            ),
-          );
-        },
+                initialZoom: 13,
+                myLocationEnabled: true,
+                onMapCreated: _onMapCreated,
+                markers: {
+                  Marker(
+                    markerId: const MarkerId('destino'),
+                    position: destino,
+                    infoWindow: InfoWindow(
+                      title: vm.destino.title ?? 'Destino',
+                      snippet: vm.destino.subtitle,
+                    ),
+                    icon:
+                        _destIcon ??
+                        BitmapDescriptor.defaultMarkerWithHue(
+                          BitmapDescriptor.hueRed,
+                        ),
+                  ),
+                },
+                polylines: vm.polylines,
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -339,7 +373,7 @@ class _MapPreviewState extends State<MapPreview> {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(cardBorderRadius),
         border: Border.all(color: Colores.amarillo, width: 1.5),
-        color: Colors.white,
+        color: AppColores.surface,
       ),
       child: Row(
         children: [
@@ -363,7 +397,7 @@ class _MapPreviewState extends State<MapPreview> {
                   header,
                   style: TextStyle(
                     fontSize: ResponsiveHelper.sp(context, 12),
-                    color: Colors.black54,
+                    color: AppColores.textSecondary,
                   ),
                 ),
                 SizedBox(height: ResponsiveHelper.hp(context, 0.5)),
@@ -372,6 +406,7 @@ class _MapPreviewState extends State<MapPreview> {
                   style: TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: ResponsiveHelper.sp(context, 14),
+                    color: AppColores.textPrimary,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -426,7 +461,12 @@ class _MapPreviewState extends State<MapPreview> {
                     },
                   ),
                   ListTile(
-                    leading: const Icon(Icons.account_balance_wallet),
+                    leading: Image.asset(
+                      'assets/img/nequi.jpeg',
+                      width: 28,
+                      height: 28,
+                      fit: BoxFit.cover,
+                    ),
                     title: const Text('Nequi'),
                     selected: vm.metodoPago == 'Nequi',
                     trailing: vm.metodoPago == 'Nequi'
@@ -462,6 +502,7 @@ class _MapPreviewState extends State<MapPreview> {
         style: TextStyle(
           fontSize: ResponsiveHelper.sp(context, 16),
           fontWeight: FontWeight.w700,
+          color: AppColores.textPrimary,
         ),
       ),
     );
@@ -653,6 +694,7 @@ class _MapPreviewState extends State<MapPreview> {
                       style: TextStyle(
                         fontSize: ResponsiveHelper.sp(context, 16),
                         fontWeight: FontWeight.w700,
+                        color: AppColores.textWhite,
                       ),
                     ),
             ),
@@ -685,30 +727,6 @@ class _MapPreviewState extends State<MapPreview> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildBackButton(BuildContext context) {
-    return Positioned(
-      left: ResponsiveHelper.wp(context, 3),
-      top: MediaQuery.of(context).padding.top + ResponsiveHelper.hp(context, 1),
-      child: Material(
-        color: Colors.white,
-        shape: const CircleBorder(),
-        elevation: 4,
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: _handleBackNavigation,
-          child: Padding(
-            padding: EdgeInsets.all(ResponsiveHelper.wp(context, 2)),
-            child: Icon(
-              Icons.arrow_back,
-              color: Colors.black87,
-              size: ResponsiveHelper.sp(context, 20),
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

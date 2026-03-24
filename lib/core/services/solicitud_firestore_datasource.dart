@@ -79,4 +79,10 @@ class SolicitudFirestoreDatasource {
 
     await ref(solicitudId).set(payload, SetOptions(merge: true));
   }
+
+  Future<void> eliminarSolicitud({
+    required String solicitudId,
+  }) async {
+    await ref(solicitudId).delete();
+  }
 }

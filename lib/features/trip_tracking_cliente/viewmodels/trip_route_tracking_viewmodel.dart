@@ -132,6 +132,7 @@ class TripRouteTrackingViewModel extends ChangeNotifier {
     if (points.length < 2 || current == null) {
       return points;
     }
+
     final nearest = _mathService.nearestPointIndex(current, points);
     final start = nearest.clamp(0, points.length - 1);
     final tail = points.sublist(start);
@@ -139,11 +140,28 @@ class TripRouteTrackingViewModel extends ChangeNotifier {
 
     try {
       if (_lastNearestIndex == null || _lastNearestIndex != nearest) {
-        debugPrint('[TripRouteTrackingViewModel] nearest route index: $nearest, tail length: ${tail.length}');
+        debugPrint(
+          '[TripRouteTrackingViewModel] nearest route index: $nearest, tail length: ${tail.length}',
+        );
         _lastNearestIndex = nearest;
       }
     } catch (_) {}
 
+    // If the current location is effectively on the route, use the route points
+    // directly so polyline stays sobre las calles en vez de dibujar un segmento
+    // recto desde la ubicación exacta a la siguiente posición del polyline.
+    final currentToRouteDist = _mathService.haversineMeters(
+      current,
+      points[nearest],
+    );
+    const routeSnapThresholdMeters = 25.0;
+
+    if (currentToRouteDist <= routeSnapThresholdMeters) {
+      return tail;
+    }
+
+    // Si el conductor está fuera de ruta, mostramos su posición actual y
+    // el resto del trazado desde el punto más cercano.
     return [current, ...tail];
   }
 
@@ -161,44 +179,83 @@ class TripRouteTrackingViewModel extends ChangeNotifier {
 
   Future<void> finalizarViajePorConductor() async {
     if (!isConductor || isCompletingTrip) return;
-    // Optimistic flow: navigate immediately, perform network/cleanup in background
-    isCompletingTrip = false;
+
+    isCompletingTrip = true;
+    _safeNotify();
+    // Actualizamos el estado local inmediatamente para permitir la
+    // navegación instantánea hacia el resumen. Las operaciones remotas y
+    // de limpieza se ejecutan en segundo plano para no bloquear la UI.
+    if (kDebugMode) {
+      debugPrint(
+        '[TripRouteTrackingViewModel] iniciar finalizarViajePorConductor: ${DateTime.now().toIso8601String()}',
+      );
+    }
+
+    estadoSolicitud = SolicitudEstado.completado;
     _completionHandled = true;
     shouldNavigateToSummary = true;
+
+    // Ocultar overlay de "Terminando viaje..." inmediatamente para no
+    // bloquear la navegación visualmente.
+    isCompletingTrip = false;
     _safeNotify();
 
-    unawaited(Future<void>(() async {
-      try {
-        await _firebaseService.actualizarEstadoSolicitud(
-          solicitudId: solicitudId,
-          estado: SolicitudEstado.completado,
+    // Ejecutar la actualización remota y limpieza en background.
+    unawaited(_performFinalizeRemote());
+  }
+
+  Future<void> _performFinalizeRemote() async {
+    if (kDebugMode) {
+      debugPrint(
+        '[TripRouteTrackingViewModel] _performFinalizeRemote START: ${DateTime.now().toIso8601String()}',
+      );
+    }
+
+    try {
+      await _firebaseService.actualizarEstadoSolicitud(
+        solicitudId: solicitudId,
+        estado: SolicitudEstado.completado,
+      );
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint(
+          '[TripRouteTrackingViewModel] Error actualizando estado en BD (background): $e',
         );
-      } catch (e) {
-        // Log or handle failure to update remote state; do not block navigation
-        if (kDebugMode) debugPrint('[TripRouteTrackingViewModel] Error updating estado remotely: $e');
       }
+    }
 
-      try {
-        _foregroundTrackingService?.dispose();
-      } catch (_) {}
+    // Ejecutar limpieza (detener servicios, limpiar cache/notifs)
+    try {
+      await _cleanupAfterTripCompletion();
+    } catch (_) {}
 
-      try {
-        final service = FlutterBackgroundService();
-        service.invoke('stop');
-      } catch (_) {}
+    if (kDebugMode) {
+      debugPrint(
+        '[TripRouteTrackingViewModel] _performFinalizeRemote END: ${DateTime.now().toIso8601String()}',
+      );
+    }
+  }
 
-      try {
-        await NotificacionesServicio.instance.cancelAll();
-      } catch (_) {}
+  Future<void> _cleanupAfterTripCompletion() async {
+    try {
+      final service = FlutterBackgroundService();
+      service.invoke('stop');
+    } catch (_) {}
 
-      try {
-        await SessionHelper.clearActiveSolicitud();
-      } catch (_) {}
+    try {
+      _foregroundTrackingService?.dispose();
+    } catch (_) {}
 
-      try {
-        await RouteCacheService.clearSolicitud(solicitudId);
-      } catch (_) {}
-      }));
+    await Future.wait(
+      [
+        NotificacionesServicio.instance.cancelAll(),
+        SessionHelper.clearActiveSolicitud(),
+        RouteCacheService.clearSolicitud(solicitudId),
+      ].map((f) => f.catchError((_) {})),
+    );
+
+    isCompletingTrip = false;
+    _safeNotify();
   }
 
   void _bindSolicitud() {
@@ -218,7 +275,8 @@ class TripRouteTrackingViewModel extends ChangeNotifier {
                 _routeBootstrapped = true;
               }
 
-              final routeExistsInFirestore = _extractRoutePoints(raw).length >= 2;
+              final routeExistsInFirestore =
+                  _extractRoutePoints(raw).length >= 2;
               if (!routeExistsInFirestore && !_routeBootstrapped) {
                 await _ensurePersistedRoute(forceRecalculate: false);
               }
@@ -239,39 +297,42 @@ class TripRouteTrackingViewModel extends ChangeNotifier {
       // ubicación del conductor y mover el marcador mientras se actualiza.
       _solicitudSub = _firebaseService
           .watchSolicitudRaw(solicitudId)
-          .listen((raw) async {
-        try {
-          isLoading = false;
-          // Hidratamos campos comunes (destino, ruta, user info, etc.)
-          await _hydrateFromSolicitud(raw);
+          .listen(
+            (raw) async {
+              try {
+                isLoading = false;
+                // Hidratamos campos comunes (destino, ruta, user info, etc.)
+                await _hydrateFromSolicitud(raw);
 
-          if (!_routeBootstrapped && routePoints.length >= 2) {
-            _routeBootstrapped = true;
-          }
+                if (!_routeBootstrapped && routePoints.length >= 2) {
+                  _routeBootstrapped = true;
+                }
 
-          // Verificar transiciones de estado (p.ej. completar viaje)
-          _handleStateTransitions();
+                // Verificar transiciones de estado (p.ej. completar viaje)
+                _handleStateTransitions();
 
-          // Extraer explícitamente la ubicación del conductor desde el
-          // documento y asignarla en cliente (hydrate solo asigna para
-          // el conductor local).
-          final conductorMap = _asStringMap(raw['conductor']);
-          final remoteConductor = _extractPoint(conductorMap);
-          if (remoteConductor != null) {
-            conductorLatLng = remoteConductor;
-          }
+                // Extraer explícitamente la ubicación del conductor desde el
+                // documento y asignarla en cliente (hydrate solo asigna para
+                // el conductor local).
+                final conductorMap = _asStringMap(raw['conductor']);
+                final remoteConductor = _extractPoint(conductorMap);
+                if (remoteConductor != null) {
+                  conductorLatLng = remoteConductor;
+                }
 
-          _updateRemainingMetrics();
-        } catch (_) {
-          // Ignorar errores de parseo/lectura, pero asegurar estado de carga
-          isLoading = false;
-        }
+                _updateRemainingMetrics();
+              } catch (_) {
+                // Ignorar errores de parseo/lectura, pero asegurar estado de carga
+                isLoading = false;
+              }
 
-        _safeNotify();
-      }, onError: (error) {
-        isLoading = false;
-        _safeNotify();
-      });
+              _safeNotify();
+            },
+            onError: (error) {
+              isLoading = false;
+              _safeNotify();
+            },
+          );
     }
   }
 
@@ -323,15 +384,23 @@ class TripRouteTrackingViewModel extends ChangeNotifier {
             // Forward device location into the viewmodel processing pipeline.
             unawaited(_onDriverPositionFromDevice(latLng));
           } catch (e) {
-            if (kDebugMode) debugPrint('[TripRouteTrackingViewModel] onLocationUpdate error: $e');
+            if (kDebugMode)
+              debugPrint(
+                '[TripRouteTrackingViewModel] onLocationUpdate error: $e',
+              );
           }
         },
       );
       if (kDebugMode) {
-        debugPrint('[TripRouteTrackingViewModel] TrackingService.iniciarTrackingConEnvio started: $started');
+        debugPrint(
+          '[TripRouteTrackingViewModel] TrackingService.iniciarTrackingConEnvio started: $started',
+        );
       }
     } catch (e) {
-      if (kDebugMode) debugPrint('[TripRouteTrackingViewModel] Error starting foreground tracking: $e');
+      if (kDebugMode)
+        debugPrint(
+          '[TripRouteTrackingViewModel] Error starting foreground tracking: $e',
+        );
     }
   }
 
@@ -339,19 +408,28 @@ class TripRouteTrackingViewModel extends ChangeNotifier {
     // If we have a persisted route, snap the marker to the nearest point
     // on the polyline so temporary GPS jumps don't move the marker off-route.
     if (routePoints.length >= 2) {
-      final minDist = _mathService.minDistanceToPolylineMeters(point, routePoints);
+      final minDist = _mathService.minDistanceToPolylineMeters(
+        point,
+        routePoints,
+      );
       if (minDist <= 50.0) {
         final nearestIdx = _mathService.nearestPointIndex(point, routePoints);
         final snapped = routePoints[nearestIdx];
         conductorLatLng = snapped;
-        debugPrint('[TripRouteTrackingViewModel] Snapped conductor to route index $nearestIdx (dist ${minDist.toStringAsFixed(1)} m)');
+        debugPrint(
+          '[TripRouteTrackingViewModel] Snapped conductor to route index $nearestIdx (dist ${minDist.toStringAsFixed(1)} m)',
+        );
       } else {
         // Off-route by more than threshold: use raw point and trigger route rebuild.
         conductorLatLng = point;
-        debugPrint('[TripRouteTrackingViewModel] Conductor off-route by ${minDist.toStringAsFixed(1)} m — will request route recalculation');
+        debugPrint(
+          '[TripRouteTrackingViewModel] Conductor off-route by ${minDist.toStringAsFixed(1)} m — will request route recalculation',
+        );
         // Throttle route recalculation to avoid calling routing repeatedly.
         final nowMs = DateTime.now();
-        if (_lastRouteRecalcAt == null || nowMs.difference(_lastRouteRecalcAt!) > const Duration(seconds: 30)) {
+        if (_lastRouteRecalcAt == null ||
+            nowMs.difference(_lastRouteRecalcAt!) >
+                const Duration(seconds: 30)) {
           _lastRouteRecalcAt = nowMs;
           unawaited(_ensurePersistedRoute(forceRecalculate: true));
         }
@@ -489,7 +567,9 @@ class TripRouteTrackingViewModel extends ChangeNotifier {
     }
     try {
       if (conductorLatLng != null) {
-        debugPrint('[TripRouteTrackingViewModel] conductorLatLng set: ${conductorLatLng!.latitude}, ${conductorLatLng!.longitude}');
+        debugPrint(
+          '[TripRouteTrackingViewModel] conductorLatLng set: ${conductorLatLng!.latitude}, ${conductorLatLng!.longitude}',
+        );
       } else {
         debugPrint('[TripRouteTrackingViewModel] conductorLatLng set: null');
       }
@@ -563,7 +643,9 @@ class TripRouteTrackingViewModel extends ChangeNotifier {
         from: from,
         to: to,
       );
-      debugPrint('[TripRouteTrackingViewModel] Generated route points: ${generated.length}');
+      debugPrint(
+        '[TripRouteTrackingViewModel] Generated route points: ${generated.length}',
+      );
       if (generated.length < 2) return;
 
       routePoints = generated;
@@ -613,15 +695,23 @@ class TripRouteTrackingViewModel extends ChangeNotifier {
             // Move the car marker locally on the client device (no persistence)
             _onClientPositionFromDevice(latLng);
           } catch (e) {
-            if (kDebugMode) debugPrint('[TripRouteTrackingViewModel] client onLocationUpdate error: $e');
+            if (kDebugMode)
+              debugPrint(
+                '[TripRouteTrackingViewModel] client onLocationUpdate error: $e',
+              );
           }
         },
       );
       if (kDebugMode) {
-        debugPrint('[TripRouteTrackingViewModel] Client tracking started: $started');
+        debugPrint(
+          '[TripRouteTrackingViewModel] Client tracking started: $started',
+        );
       }
     } catch (e) {
-      if (kDebugMode) debugPrint('[TripRouteTrackingViewModel] Error starting client tracking: $e');
+      if (kDebugMode)
+        debugPrint(
+          '[TripRouteTrackingViewModel] Error starting client tracking: $e',
+        );
     }
   }
 
@@ -631,7 +721,10 @@ class TripRouteTrackingViewModel extends ChangeNotifier {
     try {
       // If we have a route, snap to nearest route point for smoothness
       if (routePoints.length >= 2) {
-        final minDist = _mathService.minDistanceToPolylineMeters(point, routePoints);
+        final minDist = _mathService.minDistanceToPolylineMeters(
+          point,
+          routePoints,
+        );
         if (minDist <= 50.0) {
           final nearestIdx = _mathService.nearestPointIndex(point, routePoints);
           final snapped = routePoints[nearestIdx];
@@ -646,7 +739,10 @@ class TripRouteTrackingViewModel extends ChangeNotifier {
       _updateRemainingMetrics();
       _safeNotify();
     } catch (e) {
-      if (kDebugMode) debugPrint('[TripRouteTrackingViewModel] _onClientPositionFromDevice error: $e');
+      if (kDebugMode)
+        debugPrint(
+          '[TripRouteTrackingViewModel] _onClientPositionFromDevice error: $e',
+        );
     }
   }
 
@@ -684,11 +780,35 @@ class TripRouteTrackingViewModel extends ChangeNotifier {
     if (_completionHandled) return;
 
     final normalized = _normalizeEstado(estadoSolicitud);
-    if (normalized != SolicitudEstado.completado) return;
 
-    _completionHandled = true;
-    isCompletingTrip = true;
-    shouldNavigateToSummary = true;
+    if (normalized == SolicitudEstado.completado) {
+      _completionHandled = true;
+      isCompletingTrip = true;
+      shouldNavigateToSummary = true;
+      return;
+    }
+
+    if (normalized == SolicitudEstado.cancelado) {
+      _completionHandled = true;
+      isCompletingTrip = false;
+      shouldNavigateToSummary = true;
+
+      // Eliminar solicitud 5 segundos después de ser cancelada.
+      unawaited(
+        Future<void>.delayed(const Duration(seconds: 5), () async {
+          try {
+            await _firebaseService.eliminarSolicitud(solicitudId: solicitudId);
+          } catch (e) {
+            if (kDebugMode) {
+              debugPrint(
+                '[TripRouteTrackingViewModel] Error eliminando solicitud cancelada: $e',
+              );
+            }
+          }
+        }),
+      );
+      return;
+    }
   }
 
   String _normalizeEstado(String rawEstado) {
