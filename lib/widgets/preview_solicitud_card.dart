@@ -74,9 +74,9 @@ class PreviewSolicitudCard extends StatelessWidget {
                 right: isCompact ? 12 : 14,
                 bottom: isCompact ? 10 : 12,
               ),
-              child: SingleChildScrollView(
+              child: SizedBox.expand(
                 child: Column(
-                  mainAxisSize: MainAxisSize.min,
+                  mainAxisSize: MainAxisSize.max,
                   children: [
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -366,6 +366,8 @@ class PreviewSolicitudCard extends StatelessWidget {
                     ] else ...[
                       SizedBox(height: ResponsiveHelper.hp(context, 0.1)),
                     ],
+                    const Spacer(),
+
                     Wrap(
                       spacing: ResponsiveHelper.wp(context, 3),
                       runSpacing: ResponsiveHelper.hp(context, 0.8),
@@ -380,7 +382,7 @@ class PreviewSolicitudCard extends StatelessWidget {
                           width: isCompact
                               ? constraints.maxWidth * 0.42
                               : ResponsiveHelper.wp(context, 36),
-                          height: ResponsiveHelper.hp(context, 5.6),
+                          height: ResponsiveHelper.hp(context, 5.0),
                           fontSize: ResponsiveHelper.sp(context, 14),
                         ),
                         CustomButton(
@@ -392,7 +394,7 @@ class PreviewSolicitudCard extends StatelessWidget {
                           width: isCompact
                               ? constraints.maxWidth * 0.42
                               : ResponsiveHelper.wp(context, 36),
-                          height: ResponsiveHelper.hp(context, 5.6),
+                          height: ResponsiveHelper.hp(context, 5.0),
                           fontSize: ResponsiveHelper.sp(context, 14),
                         ),
                       ],

@@ -559,25 +559,63 @@ class _InicioClienteViewState extends State<InicioClienteView>
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(2),
-        child: AppGoogleMap(
-          initialTarget:
-              vm.currentLocation ?? const LatLng(8.2595534, -73.353469),
-          initialZoom: 14.5,
-          myLocationEnabled: true,
-          myLocationButtonEnabled: false,
-          compassEnabled: false,
-          markers: vm.conductoresMarkers,
-          onMapCreated: (controller) async {
-            _mapController = controller;
-            if (vm.currentLocation != null) {
-              await controller.animateCamera(
-                CameraUpdate.newLatLngZoom(vm.currentLocation!, 16),
-              );
-            }
-          },
+        child: Stack(
+          children: [
+            AppGoogleMap(
+              initialTarget:
+                  vm.currentLocation ?? const LatLng(8.2595534, -73.353469),
+              initialZoom: 14.5,
+              myLocationEnabled: true,
+              myLocationButtonEnabled: false,
+              compassEnabled: false,
+              markers: vm.conductoresMarkers,
+              onMapCreated: (controller) async {
+                _mapController = controller;
+                if (vm.currentLocation != null) {
+                  await controller.animateCamera(
+                    CameraUpdate.newLatLngZoom(vm.currentLocation!, 16),
+                  );
+                }
+              },
+            ),
+            Positioned(
+              right: 8,
+              bottom: 8,
+              child: Material(
+                color: Colors.transparent,
+                child: FloatingActionButton.small(
+                  heroTag: 'center_marker_btn',
+                  backgroundColor: AppColores.surface,
+                  onPressed: _centerOnMarker,
+                  child: Icon(
+                    Icons.my_location,
+                    color: AppColores.primary,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
+  }
+
+  Future<void> _centerOnMarker() async {
+    if (!mounted) return;
+    if (vm.currentLocation == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ubicación no disponible')),
+      );
+      return;
+    }
+
+    if (_mapController != null) {
+      try {
+        await _mapController!.animateCamera(
+          CameraUpdate.newLatLngZoom(vm.currentLocation!, 16),
+        );
+      } catch (_) {}
+    }
   }
 
   Widget _buildLoader() {
