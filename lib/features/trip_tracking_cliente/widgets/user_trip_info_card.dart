@@ -12,6 +12,7 @@ class UserTripInfoCard extends StatelessWidget {
     required this.onOpenChat,
     required this.onCancel,
     required this.isCancelling,
+    this.cancelEnabled = true,
   });
 
   final String name;
@@ -22,6 +23,7 @@ class UserTripInfoCard extends StatelessWidget {
   final VoidCallback onOpenChat;
   final VoidCallback onCancel;
   final bool isCancelling;
+  final bool cancelEnabled;
 
   @override
   Widget build(BuildContext context) {
@@ -217,7 +219,7 @@ class UserTripInfoCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                onPressed: isCancelling ? null : onCancel,
+                onPressed: (isCancelling || !cancelEnabled) ? null : onCancel,
                 icon: isCancelling
                     ? const SizedBox(
                         width: 16,
@@ -301,7 +303,7 @@ class UserTripInfoCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    onPressed: isCancelling ? null : onCancel,
+                    onPressed: (isCancelling || !cancelEnabled) ? null : onCancel,
                     icon: isCancelling
                         ? const SizedBox(
                             width: 16,

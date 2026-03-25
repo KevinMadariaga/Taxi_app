@@ -11,7 +11,8 @@ class DriverClientInfoCard extends StatelessWidget {
     required this.onOpenChat,
     required this.onOpenNavigation,
     required this.onReportArrival,
-    required this.isSendingArrival,
+      required this.isSendingArrival,
+      required this.isArrivalReported,
   });
 
   final String clientName;
@@ -22,6 +23,7 @@ class DriverClientInfoCard extends StatelessWidget {
   final VoidCallback onOpenNavigation;
   final VoidCallback onReportArrival;
   final bool isSendingArrival;
+  final bool isArrivalReported;
 
   @override
   Widget build(BuildContext context) {
@@ -77,7 +79,7 @@ class DriverClientInfoCard extends StatelessWidget {
                     Text(
                       clientName,
                       style: TextStyle(
-                        fontSize: isTablet ? 24 : 20,
+                        fontSize: isTablet ? 29 : 23,
                         fontWeight: FontWeight.w700,
                         color: AppColores.textPrimary,
                       ),
@@ -85,7 +87,7 @@ class DriverClientInfoCard extends StatelessWidget {
                     const SizedBox(height: 6),
                     Row(
                       children: [
-                        const Icon(Icons.location_on_outlined, color: AppColores.buttonPrimary, size: 18),
+                        const Icon(Icons.location_on_outlined, color: AppColores.buttonPrimary, size: 19),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -94,7 +96,7 @@ class DriverClientInfoCard extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               color: AppColores.textSecondary,
-                              fontSize: 14,
+                              fontSize: 16,
                             ),
                           ),
                         ),
@@ -170,7 +172,7 @@ class DriverClientInfoCard extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: isSendingArrival ? null : onReportArrival,
+                onPressed: (isSendingArrival || isArrivalReported) ? null : onReportArrival,
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size.fromHeight(52),
                   backgroundColor: AppColores.success ,
@@ -183,9 +185,11 @@ class DriverClientInfoCard extends StatelessWidget {
                         height: 16,
                         child: CircularProgressIndicator(strokeWidth: 2, color: AppColores.textWhite),
                       )
-                    : const Icon(Icons.my_location_rounded),
+                    : (isArrivalReported
+                        ? const Icon(Icons.check, color: AppColores.textWhite)
+                        : const Icon(Icons.my_location_rounded)),
                 label: Text(
-                  isSendingArrival ? 'Enviando...' : 'Ya llegue',
+                  isSendingArrival ? 'Enviando...' : (isArrivalReported ? 'Enviado' : 'Ya llegue'),
                   style: const TextStyle(fontWeight: FontWeight.w700),
                 ),
               ),

@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'dart:math' as math;
 import 'package:flutter/services.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
@@ -40,6 +43,8 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
   GoogleMapController? _mapController;
   late final SolicitudEstadoController _estadoController;
   BitmapDescriptor? _taxiMarkerIcon;
+  Timer? _cancelDisableTimer;
+  bool _cancelAllowed = true;
   bool _initialCameraApplied = false;
   bool _cancelledNavigationDone = false;
   bool _rutaDestinoNavigationDone = false;
@@ -54,10 +59,22 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
     _estadoController = SolicitudEstadoController();
     _loadTaxiMarkerIcon();
     _showDriverAssignedNotification();
+    _startCancelDisableTimer();
     // Persist current screen so reload restores this exact view
     try {
       SessionHelper.setActiveSolicitudScreen('trip_tracking');
     } catch (_) {}
+  }
+
+  void _startCancelDisableTimer() {
+    _cancelAllowed = true;
+    _cancelDisableTimer?.cancel();
+    _cancelDisableTimer = Timer(const Duration(minutes: 5), () {
+      if (!mounted) return;
+      setState(() {
+        _cancelAllowed = false;
+      });
+    });
   }
 
   Future<void> _showDriverAssignedNotification() async {
@@ -135,6 +152,7 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
 
           final width = MediaQuery.of(context).size.width;
           final isTablet = width >= 900;
+          final sideOffset = math.min(64.0, width * 0.06);
 
           return AnnotatedRegion<SystemUiOverlayStyle>(
             value: const SystemUiOverlayStyle(
@@ -232,7 +250,7 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
                                   ),
                                 ),
                               Positioned(
-                                right: 16,
+                                left: sideOffset,
                                 bottom: 16,
                                 child: FloatingActionButton(
                                   heroTag: 'focus_trip_tracking',
@@ -271,6 +289,7 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
                                     isCancelling: vm.isCancelling,
                                     onOpenChat: () => _openChat(vm),
                                     onCancel: () => _onCancelPressed(vm),
+                                    cancelEnabled: _cancelAllowed,
                                   ),
                                 ),
                               ),
@@ -301,7 +320,7 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
     );
   }
 
-  void _handleTripStateIfNeeded(TripTrackingViewModel vm) {
+  Future<void> _handleTripStateIfNeeded(TripTrackingViewModel vm) async {
     final estado = vm.solicitud?.estado;
     if (estado == null || estado.isEmpty) return;
 
@@ -582,6 +601,7 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
   void dispose() {
     _mapController?.dispose();
     _estadoController.dispose();
+    _cancelDisableTimer?.cancel();
     super.dispose();
   }
 }

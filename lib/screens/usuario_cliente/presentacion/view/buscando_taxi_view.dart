@@ -474,7 +474,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  SizedBox(height: isTablet ? 55 : 45),
+                  SizedBox(height: isTablet ? 45 : 30),
                     Text(
                     'Buscando taxi...',
                     textAlign: TextAlign.center,
@@ -497,29 +497,17 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
                       height: 1.35,
                     ),
                   ),
-                  SizedBox(height: isTablet ? 30 : 22),
+                  SizedBox(height: isTablet ? 20 : 15),
 
                    Center(
                     child: Container(
                       padding: EdgeInsets.symmetric(
                         horizontal: isTablet ? 14 : 12,
-                        vertical: isTablet ? 8 : 6,
                       ),
                       child: Stack(
                         alignment: Alignment.center,
                         children: [
-                          // Text(
-                          //   _formatDuration(_searchSeconds),
-                          //   textAlign: TextAlign.center,
-                          //   style: TextStyle(
-                          //     fontSize: isTablet ? 40 : 45,
-                          //     fontWeight: FontWeight.w800,
-                          //     foreground: ui.Paint()
-                          //       ..style = ui.PaintingStyle.stroke
-                          //       ..strokeWidth = isTablet ? 1 : 2
-                          //       ..color = Colors.black,
-                          //   ),
-                          // ),
+                         
                           Text(
                             _formatDuration(_searchSeconds),
                             textAlign: TextAlign.center,

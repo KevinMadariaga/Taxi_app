@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:math' as Math;
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -11,6 +13,7 @@ import 'package:taxi_app/screens/usuario_conductor/presentacion/view/resumen_con
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/RutaDestinoViewModel.dart';
 import 'package:taxi_app/core/services/map_service_adapter.dart';
 import 'package:taxi_app/core/services/background_tracking_service.dart';
+import 'package:taxi_app/features/trip_tracking_cliente/services/firebase_service.dart';
 import 'package:taxi_app/widgets/MapaGoogle.dart';
 import 'package:taxi_app/widgets/intermediate_transition_view.dart';
 import 'package:taxi_app/core/app_colores.dart';
@@ -68,6 +71,8 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent> with WidgetsBi
   bool _isPaused = false;
   bool _completionFlowInProgress = false;
   bool _terminarViajePressed = false;
+  bool _backgroundServiceRunning = false;
+  bool _backgroundServiceStarting = false;
   // El servicio background ahora se inicia solo desde el ViewModel y solo si no está corriendo
 
   GoogleMapController? _mapController;
@@ -120,19 +125,37 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent> with WidgetsBi
         'Continúa el servicio',
         'Lleva el cliente a su destino.',
       );
+      if (!mounted) return;
+
       final vm = Provider.of<RutaDestinoViewModel>(context, listen: false);
       // Guardar el idSolicitud en cache al ingresar a la clase
       await vm.guardarSolicitudActiva(widget.idSolicitud);
+      if (!mounted) return;
+
       // Persistir que estamos en la pantalla de ruta conductor para restaurar en reload
-      try { await SessionHelper.setActiveSolicitudScreen('ruta_destino'); } catch (_) {}
+      try {
+        await SessionHelper.setActiveSolicitudScreen('ruta_destino');
+      } catch (_) {}
+      if (!mounted) return;
+
       await vm.cargarDatosCliente(widget.idSolicitud);
+      if (!mounted) return;
+
       await _cargarMarcadoresPersonalizados();
+      if (!mounted) return;
+
       vm.iniciarChat(widget.idSolicitud);
+      if (!mounted) return;
+
       vm.escucharEstadoSolicitud(
         widget.idSolicitud,
         onSolicitudCompletada: _onSolicitudCompletada,
       );
+      if (!mounted) return;
+
       await _obtenerUbicacionConductor();
+      if (!mounted) return;
+
       // Inicia tracking de ubicación en background
       await vm.iniciarTrackingUbicacion(widget.idSolicitud);
     });
@@ -153,6 +176,10 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent> with WidgetsBi
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _positionStream?.cancel();
+    // Ensure background service is stopped when widget is disposed
+    try {
+      _detenerTrackingBackground();
+    } catch (_) {}
     super.dispose();
   }
 
@@ -177,23 +204,76 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent> with WidgetsBi
   }
 
   Future<void> _iniciarTrackingBackground() async {
+    if (_backgroundServiceRunning || _backgroundServiceStarting) return;
+    _backgroundServiceStarting = true;
     try {
       debugPrint('🚀 [LOG] Iniciando tracking background desde onPaused');
       await initializeBackgroundService();
       await startBackgroundTrackingService();
+      final service = FlutterBackgroundService();
+
+      // Give the isolate a short moment to register listeners before sending the command.
+      await Future<void>.delayed(const Duration(milliseconds: 450));
+
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      service.invoke('startTracking', {
+        'userId': uid,
+        'userType': 'conductor',
+        'solicitudId': widget.idSolicitud,
+      });
+
+      _backgroundServiceRunning = true;
       debugPrint('✅ [LOG] Background service iniciado');
     } catch (e) {
+      _backgroundServiceRunning = false;
       debugPrint('Error iniciando tracking background: $e');
+    } finally {
+      _backgroundServiceStarting = false;
+    }
+  }
+
+  // Verifica en modo debug que la ubicacion fue persistida correctamente.
+  Future<void> _verifyUbicacionPersistida(LatLng loc) async {
+    if (!kDebugMode) return;
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('solicitudes')
+          .doc(widget.idSolicitud)
+          .get();
+      final data = doc.data();
+      final storedLat = (data?['conductor']?['ubicacion']?['lat']);
+      final storedLng = (data?['conductor']?['ubicacion']?['lng']);
+      debugPrint('[VERIFY] Solicitud ${widget.idSolicitud} storedLat=$storedLat storedLng=$storedLng expectedLat=${loc.latitude} expectedLng=${loc.longitude}');
+      if (storedLat == null || storedLng == null) {
+        debugPrint('[VERIFY][ERROR] ubicacion no encontrada en documento');
+        return;
+      }
+      final double lat = (storedLat as num).toDouble();
+      final double lng = (storedLng as num).toDouble();
+      final latDiff = (lat - loc.latitude).abs();
+      final lngDiff = (lng - loc.longitude).abs();
+      if (latDiff > 0.0005 || lngDiff > 0.0005) {
+        debugPrint('[VERIFY][WARN] Diferencia significativa entre escrito y leído (latDiff=$latDiff, lngDiff=$lngDiff)');
+      } else {
+        debugPrint('[VERIFY][OK] Ubicación persistida correctamente');
+      }
+    } catch (e) {
+      debugPrint('[VERIFY][ERROR] Error leyendo doc para verificación: $e');
     }
   }
 
   Future<void> _detenerTrackingBackground() async {
+    if (!_backgroundServiceRunning && !_backgroundServiceStarting) return;
     try {
       final service = FlutterBackgroundService();
-      service.invoke("stop");
+      service.invoke('stop');
+      _backgroundServiceRunning = false;
       debugPrint('🛑 [LOG] Background service detenido');
     } catch (e) {
       debugPrint('Error deteniendo background service: $e');
+    } finally {
+      _backgroundServiceStarting = false;
+      _backgroundServiceRunning = false;
     }
   }
 
@@ -214,19 +294,22 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent> with WidgetsBi
           _ubicacionInicialConductor = _ubicacionConductor;
         }
       });
-      // Actualizar en Firestore (solicitudes -> conductor -> ubicacion)
-      await FirebaseFirestore.instance
-          .collection('solicitudes')
-          .doc(widget.idSolicitud)
-          .update({
-            'conductor.ubicacion': {
-              'lat': nuevaUbicacion.latitude,
-              'lng': nuevaUbicacion.longitude,
-            },
-          });
-      debugPrint(
-        '[LOG] Ubicación guardada en Firestore: lat=${nuevaUbicacion.latitude}, lng=${nuevaUbicacion.longitude}',
-      );
+      try {
+        final svc = TripTrackingFirebaseService();
+        final ts = DateTime.now().millisecondsSinceEpoch;
+        await svc.actualizarUbicacionConductorEnSolicitud(
+          solicitudId: widget.idSolicitud,
+          location: nuevaUbicacion,
+          timestampMs: ts,
+          appendRouteHistory: true,
+        );
+        debugPrint(
+          '[LOG] Ubicación guardada en Firestore (servicio): lat=${nuevaUbicacion.latitude}, lng=${nuevaUbicacion.longitude}',
+        );
+        await _verifyUbicacionPersistida(nuevaUbicacion);
+      } catch (e) {
+        debugPrint('Error guardando ubicación (servicio): $e');
+      }
       if (!mounted) return;
       setState(() {});
       // Centrar ambos marcadores y ajustar zoom
@@ -239,6 +322,7 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent> with WidgetsBi
       if (_ubicacionConductor != null &&
           vm.latDestino != null &&
           vm.lngDestino != null) {
+        if (!mounted) return;
         setState(() {
           _loadingPolyline = true;
         });
@@ -266,14 +350,17 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent> with WidgetsBi
           _polylinePoints = [];
           debugPrint('Error obteniendo polyline: $e');
         }
+        if (!mounted) return;
         setState(() {
           _loadingPolyline = false;
         });
       }
     } catch (e) {
-      setState(() {
-        _loadingUbicacion = false;
-      });
+      if (mounted) {
+        setState(() {
+          _loadingUbicacion = false;
+        });
+      }
       debugPrint('Error obteniendo ubicación: $e');
     }
   }
@@ -304,22 +391,20 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent> with WidgetsBi
 
           // Guardar ubicación obtenida y fecha en Firestore (igual que en RutaConductorView)
           try {
-            final fechaEnvio = DateTime.now().toIso8601String();
-            await FirebaseFirestore.instance
-                .collection('solicitudes')
-                .doc(widget.idSolicitud)
-                .update({
-                  'conductor.ubicacion': {
-                    'lat': nuevaUbicacion.latitude,
-                    'lng': nuevaUbicacion.longitude,
-                    'fecha': fechaEnvio,
-                  },
-                });
-            debugPrint(
-              '[LOG] Ubicación guardada en base de datos: lat=${nuevaUbicacion.latitude}, lng=${nuevaUbicacion.longitude}, fecha=$fechaEnvio',
+            final timestampMs = DateTime.now().millisecondsSinceEpoch;
+            final svc = TripTrackingFirebaseService();
+            await svc.actualizarUbicacionConductorEnSolicitud(
+              solicitudId: widget.idSolicitud,
+              location: nuevaUbicacion,
+              timestampMs: timestampMs,
+              appendRouteHistory: true,
             );
+            debugPrint(
+              '[LOG] Ubicación guardada en base de datos (servicio): lat=${nuevaUbicacion.latitude}, lng=${nuevaUbicacion.longitude}, ts=$timestampMs',
+            );
+            await _verifyUbicacionPersistida(nuevaUbicacion);
           } catch (e) {
-            debugPrint('Error guardando ubicación obtenida: $e');
+            debugPrint('Error guardando ubicación obtenida (servicio): $e');
           }
 
           // Ajusta la cámara para mostrar la polyline completa al mover el conductor
@@ -366,6 +451,11 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent> with WidgetsBi
     });
 
     try {
+      // Ensure background tracking is stopped when finalizing the trip
+      try {
+        await _detenerTrackingBackground();
+      } catch (_) {}
+
       if (actualizarEstadoSolicitud) {
         final fechaHoraFinalizacion = DateTime.now();
         await FirebaseFirestore.instance
@@ -480,46 +570,55 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent> with WidgetsBi
     _mapController!.animateCamera(CameraUpdate.newLatLngBounds(bounds, 80));
   }
 
+  // Calcula la distancia real hacia el destino en metros.
+  // Si existe una polyline (ruta) usa la suma de segmentos, sino usa la distancia en línea recta.
+  double? _distanceMetersToDestino() {
+    final vm = Provider.of<RutaDestinoViewModel>(context, listen: false);
+    if (_ubicacionConductor == null || vm.latDestino == null || vm.lngDestino == null) {
+      return null;
+    }
+
+    if (_polylinePoints.isNotEmpty) {
+      double total = 0.0;
+      for (int i = 0; i < _polylinePoints.length - 1; i++) {
+        final a = _polylinePoints[i];
+        final b = _polylinePoints[i + 1];
+        total += Geolocator.distanceBetween(a.latitude, a.longitude, b.latitude, b.longitude);
+      }
+      // If polyline somehow gave zero, fallback to straight-line
+      if (total <= 0) {
+        final destLat = vm.latDestino!;
+        final destLng = vm.lngDestino!;
+        return Geolocator.distanceBetween(_ubicacionConductor!.latitude, _ubicacionConductor!.longitude, destLat, destLng);
+      }
+      return total;
+    }
+
+    final destLat = vm.latDestino!;
+    final destLng = vm.lngDestino!;
+    return Geolocator.distanceBetween(_ubicacionConductor!.latitude, _ubicacionConductor!.longitude, destLat, destLng);
+  }
+
   // Calcula la distancia en kilómetros entre conductor y destino
   String _distanciaKmConductorDestino() {
-    final vm = Provider.of<RutaDestinoViewModel>(context, listen: false);
-    if (_ubicacionConductor == null ||
-        vm.latDestino == null ||
-        vm.lngDestino == null) {
-      return "--";
-    }
-    final double distanciaMetros = Geolocator.distanceBetween(
-      _ubicacionConductor!.latitude,
-      _ubicacionConductor!.longitude,
-      vm.latDestino!,
-      vm.lngDestino!,
-    );
-    if (distanciaMetros < 1000) {
-      return "${distanciaMetros.round()} m";
+    final meters = _distanceMetersToDestino();
+    if (meters == null) return "--";
+    if (meters < 1000) {
+      return "${meters.round()} m";
     } else {
-      final double distanciaKm = distanciaMetros / 1000.0;
+      final double distanciaKm = meters / 1000.0;
       return "${distanciaKm.toStringAsFixed(2)} km";
     }
   }
 
   // Calcula el tiempo estimado de llegada
   String _tiempoEstimadoLlegada() {
-    final vm = Provider.of<RutaDestinoViewModel>(context, listen: false);
-    if (_ubicacionConductor == null ||
-        vm.latDestino == null ||
-        vm.lngDestino == null) {
-      return "Tiempo estimado: --";
-    }
-    final double distancia =
-        Geolocator.distanceBetween(
-          _ubicacionConductor!.latitude,
-          _ubicacionConductor!.longitude,
-          vm.latDestino!,
-          vm.lngDestino!,
-        ) /
-        1000.0;
+    final meters = _distanceMetersToDestino();
+    if (meters == null) return "Tiempo estimado: --";
+    final double distanciaKm = meters / 1000.0;
+    // velocidad media estimada en km/h
     final double velocidad = 40.0;
-    final double tiempoHoras = distancia / velocidad;
+    final double tiempoHoras = distanciaKm / velocidad;
     final int minutos = (tiempoHoras * 60).round();
     return "Tiempo estimado: ${minutos} min";
   }
@@ -958,7 +1057,7 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent> with WidgetsBi
                 ),
               ],
             ),
-            // Posiciona el tiempo estimado de llegada encima del mapa
+            // Posiciona la tarjeta con tiempo y distancia encima del mapa (estilo referencia)
             Positioned(
               top: MediaQuery.of(context).padding.top + 12,
               left: 0,
@@ -966,8 +1065,8 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent> with WidgetsBi
               child: Center(
                 child: Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 10,
+                    horizontal: 16,
+                    vertical: 8,
                   ),
                   decoration: BoxDecoration(
                     color: Colors.white,
@@ -980,35 +1079,38 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent> with WidgetsBi
                       ),
                     ],
                   ),
-                  child: Text(
-                    _tiempoEstimadoLlegada(),
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black,
-                    ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.access_time, color: Colors.amber, size: 18),
+                          const SizedBox(width: 6),
+                          Text(
+                            _tiempoEstimadoLlegada().replaceFirst('Tiempo estimado: ', ''),
+                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                      Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 10),
+                        height: 28,
+                        width: 1,
+                        color: Colors.grey.shade300,
+                      ),
+                      Row(
+                        children: [
+                          const Icon(Icons.route, color: Colors.black54, size: 18),
+                          const SizedBox(width: 6),
+                          Text(
+                            _distanciaKmConductorDestino(),
+                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
-              ),
-            ),
-            // Botón flotante abajo a la izquierda del mapa: muestra kilómetros
-            Positioned(
-              left: 24,
-              bottom: MediaQuery.of(context).size.height * 0.35,
-              child: FloatingActionButton.extended(
-                heroTag: "fab_distancia",
-                backgroundColor: Colors.white,
-                icon: const Icon(Icons.directions_car, color: Colors.black),
-                label: Text(
-                  _distanciaKmConductorDestino(),
-                  style: const TextStyle(
-                    color: Colors.black,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-                onPressed: () {}, // Solo informativo
-                elevation: 2,
               ),
             ),
             // Posiciona el botón flotante abajo a la derecha del mapa

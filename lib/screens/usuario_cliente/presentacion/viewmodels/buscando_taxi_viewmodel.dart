@@ -70,14 +70,27 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
 
     final docRef = _firestore.collection('solicitudes').doc(solicitudId);
     try {
+      // Primero intenta marcar como cancelado (si existe)
       await docRef.update({
         'estado': 'cancelado',
         'cancelledAt': FieldValue.serverTimestamp(),
       });
-    } catch (_) {
+    } catch (e) {
+      // Si update falla, registramos y continuamos al intento de borrado posterior
+      debugPrint('[BuscandoTaxiViewModel] update estado cancelado falló: $e');
+    }
+
+    // Espera 5 segundos y luego intenta eliminar la solicitud del sistema
+    try {
+      await Future<void>.delayed(const Duration(seconds: 5));
       try {
         await docRef.delete();
-      } catch (_) {}
+        debugPrint('[BuscandoTaxiViewModel] Solicitud $solicitudId eliminada tras cancelación');
+      } catch (e) {
+        debugPrint('[BuscandoTaxiViewModel] Error eliminando solicitud tras cancelación: $e');
+      }
+    } catch (e) {
+      debugPrint('[BuscandoTaxiViewModel] Error en temporizador de borrado: $e');
     } finally {
       _isCancelling = false;
       _safeNotify();

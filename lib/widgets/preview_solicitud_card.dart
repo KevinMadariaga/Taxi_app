@@ -26,6 +26,7 @@ class PreviewSolicitudCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final preview = this.preview;
     final isLoading = this.isLoading;
+    final photoUrl = this.clientPhotoUrl ?? preview.clientPhotoUrl;
     final onCancel = this.onCancel;
     final onAccept = this.onAccept;
 
@@ -131,14 +132,12 @@ class PreviewSolicitudCard extends StatelessWidget {
                                 child: CircleAvatar(
                                   radius: avatarSize / 2,
                                   backgroundColor: AppColores.grey400,
-                                  backgroundImage:
-                                      clientPhotoUrl != null &&
-                                          clientPhotoUrl!.isNotEmpty
-                                      ? NetworkImage(clientPhotoUrl!)
+                                    backgroundImage:
+                                      photoUrl != null && photoUrl.isNotEmpty
+                                      ? NetworkImage(photoUrl)
                                       : null,
-                                  child:
-                                      (clientPhotoUrl == null ||
-                                          clientPhotoUrl!.isEmpty)
+                                    child:
+                                      (photoUrl == null || photoUrl.isEmpty)
                                       ? Icon(
                                           Icons.person,
                                           color: AppColores.textWhite,

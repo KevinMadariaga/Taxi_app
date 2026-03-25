@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:taxi_app/features/trip_tracking_cliente/services/firebase_service.dart';
 
 class SolicitudRepository {
   /// Devuelve un stream en tiempo real del estado de la solicitud
@@ -14,19 +16,17 @@ class SolicitudRepository {
     /// Guarda la ubicación del conductor en la solicitud
     Future<void> guardarUbicacionConductor(String solicitudId, double lat, double lng) async {
       try {
-          // Log before write for validation in debug builds.
-          debugPrint('[SolicitudRepository] guardarUbicacionConductor -> solicitud:$solicitudId lat:$lat lng:$lng');
-          await FirebaseFirestore.instance
-              .collection('solicitudes')
-              .doc(solicitudId)
-              .update({
-            'conductor.ubicacion': {
-              'lat': lat,
-              'lng': lng,
-            }
-          });
+        debugPrint('[SolicitudRepository] guardarUbicacionConductor -> solicitud:$solicitudId lat:$lat lng:$lng');
+        final svc = TripTrackingFirebaseService();
+        final ts = DateTime.now().millisecondsSinceEpoch;
+        await svc.actualizarUbicacionConductorEnSolicitud(
+          solicitudId: solicitudId,
+          location: LatLng(lat, lng),
+          timestampMs: ts,
+          appendRouteHistory: true,
+        );
       } catch (e) {
-        debugPrint('Error al guardar ubicación del conductor: $e');
+        debugPrint('Error al guardar ubicación del conductor (servicio): $e');
       }
     }
     

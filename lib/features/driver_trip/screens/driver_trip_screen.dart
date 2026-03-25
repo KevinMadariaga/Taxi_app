@@ -4,12 +4,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
+import 'dart:math' as math;
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/RutaDestinoView.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:taxi_app/core/app_colores.dart';
-import 'package:taxi_app/features/trip_tracking_cliente/viewmodels/trip_route_tracking_viewmodel.dart';
-import 'package:taxi_app/features/trip_tracking_cliente/views/trip_route_tracking_screen.dart';
 import 'package:taxi_app/helper/session_helper.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioConductorView.dart';
 import 'package:taxi_app/core/services/background_tracking_service.dart';
@@ -186,6 +185,7 @@ class _DriverTripScreenState extends State<DriverTripScreen>
 
           final width = MediaQuery.of(context).size.width;
           final isTablet = width >= 900;
+          final sideOffset = math.min(64.0, width * 0.06);
 
           return AnnotatedRegion<SystemUiOverlayStyle>(
             value: const SystemUiOverlayStyle(
@@ -227,8 +227,8 @@ class _DriverTripScreenState extends State<DriverTripScreen>
                               ),
                               Positioned(
                                 top: mq.padding.top + 14,
-                                
-                                left: 20,
+                                left: 0,
+                                right: 0,
                                 child: Center(
                                   child: DriverTopStatusCard(
                                     distanceText: controller.distanceText,
@@ -237,7 +237,7 @@ class _DriverTripScreenState extends State<DriverTripScreen>
                                 ),
                               ),
                               Positioned(
-                                right: 20,
+                                left: sideOffset,
                                 bottom: isTablet ? 86 : 76,
                                 child: FloatingActionButton(
                                   heroTag: 'driver_trip_panic_btn',
@@ -250,8 +250,8 @@ class _DriverTripScreenState extends State<DriverTripScreen>
                                 ),
                               ),
                               Positioned(
-                                right: 20,
-                                bottom: 16,
+                                left: sideOffset,
+                                bottom: 12,
                                 child: FloatingActionButton(
                                   heroTag: 'driver_map_focus_btn',
                                   backgroundColor: AppColores.buttonPrimary,
@@ -283,6 +283,7 @@ class _DriverTripScreenState extends State<DriverTripScreen>
                               onOpenNavigation: () => _openNavigation(controller),
                               onReportArrival: controller.reportArrival,
                               isSendingArrival: controller.isSendingArrival,
+                              isArrivalReported: controller.hasReportedArrival,
                             ),
                           ),
                         ),

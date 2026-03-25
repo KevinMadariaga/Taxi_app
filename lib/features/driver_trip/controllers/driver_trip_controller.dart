@@ -43,6 +43,7 @@ class DriverTripController extends ChangeNotifier {
   bool isRouteLoading = false;
   bool isSendingArrival = false;
   bool isWaitingActionLoading = false;
+  bool _hasReportedArrival = false;
 
   int unreadCount = 0;
   DriverMapFocusMode focusMode = DriverMapFocusMode.clientOnly;
@@ -173,7 +174,7 @@ class DriverTripController extends ChangeNotifier {
   }
 
   Future<void> reportArrival() async {
-    if (isSendingArrival) return;
+    if (isSendingArrival || _hasReportedArrival) return;
 
     isSendingArrival = true;
     _safeNotify();
@@ -183,12 +184,15 @@ class DriverTripController extends ChangeNotifier {
         tripId: tripId,
         status: 'en espera',
       );
+      _hasReportedArrival = true;
       _openWaitingModal();
     } finally {
       isSendingArrival = false;
       _safeNotify();
     }
   }
+
+  bool get hasReportedArrival => _hasReportedArrival;
 
   Future<bool> beginTripAfterClientConfirm() async {
     final statusActual = normalizeStatus(trip?.status ?? '');

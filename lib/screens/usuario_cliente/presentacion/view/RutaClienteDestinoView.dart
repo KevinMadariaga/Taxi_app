@@ -13,6 +13,7 @@ import 'package:taxi_app/widgets/MapaGoogle.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/utils/marker_icon_helper.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:taxi_app/features/trip_tracking_cliente/services/firebase_service.dart';
 
 class RutaClienteDestino extends StatelessWidget {
   final String idSolicitud;
@@ -127,6 +128,61 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
 
       // Llamar una vez al inicio
       await _actualizarRuta();
+
+      // Suscribirse a cambios en la solicitud para actualizar ubicación del conductor en tiempo real
+      try {
+        final svc = TripTrackingFirebaseService();
+        _conductorLocationFirestoreSub = svc.watchSolicitudRaw(widget.idSolicitud).listen((data) {
+          if (!mounted) return;
+          try {
+            final conductor = data['conductor'];
+            if (conductor is Map) {
+              final ubic = conductor['ubicacion'];
+              if (ubic is Map) {
+                final lat = (ubic['lat'] as num).toDouble();
+                final lng = (ubic['lng'] as num).toDouble();
+                final newPos = LatLng(lat, lng);
+                setState(() {
+                  _conductorLatLng = newPos;
+                  _lastConductorLatLng = newPos;
+                });
+              }
+            }
+
+            // Si hay historial de tracking, actualizar polyline
+            final tracking = data['tracking'];
+            if (tracking is Map) {
+              final driverHistory = tracking['driverHistory'];
+              if (driverHistory is List && driverHistory.isNotEmpty) {
+                final points = <LatLng>[];
+                for (final item in driverHistory) {
+                  try {
+                    final lat = (item['lat'] as num).toDouble();
+                    final lng = (item['lng'] as num).toDouble();
+                    points.add(LatLng(lat, lng));
+                  } catch (_) {}
+                }
+                if (points.isNotEmpty) {
+                  setState(() {
+                    _polylines = {
+                      Polyline(
+                        polylineId: const PolylineId('driver_history'),
+                        color: AppColores.buttonPrimary,
+                        width: 5,
+                        points: points,
+                      ),
+                    };
+                  });
+                }
+              }
+            }
+          } catch (e) {
+            debugPrint('[RutaClienteDestino] Error procesando snapshot solicitud: $e');
+          }
+        });
+      } catch (e) {
+        debugPrint('[RutaClienteDestino] No se pudo subscribir a solicitud: $e');
+      }
     });
   }
 
