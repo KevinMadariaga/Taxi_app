@@ -4,7 +4,7 @@ import 'dart:ui' as ui;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:lottie/lottie.dart' as lottie;
+
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:taxi_app/widgets/MapaGoogle.dart';
 import 'package:flutter/services.dart' show rootBundle;
@@ -474,7 +474,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  SizedBox(height: isTablet ? 45 : 30),
+                  SizedBox(height: isTablet ? 40 : 23),
                     Text(
                     'Buscando taxi...',
                     textAlign: TextAlign.center,
@@ -486,7 +486,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
                   ),
                   SizedBox(height: isTablet ? 35 : 25),
                   _buildSonarMap(isTablet),
-                  SizedBox(height: isTablet ? 30 : 25),
+                  SizedBox(height: isTablet ? 30 : 20),
                   Text(
                     'Estamos rastreando conductores en tiempo real para asignarte el mas cercano.',
                     textAlign: TextAlign.center,
@@ -497,8 +497,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
                       height: 1.35,
                     ),
                   ),
-                  SizedBox(height: isTablet ? 20 : 15),
-
+                  SizedBox(height: isTablet ? 15 : 10),
                    Center(
                     child: Container(
                       padding: EdgeInsets.symmetric(
@@ -507,7 +506,6 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
                       child: Stack(
                         alignment: Alignment.center,
                         children: [
-                         
                           Text(
                             _formatDuration(_searchSeconds),
                             textAlign: TextAlign.center,
@@ -523,10 +521,9 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
                   ),
                   SizedBox(height: isTablet ? 18 : 14),
                   _buildSearchingDots(isTablet),
-                  
-                  const Spacer(),
+                  SizedBox(height: isTablet ? 18 : 14),
                   SizedBox(
-                    width: double.infinity,
+                    // width: double.infinity,
                     child: ElevatedButton(
                       onPressed: _vm.isCancelling ? null : _cancelSolicitud,
                       style: ElevatedButton.styleFrom(
@@ -565,8 +562,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
                           : const Text('Cancelar búsqueda'),
                     ),
                   ),
-                  SizedBox(height: isTablet ? 8 : 4),
-                  SizedBox(height: bottomSpace),
+                  SizedBox(height: isTablet ? 18 : 14),
                 ],
               ),
             ),
@@ -597,7 +593,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
   }
 
   Widget _buildSonarMap(bool isTablet) {
-    final mapHeight = isTablet ? 250.0 : 450.0;
+    final mapHeight = isTablet ? 250.0 : 420.0;
     return Column(
       children: [
         Container(
@@ -619,9 +615,11 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
             borderRadius: BorderRadius.circular(16),
             child: Builder(builder: (ctx) {
               final defaultIcon = BitmapDescriptor.defaultMarkerWithHue(widget.defaultMarkerHue);
+
+              // All Marker.icon are non-null, so just use the set directly
               final combinedMarkers = <Marker>{
-                for (final m in {..._taxiMarkers, ..._conectadosMarkers})
-                  (m.icon == null) ? m.copyWith(iconParam: defaultIcon) : m,
+                ..._taxiMarkers,
+                ..._conectadosMarkers,
               };
 
               return Mapagoogle(

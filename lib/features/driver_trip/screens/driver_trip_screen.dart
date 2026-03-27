@@ -75,7 +75,10 @@ class _DriverTripScreenState extends State<DriverTripScreen>
       });
     } catch (_) {}
   }
-
+/// Detecta si el dispositivo tiene barra de navegación inferior (Android/iOS)
+bool hasNavigationBar(BuildContext context) {
+  return MediaQuery.of(context).padding.bottom > 0;
+}
   @override
   void dispose() {
     _stopBackgroundTrackingIfNeeded();
@@ -148,7 +151,65 @@ class _DriverTripScreenState extends State<DriverTripScreen>
       value: _controller,
       child: Consumer<DriverTripController>(
         builder: (context, controller, _) {
-          _syncSolicitudPersistence(controller);
+          // Notification and persistence logic
+          void handlePersistenceAndNotifications() async {
+            final rawStatus = controller.trip?.status;
+            if (rawStatus == null || rawStatus.trim().isEmpty) return;
+            final status = DriverTripController.normalizeStatus(rawStatus);
+            if (_lastPersistedStatus == status) return;
+            _lastPersistedStatus = status;
+            if (status == 'en_camino') {
+              try {
+                await NotificacionesServicio.instance.showTripNotification(
+                  title: 'Cliente ha verificado',
+                  body: 'Ya viene en camino, espéralo.',
+                );
+              } catch (_) {}
+            }
+            if (status == 'cancelado') {
+              try {
+                await NotificacionesServicio.instance.showTripNotification(
+                  title: 'Cliente ha cancelado',
+                  body: 'El cliente ha cancelado el servicio.',
+                );
+              } catch (_) {}
+            }
+            WidgetsBinding.instance.addPostFrameCallback((_) async {
+              if (!mounted) return;
+              if (_shouldPersistSolicitud(status)) {
+                try {
+                  await SessionHelper.setActiveSolicitud(widget.tripId);
+                  await RouteCacheService.saveForSolicitud(
+                    RouteCacheData(
+                      solicitudId: widget.tripId,
+                      role: 'conductor',
+                      clientName: controller.clientName,
+                      clientAddress: controller.clientAddress,
+                      clientLat: controller.clientLatLng?.latitude,
+                      clientLng: controller.clientLatLng?.longitude,
+                      conductorId: FirebaseAuth.instance.currentUser?.uid,
+                    ),
+                  );
+                } catch (_) {}
+                return;
+              }
+              if (_shouldClearSolicitud(status)) {
+                try {
+                  try {
+                    await _stopBackgroundTrackingIfNeeded();
+                  } catch (_) {}
+                  try {
+                    await NotificacionesServicio.instance.cancelAll();
+                  } catch (_) {}
+                  await SessionHelper.clearActiveSolicitud();
+                  await RouteCacheService.clearSolicitud(widget.tripId);
+                } catch (_) {}
+              }
+            });
+          }
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            handlePersistenceAndNotifications();
+          });
           _handlePendingNavigation(controller);
           _handleWaitingModal(controller);
           _fitInitialCameraIfNeeded(controller);
@@ -197,9 +258,9 @@ class _DriverTripScreenState extends State<DriverTripScreen>
               body: Builder(builder: (ctx) {
                 final mq = MediaQuery.of(ctx);
                 final screenH = mq.size.height;
-                final safeBottom = mq.padding.bottom;
-                final mapH = (screenH * 0.65).clamp(200.0, screenH - 120.0);
-                final panelH = screenH - mapH;
+                final hasNavBar = hasNavigationBar(ctx);
+                final mapH = hasNavBar ? screenH * 0.65 : screenH * 0.70;
+                final panelH = hasNavBar ? screenH * 0.35 : screenH * 0.30;
 
                 return Stack(
                   children: [
@@ -471,50 +532,6 @@ class _DriverTripScreenState extends State<DriverTripScreen>
     });
   }
 
-  void _syncSolicitudPersistence(DriverTripController controller) {
-    final rawStatus = controller.trip?.status;
-    if (rawStatus == null || rawStatus.trim().isEmpty) return;
-
-    final status = DriverTripController.normalizeStatus(rawStatus);
-    if (_lastPersistedStatus == status) return;
-    _lastPersistedStatus = status;
-
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted) return;
-
-      if (_shouldPersistSolicitud(status)) {
-        try {
-          await SessionHelper.setActiveSolicitud(widget.tripId);
-          await RouteCacheService.saveForSolicitud(
-            RouteCacheData(
-              solicitudId: widget.tripId,
-              role: 'conductor',
-              clientName: controller.clientName,
-              clientAddress: controller.clientAddress,
-              clientLat: controller.clientLatLng?.latitude,
-              clientLng: controller.clientLatLng?.longitude,
-              conductorId: FirebaseAuth.instance.currentUser?.uid,
-            ),
-          );
-        } catch (_) {}
-        return;
-      }
-
-      if (_shouldClearSolicitud(status)) {
-        try {
-          try {
-            await _stopBackgroundTrackingIfNeeded();
-          } catch (_) {}
-          try {
-            await NotificacionesServicio.instance.cancelAll();
-          } catch (_) {}
-
-          await SessionHelper.clearActiveSolicitud();
-          await RouteCacheService.clearSolicitud(widget.tripId);
-        } catch (_) {}
-      }
-    });
-  }
 
   bool _shouldPersistSolicitud(String status) {
     return status == 'asignado' ||

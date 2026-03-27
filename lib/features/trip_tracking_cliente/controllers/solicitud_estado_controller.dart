@@ -19,6 +19,8 @@ class SolicitudEstadoController {
   final NotificationService _notificationService;
 
   final ValueNotifier<int> _remainingSeconds = ValueNotifier<int>(180);
+  // Notifier to indicate whether the waiting modal is currently visible.
+  final ValueNotifier<bool> waitModalVisible = ValueNotifier<bool>(false);
 
   Timer? _countdownTimer;
   String? _lastEstado;
@@ -83,6 +85,10 @@ class SolicitudEstadoController {
     _timeoutHandled = false;
     _startCountdown(solicitudId: solicitudId);
 
+    try {
+      waitModalVisible.value = true;
+    } catch (_) {}
+
     await showModalBottomSheet<void>(
       context: context,
       isDismissible: false,
@@ -123,6 +129,9 @@ class SolicitudEstadoController {
       _sheetContext = null;
       _stopCountdown();
       _isUpdatingEstado = false;
+      try {
+        waitModalVisible.value = false;
+      } catch (_) {}
     });
   }
 
@@ -202,5 +211,6 @@ class SolicitudEstadoController {
     _disposed = true;
     _stopCountdown();
     _remainingSeconds.dispose();
+    try { waitModalVisible.dispose(); } catch (_) {}
   }
 }

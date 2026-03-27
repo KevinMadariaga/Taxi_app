@@ -13,6 +13,11 @@ import 'package:taxi_app/screens/usuario_cliente/presentacion/view/ResumenClient
 import 'package:taxi_app/widgets/intermediate_transition_view.dart';
 
 class Rutaclientedestinoviewmodel extends ChangeNotifier {
+  bool _disposed = false;
+
+  void _safeNotify() {
+    if (!_disposed) notifyListeners();
+  }
   // Servicio de mapas
   final MapService _mapService = const MapService();
 
@@ -61,7 +66,7 @@ class Rutaclientedestinoviewmodel extends ChangeNotifier {
           if (ubicacion != null) {
             latConductor = (ubicacion['lat'] as num?)?.toDouble();
             lngConductor = (ubicacion['lng'] as num?)?.toDouble();
-            notifyListeners();
+            _safeNotify();
           }
         });
   }
@@ -73,7 +78,7 @@ class Rutaclientedestinoviewmodel extends ChangeNotifier {
   // Método para actualizar el tiempo estimado
   void setTiempoEstimado(String tiempo) {
     _tiempoEstimado = tiempo;
-    notifyListeners();
+    _safeNotify();
   }
 
   // Estado de solicitud
@@ -199,47 +204,12 @@ class Rutaclientedestinoviewmodel extends ChangeNotifier {
     return false;
   }
 
-  // void iniciarChat(String solicitudId) {
-  //   _chatSub?.cancel();
-  //   _chatSub = chatService.listenMessages(solicitudId).listen(
-  //     (ms) {
-  //       if (mensajes.isNotEmpty && ms.length > mensajes.length) {
-  //         final nuevoMensaje = ms.last;
-  //         // Si el mensaje es del conductor, mostrar notificación
-  //         if (nuevoMensaje.senderId != usuarioId) {
-  //           mostrarNotificacion(
-  //             'Mensaje del conductor',
-  //             nuevoMensaje.texto
-  //           );
-  //         }
-  //       }
-  //       mensajes = ms;
-  //       notifyListeners();
-  //     },
-  //     onError: (e) {
-  //       debugPrint("Error en chat: $e");
-  //     },
-  //   );
-  // }
-
-  // Future<void> enviarMensaje(
-  //   String solicitudId,
-  //   String senderId,
-  //   String texto,
-  // ) async {
-  //   if (texto.trim().isEmpty) return;
-  //   await chatService.sendMessage(
-  //     solicitudId: solicitudId,
-  //     senderId: senderId,
-  //     texto: texto,
-  //   );
-  // }
-
   @override
   void dispose() {
     // _chatSub?.cancel(); // Chat deshabilitado
     _conductorUbicacionSub?.cancel();
     _solicitudStateSub?.cancel();
+    _disposed = true;
     super.dispose();
   }
 
@@ -337,7 +307,7 @@ class Rutaclientedestinoviewmodel extends ChangeNotifier {
         lngDestino = null;
         debugPrint('[DEBUG] Campo destino no encontrado o no es un objeto');
       }
-      notifyListeners();
+      _safeNotify();
     } catch (e) {
       debugPrint('Error al cargar datos de conductor/cliente: $e');
     }
@@ -345,12 +315,12 @@ class Rutaclientedestinoviewmodel extends ChangeNotifier {
 
   void actualizarNombre(String nuevoNombre) {
     nombreConductorEstado = nuevoNombre;
-    notifyListeners();
+    _safeNotify();
   }
 
   void actualizarEstado(String nuevoEstado) {
     estado = nuevoEstado;
-    notifyListeners();
+    _safeNotify();
   }
 
   void inicializarNotificaciones() {
@@ -365,6 +335,8 @@ class Rutaclientedestinoviewmodel extends ChangeNotifier {
         );
     flutterLocalNotificationsPlugin.initialize(initializationSettings);
   }
+
+   
 
   Future<void> mostrarNotificacion(String titulo, String cuerpo) async {
     debugPrint('[Notificacion] Titulo: $titulo, Cuerpo: $cuerpo');

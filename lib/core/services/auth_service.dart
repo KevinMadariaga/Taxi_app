@@ -5,7 +5,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:taxi_app/helper/session_helper.dart';
 import 'package:taxi_app/screens/home_screen.dart';
 import 'package:taxi_app/features/trip_tracking_cliente/views/trip_tracking_screen.dart';
-import 'package:taxi_app/features/trip_tracking_cliente/views/trip_route_tracking_screen.dart';
 import 'package:taxi_app/presentation/screens/auth/complete_profile_page.dart';
 import 'package:taxi_app/features/phone_auth/screens/panel_administrador_screen.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/home_cliente_view.dart';
@@ -13,7 +12,6 @@ import 'package:taxi_app/screens/usuario_cliente/presentacion/view/RutaClienteDe
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/RutaConductorView.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/RutaDestinoView.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioConductorView.dart';
-import 'package:taxi_app/features/trip_tracking_cliente/viewmodels/trip_route_tracking_viewmodel.dart';
 import 'package:taxi_app/features/driver_trip/screens/driver_trip_screen.dart';
 
 import 'package:taxi_app/core/services/services.dart';

@@ -11,18 +11,7 @@ class FirebaseHelper {
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
       );
-      // Activar Firebase App Check para proteger llamadas a Firebase (Play Integrity en Android).
-      try {
-        if (!kIsWeb) {
-          await FirebaseAppCheck.instance.activate(
-            androidProvider: AndroidProvider.playIntegrity,
-            appleProvider: AppleProvider.deviceCheck,
-          );
-          debugPrint('Firebase App Check activado');
-        }
-      } catch (e) {
-        debugPrint('Error activando Firebase App Check: $e');
-      }
+      // App Check desactivado para evitar bloqueos innecesarios en desarrollo y producción.
       // Inicializa Crashlytics
       FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterError;
       await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(true);

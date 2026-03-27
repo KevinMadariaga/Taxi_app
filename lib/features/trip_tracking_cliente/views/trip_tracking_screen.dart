@@ -1,3 +1,4 @@
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -7,10 +8,8 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/constants/solicitud_estado.dart';
-import 'package:taxi_app/features/trip_tracking_cliente/viewmodels/trip_route_tracking_viewmodel.dart';
 import 'package:taxi_app/helper/session_helper.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/InicioClienteView.dart';
-import 'package:taxi_app/features/trip_tracking_cliente/views/trip_route_tracking_screen.dart';
 import 'package:taxi_app/core/services/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/RutaClienteDestinoView.dart';
@@ -45,6 +44,7 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
   BitmapDescriptor? _taxiMarkerIcon;
   Timer? _cancelDisableTimer;
   bool _cancelAllowed = true;
+  bool _cancelAllowedBeforeModal = true;
   bool _initialCameraApplied = false;
   bool _cancelledNavigationDone = false;
   bool _rutaDestinoNavigationDone = false;
@@ -57,6 +57,19 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
   void initState() {
     super.initState();
     _estadoController = SolicitudEstadoController();
+    // Listen to wait modal visibility to disable cancel button while modal is open.
+    _estadoController.waitModalVisible.addListener(() {
+      if (!mounted) return;
+      final visible = _estadoController.waitModalVisible.value;
+      setState(() {
+        if (visible) {
+          _cancelAllowedBeforeModal = _cancelAllowed;
+          _cancelAllowed = false;
+        } else {
+          _cancelAllowed = _cancelAllowedBeforeModal;
+        }
+      });
+    });
     _loadTaxiMarkerIcon();
     _showDriverAssignedNotification();
     _startCancelDisableTimer();
@@ -77,6 +90,10 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
     });
   }
 
+// Detecta si el dispositivo tiene barra de navegación inferior (Android/iOS)
+bool hasNavigationBar(BuildContext context) {
+  return MediaQuery.of(context).padding.bottom > 0;
+}
   Future<void> _showDriverAssignedNotification() async {
     if (_assignmentNotificationShown) return;
 
@@ -165,8 +182,9 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
                 final mq = MediaQuery.of(ctx);
                 final screenH = mq.size.height;
                 final safeBottom = mq.padding.bottom;
-                final mapH = (screenH * 0.70).clamp(200.0, screenH - 120.0);
-                final panelH = screenH - mapH;
+                final hasNavBar = hasNavigationBar(ctx);
+                final mapH = hasNavBar ? screenH * 0.65 : screenH * 0.70;
+                final panelH = hasNavBar ? screenH * 0.35 : screenH * 0.30;
 
                 return Stack(
                   children: [
@@ -335,6 +353,8 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
     if (_lastEstadoProcesado == normalizado) return;
     _lastEstadoProcesado = normalizado;
 
+
+    // Open wait modal as soon as possible on 'en espera'.
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       await _estadoController.handleEstadoCambio(
@@ -344,6 +364,20 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
         onIrRutaClienteDestino: _goToRutaClienteDestino,
       );
     });
+
+    // Fire a local notification for 'en espera' asynchronously
+    if (normalizado == 'en espera' || normalizado == 'en_espera' || normalizado == 'espera' || normalizado == 'waiting') {
+      Future(() async {
+        try {
+          await NotificationService.instance.init();
+          await NotificationService.instance.showNotification(
+            1002, // Unique ID for this notification
+            'Conductor está afuera',
+            'El conductor está esperando verificación.',
+          );
+        } catch (_) {}
+      });
+    }
   }
 
   Future<void> _loadTaxiMarkerIcon() async {
@@ -600,6 +634,7 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
   @override
   void dispose() {
     _mapController?.dispose();
+    try { _estadoController.waitModalVisible.removeListener(() {}); } catch (_) {}
     _estadoController.dispose();
     _cancelDisableTimer?.cancel();
     super.dispose();

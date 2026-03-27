@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 
+import 'package:taxi_app/core/services/services.dart';
+
 class BuscandoTaxiViewModel extends ChangeNotifier {
   BuscandoTaxiViewModel({FirebaseFirestore? firestore})
     : _firestore = firestore ?? FirebaseFirestore.instance;
@@ -40,6 +42,8 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
               ?.toString()
               .toLowerCase();
           if (estado == 'asignado') {
+            // Mostrar notificación de solicitud asignada (similar a solicitud entrante)
+            await mostrarNotificacionSolicitudEntrante();
             _asignadaHandled = true;
             try {
               await onAsignada(solicitudId);
@@ -48,6 +52,17 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
             }
           }
         });
+  }
+
+  /// Muestra una notificación local indicando que hay una solicitud entrante/asignada.
+  Future<void> mostrarNotificacionSolicitudEntrante() async {
+    try {
+      await NotificationService.instance.showNotification(
+        1001, // ID único para la notificación
+        'Solicitud asignada',
+        '¡Un conductor ha sido asignado a tu viaje!'
+      );
+    } catch (_) {}
   }
 
   Future<void> detenerEscucha() async {

@@ -6,6 +6,7 @@ import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/InicioClienteView.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioConductorView.dart';
 import 'package:taxi_app/core/services/services.dart';
+import 'package:taxi_app/helper/session_helper.dart';
 
 import '../controllers/resumen_viaje_controller.dart';
 import '../models/resumen_viaje_model.dart';
@@ -235,10 +236,21 @@ class _ResumenViajeBodyState extends State<_ResumenViajeBody> {
     final isCliente = vm.tipoUsuario == TipoUsuarioResumen.cliente;
 
     if (isCliente) {
-      // Start saving rating in background and navigate immediately for smooth UX.
-      vm.guardarCalificacionCliente();
-      if (!context.mounted) return;
+      // Save rating, then clear active solicitud and navigate to home.
+      final result = await vm.guardarCalificacionCliente();
+      if (result != null) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(result)),
+        );
+        return;
+      }
 
+      try {
+        await SessionHelper.clearActiveSolicitud();
+      } catch (_) {}
+
+      if (!context.mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const InicioClienteView()),
         (route) => false,

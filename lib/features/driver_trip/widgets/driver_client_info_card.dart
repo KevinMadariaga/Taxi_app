@@ -1,5 +1,13 @@
 import 'package:flutter/material.dart';
+
 import 'package:taxi_app/core/app_colores.dart';
+
+// Definir localmente para evitar problemas de importación circular
+bool hasNavigationBar(BuildContext context) {
+  return MediaQuery.of(context).padding.bottom > 0;
+}
+
+ // Para usar hasNavigationBar
 
 class DriverClientInfoCard extends StatelessWidget {
   const DriverClientInfoCard({
@@ -31,15 +39,12 @@ class DriverClientInfoCard extends StatelessWidget {
     final isTablet = width >= 900;
 
     final bottomInset = MediaQuery.of(context).padding.bottom;
-    final hasNavBar = bottomInset > 0;
+    final hasNavBar = hasNavigationBar(context);
 
-    // When the system reports a bottom inset (native nav bar / home indicator),
-    // preserve that space plus a small extra gap. When there's no inset (gesture
-    // navigation), use a modest bottom padding and push the content down a bit
-    // by increasing the top padding so the panel doesn't show too much empty space.
+    // Ajuste de padding inferior y superior según barra de navegación y tipo de dispositivo
     final bottomPadding = hasNavBar
-      ? bottomInset + (isTablet ? 8.0 : 12.0)
-      : (isTablet ? 12.0 : 8.0);
+        ? bottomInset + (isTablet ? 8.0 : 12.0)
+        : (isTablet ? 18.0 : 14.0); // Si no hay barra, baja más el contenido
     final topPadding = (isTablet ? 18.0 : 16.0) + (hasNavBar ? 0.0 : (isTablet ? 6.0 : 8.0));
 
     return Container(
