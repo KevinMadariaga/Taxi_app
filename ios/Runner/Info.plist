@@ -29,12 +29,14 @@
 			<string>Editor</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>com.googleusercontent.apps.1011373106222-dmum67h9llcet2qngsp0lit0qo62pfi9</string>
+				<string>com.googleusercontent.apps.1011373106222-qapj5oipv249g9rt4o72impgtcqu38re</string>
 			</array>
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>FirebaseAppCheckDebugEnabled</key>
+	<false/>
 	<key>FirebaseAppDelegateProxyEnabled</key>
 	<true/>
 	<key>GMSApiKey</key>
@@ -49,20 +51,10 @@
 	<string>Usamos tu ubicacion en segundo plano para mantener el seguimiento del viaje activo y seguro.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>La aplicación necesita acceder a tu ubicación para ofrecer servicios de taxi.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Necesitamos acceso a tu galeria para seleccionar fotos de perfil y evidencias requeridas.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Necesitamos permiso para guardar comprobantes e imagenes del servicio en tu galeria.</string>
-	<key>UIApplicationSupportsIndirectInputEvents</key>
-	<true/>
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>location</string>
-		<string>fetch</string>
-		<string>remote-notification</string>
-	</array>
-	<key>UILaunchStoryboardName</key>
-	<string>LaunchScreen</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Necesitamos acceso a tu galeria para seleccionar fotos de perfil y evidencias requeridas.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -80,6 +72,16 @@
 			</array>
 		</dict>
 	</dict>
+	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<true/>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+		<string>fetch</string>
+		<string>remote-notification</string>
+	</array>
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
 	<key>UIStatusBarHidden</key>
 	<false/>
 	<key>UISupportedInterfaceOrientations</key>

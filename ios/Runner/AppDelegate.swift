@@ -14,15 +14,36 @@ import UserNotifications
   ) -> Bool {
     // Provide Google Maps API key for iOS
     GMSServices.provideAPIKey("AIzaSyAUYXdeT3cOtyTSGndd-DEV12OMyAmb-40")
-    // Set UNUserNotificationCenter delegate to handle foreground notifications
+
+    // Set UNUserNotificationCenter delegate BEFORE Flutter starts so foreground
+    // notifications are delivered correctly (required by flutter_local_notifications).
     UNUserNotificationCenter.current().delegate = self
 
     flutterEngine.run()
     GeneratedPluginRegistrant.register(with: flutterEngine)
 
-    // Register for remote notifications to obtain APNs token (Firebase will use it if configured)
+    // Register for remote APNs token AFTER Flutter is ready.
+    // The actual user-facing permission dialog is handled from Dart via
+    // flutter_local_notifications / permission_handler to avoid race conditions.
     application.registerForRemoteNotifications()
 
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+
+  // Called when APNs token registration succeeds.
+  override func application(
+    _ application: UIApplication,
+    didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
+  ) {
+    print("[AppDelegate] APNs token received")
+    super.application(application, didRegisterForRemoteNotificationsWithDeviceToken: deviceToken)
+  }
+
+  // Called when APNs token registration fails.
+  override func application(
+    _ application: UIApplication,
+    didFailToRegisterForRemoteNotificationsWithError error: Error
+  ) {
+    print("[AppDelegate] Failed to register for remote notifications: \(error.localizedDescription)")
   }
 }

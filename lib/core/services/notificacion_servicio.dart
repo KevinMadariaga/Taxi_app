@@ -1,5 +1,5 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:taxi_app/helper/permisos_helper.dart';
 
 
 /// Servicio centralizado para notificaciones locales.
@@ -36,28 +36,44 @@ class NotificacionesServicio {
   Future<void> init() async {
     if (_initialized) return;
 
-    // Verificar y solicitar permisos de notificaciones
-    final hasPermission = await PermissionsHelper.hasNotificationPermission();
-    if (!hasPermission) {
-      await PermissionsHelper.requestNotificationPermission();
-    }
-
     const android = AndroidInitializationSettings('ic_notification');
     const ios = DarwinInitializationSettings(
       requestAlertPermission: true,
       requestBadgePermission: true,
       requestSoundPermission: true,
+      requestCriticalPermission: false,
     );
 
     const settings = InitializationSettings(android: android, iOS: ios);
 
     await _plugin.initialize(
       settings,
-      // Optional: handle tapped notification when app is in background/terminated
       onDidReceiveNotificationResponse: (NotificationResponse response) {
-        // You can handle navigation or other logic here if needed
+        // Handle notification tap (navigation, etc.)
       },
     );
+
+    // Confirmar permisos iOS después de la inicialización.
+    // Esto garantiza que el diálogo de autorización se muestra si aún
+    // no fue respondido (flutter_local_notifications lo gestiona de forma
+    // correcta con UNUserNotificationCenter sin conflictos).
+    final bool? iosGranted = await _plugin
+        .resolvePlatformSpecificImplementation<
+            IOSFlutterLocalNotificationsPlugin>()
+        ?.requestPermissions(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
+
+    if (iosGranted != null) {
+      debugPrint(
+        iosGranted
+            ? '✅ [NotificacionesServicio] Permisos iOS confirmados'
+            : '⚠️ [NotificacionesServicio] Permisos iOS no concedidos',
+      );
+    }
+
     _initialized = true;
   }
 
@@ -75,7 +91,16 @@ class NotificacionesServicio {
       priority: Priority.high,
     );
 
-    const notificationDetails = NotificationDetails(android: androidDetails);
+    const iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
+
+    const notificationDetails = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
 
     await _plugin.show(
       _systemNotificationId,
@@ -103,7 +128,16 @@ class NotificacionesServicio {
       icon: 'ic_notification',
     );
 
-    const notificationDetails = NotificationDetails(android: androidDetails);
+    const iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
+
+    const notificationDetails = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
 
     await _plugin.show(
       _chatNotificationId,
@@ -133,7 +167,16 @@ class NotificacionesServicio {
       icon: '@drawable/ic_notification',
     );
 
-    final notificationDetails = NotificationDetails(android: androidDetails);
+    final iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: playSound,
+    );
+
+    final notificationDetails = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
 
     await _plugin.show(
       _tripNotificationId,

@@ -10,8 +10,7 @@ class MapService {
   // - Google Directions API puede generar costes según tu cuota de facturación.
   // - La clave se incluye aquí por simplicidad porque el usuario la proporcionó.
   //   En producción es mejor cargarla desde variables de entorno o almacenamiento seguro.
-  static const String? _googleDirectionsKey =
-      'AIzaSyBijCV2BttW2Sat4GiASFtNOn3zfIBvD-4';
+  static const String? _googleDirectionsKey = '';
 
   static const String _osrmBaseUrl = 'https://router.project-osrm.org';
 
@@ -28,10 +27,10 @@ class MapService {
 
     final a =
         math.sin(dLat / 2) * math.sin(dLat / 2) +
-            math.cos(lat1) *
-                math.cos(lat2) *
-                math.sin(dLng / 2) *
-                math.sin(dLng / 2);
+        math.cos(lat1) *
+            math.cos(lat2) *
+            math.sin(dLng / 2) *
+            math.sin(dLng / 2);
 
     final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
     return earthRadius * c;
@@ -83,10 +82,10 @@ class MapService {
 
     final canReuseRecent =
         _lastRouteKey == key &&
-            _lastRoute != null &&
-            _lastRoute!.isNotEmpty &&
-            _lastRouteRequestAt != null &&
-            now.difference(_lastRouteRequestAt!) < const Duration(seconds: 8);
+        _lastRoute != null &&
+        _lastRoute!.isNotEmpty &&
+        _lastRouteRequestAt != null &&
+        now.difference(_lastRouteRequestAt!) < const Duration(seconds: 8);
 
     if (canReuseRecent) return _lastRoute!;
 
@@ -95,30 +94,30 @@ class MapService {
       try {
         final origin = '${from.latitude},${from.longitude}';
         final destination = '${to.latitude},${to.longitude}';
-        final uri = Uri.https(
-          'maps.googleapis.com',
-          '/maps/api/directions/json',
-          {
-            'origin': origin,
-            'destination': destination,
-            'mode': 'driving',
-            'key': _googleDirectionsKey,
-            'alternatives': 'false',
-            'units': 'metric',
-          },
-        );
+        final uri =
+            Uri.https('maps.googleapis.com', '/maps/api/directions/json', {
+              'origin': origin,
+              'destination': destination,
+              'mode': 'driving',
+              'key': _googleDirectionsKey,
+              'alternatives': 'false',
+              'units': 'metric',
+            });
 
         final resp = await http.get(uri).timeout(const Duration(seconds: 6));
         if (resp.statusCode == 200) {
           final jsonBody = json.decode(resp.body) as Map<String, dynamic>?;
           final routes = jsonBody?['routes'] as List<dynamic>?;
           if (routes != null && routes.isNotEmpty) {
-            final overview = routes.first['overview_polyline'] as Map<String, dynamic>?;
+            final overview =
+                routes.first['overview_polyline'] as Map<String, dynamic>?;
             final encoded = overview?['points'] as String?;
             if (encoded != null && encoded.isNotEmpty) {
               final points = _decodePolyline(encoded);
               if (points.isNotEmpty) {
-                debugPrint('[MapService] Google Directions fetched: ${points.length} points');
+                debugPrint(
+                  '[MapService] Google Directions fetched: ${points.length} points',
+                );
                 _lastRouteKey = key;
                 _lastRoute = points;
                 _lastRouteRequestAt = now;
@@ -127,7 +126,9 @@ class MapService {
             }
           }
         }
-        debugPrint('[MapService] Google Directions did not return usable route, falling back');
+        debugPrint(
+          '[MapService] Google Directions did not return usable route, falling back',
+        );
       } catch (e) {
         debugPrint('[MapService] Google Directions request failed: $e');
       }
@@ -151,7 +152,8 @@ class MapService {
           : null;
       final coordinates = geometry?['coordinates'] as List<dynamic>?;
 
-      if (coordinates == null || coordinates.isEmpty) return _straightLine(from, to);
+      if (coordinates == null || coordinates.isEmpty)
+        return _straightLine(from, to);
 
       final points = coordinates
           .whereType<List<dynamic>>()
@@ -165,7 +167,9 @@ class MapService {
           .toList();
 
       if (points.isEmpty) {
-        debugPrint('[MapService] OSRM returned empty geometry, falling back to straight line');
+        debugPrint(
+          '[MapService] OSRM returned empty geometry, falling back to straight line',
+        );
         return _straightLine(from, to);
       }
 
@@ -176,7 +180,9 @@ class MapService {
 
       return points;
     } catch (_) {
-      debugPrint('[MapService] OSRM request failed, falling back to straight line');
+      debugPrint(
+        '[MapService] OSRM request failed, falling back to straight line',
+      );
       return _straightLine(from, to);
     }
   }

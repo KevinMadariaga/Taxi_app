@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 class NotificationService {
@@ -12,7 +13,11 @@ class NotificationService {
         AndroidInitializationSettings('ic_notification');
 
     const DarwinInitializationSettings iosSettings =
-        DarwinInitializationSettings();
+        DarwinInitializationSettings(
+      requestAlertPermission: true,
+      requestBadgePermission: true,
+      requestSoundPermission: true,
+    );
 
     const InitializationSettings initSettings = InitializationSettings(
       android: androidSettings,
@@ -20,6 +25,18 @@ class NotificationService {
     );
 
     await _plugin.initialize(initSettings);
+
+    // Request iOS permissions explicitly after initialization
+    if (Platform.isIOS) {
+      await _plugin
+          .resolvePlatformSpecificImplementation<
+              IOSFlutterLocalNotificationsPlugin>()
+          ?.requestPermissions(
+            alert: true,
+            badge: true,
+            sound: true,
+          );
+    }
   }
 
   Future<void> showNotification(int id, String title, String body) async {
@@ -33,7 +50,11 @@ class NotificationService {
       icon: 'ic_notification',
     );
 
-    const DarwinNotificationDetails iosDetails = DarwinNotificationDetails();
+    const DarwinNotificationDetails iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
 
     const NotificationDetails platformDetails =
         NotificationDetails(android: androidDetails, iOS: iosDetails);

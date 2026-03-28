@@ -465,6 +465,11 @@ class AuthService {
         await prefs.setString('user_uid', resolvedUid);
         await SessionHelper.saveSession(role, resolvedUid);
       }
+
+      // Actualizar token FCM para que quede vinculado al usuario correcto
+      try {
+        await FcmService.instance.refreshToken();
+      } catch (_) {}
     } catch (e) {
       debugPrint('Error al guardar sesión: $e');
     }
@@ -493,6 +498,11 @@ class AuthService {
           final prefs = await SharedPreferences.getInstance();
           await prefs.setBool('is_logged_in', true);
         }
+
+        // Registrar/actualizar token FCM para el nuevo usuario
+        try {
+          await FcmService.instance.refreshToken();
+        } catch (_) {}
       }
 
       return credential;

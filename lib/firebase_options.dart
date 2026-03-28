@@ -59,10 +59,10 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyBqetxO77qnDsfsJUDemyVHPMnDAgsuzls',
-    appId: '1:1011373106222:ios:34ada2887ee4b10df56bbf',
+    appId: '1:1011373106222:ios:69b48b994fc089d4f56bbf',
     messagingSenderId: '1011373106222',
     projectId: 'aplicacion-taxi-fd0a7',
     storageBucket: 'aplicacion-taxi-fd0a7.firebasestorage.app',
-    iosBundleId: 'com.example.taxiApp',
+    iosBundleId: 'com.taxiya.taxiapp',
   );
 }

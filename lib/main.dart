@@ -24,6 +24,7 @@ import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/RutaCo
 import 'package:taxi_app/core/services/background_tracking_service.dart';
 import 'package:taxi_app/core/services/notificacion_servicio.dart';
 import 'package:taxi_app/core/services/tracking_service.dart';
+import 'package:taxi_app/core/services/fcm_service.dart';
 
 const SystemUiOverlayStyle _globalSystemOverlayStyle = SystemUiOverlayStyle(
   statusBarColor: Colors.transparent,
@@ -66,6 +67,11 @@ Future<void> _initializeCoreServices() async {
   await initializeLocationNotificationChannel();
   await initializeTrackingNotificationChannel();
   await initializeBackgroundService();
+
+  // Inicializar Firebase Cloud Messaging para push notifications en iOS background.
+  // Esto registra el token FCM del usuario en Firestore y configura los handlers
+  // de mensajes (foreground, background, terminated).
+  await FcmService.instance.init();
 }
 
 /// Root widget for the Taxi App.

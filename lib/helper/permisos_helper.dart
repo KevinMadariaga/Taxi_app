@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -138,6 +140,21 @@ class PermissionsHelper {
 
   /// Verifica si el permiso de notificaciones está concedido.
   static Future<bool> hasNotificationPermission() async {
+    if (Platform.isIOS) {
+      // En iOS, permission_handler puede devolver 'denied' para el estado
+      // 'notDetermined'. Verificamos directamente con flutter_local_notifications.
+      final plugin = FlutterLocalNotificationsPlugin();
+      final iosImpl = plugin
+          .resolvePlatformSpecificImplementation<
+              IOSFlutterLocalNotificationsPlugin>();
+      if (iosImpl != null) {
+        final settings = await iosImpl.checkPermissions();
+        return settings?.isEnabled ?? false;
+      }
+      // Fallback
+      final status = await Permission.notification.status;
+      return status.isGranted;
+    }
     final status = await Permission.notification.status;
     return status.isGranted;
   }
@@ -147,6 +164,61 @@ class PermissionsHelper {
   /// Retorna `true` si el permiso fue concedido.
   static Future<bool> requestNotificationPermission() async {
     return await _runExclusive(() async {
+      if (Platform.isIOS) {
+        // En iOS, usamos flutter_local_notifications directamente porque
+        // es quien interactúa correctamente con UNUserNotificationCenter.
+        // permission_handler puede generar conflictos de timing en iOS.
+        final plugin = FlutterLocalNotificationsPlugin();
+        final iosImpl = plugin
+            .resolvePlatformSpecificImplementation<
+                IOSFlutterLocalNotificationsPlugin>();
+
+        if (iosImpl != null) {
+          // Inicializar si aún no está listo
+          await plugin.initialize(
+            const InitializationSettings(
+              iOS: DarwinInitializationSettings(
+                requestAlertPermission: false,
+                requestBadgePermission: false,
+                requestSoundPermission: false,
+              ),
+            ),
+          );
+
+          final bool? granted = await iosImpl.requestPermissions(
+            alert: true,
+            badge: true,
+            sound: true,
+          );
+
+          final isGranted = granted ?? false;
+          if (isGranted) {
+            debugPrint('✅ Notificaciones permitidas (iOS)');
+          } else {
+            // Verificar si fue denegado permanentemente para guiar al usuario
+            final status = await Permission.notification.status;
+            if (status.isPermanentlyDenied) {
+              debugPrint(
+                '⚠️ Notificaciones denegadas permanentemente. '
+                'El usuario debe habilitarlas desde Ajustes → Taxi Ya.',
+              );
+              // No abrir Ajustes automáticamente; hacerlo desde la UI
+            } else {
+              debugPrint(
+                '⚠️ Notificaciones no otorgadas aún en iOS '
+                '(el usuario puede habilitarlas desde Ajustes).',
+              );
+            }
+          }
+          return isGranted;
+        }
+
+        // Fallback: si no hay implementación iOS disponible aún
+        debugPrint('⚠️ IOSFlutterLocalNotificationsPlugin no disponible todavía.');
+        return false;
+      }
+
+      // Android y otras plataformas
       final permission = await Permission.notification.request();
 
       if (permission.isGranted) {
