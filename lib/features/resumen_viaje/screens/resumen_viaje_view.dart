@@ -59,19 +59,20 @@ class _ResumenViajeBodyState extends State<_ResumenViajeBody> {
     _notificationShown = true;
 
     final isConductor = widget.tipoUsuario == TipoUsuarioResumen.conductor;
-    final title = isConductor ? 'Llegaste al destino' : 'Viaje terminado';
-    final body = isConductor
-        ? 'Fin del servicio.'
-        : 'Gracias por confiar en nosotros.';
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       try {
-        await NotificationService.instance.init();
-        await NotificationService.instance.showNotification(
-          DateTime.now().millisecondsSinceEpoch % 100000,
-          title,
-          body,
-        );
+        if (isConductor) {
+          await NotificacionesServicio.instance.showTripNotification(
+            title: '🏁 Llegaste al destino',
+            body: 'Fin del servicio. ¡Buen trabajo!',
+          );
+        } else {
+          await NotificacionesServicio.instance.showTripNotification(
+            title: '✅ El servicio ha terminado',
+            body: '¡Gracias por elegirnos! Esperamos verte pronto.',
+          );
+        }
       } catch (_) {}
     });
   }

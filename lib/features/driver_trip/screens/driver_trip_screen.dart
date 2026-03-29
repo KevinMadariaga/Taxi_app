@@ -4,19 +4,16 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
-import 'dart:math' as math;
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/RutaDestinoView.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/helper/session_helper.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioConductorView.dart';
-import 'package:taxi_app/core/services/background_tracking_service.dart';
 import 'package:taxi_app/core/services/services.dart';
 
 import '../controllers/driver_trip_controller.dart';
 import '../widgets/driver_client_info_card.dart';
-import '../widgets/driver_top_status_card.dart';
 import '../widgets/driver_waiting_client_modal.dart';
 import 'driver_chat_screen.dart';
 
@@ -97,11 +94,13 @@ bool hasNavigationBar(BuildContext context) {
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive ||
         state == AppLifecycleState.hidden) {
+      _controller.setAppBackground(true);
       _startBackgroundTrackingIfNeeded();
       return;
     }
 
     if (state == AppLifecycleState.resumed) {
+      _controller.setAppBackground(false);
       _stopBackgroundTrackingIfNeeded();
       _controller.onAppResumed();
     }
@@ -158,18 +157,10 @@ bool hasNavigationBar(BuildContext context) {
             final status = DriverTripController.normalizeStatus(rawStatus);
             if (_lastPersistedStatus == status) return;
             _lastPersistedStatus = status;
-            if (status == 'en_camino') {
-              try {
-                await NotificacionesServicio.instance.showTripNotification(
-                  title: 'Cliente ha verificado',
-                  body: 'Ya viene en camino, espéralo.',
-                );
-              } catch (_) {}
-            }
             if (status == 'cancelado') {
               try {
                 await NotificacionesServicio.instance.showTripNotification(
-                  title: 'Cliente ha cancelado',
+                  title: '❌ Servicio cancelado',
                   body: 'El cliente ha cancelado el servicio.',
                 );
               } catch (_) {}
@@ -244,9 +235,15 @@ bool hasNavigationBar(BuildContext context) {
           final initialTarget =
               controller.clientLatLng ?? controller.driverLatLng ?? fallback;
 
-          final width = MediaQuery.of(context).size.width;
-          final isTablet = width >= 900;
-          final sideOffset = math.min(64.0, width * 0.06);
+          final currStatus = controller.trip?.status ?? '';
+          String dynamicTitle = 'Conectando...';
+          if (currStatus.contains('asignado') || currStatus.contains('en_espera') || currStatus.contains('en_camino')) {
+            dynamicTitle = 'Dirigiéndote al cliente';
+          } else if (currStatus.contains('en_ruta')) {
+            dynamicTitle = 'En viaje hacia el destino';
+          } else {
+            dynamicTitle = 'Viaje Activo';
+          }
 
           return AnnotatedRegion<SystemUiOverlayStyle>(
             value: const SystemUiOverlayStyle(
@@ -257,95 +254,75 @@ bool hasNavigationBar(BuildContext context) {
             child: Scaffold(
               body: Builder(builder: (ctx) {
                 final mq = MediaQuery.of(ctx);
-                final screenH = mq.size.height;
                 final hasNavBar = hasNavigationBar(ctx);
-                final mapH = hasNavBar ? screenH * 0.65 : screenH * 0.70;
-                final panelH = hasNavBar ? screenH * 0.35 : screenH * 0.30;
 
                 return Stack(
                   children: [
-                    Column(
+                    Stack(
                       children: [
-                        SizedBox(
-                          height: mapH,
-                          width: double.infinity,
-                          child: Stack(
-                            children: [
-                              GoogleMap(
-                                initialCameraPosition: CameraPosition(
-                                  target: initialTarget,
-                                  zoom: 14,
-                                ),
-                                myLocationEnabled: true,
-                                myLocationButtonEnabled: false,
-                                compassEnabled: true,
-                                markers: markers,
-                                polylines: polylines,
-                                onMapCreated: (map) {
-                                  _mapController = map;
-                                  _fitInitialCameraIfNeeded(controller);
-                                },
-                              ),
-                              Positioned(
-                                top: mq.padding.top + 14,
-                                left: 0,
-                                right: 0,
-                                child: Center(
-                                  child: DriverTopStatusCard(
-                                    distanceText: controller.distanceText,
-                                    etaText: controller.etaText,
-                                  ),
-                                ),
-                              ),
-                              Positioned(
-                                left: sideOffset,
-                                bottom: isTablet ? 86 : 76,
-                                child: FloatingActionButton(
-                                  heroTag: 'driver_trip_panic_btn',
-                                  backgroundColor: AppColores.buttonCancel,
-                                  onPressed: _onPanicPressed,
-                                  child: const Icon(
-                                    Icons.warning_amber_rounded,
-                                    color: AppColores.textWhite,
-                                  ),
-                                ),
-                              ),
-                              Positioned(
-                                left: sideOffset,
-                                bottom: 12,
-                                child: FloatingActionButton(
-                                  heroTag: 'driver_map_focus_btn',
-                                  backgroundColor: AppColores.buttonPrimary,
-                                  onPressed: () => _toggleFocus(controller),
-                                  child: Icon(
-                                    controller.focusMode == DriverMapFocusMode.clientOnly
-                                        ? Icons.person_pin_circle
-                                        : Icons.fit_screen,
-                                    color: AppColores.textWhite,
-                                  ),
-                                ),
-                              ),
-                            ],
+                        Positioned.fill(
+                          child: GoogleMap(
+                            initialCameraPosition: CameraPosition(
+                              target: initialTarget,
+                              zoom: 14,
+                            ),
+                            myLocationEnabled: true,
+                            myLocationButtonEnabled: false,
+                            compassEnabled: true,
+                            markers: markers,
+                            polylines: polylines,
+                            onMapCreated: (map) {
+                              _mapController = map;
+                              _fitInitialCameraIfNeeded(controller);
+                            },
                           ),
                         ),
-
-                        // Bottom panel (30%)
-                        SizedBox(
-                          height: panelH,
-                          width: double.infinity,
-                          child: SafeArea(
-                            top: false,
-                            child: DriverClientInfoCard(
-                              clientName: controller.clientName,
-                              clientAddress: controller.clientAddress,
-                              clientPhotoUrl: controller.clientPhotoUrl,
-                              unreadCount: controller.unreadCount,
-                              onOpenChat: () => _openChat(controller),
-                              onOpenNavigation: () => _openNavigation(controller),
-                              onReportArrival: controller.reportArrival,
-                              isSendingArrival: controller.isSendingArrival,
-                              isArrivalReported: controller.hasReportedArrival,
+                        Positioned(
+                          left: 16,
+                          bottom: hasNavBar ? mq.padding.bottom + 16 : 32,
+                          child: FloatingActionButton(
+                            heroTag: 'driver_trip_panic_btn',
+                            backgroundColor: AppColores.buttonCancel,
+                            onPressed: _onPanicPressed,
+                            child: const Icon(
+                              Icons.warning_amber_rounded,
+                              color: AppColores.textWhite,
                             ),
+                          ),
+                        ),
+                        Positioned(
+                          right: 16,
+                          bottom: hasNavBar ? mq.padding.bottom + 16 : 32,
+                          child: FloatingActionButton(
+                            heroTag: 'driver_map_focus_btn',
+                            backgroundColor: AppColores.buttonPrimary,
+                            onPressed: () => _toggleFocus(controller),
+                            child: Icon(
+                              controller.focusMode == DriverMapFocusMode.clientOnly
+                                  ? Icons.person_pin_circle
+                                  : Icons.fit_screen,
+                              color: AppColores.textWhite,
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          child: DriverClientInfoCard(
+                            clientName: controller.clientName,
+                            clientAddress: controller.clientAddress,
+                            clientPhotoUrl: controller.clientPhotoUrl,
+                            unreadCount: controller.unreadCount,
+                            onOpenChat: () => _openChat(controller),
+                            onOpenNavigation: () => _openNavigation(controller),
+                            onReportArrival: controller.reportArrival,
+                            isSendingArrival: controller.isSendingArrival,
+                            isArrivalReported: controller.hasReportedArrival,
+                            etaText: controller.etaText,
+                            distanceText: controller.distanceText,
+                            title: dynamicTitle,
+                            onDetails: () => _openDetails(controller),
                           ),
                         ),
                       ],
@@ -386,6 +363,76 @@ bool hasNavigationBar(BuildContext context) {
     );
 
     await controller.markChatAsRead();
+  }
+
+  void _openDetails(DriverTripController controller) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                CircleAvatar(
+                  radius: 40,
+                  backgroundColor: AppColores.grey200,
+                  backgroundImage: controller.clientPhotoUrl.isNotEmpty 
+                      ? NetworkImage(controller.clientPhotoUrl) 
+                      : null,
+                  child: controller.clientPhotoUrl.isEmpty
+                      ? const Icon(Icons.person, size: 40, color: AppColores.textSecondary)
+                      : null,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  controller.clientName,
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: AppColores.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.location_on_outlined, color: AppColores.buttonPrimary, size: 20),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        controller.clientAddress.isNotEmpty ? controller.clientAddress : 'Ubicacion no disponible',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          color: AppColores.textSecondary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _openNavigation(DriverTripController controller) async {

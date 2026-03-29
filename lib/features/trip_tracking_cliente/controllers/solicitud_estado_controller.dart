@@ -61,10 +61,6 @@ class SolicitudEstadoController {
       if (_rutaNotified) return;
       _rutaNotified = true;
 
-      await _notify(
-        title: 'Viaje en curso',
-        body: 'Conductor encontrado, ya vendrá a recogerte.',
-      );
       await onIrRutaClienteDestino();
       return;
     }

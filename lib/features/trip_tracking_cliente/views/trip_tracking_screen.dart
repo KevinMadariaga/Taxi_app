@@ -2,7 +2,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'dart:math' as math;
+
 import 'package:flutter/services.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
@@ -16,7 +16,7 @@ import 'package:taxi_app/screens/usuario_cliente/presentacion/view/RutaClienteDe
 
 import '../controllers/solicitud_estado_controller.dart';
 import '../viewmodels/trip_tracking_viewmodel.dart';
-import '../widgets/trip_status_overlay.dart';
+
 import '../widgets/user_trip_info_card.dart';
 import 'trip_chat_screen.dart';
 
@@ -167,9 +167,6 @@ bool hasNavigationBar(BuildContext context) {
               vm.conductorLatLng ??
               const LatLng(8.2595534, -73.353469);
 
-          final width = MediaQuery.of(context).size.width;
-          final isTablet = width >= 900;
-          final sideOffset = math.min(64.0, width * 0.06);
 
           return AnnotatedRegion<SystemUiOverlayStyle>(
             value: const SystemUiOverlayStyle(
@@ -182,139 +179,361 @@ bool hasNavigationBar(BuildContext context) {
                 final mq = MediaQuery.of(ctx);
                 final screenH = mq.size.height;
                 final safeBottom = mq.padding.bottom;
-                final hasNavBar = hasNavigationBar(ctx);
-                final mapH = hasNavBar ? screenH * 0.65 : screenH * 0.70;
-                final panelH = hasNavBar ? screenH * 0.35 : screenH * 0.30;
 
                 return Stack(
                   children: [
-                    Column(
-                      children: [
-                        // Map area (70%)
-                        SizedBox(
-                          height: mapH,
-                          width: double.infinity,
-                          child: Stack(
-                            children: [
-                              GoogleMap(
-                                initialCameraPosition: CameraPosition(
-                                  target: initialTarget,
-                                  zoom: 14,
-                                ),
-                                myLocationEnabled: true,
-                                myLocationButtonEnabled: false,
-                                compassEnabled: true,
-                                markers: markers,
-                                polylines: polylines,
-                                onMapCreated: (controller) {
-                                  _mapController = controller;
-                                  _fitInitialCameraIfNeeded(vm);
-                                },
-                              ),
-                              Positioned(
-                                top: mq.padding.top + 14,
-                                left: 0,
-                                right: 0,
-                                child: Center(
-                                  child: TripStatusOverlay(
-                                    distanceText: vm.distanciaTexto,
-                                    etaText: vm.etaTexto,
-                                    isOffline: vm.isOffline,
-                                  ),
-                                ),
-                              ),
-                              if (vm.isOffline ||
-                                  vm.errorText?.toLowerCase().contains('cache') == true)
-                                Positioned(
-                                  top: mq.padding.top + 74,
-                                  left: 20,
-                                  right: 20,
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 8,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: AppColores.warning,
-                                      borderRadius: BorderRadius.circular(10),
-                                      boxShadow: const [
-                                        BoxShadow(
-                                          color: AppColores.overlayLight,
-                                          blurRadius: 8,
-                                          offset: Offset(0, 3),
-                                        ),
-                                      ],
-                                    ),
-                                    child: const Row(
-                                      children: [
-                                        Icon(
-                                          Icons.wifi_off_rounded,
-                                          color: AppColores.textWhite,
-                                          size: 18,
-                                        ),
-                                        SizedBox(width: 8),
-                                        Expanded(
-                                          child: Text(
-                                            'Sin conexion. Mostrando datos guardados.',
-                                            style: TextStyle(
-                                              color: AppColores.textWhite,
-                                              fontWeight: FontWeight.w600,
-                                              fontSize: 12,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              Positioned(
-                                left: sideOffset,
-                                bottom: 16,
-                                child: FloatingActionButton(
-                                  heroTag: 'focus_trip_tracking',
-                                  backgroundColor: AppColores.buttonPrimary,
-                                  onPressed: () => _toggleFocus(vm),
-                                  child: Icon(
-                                    vm.focusMode == MapFocusMode.clientOnly
-                                        ? Icons.person_pin_circle
-                                        : Icons.fit_screen,
-                                    color: AppColores.textWhite,
-                                  ),
-                                ),
-                              ),
-                            ],
+                    // Map area (100%)
+                    SizedBox(
+                      height: screenH,
+                      width: double.infinity,
+                      child: Stack(
+                        children: [
+                          GoogleMap(
+                            initialCameraPosition: CameraPosition(
+                              target: initialTarget,
+                              zoom: 14,
+                            ),
+                            myLocationEnabled: true,
+                            myLocationButtonEnabled: false,
+                            compassEnabled: true,
+                            padding: EdgeInsets.only(
+                              top: mq.padding.top + 260, // Evita que se tape el logo de Google
+                              bottom: safeBottom + 20,
+                            ),
+                            markers: markers,
+                            polylines: polylines,
+                            onMapCreated: (controller) {
+                              _mapController = controller;
+                              _fitInitialCameraIfNeeded(vm);
+                            },
                           ),
-                        ),
-
-                        // Bottom panel (30%)
-                        SizedBox(
-                          height: panelH,
-                          width: double.infinity,
-                          child: Container(
-                            color: AppColores.cardBackground,
-                            child: SafeArea(
-                              top: false,
-                              child: Center(
-                                child: SizedBox(
-                                  height: (panelH - safeBottom).clamp(120.0, double.infinity),
-                                  width: isTablet ? 700 : (width - 32).clamp(260.0, double.infinity),
-                                  child: UserTripInfoCard(
-                                    name: vm.nombreUsuarioCard,
-                                    vehiclePlate: vm.placaVehiculo,
-                                    userPhotoUrl: vm.fotoUsuario,
-                                    vehiclePhotoUrl: vm.fotoVehiculo,
-                                    unreadCount: vm.unreadCount,
-                                    isCancelling: vm.isCancelling,
-                                    onOpenChat: () => _openChat(vm),
-                                    onCancel: () => _onCancelPressed(vm),
-                                    cancelEnabled: _cancelAllowed,
-                                  ),
+                          if (vm.isOffline ||
+                              vm.errorText?.toLowerCase().contains('cache') == true)
+                            Positioned(
+                              top: mq.padding.top + 280, // Debajo de la card superior
+                              left: 20,
+                              right: 20,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColores.warning,
+                                  borderRadius: BorderRadius.circular(10),
+                                  boxShadow: const [
+                                    BoxShadow(
+                                      color: AppColores.overlayLight,
+                                      blurRadius: 8,
+                                      offset: Offset(0, 3),
+                                    ),
+                                  ],
+                                ),
+                                child: const Row(
+                                  children: [
+                                    Icon(
+                                      Icons.wifi_off_rounded,
+                                      color: AppColores.textWhite,
+                                      size: 18,
+                                    ),
+                                    SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        'Sin conexion. Mostrando datos guardados.',
+                                        style: TextStyle(
+                                          color: AppColores.textWhite,
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
+                          Positioned(
+                            right: 16,
+                            bottom: safeBottom + 16,
+                            child: FloatingActionButton(
+                              heroTag: 'focus_trip_tracking',
+                              backgroundColor: AppColores.buttonPrimary,
+                              onPressed: () => _toggleFocus(vm),
+                              child: Icon(
+                                vm.focusMode == MapFocusMode.clientOnly
+                                    ? Icons.person_pin_circle
+                                    : Icons.fit_screen,
+                                color: AppColores.textWhite,
+                              ),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
+                    ),
+
+                    // Top Card (UserTripInfoCard con nuevo diseño)
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      child: UserTripInfoCard(
+                        name: vm.nombreUsuarioCard,
+                        vehiclePlate: vm.placaVehiculo,
+                        userPhotoUrl: vm.fotoUsuario,
+                        vehiclePhotoUrl: vm.fotoVehiculo,
+                        unreadCount: vm.unreadCount,
+                        isCancelling: vm.isCancelling,
+                        onPrimaryAction: () => _openChat(vm),
+                        onCancel: () => _onCancelPressed(vm),
+                        cancelEnabled: _cancelAllowed,
+                        etaText: vm.etaTexto,
+                        distanceText: vm.distanciaTexto,
+                        onHelp: () {
+                          showModalBottomSheet(
+                            context: context,
+                            backgroundColor: Colors.white,
+                            isScrollControlled: true,
+                            shape: const RoundedRectangleBorder(
+                              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                            ),
+                            builder: (ctx) {
+                              return SafeArea(
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Container(
+                                        width: 40,
+                                        height: 4,
+                                        decoration: BoxDecoration(
+                                          color: Colors.grey.shade300,
+                                          borderRadius: BorderRadius.circular(2),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 16),
+                                      Row(
+                                        children: [
+                                          CircleAvatar(
+                                            radius: 20,
+                                            backgroundColor: AppColores.primary,
+                                            backgroundImage: vm.fotoUsuario.isNotEmpty
+                                                ? NetworkImage(vm.fotoUsuario)
+                                                : null,
+                                            child: vm.fotoUsuario.isEmpty
+                                                ? const Icon(Icons.person, size: 24, color: Colors.white)
+                                                : null,
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Text(
+                                              vm.nombreUsuarioCard,
+                                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColores.textPrimary),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 24),
+                                      const Divider(height: 1, color: Colors.black12),
+                                      ListTile(
+                                        contentPadding: EdgeInsets.zero,
+                                        title: const Text('¿Cuál es el estado de mi solicitud?', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                                        trailing: const Icon(Icons.chevron_right, color: Colors.black54),
+                                        onTap: () { Navigator.pop(ctx); },
+                                      ),
+                                      const Divider(height: 1, color: Colors.black12),
+                                      ListTile(
+                                        contentPadding: EdgeInsets.zero,
+                                        title: const Text('Cambiar mi dirección', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                                        trailing: const Icon(Icons.chevron_right, color: Colors.black54),
+                                        onTap: () { Navigator.pop(ctx); },
+                                      ),
+                                      const Divider(height: 1, color: Colors.black12),
+                                      ListTile(
+                                        contentPadding: EdgeInsets.zero,
+                                        title: const Text('Revisar o modificar mi pago', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                                        trailing: const Icon(Icons.chevron_right, color: Colors.black54),
+                                        onTap: () { Navigator.pop(ctx); },
+                                      ),
+                                      const Divider(height: 1, color: Colors.black12),
+                                      ListTile(
+                                        contentPadding: EdgeInsets.zero,
+                                        title: const Text('Problemas con el conductor', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                                        trailing: const Icon(Icons.chevron_right, color: Colors.black54),
+                                        onTap: () { Navigator.pop(ctx); },
+                                      ),
+                                      const Divider(height: 1, color: Colors.black12),
+                                      ListTile(
+                                        contentPadding: EdgeInsets.zero,
+                                        title: const Text('¿Puedo cancelar mi solicitud?', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                                        trailing: const Icon(Icons.chevron_right, color: Colors.black54),
+                                        onTap: () {
+                                          Navigator.pop(ctx);
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(
+                                              content: Column(
+                                                mainAxisSize: MainAxisSize.min,
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  const Text(
+                                                    '¿Quieres cancelar la solicitud?',
+                                                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                                                  ),
+                                                  const SizedBox(height: 8),
+                                                  Row(
+                                                    mainAxisAlignment: MainAxisAlignment.end,
+                                                    children: [
+                                                      TextButton(
+                                                        onPressed: () {
+                                                          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                                                        },
+                                                        child: const Text(
+                                                          'Cancelar',
+                                                          style: TextStyle(color: Colors.white70),
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 8),
+                                                      TextButton(
+                                                        onPressed: () {
+                                                          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                                                          _onCancelPressed(vm);
+                                                        },
+                                                        child: const Text(
+                                                          'Aceptar',
+                                                          style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ],
+                                              ),
+                                              duration: const Duration(seconds: 5),
+                                              behavior: SnackBarBehavior.floating,
+                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          );
+                        },
+                        onDetails: () {
+                          showModalBottomSheet(
+                            context: context,
+                            backgroundColor: Colors.white,
+                            shape: const RoundedRectangleBorder(
+                              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                            ),
+                            builder: (ctx) {
+                              return SafeArea(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(24.0),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Container(
+                                        width: 40,
+                                        height: 4,
+                                        decoration: BoxDecoration(
+                                          color: Colors.grey.shade300,
+                                          borderRadius: BorderRadius.circular(2),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 24),
+                                      const Text(
+                                        'Detalles del Conductor',
+                                        style: TextStyle(
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.bold,
+                                          color: AppColores.textPrimary,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 24),
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                        children: [
+                                          Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              CircleAvatar(
+                                                radius: 40,
+                                                backgroundColor: AppColores.primary,
+                                                backgroundImage: vm.fotoUsuario.isNotEmpty
+                                                    ? NetworkImage(vm.fotoUsuario)
+                                                    : null,
+                                                child: vm.fotoUsuario.isEmpty
+                                                    ? const Icon(Icons.person, size: 36, color: Colors.white)
+                                                    : null,
+                                              ),
+                                              const SizedBox(height: 12),
+                                              Text(
+                                                vm.nombreUsuarioCard,
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 16,
+                                                  color: AppColores.textPrimary,
+                                                ),
+                                              ),
+                                              const Text(
+                                                'Conductor',
+                                                style: TextStyle(color: Colors.grey, fontSize: 13),
+                                              ),
+                                            ],
+                                          ),
+                                          Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Container(
+                                                width: 80,
+                                                height: 80,
+                                                decoration: BoxDecoration(
+                                                  borderRadius: BorderRadius.circular(16),
+                                                  color: Colors.grey.shade200,
+                                                  image: vm.fotoVehiculo.isNotEmpty
+                                                      ? DecorationImage(
+                                                          image: NetworkImage(vm.fotoVehiculo),
+                                                          fit: BoxFit.cover,
+                                                        )
+                                                      : null,
+                                                ),
+                                                child: vm.fotoVehiculo.isEmpty
+                                                    ? const Icon(Icons.local_taxi, size: 36, color: Colors.grey)
+                                                    : null,
+                                              ),
+                                              const SizedBox(height: 12),
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.grey.shade100,
+                                                  borderRadius: BorderRadius.circular(8),
+                                                  border: Border.all(color: Colors.grey.shade300),
+                                                ),
+                                                child: Text(
+                                                  vm.placaVehiculo.isNotEmpty ? vm.placaVehiculo.toUpperCase() : 'N/A',
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.w800,
+                                                    fontSize: 16,
+                                                    color: AppColores.textPrimary,
+                                                    letterSpacing: 1.2,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 24),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          );
+                        },
+                      ),
                     ),
 
                     if (vm.isLoading)
@@ -355,6 +574,9 @@ bool hasNavigationBar(BuildContext context) {
 
 
     // Open wait modal as soon as possible on 'en espera'.
+    // NOTE: La notificacion de 'en espera' se dispara desde el ViewModel
+    // (TripTrackingViewModel._handleStatusNotification) para que funcione
+    // incluso cuando la app esta en segundo plano.
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       await _estadoController.handleEstadoCambio(
@@ -364,20 +586,6 @@ bool hasNavigationBar(BuildContext context) {
         onIrRutaClienteDestino: _goToRutaClienteDestino,
       );
     });
-
-    // Fire a local notification for 'en espera' asynchronously
-    if (normalizado == 'en espera' || normalizado == 'en_espera' || normalizado == 'espera' || normalizado == 'waiting') {
-      Future(() async {
-        try {
-          await NotificationService.instance.init();
-          await NotificationService.instance.showNotification(
-            1002, // Unique ID for this notification
-            'Conductor está afuera',
-            'El conductor está esperando verificación.',
-          );
-        } catch (_) {}
-      });
-    }
   }
 
   Future<void> _loadTaxiMarkerIcon() async {

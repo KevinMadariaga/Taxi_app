@@ -45,6 +45,10 @@ class DriverTripController extends ChangeNotifier {
   bool isWaitingActionLoading = false;
   bool _hasReportedArrival = false;
 
+  /// Indica si la app está actualmente en segundo plano.
+  /// Se actualiza desde la pantalla via [setAppBackground].
+  bool isAppInBackground = false;
+
   int unreadCount = 0;
   DriverMapFocusMode focusMode = DriverMapFocusMode.clientOnly;
 
@@ -138,6 +142,12 @@ class DriverTripController extends ChangeNotifier {
         ? DriverMapFocusMode.both
         : DriverMapFocusMode.clientOnly;
     _safeNotify();
+  }
+
+  /// Llamar desde [DriverTripScreen.didChangeAppLifecycleState] para
+  /// mantener sincronizado el flag de segundo plano.
+  void setAppBackground(bool inBackground) {
+    isAppInBackground = inBackground;
   }
 
   Future<void> sendMessage(String text) {
@@ -263,7 +273,12 @@ class DriverTripController extends ChangeNotifier {
         );
 
         for (final msg in newExternalMessages) {
-          await _notify('Nuevo mensaje', msg.text);
+          try {
+            await NotificacionesServicio.instance.showChatNotification(
+              senderName: '💬 Nuevo mensaje del cliente',
+              message: msg.text,
+            );
+          } catch (_) {}
         }
       } else {
         _messageBootstrapComplete = true;
@@ -299,12 +314,15 @@ class DriverTripController extends ChangeNotifier {
       _closeWaitingModal();
       _pendingInfoMessage =
           'El cliente no respondio a tiempo. La solicitud fue cancelada por sin respuesta.';
-      unawaited(
-        _notify(
-          'Solicitud cancelada',
-          'La solicitud ha sido cancelada, por no haber respuesta del cliente.',
-        ),
-      );
+      // Solo notificar si la app está en segundo plano
+      if (isAppInBackground) {
+        unawaited(
+          NotificacionesServicio.instance.showTripNotification(
+            title: '⚠️ Sin respuesta del cliente',
+            body: 'El cliente no contestó la validación, se cancelará el servicio.',
+          ),
+        );
+      }
       _setPendingNavigation(DriverPendingNavigation.inicioConductor);
       return;
     }
@@ -328,6 +346,15 @@ class DriverTripController extends ChangeNotifier {
       }
       waitingCanStartTrip = true;
       _stopWaitingTimer();
+      // Solo notificar si la app está en segundo plano
+      if (isAppInBackground) {
+        unawaited(
+          NotificacionesServicio.instance.showTripNotification(
+            title: '✅ Cliente ha confirmado',
+            body: 'El cliente ha confirmado su asistencia, ya viene en camino.',
+          ),
+        );
+      }
       _safeNotify();
       return;
     }

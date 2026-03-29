@@ -7,5 +7,4 @@ export 'services/driver_location_service.dart';
 export 'services/driver_route_service.dart';
 export 'services/driver_trip_firestore_service.dart';
 export 'widgets/driver_client_info_card.dart';
-export 'widgets/driver_top_status_card.dart';
 export 'widgets/driver_waiting_client_modal.dart';

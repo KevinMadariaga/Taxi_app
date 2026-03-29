@@ -15,6 +15,7 @@ import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/utils/marker_icon_helper.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:taxi_app/features/trip_tracking_cliente/services/firebase_service.dart';
+import 'package:taxi_app/features/trip_tracking_cliente/widgets/user_trip_info_card.dart';
 
 class RutaClienteDestino extends StatelessWidget {
   final String idSolicitud;
@@ -122,8 +123,8 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent> 
       } catch (_) {}
       _viewModel!.inicializarNotificaciones();
       await _viewModel!.mostrarNotificacion(
-        'Conductor en marcha',
-        'Conductor está en camino al destino. ¡Prepárate para tu viaje!',
+        '🚕 Ruta iniciada',
+        'Se comenzó la ruta hacia el destino. ¡Prepárate para llegar!',
       );
       if (!mounted) return;
       await _viewModel!.cargarDatosConductorYUbicacionDestino(
@@ -503,11 +504,289 @@ bool hasNavigationBar(BuildContext context) {
     );
   }
 
+  void _shareLocation(Rutaclientedestinoviewmodel vm) async {
+    final conductorLatLng = _conductorLatLng ??
+        ((vm.latConductor != null && vm.lngConductor != null)
+            ? LatLng(vm.latConductor!, vm.lngConductor!)
+            : null);
+    if (conductorLatLng != null) {
+      final url =
+          'https://www.google.com/maps/search/?api=1&query=${conductorLatLng.latitude},${conductorLatLng.longitude}';
+      await Clipboard.setData(ClipboardData(text: url));
+      if (!mounted) return;
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.white,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        builder: (context) {
+          return SafeArea(
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                   Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  const Text(
+                    'Compartir ubicación',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.map, color: Colors.white),
+                    label: const Text('Google Maps', style: TextStyle(color: Colors.white)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColores.primary,
+                      minimumSize: const Size(double.infinity, 50),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    onPressed: () async {
+                      await launchUrl(Uri.parse(url));
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.chat, color: Colors.white),
+                    label: const Text('WhatsApp', style: TextStyle(color: Colors.white)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      minimumSize: const Size(double.infinity, 50),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    onPressed: () async {
+                      final whatsappUrl =
+                          'https://wa.me/?text=Ubicación%20del%20conductor:%20$url';
+                      if (await canLaunchUrl(Uri.parse(whatsappUrl))) {
+                        await launchUrl(Uri.parse(whatsappUrl));
+                      } else {
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('No se pudo abrir WhatsApp'),
+                            duration: Duration(seconds: 3),
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Ubicación no disponible aún'),
+        ),
+      );
+    }
+  }
+
+  void _onHelpPressed(Rutaclientedestinoviewmodel vm) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 20,
+                      backgroundColor: AppColores.primary,
+                      backgroundImage: vm.fotoConductor.isNotEmpty
+                          ? NetworkImage(vm.fotoConductor)
+                          : null,
+                      child: vm.fotoConductor.isEmpty
+                          ? const Icon(Icons.person, size: 24, color: Colors.white)
+                          : null,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        vm.nombreConductor.isNotEmpty ? vm.nombreConductor : 'Conductor',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColores.textPrimary),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                const Divider(height: 1, color: Colors.black12),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('¿Cuál es el estado de mi solicitud?', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                  trailing: const Icon(Icons.chevron_right, color: Colors.black54),
+                  onTap: () { Navigator.pop(ctx); },
+                ),
+                const Divider(height: 1, color: Colors.black12),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Cambiar mi dirección destino', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                  trailing: const Icon(Icons.chevron_right, color: Colors.black54),
+                  onTap: () { Navigator.pop(ctx); },
+                ),
+                const Divider(height: 1, color: Colors.black12),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Problemas con el conductor', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                  trailing: const Icon(Icons.chevron_right, color: Colors.black54),
+                  onTap: () { Navigator.pop(ctx); },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _onDetails(Rutaclientedestinoviewmodel vm) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                const Text(
+                  'Detalles del Conductor',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: AppColores.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                CircleAvatar(
+                  radius: 46,
+                  backgroundColor: AppColores.primary.withValues(alpha: 0.1),
+                  backgroundImage: vm.fotoConductor.isNotEmpty ? NetworkImage(vm.fotoConductor) : null,
+                  child: vm.fotoConductor.isEmpty
+                      ? const Icon(Icons.person, size: 40, color: AppColores.primary)
+                      : null,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  vm.nombreConductor.isNotEmpty ? vm.nombreConductor : 'Conductor',
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w600,
+                    color: AppColores.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 32),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.grey.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: vm.fotoVehiculo.isNotEmpty
+                            ? Image.network(
+                                vm.fotoVehiculo,
+                                width: 80,
+                                height: 60,
+                                fit: BoxFit.cover,
+                              )
+                            : Container(
+                                width: 80,
+                                height: 60,
+                                color: Colors.grey.shade200,
+                                child: const Icon(Icons.local_taxi, color: Colors.grey),
+                              ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Vehículo asignado',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              vm.placaVehiculo.isNotEmpty ? vm.placaVehiculo : '---',
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: AppColores.textPrimary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   // Main content extracted for clarity
   Widget _buildMainContent(BuildContext context, Rutaclientedestinoviewmodel vm) {
-    final size = MediaQuery.of(context).size;
-    final double screenW = size.width;
-    final bool isTablet = screenW >= 1000;
     LatLng? destinoLatLng = (vm.latDestino != null && vm.lngDestino != null)
         ? LatLng(vm.latDestino!, vm.lngDestino!)
         : null;
@@ -535,545 +814,75 @@ bool hasNavigationBar(BuildContext context) {
         ),
     };
 
-    // Layout proportions
     final mq = MediaQuery.of(context);
-    final screenH = mq.size.height;
-    final hasNavBar = hasNavigationBar(context);
-    final mapH = hasNavBar ? screenH * 0.65 : screenH * 0.70;
-    final panelH = hasNavBar ? screenH * 0.35 : screenH * 0.30;
+    final safeBottom = mq.padding.bottom > 0 ? mq.padding.bottom : 20.0;
 
-    return Column(
-      mainAxisSize: MainAxisSize.max,
+    return Stack(
       children: [
-        // Map Section
-        SizedBox(
-          height: mapH,
-          child: Stack(
-            children: [
-              _MapWidget(
-                markers: markers,
-                conductorLatLng: conductorLatLng,
-                destinoLatLng: destinoLatLng,
-                mapControllerSetter: (controller) => _mapController = controller,
-                polylines: _polylines,
-              ),
-              // Overlay widgets can be extracted further if needed
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                child: IgnorePointer(
-                  child: Container(
-                    height: MediaQuery.of(context).padding.top + 28,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.black.withOpacity(0.28),
-                          Colors.transparent,
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                top: MediaQuery.of(context).padding.top + 12,
-                left: 0,
-                right: 0,
-                child: Center(
-                  child: Material(
-                    elevation: 8,
-                    borderRadius: BorderRadius.circular(16),
-                    color: Colors.white,
-                    child: Container(
-                      width: 260,
-                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.access_time, color: AppColores.primary, size: 22),
-                          const SizedBox(width: 8),
-                          Text(
-                            vm.tiempoEstimado,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                              color: AppColores.textSecondary,
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          const Icon(Icons.route, color: AppColores.primary, size: 22),
-                          const SizedBox(width: 4),
-                          Text(
-                            _distancia,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                              color: AppColores.textSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                right: 20,
-                bottom: 20,
-                child: SafeArea(
-                  top: false,
-                  child: FloatingActionButton(
-                    backgroundColor: AppColores.primary,
-                    child: Icon(
-                      _mostrarSoloDestino ? Icons.flag : Icons.person_pin_circle,
-                      color: Colors.white,
-                    ),
-                    onPressed: () async {
-                      setState(() {
-                        _mostrarSoloDestino = !_mostrarSoloDestino;
-                      });
-                      if (_mapController == null) return;
-                      if (_mostrarSoloDestino && destinoLatLng != null) {
-                        await _mapController!.animateCamera(
-                          CameraUpdate.newCameraPosition(
-                            CameraPosition(target: destinoLatLng, zoom: 15.8, tilt: 0),
-                          ),
-                        );
-                        return;
-                      }
-                      await _fitConductorDestinoCamera(conductorLatLng, destinoLatLng);
-                    },
-                  ),
-                ),
-              ),
-            ],
+        // Mapa
+        Positioned.fill(
+          child: _MapWidget(
+            markers: markers,
+            conductorLatLng: conductorLatLng,
+            destinoLatLng: destinoLatLng,
+            mapControllerSetter: (controller) => _mapController = controller,
+            polylines: _polylines,
           ),
         ),
-        // Info Panel Section
-        SizedBox(
-          height: panelH,
-          child: Container(
-            width: double.infinity,
-            decoration: BoxDecoration(
+        
+        // Controles Inferiores (Botón de Enfoque)
+        Positioned(
+          right: 16,
+          bottom: safeBottom + 16,
+          child: FloatingActionButton(
+            backgroundColor: AppColores.primary,
+            child: Icon(
+              _mostrarSoloDestino ? Icons.flag : Icons.person_pin_circle,
               color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(isTablet ? 30 : 20)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.18),
-                  blurRadius: 18,
-                  offset: const Offset(0, -6),
-                ),
-              ],
             ),
-            child: Padding(
-              padding: EdgeInsets.symmetric(
-                horizontal: isTablet ? 12 : 8,
-                vertical: isTablet ? 8 : 6,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.max,
-                children: [
-                  Text( 
-                    'Ruta destino',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: isTablet ? 30 : 18,
-                      color: AppColores.textPrimary,
-                    ),
+            onPressed: () async {
+              setState(() {
+                _mostrarSoloDestino = !_mostrarSoloDestino;
+              });
+              if (_mapController == null) return;
+              if (_mostrarSoloDestino && destinoLatLng != null) {
+                await _mapController!.animateCamera(
+                  CameraUpdate.newCameraPosition(
+                    CameraPosition(target: destinoLatLng, zoom: 15.8, tilt: 0),
                   ),
-                  const Divider(),
-                  Expanded(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(vertical: 0, horizontal: 5),
-                          child: _infoRow(),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(vertical: 0, horizontal: 4),
-                          child: SafeArea(
-                            top: false,
-                            bottom: true,
-                            minimum: const EdgeInsets.only(bottom: 8),
-                            child: _bottomButtons(),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
+                );
+                return;
+              }
+              await _fitConductorDestinoCamera(conductorLatLng, destinoLatLng);
+            },
+          ),
+        ),
+        
+        // Tarjeta Superior Flotante
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: UserTripInfoCard(
+            title: 'En camino al destino',
+            name: vm.nombreConductor,
+            vehiclePlate: vm.placaVehiculo,
+            userPhotoUrl: vm.fotoConductor,
+            vehiclePhotoUrl: vm.fotoVehiculo,
+            unreadCount: 0,
+            isCancelling: false,
+            cancelEnabled: false,
+            primaryActionText: 'Ubicación',
+            primaryActionIcon: Icons.my_location,
+            onPrimaryAction: () => _shareLocation(vm),
+            onCancel: () {},
+            etaText: vm.tiempoEstimado.isNotEmpty ? vm.tiempoEstimado : '--',
+            distanceText: _distancia.isNotEmpty ? _distancia : '--',
+            onHelp: () => _onHelpPressed(vm),
+            onDetails: () => _onDetails(vm),
           ),
         ),
       ],
-    );
-  }
-
-  // Mosstrar información del conductor y vehículo en un card debajo del mapa
-  Widget _infoRow() {
-    final vm = Provider.of<Rutaclientedestinoviewmodel>(context);
-    final size = MediaQuery.of(context).size;
-    final double screenW = size.width;
-    final bool isTablet = screenW >= 1000;
-    final double paddingH = isTablet
-        ? 32
-        : screenW < 350
-        ? 6
-        : 12;
-    final double paddingV = isTablet
-        ? 24
-        : screenW < 350
-        ? 4
-        : 8;
-    final double avatarRadius = isTablet
-        ? 60
-        : screenW < 350
-        ? 22
-        : 40;
-    final double spacing = isTablet
-        ? 24
-        : screenW < 350
-        ? 6
-        : 12;
-    final double nameFontSize = isTablet
-        ? 32
-        : screenW < 350
-        ? 12
-        : 18;
-    final double placaFontSize = isTablet
-        ? 22
-        : screenW < 350
-        ? 10
-        : 15;
-    final double imageW = isTablet
-        ? 160
-        : screenW < 350
-        ? 60
-        : 100;
-    final double imageH = isTablet
-        ? 120
-        : screenW < 350
-        ? 40
-        : 70;
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.symmetric(horizontal: paddingH, vertical: paddingV),
-      decoration: BoxDecoration(
-        color: AppColores.surface,
-        borderRadius: BorderRadius.circular(
-          isTablet
-              ? 24
-              : screenW < 350
-              ? 8
-              : 12,
-        ),
-      ),
-      child: SingleChildScrollView(
-        physics: const NeverScrollableScrollPhysics(),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SizedBox(height: spacing / 2),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Padding(
-                      padding: EdgeInsets.all(
-                        isTablet
-                            ? 12
-                            : screenW < 350
-                            ? 2
-                            : 6,
-                      ),
-                      child: CircleAvatar(
-                        radius: avatarRadius,
-                        backgroundColor: AppColores.primary,
-                        backgroundImage: vm.fotoConductor.isNotEmpty
-                            ? NetworkImage(vm.fotoConductor)
-                            : null,
-                        child: vm.fotoConductor.isEmpty
-                            ? const Icon(Icons.person, color: Colors.white)
-                            : null,
-                      ),
-                    ),
-                    SizedBox(height: spacing / 2),
-                    Padding(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: isTablet ? 16 : 8,
-                        vertical: isTablet ? 6 : 2,
-                      ),
-                      child: Text(
-                        vm.nombreConductor.isNotEmpty
-                            ? vm.nombreConductor
-                            : 'Conductor',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: nameFontSize,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                // Spacer(),
-                SizedBox(width: isTablet ? 80 : (screenW < 350 ? 8 : 120)),
-                if (vm.fotoVehiculo.isNotEmpty)
-                  Container(
-                    padding: EdgeInsets.zero,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                      Padding(
-                        padding: EdgeInsets.all(
-                          isTablet
-                              ? 10
-                              : screenW < 350
-                              ? 2
-                              : 5,
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(
-                            isTablet
-                                ? 18
-                                : screenW < 350
-                                ? 6
-                                : 12,
-                          ),
-                          child: Image.network(
-                            vm.fotoVehiculo,
-                            width: imageW,
-                            height: imageH,
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                      ),
-                      SizedBox(height: spacing / 2),
-                      Padding(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: isTablet ? 16 : 8,
-                          vertical: isTablet ? 6 : 2,
-                        ),
-                        child: Text(
-                          vm.placaVehiculo.isNotEmpty
-                              ? vm.placaVehiculo
-                              : 'Placa no disponible',
-                          style: TextStyle(
-                            fontSize: placaFontSize,
-                            color: AppColores.textPrimary,
-                            fontWeight: FontWeight.w600,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    ],
-                  ),
-                  ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _bottomButtons() {
-    final vm = Provider.of<Rutaclientedestinoviewmodel>(context);
-    final size = MediaQuery.of(context).size;
-    final double screenW = size.width;
-    final bool isTablet = screenW >= 1000;
-    final double paddingH = isTablet
-        ? 32
-        : screenW < 350
-        ? 6
-        : 16;
-    final double paddingV = isTablet
-        ? 24
-        : screenW < 350
-        ? 4
-        : 8;
-    final double buttonFontSize = isTablet
-        ? 22
-        : screenW < 350
-        ? 13
-        : 18;
-    final double buttonIconSize = isTablet
-        ? 32
-        : screenW < 350
-        ? 18
-        : 24;
-    final double buttonBorderRadius = isTablet
-        ? 24
-        : screenW < 350
-        ? 8
-        : 12;
-    final double spacing = isTablet
-        ? 24
-        : screenW < 350
-        ? 6
-        : 16;
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: paddingH, vertical: paddingV),
-      decoration: BoxDecoration(
-        color: AppColores.surface,
-        borderRadius: BorderRadius.circular(buttonBorderRadius),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Expanded(
-            child: ElevatedButton.icon(
-              icon: Icon(
-                Icons.my_location,
-                color: Colors.white,
-                size: buttonIconSize,
-              ),
-              label: Text(
-                'Ubicación',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
-                  fontSize: buttonFontSize,
-                ),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColores.primary,
-                minimumSize: Size(double.infinity, isTablet ? 56 : (screenW < 350 ? 44 : 48)),
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(buttonBorderRadius),
-                ),
-              ),
-              onPressed: () async {
-                final conductorLatLng =
-                    _conductorLatLng ??
-                    ((vm.latConductor != null && vm.lngConductor != null)
-                        ? LatLng(vm.latConductor!, vm.lngConductor!)
-                        : null);
-                if (conductorLatLng != null) {
-                  final url =
-                      'https://www.google.com/maps/search/?api=1&query=${conductorLatLng.latitude},${conductorLatLng.longitude}';
-                  await Clipboard.setData(ClipboardData(text: url));
-                  showModalBottomSheet(
-                    context: context,
-                    isScrollControlled: true,
-                    backgroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.vertical(
-                        top: Radius.circular(24),
-                      ),
-                    ),
-                    builder: (context) {
-                      return Container(
-                        height: MediaQuery.of(context).size.height * 0.5,
-                        padding: EdgeInsets.all(24),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              'Compartir ubicación',
-                              style: TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            SizedBox(height: 32),
-                            ElevatedButton.icon(
-                              icon: Icon(Icons.map, color: Colors.white),
-                              label: Text('Google Maps'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColores.primary,
-                                minimumSize: Size(double.infinity, 48),
-                              ),
-                              onPressed: () async {
-                                await launchUrl(Uri.parse(url));
-                              },
-                            ),
-                            SizedBox(height: 16),
-                            ElevatedButton.icon(
-                              icon: Icon(Icons.chat, color: Colors.white),
-                              label: Text('WhatsApp'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.green,
-                                minimumSize: Size(double.infinity, 48),
-                              ),
-                              onPressed: () async {
-                                final whatsappUrl =
-                                    'https://wa.me/?text=Ubicación%20del%20conductor:%20$url';
-                                if (await canLaunchUrl(
-                                  Uri.parse(whatsappUrl),
-                                )) {
-                                  await launchUrl(Uri.parse(whatsappUrl));
-                                } else {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        'No se pudo abrir WhatsApp',
-                                      ),
-                                      duration: Duration(seconds: 3),
-                                    ),
-                                  );
-                                }
-                              },
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  );
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Ubicación no disponible'),
-                      duration: Duration(seconds: 3),
-                    ),
-                  );
-                }
-              },
-            ),
-          ),
-          SizedBox(width: spacing),
-          Expanded(
-            child: ElevatedButton.icon(
-              icon: Icon(Icons.info, color: Colors.white, size: buttonIconSize),
-              label: Text(
-                'Estado',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
-                  fontSize: buttonFontSize,
-                ),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColores.primary,
-                minimumSize: Size(double.infinity, isTablet ? 56 : (screenW < 350 ? 44 : 48)),
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(buttonBorderRadius),
-                ),
-              ),
-              onPressed: () {
-                final estado = vm.estado;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Estado actual: $estado')),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

@@ -1,205 +1,432 @@
 import 'package:flutter/material.dart';
-
 import 'package:taxi_app/core/app_colores.dart';
 
-// Definir localmente para evitar problemas de importación circular
-bool hasNavigationBar(BuildContext context) {
-  return MediaQuery.of(context).padding.bottom > 0;
-}
-
- // Para usar hasNavigationBar
-
-class DriverClientInfoCard extends StatelessWidget {
+class DriverClientInfoCard extends StatefulWidget {
   const DriverClientInfoCard({
     super.key,
     required this.clientName,
     required this.clientAddress,
     required this.clientPhotoUrl,
     required this.unreadCount,
-    required this.onOpenChat,
+    this.onOpenChat,
     required this.onOpenNavigation,
     required this.onReportArrival,
-      required this.isSendingArrival,
-      required this.isArrivalReported,
+    required this.isSendingArrival,
+    required this.isArrivalReported,
+    required this.etaText,
+    required this.distanceText,
+    required this.title,
+    required this.onDetails,
+    this.primaryButtonText,
+    this.primaryButtonSuccessText,
   });
 
   final String clientName;
   final String clientAddress;
   final String clientPhotoUrl;
   final int unreadCount;
-  final VoidCallback onOpenChat;
+  final VoidCallback? onOpenChat;
   final VoidCallback onOpenNavigation;
   final VoidCallback onReportArrival;
   final bool isSendingArrival;
   final bool isArrivalReported;
+  final String etaText;
+  final String distanceText;
+  final String title;
+  final VoidCallback onDetails;
+  final String? primaryButtonText;
+  final String? primaryButtonSuccessText;
+
+  @override
+  State<DriverClientInfoCard> createState() => _DriverClientInfoCardState();
+}
+
+class _DriverClientInfoCardState extends State<DriverClientInfoCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _shimmerController;
+  late final Animation<double> _shimmerAnimation;
+  bool _isExpanded = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _shimmerController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat();
+
+    _shimmerAnimation = CurvedAnimation(
+      parent: _shimmerController,
+      curve: Curves.easeInOut,
+    );
+  }
+
+  @override
+  void dispose() {
+    _shimmerController.dispose();
+    super.dispose();
+  }
+
+  void _toggleExpanded() {
+    setState(() {
+      _isExpanded = !_isExpanded;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-    final isTablet = width >= 900;
-
-    final bottomInset = MediaQuery.of(context).padding.bottom;
-    final hasNavBar = hasNavigationBar(context);
-
-    // Ajuste de padding inferior y superior según barra de navegación y tipo de dispositivo
-    final bottomPadding = hasNavBar
-        ? bottomInset + (isTablet ? 8.0 : 12.0)
-        : (isTablet ? 18.0 : 14.0); // Si no hay barra, baja más el contenido
-    final topPadding = (isTablet ? 18.0 : 16.0) + (hasNavBar ? 0.0 : (isTablet ? 6.0 : 8.0));
-
     return Container(
       width: double.infinity,
-      // fill the parent panel height so we can push buttons to bottom
-      height: double.infinity,
-      padding: EdgeInsets.fromLTRB(
-        isTablet ? 20 : 14,
-        topPadding,
-        isTablet ? 20 : 14,
-        bottomPadding,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      decoration: BoxDecoration(
+        color: AppColores.cardBackground,
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(24),
+          bottomRight: Radius.circular(24),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.max,
-        children: [
-          // push the top content slightly down from the panel top
-          SizedBox(height: isTablet ? 6 : 6),
-
-          Row(
+      child: SafeArea(
+        bottom: false,
+        child: AnimatedSize(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+          alignment: Alignment.topCenter,
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              // Client photo on the left (bigger)
-              CircleAvatar(
-                radius: isTablet ? 52 : 44,
-                backgroundColor: AppColores.grey200,
-                backgroundImage: clientPhotoUrl.isNotEmpty ? NetworkImage(clientPhotoUrl) : null,
-                child: clientPhotoUrl.isEmpty
-                    ? const Icon(Icons.person, color: AppColores.textSecondary)
-                    : null,
-              ),
-              const SizedBox(width: 12),
-              // Name and below it the icon + address
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      clientName,
-                      style: TextStyle(
-                        fontSize: isTablet ? 29 : 23,
-                        fontWeight: FontWeight.w700,
-                        color: AppColores.textPrimary,
+              // ── Top Row: Expand/Collapse & Detalles ───────────────────────
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  InkWell(
+                    onTap: _toggleExpanded,
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        _isExpanded
+                            ? Icons.keyboard_arrow_up_rounded
+                            : Icons.keyboard_arrow_down_rounded,
+                        size: 24,
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        const Icon(Icons.location_on_outlined, color: AppColores.buttonPrimary, size: 19),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            clientAddress.isNotEmpty ? clientAddress : 'Ubicacion del cliente',
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: AppColores.textSecondary,
-                              fontSize: 16,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: isTablet ? 10 : 8),
-          // use a fixed spacer to bring buttons up a bit (instead of Expanded)
-          SizedBox(height: isTablet ? 6 : 6),
-          Row(
-            children: [
-              Expanded(
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    OutlinedButton.icon(
-                      onPressed: onOpenChat,
-                      style: OutlinedButton.styleFrom(
-                        minimumSize: const Size.fromHeight(52),
-                        side: const BorderSide(color: AppColores.buttonPrimary, width: 1.8),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                      icon: const Icon(Icons.chat_bubble_outline, color: AppColores.buttonPrimary),
-                      label: const Text(
-                        'Chat',
-                        style: TextStyle(color: AppColores.buttonPrimary, fontWeight: FontWeight.w700),
-                      ),
-                    ),
-                    if (unreadCount > 0)
-                      Positioned(
-                        top: -8,
-                        right: -4,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: AppColores.error,
-                            borderRadius: BorderRadius.circular(100),
-                          ),
-                          child: Text(
-                            unreadCount > 99 ? '99+' : unreadCount.toString(),
-                            style: const TextStyle(
-                              color: AppColores.textWhite,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 11,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: onOpenNavigation,
-                  style: ElevatedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(52),
-                    backgroundColor: AppColores.buttonPrimary,
-                    foregroundColor: AppColores.textWhite,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
-                  icon: const Icon(Icons.navigation_rounded),
-                  label: const Text('Navegar', style: TextStyle(fontWeight: FontWeight.w700)),
-                ),
+                  if (_isExpanded)
+                    InkWell(
+                      onTap: widget.onDetails,
+                      borderRadius: BorderRadius.circular(20),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Text(
+                          'Detalles',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                            color: AppColores.textPrimary,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
+              if (_isExpanded) const SizedBox(height: 16),
+
+              // ── Title ───────────────────────────────────────────────────────
+              if (_isExpanded)
+                Text(
+                  widget.title,
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    height: 1.1,
+                    color: AppColores.textPrimary,
+                  ),
+                ),
+              if (_isExpanded) const SizedBox(height: 8),
+
+              // ── Subtitle (ETA/Distance) - Always Visible ──────────────────
+              if (_isExpanded)
+                Text(
+                  'Tiempo estimado: ${widget.etaText} • ${widget.distanceText}',
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+                )
+              else
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.schedule_rounded,
+                      size: 16,
+                      color: Colors.grey.shade600,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      widget.etaText,
+                      style: TextStyle(
+                        color: Colors.grey.shade700,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Icon(
+                      Icons.route_outlined,
+                      size: 16,
+                      color: Colors.grey.shade600,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      widget.distanceText,
+                      style: TextStyle(
+                        color: Colors.grey.shade700,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              SizedBox(height: _isExpanded ? 20 : 12),
+
+              // ── Barra direccional animada - Always Visible ──────────────────
+              _DirectionalBar(animation: _shimmerAnimation),
+
+              if (_isExpanded) ...[
+                const SizedBox(height: 24),
+
+                // ── Botones Inferiores (Chat, Nav) ──────────────────────
+                Row(
+                  children: [
+                    if (widget.onOpenChat != null) ...[
+                      Expanded(
+                        child: InkWell(
+                          onTap: widget.onOpenChat,
+                          borderRadius: BorderRadius.circular(20),
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: Colors.transparent,
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(color: Colors.grey.shade300),
+                                ),
+                                child: const Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.chat_bubble_outline,
+                                      size: 18,
+                                      color: AppColores.textPrimary,
+                                    ),
+                                    SizedBox(width: 6),
+                                    Text(
+                                      'Chat',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 13,
+                                        color: AppColores.textPrimary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (widget.unreadCount > 0)
+                                Positioned(
+                                  top: -6,
+                                  right: -4,
+                                  child: _UnreadBadge(count: widget.unreadCount),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    Expanded(
+                      child: InkWell(
+                        onTap: widget.onOpenNavigation,
+                        borderRadius: BorderRadius.circular(20),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.navigation_rounded,
+                                size: 18,
+                                color: AppColores.textPrimary,
+                              ),
+                              SizedBox(width: 6),
+                              Text(
+                                'Navegar',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                  color: AppColores.textPrimary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                // ── Botón Principal (Llegué) ──────────────────────
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed:
+                        (widget.isSendingArrival || widget.isArrivalReported)
+                        ? null
+                        : widget.onReportArrival,
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(52),
+                      backgroundColor: AppColores.success,
+                      foregroundColor: AppColores.textWhite,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    icon: widget.isSendingArrival
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColores.textWhite,
+                            ),
+                          )
+                        : (widget.isArrivalReported
+                              ? const Icon(
+                                  Icons.check,
+                                  size: 20,
+                                  color: AppColores.textWhite,
+                                )
+                              : const Icon(
+                                  Icons.my_location_rounded,
+                                  size: 20,
+                                  color: AppColores.textWhite,
+                                )),
+                    label: Text(
+                      widget.isArrivalReported
+                          ? (widget.primaryButtonSuccessText ?? 'Enviado')
+                          : (widget.isSendingArrival
+                                ? 'Enviando...'
+                                : (widget.primaryButtonText ?? 'Ya llegué al punto')),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
-            const SizedBox(height: 10),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: (isSendingArrival || isArrivalReported) ? null : onReportArrival,
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(52),
-                  backgroundColor: AppColores.success ,
-                  foregroundColor: AppColores.textWhite,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                icon: isSendingArrival
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: AppColores.textWhite),
-                      )
-                    : (isArrivalReported
-                        ? const Icon(Icons.check, color: AppColores.textWhite)
-                        : const Icon(Icons.my_location_rounded)),
-                label: Text(
-                  isSendingArrival ? 'Enviando...' : (isArrivalReported ? 'Enviado' : 'Ya llegue'),
-                  style: const TextStyle(fontWeight: FontWeight.w700),
-                ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DirectionalBar extends StatelessWidget {
+  const _DirectionalBar({required this.animation});
+  final Animation<double> animation;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        const Icon(
+          Icons.directions_car,
+          size: 18,
+          color: AppColores.buttonPrimary,
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Container(
+            height: 4,
+            decoration: BoxDecoration(
+              color: AppColores.buttonPrimary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(2),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(2),
+              child: AnimatedBuilder(
+                animation: animation,
+                builder: (context, child) {
+                  return FractionallySizedBox(
+                    alignment: Alignment.centerLeft,
+                    widthFactor: 0.3,
+                    child: Transform.translate(
+                      offset: Offset(
+                        MediaQuery.of(context).size.width * animation.value,
+                        0,
+                      ),
+                      child: Container(color: AppColores.buttonPrimary),
+                    ),
+                  );
+                },
               ),
             ),
-        ],
+          ),
+        ),
+        const SizedBox(width: 6),
+        const Icon(Icons.person, size: 18, color: AppColores.textPrimary),
+      ],
+    );
+  }
+}
+
+class _UnreadBadge extends StatelessWidget {
+  const _UnreadBadge({required this.count});
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: Colors.red,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white, width: 1.5),
+      ),
+      child: Text(
+        count > 9 ? '9+' : '$count',
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+        ),
       ),
     );
   }

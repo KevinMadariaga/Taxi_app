@@ -21,6 +21,7 @@ import 'package:provider/provider.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:taxi_app/utils/marker_icon_helper.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:taxi_app/features/driver_trip/widgets/driver_client_info_card.dart';
 
 class RutaDestino extends StatelessWidget {
   final String idSolicitud;
@@ -730,237 +731,56 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent> with WidgetsBi
     );
   }
 
-  Widget _infoRow() {
-    final vm = Provider.of<RutaDestinoViewModel>(context);
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          CircleAvatar(
-            radius: 45,
-            backgroundColor: AppColores.primary,
-            backgroundImage: vm.fotoCliente.isNotEmpty
-                ? CachedNetworkImageProvider(vm.fotoCliente)
-                : null,
-            child: vm.fotoCliente.isEmpty
-                ? const Icon(Icons.person, color: Colors.white)
-                : null,
-          ),
-          const SizedBox(width: 15),
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final screenW = constraints.maxWidth;
-                    double nameFont = 30;
-                    double addressFont = 20;
-                    double spacing = 6;
-                    if (screenW >= 1000) {
-                      nameFont = 32;
-                      addressFont = 22;
-                      spacing = 12;
-                    } else if (screenW < 350) {
-                      nameFont = 18;
-                      addressFont = 14;
-                      spacing = 4;
-                    } else if (screenW < 500) {
-                      nameFont = 20;
-                      addressFont = 15;
-                      spacing = 5;
-                    }
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          vm.nombreCliente.isNotEmpty
-                              ? vm.nombreCliente.substring(0, 1).toUpperCase() +
-                                    vm.nombreCliente.substring(1).toLowerCase()
-                              : "Cliente",
-                          style: TextStyle(
-                            fontSize: nameFont,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        SizedBox(height: spacing),
-                        Text(
-                          vm.direccionDestino,
-                          style: TextStyle(
-                            color: Colors.grey,
-                            fontSize: addressFont,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    );
-                  },
-                ),
-              ],
+  void _openDetails(RutaDestinoViewModel vm) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.only(topLeft: Radius.circular(32), topRight: Radius.circular(32)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 24),
+            CircleAvatar(
+              radius: 50,
+              backgroundColor: AppColores.grey200,
+              backgroundImage: vm.fotoCliente.isNotEmpty ? CachedNetworkImageProvider(vm.fotoCliente) : null,
+              child: vm.fotoCliente.isEmpty ? const Icon(Icons.person, size: 50, color: Colors.grey) : null,
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _bottomButtons() {
-    final size = MediaQuery.of(context).size;
-    final double screenW = size.width;
-    double buttonFontSize = 18;
-    double buttonPaddingV = 18;
-    double buttonIconSize = 22;
-    double buttonBorderRadius = 16;
-    double buttonSpacing = 8;
-    if (screenW >= 1000) {
-      buttonFontSize = 24;
-      buttonPaddingV = 28;
-      buttonIconSize = 32;
-      buttonBorderRadius = 24;
-      buttonSpacing = 16;
-    } else if (screenW < 350) {
-      buttonFontSize = 14;
-      buttonPaddingV = 10;
-      buttonIconSize = 16;
-      buttonBorderRadius = 10;
-      buttonSpacing = 4;
-    } else if (screenW < 500) {
-      buttonFontSize = 16;
-      buttonPaddingV = 14;
-      buttonIconSize = 18;
-      buttonBorderRadius = 12;
-      buttonSpacing = 6;
-    }
-    return SafeArea(
-      top: false,
-      minimum: const EdgeInsets.only(bottom: 10),
-      child: Container(
-        child: Padding(
-          padding: const EdgeInsets.all(8),
-          child: Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  style: OutlinedButton.styleFrom(
-                    side: BorderSide(color: AppColores.primary, width: 2),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(buttonBorderRadius),
-                    ),
-                    padding: EdgeInsets.symmetric(vertical: buttonPaddingV),
-                    backgroundColor: AppColores.background,
-                  ),
-                  onPressed: () async {
-                    final vm = Provider.of<RutaDestinoViewModel>(
-                      context,
-                      listen: false,
-                    );
-                    if (_ubicacionConductor != null &&
-                        vm.latDestino != null &&
-                        vm.lngDestino != null) {
-                      final origen =
-                          '${_ubicacionConductor!.latitude},${_ubicacionConductor!.longitude}';
-                      final destino = '${vm.latDestino},${vm.lngDestino}';
-                      final url =
-                          'https://www.google.com/maps/dir/?api=1&origin=$origen&destination=$destino&travelmode=driving';
-                      try {
-                        await launchUrl(
-                          Uri.parse(url),
-                          mode: LaunchMode.externalApplication,
-                        );
-                      } catch (e) {
-                        debugPrint('No se pudo abrir Google Maps: $e');
-                      }
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Ubicación no disponible')),
-                      );
-                    }
-                  },
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.map,
-                        color: AppColores.primary,
-                        size: buttonIconSize,
-                      ),
-                      SizedBox(width: buttonSpacing),
-                      Flexible(
-                        child: Text(
-                          "Mapa",
-                          style: TextStyle(
-                            color: AppColores.primary,
-                            fontWeight: FontWeight.w600,
-                            fontSize: buttonFontSize,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
+            const SizedBox(height: 16),
+            Text(
+              vm.nombreCliente.isNotEmpty ? vm.nombreCliente : 'Cliente',
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColores.textPrimary),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              vm.direccionDestino,
+              style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 32),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(ctx),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColores.grey200,
+                  foregroundColor: AppColores.textPrimary,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 ),
+                child: const Text('Cerrar', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
               ),
-              SizedBox(
-                width: screenW >= 1000
-                    ? 32
-                    : screenW < 350
-                    ? 8
-                    : 20,
-              ),
-              Expanded(
-                child: StatefulBuilder(
-                  builder: (context, setState) {
-                    return ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColores.primary,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(
-                            buttonBorderRadius,
-                          ),
-                        ),
-                        padding: EdgeInsets.symmetric(vertical: buttonPaddingV),
-                        elevation: 0,
-                      ),
-                      onPressed: _terminarViajePressed
-                          ? null
-                          : () async {
-                              await _finalizarFlujoViaje(
-                                actualizarEstadoSolicitud: true,
-                              );
-                            },
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.check,
-                            color: Colors.white,
-                            size: buttonIconSize,
-                          ),
-                          SizedBox(width: buttonSpacing),
-                          Flexible(
-                            child: Text(
-                              "Terminar viaje",
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
-                                fontSize: buttonFontSize,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -968,6 +788,8 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent> with WidgetsBi
 
   @override
   Widget build(BuildContext context) {
+    final vm = Provider.of<RutaDestinoViewModel>(context);
+
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: _rutaDestinoOverlayStyle,
       child: Scaffold(
@@ -976,154 +798,58 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent> with WidgetsBi
         backgroundColor: AppColores.background,
         body: Stack(
           children: [
-            Column(
-              mainAxisSize: MainAxisSize.max,
-              children: [
-                Flexible(flex: 2, child: _mapWidget(context)),
-                Flexible(
-                  flex: 1,
-                  child: Container(
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.vertical(
-                        top: Radius.circular(30),
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.18),
-                          blurRadius: 18,
-                          offset: Offset(0, -6),
-                        ),
-                      ],
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 6,
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.max,
-                        children: [
-                          Center(
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.route,
-                                  color: AppColores.buttonPrimary,
-                                  size: 26,
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  "Ruta al Destino",
-                                  style: TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.black,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Divider(),
-                          Expanded(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 0,
-                                    horizontal: 5,
-                                  ),
-                                  child: _infoRow(),
-                                ),
-                                const SizedBox(height: 4),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 0,
-                                    horizontal: 4,
-                                  ),
-                                  child: _bottomButtons(),
-                                ),
-                                const SizedBox(height: 8),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+            Positioned.fill(
+              child: _mapWidget(context),
             ),
-            // Posiciona la tarjeta con tiempo y distancia encima del mapa (estilo referencia)
             Positioned(
-              top: MediaQuery.of(context).padding.top + 12,
+              top: 0,
               left: 0,
               right: 0,
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(18),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.08),
-                        blurRadius: 6,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(Icons.access_time, color: Colors.amber, size: 18),
-                          const SizedBox(width: 6),
-                          Text(
-                            _tiempoEstimadoLlegada().replaceFirst('Tiempo estimado: ', ''),
-                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-                          ),
-                        ],
-                      ),
-                      Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 10),
-                        height: 28,
-                        width: 1,
-                        color: Colors.grey.shade300,
-                      ),
-                      Row(
-                        children: [
-                          const Icon(Icons.route, color: Colors.black54, size: 18),
-                          const SizedBox(width: 6),
-                          Text(
-                            _distanciaKmConductorDestino(),
-                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
+              child: DriverClientInfoCard(
+                clientName: vm.nombreCliente.isNotEmpty ? vm.nombreCliente : 'Cliente',
+                clientAddress: vm.direccionDestino,
+                clientPhotoUrl: vm.fotoCliente,
+                unreadCount: 0,
+                onOpenNavigation: () async {
+                  if (_ubicacionConductor != null && vm.latDestino != null && vm.lngDestino != null) {
+                    final origen = '${_ubicacionConductor!.latitude},${_ubicacionConductor!.longitude}';
+                    final destino = '${vm.latDestino},${vm.lngDestino}';
+                    final url = 'https://www.google.com/maps/dir/?api=1&origin=$origen&destination=$destino&travelmode=driving';
+                    try {
+                      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+                    } catch (e) {
+                      debugPrint('No se pudo abrir Google Maps: $e');
+                    }
+                  } else {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Ubicación no disponible')),
+                      );
+                    }
+                  }
+                },
+                onReportArrival: () async {
+                  await _finalizarFlujoViaje(actualizarEstadoSolicitud: true);
+                },
+                isSendingArrival: _completionFlowInProgress,
+                isArrivalReported: _terminarViajePressed,
+                etaText: _tiempoEstimadoLlegada().replaceFirst('Tiempo estimado: ', ''),
+                distanceText: _distanciaKmConductorDestino(),
+                title: 'En viaje hacia el destino',
+                primaryButtonText: 'Terminar viaje',
+                primaryButtonSuccessText: 'Viaje terminado',
+                onDetails: () => _openDetails(vm),
               ),
             ),
-            // Posiciona el botón flotante abajo a la derecha del mapa
             Positioned(
               right: 24,
-              bottom:
-                  MediaQuery.of(context).size.height *
-                  0.35, // Siempre encima del mapa
+              bottom: MediaQuery.of(context).padding.bottom + 24,
               child: FloatingActionButton(
                 heroTag: "fab_centrar",
                 backgroundColor: AppColores.buttonPrimary,
                 child: Icon(
                   _centraSoloConductor ? Icons.person_pin_circle : Icons.group,
+                  color: AppColores.textWhite,
                 ),
                 onPressed: () {
                   setState(() {
