@@ -14,11 +14,13 @@ class TripChatScreen extends StatefulWidget {
 class _TripChatScreenState extends State<TripChatScreen> {
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final FocusNode _focusNode = FocusNode();
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (mounted) FocusScope.of(context).requestFocus(_focusNode);
       final vm = context.read<TripTrackingViewModel>();
       await vm.markChatAsRead();
     });
@@ -26,6 +28,7 @@ class _TripChatScreenState extends State<TripChatScreen> {
 
   @override
   void dispose() {
+    _focusNode.dispose();
     _textController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -54,8 +57,14 @@ class _TripChatScreenState extends State<TripChatScreen> {
       builder: (context, vm, _) {
         final messages = vm.messages;
 
-        return Scaffold(
-          appBar: AppBar(
+        return WillPopScope(
+          onWillPop: () async {
+            FocusScope.of(context).unfocus();
+            await Future.delayed(const Duration(milliseconds: 150));
+            return true;
+          },
+          child: Scaffold(
+            appBar: AppBar(
             title: const Text('Chat en tiempo real'),
             centerTitle: true,
             backgroundColor: AppColores.background,
@@ -106,6 +115,7 @@ class _TripChatScreenState extends State<TripChatScreen> {
                       Expanded(
                         child: TextField(
                           controller: _textController,
+                          focusNode: _focusNode,
                           textInputAction: TextInputAction.send,
                           onSubmitted: (_) => _send(),
                           decoration: InputDecoration(
@@ -137,7 +147,7 @@ class _TripChatScreenState extends State<TripChatScreen> {
               ),
             ],
           ),
-        );
+        ));
       },
     );
   }

@@ -433,6 +433,8 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
         : media.padding.bottom;
     final isTablet = screenW >= 1000;
     final bottomSpace = bottomInset + (isTablet ? 24.0 : 18.0);
+    final _resp = ResponsiveHelper.getResponsiveData(context);
+    final _scale = _resp.scale;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF6F9FC),
@@ -465,16 +467,16 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
               ),
             ),
             Padding(
-              padding: EdgeInsets.only(
+              padding: ResponsiveHelper.padding(
+                context,
                 left: isTablet ? 36 : 22,
                 right: isTablet ? 36 : 22,
                 top: isTablet ? 18 : 12,
-                bottom: _getBottomPadding(context),
-              ),
+              ).copyWith(bottom: _getBottomPadding(context)),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  SizedBox(height: isTablet ? 40 : 23),
+                  SizedBox(height: (isTablet ? 40 : 23) * _scale),
                     Text(
                     'Buscando taxi...',
                     textAlign: TextAlign.center,
@@ -484,9 +486,9 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
                       color: const Color(0xFF121826),
                     ),
                   ),
-                  SizedBox(height: isTablet ? 35 : 25),
-                  _buildSonarMap(isTablet),
-                  SizedBox(height: isTablet ? 30 : 20),
+                  SizedBox(height: (isTablet ? 35 : 25) * _scale),
+                  _buildSonarMap(context),
+                  SizedBox(height: (isTablet ? 30 : 20) * _scale),
                   Text(
                     'Estamos rastreando conductores en tiempo real para asignarte el mas cercano.',
                     textAlign: TextAlign.center,
@@ -497,7 +499,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
                       height: 1.35,
                     ),
                   ),
-                  SizedBox(height: isTablet ? 15 : 10),
+                  SizedBox(height: (isTablet ? 15 : 10) * _scale),
                    Center(
                     child: Container(
                       padding: EdgeInsets.symmetric(
@@ -519,9 +521,9 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
                       ),
                     ),
                   ),
-                  SizedBox(height: isTablet ? 18 : 14),
+                  SizedBox(height: (isTablet ? 18 : 14) * _scale),
                   _buildSearchingDots(isTablet),
-                  SizedBox(height: isTablet ? 18 : 14),
+                  SizedBox(height: (isTablet ? 18 : 14) * _scale),
                   SizedBox(
                     // width: double.infinity,
                     child: ElevatedButton(
@@ -548,8 +550,8 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 SizedBox(
-                                  width: isTablet ? 20 : 16,
-                                  height: isTablet ? 20 : 16,
+                                  width: (isTablet ? 20 : 16) * _scale,
+                                  height: (isTablet ? 20 : 16) * _scale,
                                   child: const CircularProgressIndicator(
                                     strokeWidth: 2,
                                     color: Colors.black,
@@ -562,14 +564,14 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
                           : const Text('Cancelar búsqueda'),
                     ),
                   ),
-                  SizedBox(height: isTablet ? 18 : 14),
+                  SizedBox(height: (isTablet ? 18 : 14) * _scale),
                 ],
               ),
             ),
             // Center button to focus on client location (placed above the map)
             Positioned(
-              right: 35,
-              top: isTablet ? 230 : 140,
+              right: (35) * _scale,
+              top: (isTablet ? 230 : 140) * _scale,
               child: SafeArea(
                 child: FloatingActionButton(
                   heroTag: 'center_client',
@@ -592,8 +594,23 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
     );
   }
 
-  Widget _buildSonarMap(bool isTablet) {
-    final mapHeight = isTablet ? 250.0 : 420.0;
+  Widget _buildSonarMap(BuildContext context) {
+    final resp = ResponsiveHelper.getResponsiveData(context);
+    final device = resp.deviceType;
+
+    // Height as percentage of screen height depending on device type
+    double pct;
+    if (device == DeviceType.mobile) {
+      pct = 45.0; // mobile: 45% of screen height
+    } else if (device == DeviceType.tablet) {
+      pct = 35.0; // tablet: 35%
+    } else {
+      pct = 30.0; // desktop: 30%
+    }
+
+    double mapHeight = ResponsiveHelper.hp(context, pct);
+    // clamp to sensible min/max to avoid extremely small/large maps
+    mapHeight = (mapHeight).clamp(160.0, 700.0) as double;
     return Column(
       children: [
         Container(

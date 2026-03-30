@@ -174,7 +174,9 @@ bool hasNavigationBar(BuildContext context) {
               statusBarIconBrightness: Brightness.dark,
               statusBarBrightness: Brightness.light,
             ),
-            child: Scaffold(
+            child: WillPopScope(
+              onWillPop: () async => false,
+              child: Scaffold(
               body: Builder(builder: (ctx) {
                 final mq = MediaQuery.of(ctx);
                 final screenH = mq.size.height;
@@ -551,7 +553,7 @@ bool hasNavigationBar(BuildContext context) {
                 );
               }),
             ),
-          );
+          ));
         },
       ),
     );

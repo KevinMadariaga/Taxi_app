@@ -72,10 +72,12 @@ class _DriverTripScreenState extends State<DriverTripScreen>
       });
     } catch (_) {}
   }
-/// Detecta si el dispositivo tiene barra de navegación inferior (Android/iOS)
-bool hasNavigationBar(BuildContext context) {
-  return MediaQuery.of(context).padding.bottom > 0;
-}
+
+  /// Detecta si el dispositivo tiene barra de navegación inferior (Android/iOS)
+  bool hasNavigationBar(BuildContext context) {
+    return MediaQuery.of(context).padding.bottom > 0;
+  }
+
   @override
   void dispose() {
     _stopBackgroundTrackingIfNeeded();
@@ -198,6 +200,7 @@ bool hasNavigationBar(BuildContext context) {
               }
             });
           }
+
           WidgetsBinding.instance.addPostFrameCallback((_) {
             handlePersistenceAndNotifications();
           });
@@ -237,7 +240,9 @@ bool hasNavigationBar(BuildContext context) {
 
           final currStatus = controller.trip?.status ?? '';
           String dynamicTitle = 'Conectando...';
-          if (currStatus.contains('asignado') || currStatus.contains('en_espera') || currStatus.contains('en_camino')) {
+          if (currStatus.contains('asignado') ||
+              currStatus.contains('en_espera') ||
+              currStatus.contains('en_camino')) {
             dynamicTitle = 'Dirigiéndote al cliente';
           } else if (currStatus.contains('en_ruta')) {
             dynamicTitle = 'En viaje hacia el destino';
@@ -251,97 +256,105 @@ bool hasNavigationBar(BuildContext context) {
               statusBarIconBrightness: Brightness.dark,
               statusBarBrightness: Brightness.light,
             ),
-            child: Scaffold(
-              body: Builder(builder: (ctx) {
-                final mq = MediaQuery.of(ctx);
-                final hasNavBar = hasNavigationBar(ctx);
+            child: WillPopScope(
+              onWillPop: () async => false,
+              child: Scaffold(
+                body: Builder(
+                  builder: (ctx) {
+                    final mq = MediaQuery.of(ctx);
+                    final hasNavBar = hasNavigationBar(ctx);
 
-                return Stack(
-                  children: [
-                    Stack(
+                    return Stack(
                       children: [
-                        Positioned.fill(
-                          child: GoogleMap(
-                            initialCameraPosition: CameraPosition(
-                              target: initialTarget,
-                              zoom: 14,
+                        Stack(
+                          children: [
+                            Positioned.fill(
+                              child: GoogleMap(
+                                initialCameraPosition: CameraPosition(
+                                  target: initialTarget,
+                                  zoom: 14,
+                                ),
+                                myLocationEnabled: true,
+                                myLocationButtonEnabled: false,
+                                compassEnabled: true,
+                                markers: markers,
+                                polylines: polylines,
+                                onMapCreated: (map) {
+                                  _mapController = map;
+                                  _fitInitialCameraIfNeeded(controller);
+                                },
+                              ),
                             ),
-                            myLocationEnabled: true,
-                            myLocationButtonEnabled: false,
-                            compassEnabled: true,
-                            markers: markers,
-                            polylines: polylines,
-                            onMapCreated: (map) {
-                              _mapController = map;
-                              _fitInitialCameraIfNeeded(controller);
-                            },
-                          ),
-                        ),
-                        Positioned(
-                          left: 16,
-                          bottom: hasNavBar ? mq.padding.bottom + 16 : 32,
-                          child: FloatingActionButton(
-                            heroTag: 'driver_trip_panic_btn',
-                            backgroundColor: AppColores.buttonCancel,
-                            onPressed: _onPanicPressed,
-                            child: const Icon(
-                              Icons.warning_amber_rounded,
-                              color: AppColores.textWhite,
+                            Positioned(
+                              left: 16,
+                              bottom: hasNavBar ? mq.padding.bottom + 16 : 32,
+                              child: FloatingActionButton(
+                                heroTag: 'driver_trip_panic_btn',
+                                backgroundColor: AppColores.buttonCancel,
+                                onPressed: _onPanicPressed,
+                                child: const Icon(
+                                  Icons.warning_amber_rounded,
+                                  color: AppColores.textWhite,
+                                ),
+                              ),
                             ),
-                          ),
-                        ),
-                        Positioned(
-                          right: 16,
-                          bottom: hasNavBar ? mq.padding.bottom + 16 : 32,
-                          child: FloatingActionButton(
-                            heroTag: 'driver_map_focus_btn',
-                            backgroundColor: AppColores.buttonPrimary,
-                            onPressed: () => _toggleFocus(controller),
-                            child: Icon(
-                              controller.focusMode == DriverMapFocusMode.clientOnly
-                                  ? Icons.person_pin_circle
-                                  : Icons.fit_screen,
-                              color: AppColores.textWhite,
+                            Positioned(
+                              left: 16,
+                              bottom: hasNavBar ? mq.padding.bottom + 88 : 104,
+                              child: FloatingActionButton(
+                                heroTag: 'driver_map_focus_btn',
+                                backgroundColor: AppColores.buttonPrimary,
+                                onPressed: () => _toggleFocus(controller),
+                                child: Icon(
+                                  controller.focusMode ==
+                                          DriverMapFocusMode.clientOnly
+                                      ? Icons.person_pin_circle
+                                      : Icons.fit_screen,
+                                  color: AppColores.textWhite,
+                                ),
+                              ),
                             ),
-                          ),
+                            Positioned(
+                              top: 0,
+                              left: 0,
+                              right: 0,
+                              child: DriverClientInfoCard(
+                                clientName: controller.clientName,
+                                clientAddress: controller.clientAddress,
+                                clientPhotoUrl: controller.clientPhotoUrl,
+                                unreadCount: controller.unreadCount,
+                                onOpenChat: () => _openChat(controller),
+                                onOpenNavigation: () =>
+                                    _openNavigation(controller),
+                                onReportArrival: controller.reportArrival,
+                                isSendingArrival: controller.isSendingArrival,
+                                isArrivalReported:
+                                    controller.hasReportedArrival,
+                                etaText: controller.etaText,
+                                distanceText: controller.distanceText,
+                                title: dynamicTitle,
+                                onDetails: () => _openDetails(controller),
+                              ),
+                            ),
+                          ],
                         ),
-                        Positioned(
-                          top: 0,
-                          left: 0,
-                          right: 0,
-                          child: DriverClientInfoCard(
-                            clientName: controller.clientName,
-                            clientAddress: controller.clientAddress,
-                            clientPhotoUrl: controller.clientPhotoUrl,
-                            unreadCount: controller.unreadCount,
-                            onOpenChat: () => _openChat(controller),
-                            onOpenNavigation: () => _openNavigation(controller),
-                            onReportArrival: controller.reportArrival,
-                            isSendingArrival: controller.isSendingArrival,
-                            isArrivalReported: controller.hasReportedArrival,
-                            etaText: controller.etaText,
-                            distanceText: controller.distanceText,
-                            title: dynamicTitle,
-                            onDetails: () => _openDetails(controller),
-                          ),
-                        ),
-                      ],
-                    ),
 
-                    if (controller.isLoading)
-                      const Positioned.fill(
-                        child: ColoredBox(
-                          color: AppColores.overlayLight,
-                          child: Center(
-                            child: CircularProgressIndicator(
-                              color: AppColores.primary,
+                        if (controller.isLoading)
+                          const Positioned.fill(
+                            child: ColoredBox(
+                              color: AppColores.overlayLight,
+                              child: Center(
+                                child: CircularProgressIndicator(
+                                  color: AppColores.primary,
+                                ),
+                              ),
                             ),
                           ),
-                        ),
-                      ),
-                  ],
-                );
-              }),
+                      ],
+                    );
+                  },
+                ),
+              ),
             ),
           );
         },
@@ -392,11 +405,15 @@ bool hasNavigationBar(BuildContext context) {
                 CircleAvatar(
                   radius: 40,
                   backgroundColor: AppColores.grey200,
-                  backgroundImage: controller.clientPhotoUrl.isNotEmpty 
-                      ? NetworkImage(controller.clientPhotoUrl) 
+                  backgroundImage: controller.clientPhotoUrl.isNotEmpty
+                      ? NetworkImage(controller.clientPhotoUrl)
                       : null,
                   child: controller.clientPhotoUrl.isEmpty
-                      ? const Icon(Icons.person, size: 40, color: AppColores.textSecondary)
+                      ? const Icon(
+                          Icons.person,
+                          size: 40,
+                          color: AppColores.textSecondary,
+                        )
                       : null,
                 ),
                 const SizedBox(height: 16),
@@ -412,11 +429,17 @@ bool hasNavigationBar(BuildContext context) {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.location_on_outlined, color: AppColores.buttonPrimary, size: 20),
+                    const Icon(
+                      Icons.location_on_outlined,
+                      color: AppColores.buttonPrimary,
+                      size: 20,
+                    ),
                     const SizedBox(width: 8),
                     Flexible(
                       child: Text(
-                        controller.clientAddress.isNotEmpty ? controller.clientAddress : 'Ubicacion no disponible',
+                        controller.clientAddress.isNotEmpty
+                            ? controller.clientAddress
+                            : 'Ubicacion no disponible',
                         textAlign: TextAlign.center,
                         style: const TextStyle(
                           fontSize: 16,
@@ -579,7 +602,6 @@ bool hasNavigationBar(BuildContext context) {
     });
   }
 
-
   bool _shouldPersistSolicitud(String status) {
     return status == 'asignado' ||
         status == 'en_espera' ||
@@ -733,7 +755,9 @@ bool hasNavigationBar(BuildContext context) {
     _navigating = true;
 
     try {
-      try { await SessionHelper.setActiveSolicitudScreen('ruta_destino'); } catch (_) {}
+      try {
+        await SessionHelper.setActiveSolicitudScreen('ruta_destino');
+      } catch (_) {}
       await Navigator.of(context, rootNavigator: true).pushReplacement(
         MaterialPageRoute(
           builder: (_) => RutaDestino(
@@ -755,7 +779,9 @@ bool hasNavigationBar(BuildContext context) {
 
     try {
       await SessionHelper.clearActiveSolicitud();
-      try { await SessionHelper.clearActiveSolicitudScreen(); } catch (_) {}
+      try {
+        await SessionHelper.clearActiveSolicitudScreen();
+      } catch (_) {}
       await RouteCacheService.clearSolicitud(widget.tripId);
 
       if (!mounted) return;

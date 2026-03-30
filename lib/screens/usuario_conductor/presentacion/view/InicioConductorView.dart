@@ -440,7 +440,9 @@ class _InicioConductorState extends State<InicioConductor>
 
           // Suscribirse una sola vez a cambios del nombre guardado en cache
           final bool _hasPreview = vm.isConnected && vm.selectedPreview != null;
-          return Scaffold(
+          return WillPopScope(
+            onWillPop: () async => false,
+            child: Scaffold(
             backgroundColor: AppColores.background,
             appBar: _hasPreview
                 ? null
@@ -1137,7 +1139,7 @@ class _InicioConductorState extends State<InicioConductor>
                     onTap: _onBottomNavTap,
                   )
                 : null,
-          );
+          ));
         },
       ),
     );

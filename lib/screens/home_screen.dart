@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/features/phone_auth/screens/auth_phone_screen.dart';
@@ -8,9 +6,9 @@ import 'package:taxi_app/domain/models/auth_flow_result.dart';
 import 'package:taxi_app/presentation/controllers/auth/home_auth_controller.dart';
 import 'package:taxi_app/domain/usecases/client_auth/sign_in_google_client_usecase.dart';
 import 'package:taxi_app/presentation/screens/auth/complete_profile_page.dart';
-import 'package:taxi_app/core/services/services.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/home_cliente_view.dart';
 import 'package:awesome_snackbar_content/awesome_snackbar_content.dart';
+import 'package:taxi_app/screens/login_conductor_screen.dart';
 
 class HomeView extends StatefulWidget {
   const HomeView({super.key, VoidCallback? onLegacyFinish});
@@ -20,138 +18,12 @@ class HomeView extends StatefulWidget {
 }
 
 class _HomeViewState extends State<HomeView> {
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
   bool _isLoading = false;
   String? _error;
 
   @override
   void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
     super.dispose();
-  }
-
-  Future<void> _login() async {
-    final email = _emailController.text.trim();
-    final password = _passwordController.text.trim();
-
-    if (email.isEmpty || password.isEmpty) {
-      setState(() {
-        _error = 'Ingresa correo y contraseña.';
-      });
-      return;
-    }
-
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
-
-    try {
-      final authService = AuthService();
-      final usuariosSnapshot = await _buscarUsuarioPorCorreo(email);
-      if (usuariosSnapshot == null) {
-        setState(() {
-          _error = 'No existe una cuenta con ese correo en usuarios.';
-        });
-        return;
-      }
-
-      final userData = usuariosSnapshot.data();
-      final role = (userData['rol'] ?? userData['tipoUsuario'] ?? '')
-          .toString()
-          .toLowerCase();
-      if (role != 'cliente' && role != 'conductor' && role != 'administrador') {
-        setState(() {
-          _error = 'El usuario no tiene un rol valido en usuarios.';
-        });
-        return;
-      }
-
-      final passwordEnUsuarios =
-          (userData['passwordLogin'] ?? userData['password'] ?? '')
-              .toString()
-              .trim();
-      if (passwordEnUsuarios.isNotEmpty && passwordEnUsuarios != password) {
-        setState(() {
-          _error = 'Credenciales invalidas.';
-        });
-        return;
-      }
-
-      final credential = await authService.loginWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-
-      final user = credential?.user;
-      if (user == null) {
-        setState(() {
-          _error = 'No se pudo obtener la información del usuario.';
-        });
-        return;
-      }
-
-      // Guardar rol detectado en la sesión
-      await authService.saveUserSession(
-        role: role,
-        isLoggedIn: true,
-        uid: user.uid,
-      );
-
-      if (!mounted) return;
-
-      _showLoginSuccessSnackbar();
-
-      final next = await authService.determineInitialScreen();
-
-      if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => next),
-      );
-    } on FirebaseAuthException {
-      setState(() {
-        _error = 'Correo o contraseña incorrectos.';
-      });
-    } catch (_) {
-      setState(() {
-        _error = 'Error al iniciar sesión. Verifica tus datos.';
-      });
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
-  }
-
-  Future<QueryDocumentSnapshot<Map<String, dynamic>>?> _buscarUsuarioPorCorreo(
-    String email,
-  ) async {
-    final normalizedEmail = email.trim().toLowerCase();
-
-    final byCorreo = await FirebaseFirestore.instance
-        .collection('usuarios')
-        .where('correo', isEqualTo: normalizedEmail)
-        .limit(1)
-        .get();
-    if (byCorreo.docs.isNotEmpty) {
-      return byCorreo.docs.first;
-    }
-
-    final byEmail = await FirebaseFirestore.instance
-        .collection('usuarios')
-        .where('email', isEqualTo: normalizedEmail)
-        .limit(1)
-        .get();
-    if (byEmail.docs.isNotEmpty) {
-      return byEmail.docs.first;
-    }
-
-    return null;
   }
 
   Future<void> _loginWithGoogle(HomeAuthController authVm) async {
@@ -281,28 +153,7 @@ class _HomeViewState extends State<HomeView> {
                           ),
 
                           const SizedBox(height: 32),
-                          TextField(
-                            controller: _emailController,
-                            keyboardType: TextInputType.emailAddress,
-                            decoration: InputDecoration(
-                              labelText: 'Correo electrónico',
-                              prefixIcon: const Icon(Icons.email),
-                              border: const OutlineInputBorder(),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          TextField(
-                            controller: _passwordController,
-                            obscureText: true,
-                            decoration: const InputDecoration(
-                              labelText: 'Contraseña',
-                              prefixIcon: Icon(Icons.lock),
-                              border: OutlineInputBorder(),
-                            ),
-                          ),
-
                           if (effectiveError != null) ...[
-                            const SizedBox(height: 12),
                             Text(
                               effectiveError,
                               style: const TextStyle(
@@ -311,81 +162,11 @@ class _HomeViewState extends State<HomeView> {
                               ),
                               textAlign: TextAlign.center,
                             ),
+                            const SizedBox(height: 12),
                           ],
-
-                          const SizedBox(height: 20),
                           SizedBox(
                             width: double.infinity,
-                            child: ElevatedButton(
-                              onPressed: isBusy
-                                  ? null
-                                  : () async {
-                                      authVm.clearError();
-                                      await _login();
-                                    },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColores.buttonPrimary,
-                                foregroundColor: AppColores.textWhite,
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 14,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                              child: _isLoading
-                                  ? const SizedBox(
-                                      height: 20,
-                                      width: 20,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : const Text(
-                                      'Iniciar sesión',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Divider(
-                                  color: AppColores.textSecondary.withOpacity(
-                                    0.35,
-                                  ),
-                                  thickness: 1,
-                                ),
-                              ),
-                              const Padding(
-                                padding: EdgeInsets.symmetric(horizontal: 12),
-                                child: Text(
-                                  'o',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColores.textSecondary,
-                                  ),
-                                ),
-                              ),
-                              Expanded(
-                                child: Divider(
-                                  color: AppColores.textSecondary.withOpacity(
-                                    0.35,
-                                  ),
-                                  thickness: 1,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-
-                          SizedBox(
-                            width: double.infinity,
-                            child: OutlinedButton.icon(
+                            child: ElevatedButton.icon(
                               onPressed: isBusy
                                   ? null
                                   : () {
@@ -398,11 +179,9 @@ class _HomeViewState extends State<HomeView> {
                                         ),
                                       );
                                     },
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: AppColores.textPrimary,
-                                side: const BorderSide(
-                                  color: AppColores.buttonPrimary,
-                                ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColores.buttonPrimary,
+                                foregroundColor: AppColores.textWhite,
                                 padding: const EdgeInsets.symmetric(
                                   vertical: 14,
                                 ),
@@ -412,13 +191,15 @@ class _HomeViewState extends State<HomeView> {
                               ),
                               icon: const Icon(Icons.phone),
                               label: const Text(
-                                'Ingresar con Telefono',
-                                style: TextStyle(fontWeight: FontWeight.w700),
+                                'Ingresa tu número',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
                           ),
-                          const SizedBox(height: 12),
-
+                          const SizedBox(height: 20),
                           SizedBox(
                             width: double.infinity,
                             child: OutlinedButton.icon(
@@ -445,7 +226,38 @@ class _HomeViewState extends State<HomeView> {
                                 height: 20,
                               ),
                               label: const Text(
-                                'Ingresar con Google',
+                                'Ingresar con Gmail',
+                                style: TextStyle(fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const LoginConductor(),
+                                  ),
+                                );
+                              },
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColores.textPrimary,
+                                side: const BorderSide(
+                                  color: AppColores.buttonPrimary,
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              icon: const Icon(Icons.directions_car),
+                              label: const Text(
+                                'Ingresar como conductor',
                                 style: TextStyle(fontWeight: FontWeight.w700),
                               ),
                             ),

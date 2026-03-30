@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:io';
@@ -612,6 +613,7 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Perfil', style: TextStyle(fontSize: appBarFontSize)),
+        systemOverlayStyle: SystemUiOverlayStyle.dark,
       ),
       body: userData == null
           ? const Center(child: CircularProgressIndicator())
@@ -709,32 +711,32 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
                         ),
                       ),
                     ),
-                    SizedBox(height: ResponsiveHelper.hp(context, 1)),
-                    OutlinedButton.icon(
-                      onPressed: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const CambiarContrasenaScreen(),
-                          ),
-                        );
-                      },
-                      icon: const Icon(
-                        Icons.lock_outline,
-                        size: buttonIconSize,
-                      ),
-                      label: const Text(
-                        'Cambiar contraseña',
-                        style: TextStyle(fontSize: buttonFontSize),
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColores.textPrimary,
-                        side: const BorderSide(color: AppColores.borderSubtle),
-                        padding: EdgeInsets.symmetric(
-                          vertical: ResponsiveHelper.hp(context, 1.5),
-                          horizontal: ResponsiveHelper.wp(context, 2),
-                        ),
-                      ),
-                    ),
+                    // SizedBox(height: ResponsiveHelper.hp(context, 1)),
+                    // OutlinedButton.icon(
+                    //   onPressed: () {
+                    //     Navigator.of(context).push(
+                    //       MaterialPageRoute(
+                    //         builder: (_) => const CambiarContrasenaScreen(),
+                    //       ),
+                    //     );
+                    //   },
+                    //   icon: const Icon(
+                    //     Icons.lock_outline,
+                    //     size: buttonIconSize,
+                    //   ),
+                    //   label: const Text(
+                    //     'Cambiar contraseña',
+                    //     style: TextStyle(fontSize: buttonFontSize),
+                    //   ),
+                    //   style: OutlinedButton.styleFrom(
+                    //     foregroundColor: AppColores.textPrimary,
+                    //     side: const BorderSide(color: AppColores.borderSubtle),
+                    //     padding: EdgeInsets.symmetric(
+                    //       vertical: ResponsiveHelper.hp(context, 1.5),
+                    //       horizontal: ResponsiveHelper.wp(context, 2),
+                    //     ),
+                    //   ),
+                    // ),
                   ],
                 ),
               ),

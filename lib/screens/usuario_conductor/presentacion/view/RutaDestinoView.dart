@@ -790,9 +790,11 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent> with WidgetsBi
   Widget build(BuildContext context) {
     final vm = Provider.of<RutaDestinoViewModel>(context);
 
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: _rutaDestinoOverlayStyle,
-      child: Scaffold(
+    return WillPopScope(
+      onWillPop: () async => false,
+      child: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: _rutaDestinoOverlayStyle,
+        child: Scaffold(
         resizeToAvoidBottomInset: false,
         extendBodyBehindAppBar: true,
         backgroundColor: AppColores.background,
@@ -866,6 +868,6 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent> with WidgetsBi
           ],
         ),
       ),
-    );
+    ));
   }
 }

@@ -4,6 +4,7 @@ import 'package:geocoding/geocoding.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:flutter/services.dart';
 
 class HistorialCliente extends StatefulWidget {
   const HistorialCliente({super.key});
@@ -283,8 +284,12 @@ class HistorialClienteState extends State<HistorialCliente> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Historial de Viajes"),
+        title: const Text(
+          "Historial de Viajes",
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
         backgroundColor: Colors.amber,
+        systemOverlayStyle: SystemUiOverlayStyle.light,
       ),
       body: Builder(
         builder: (context) {

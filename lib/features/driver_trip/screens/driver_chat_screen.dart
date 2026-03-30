@@ -14,11 +14,13 @@ class DriverChatScreen extends StatefulWidget {
 class _DriverChatScreenState extends State<DriverChatScreen> {
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final FocusNode _focusNode = FocusNode();
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (mounted) FocusScope.of(context).requestFocus(_focusNode);
       final controller = context.read<DriverTripController>();
       await controller.markChatAsRead();
     });
@@ -26,6 +28,7 @@ class _DriverChatScreenState extends State<DriverChatScreen> {
 
   @override
   void dispose() {
+    _focusNode.dispose();
     _textController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -54,8 +57,14 @@ class _DriverChatScreenState extends State<DriverChatScreen> {
       builder: (context, controller, _) {
         final messages = controller.messages;
 
-        return Scaffold(
-          appBar: AppBar(
+        return WillPopScope(
+          onWillPop: () async {
+            FocusScope.of(context).unfocus();
+            await Future.delayed(const Duration(milliseconds: 150));
+            return true;
+          },
+          child: Scaffold(
+            appBar: AppBar(
             title: const Text('Chat en tiempo real'),
             centerTitle: true,
             backgroundColor: AppColores.background,
@@ -106,6 +115,7 @@ class _DriverChatScreenState extends State<DriverChatScreen> {
                       Expanded(
                         child: TextField(
                           controller: _textController,
+                          focusNode: _focusNode,
                           textInputAction: TextInputAction.send,
                           onSubmitted: (_) => _send(),
                           decoration: InputDecoration(
@@ -137,7 +147,7 @@ class _DriverChatScreenState extends State<DriverChatScreen> {
               ),
             ],
           ),
-        );
+        ));
       },
     );
   }

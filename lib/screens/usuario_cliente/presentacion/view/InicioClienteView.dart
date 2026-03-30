@@ -11,6 +11,8 @@ import 'dart:async';
 import '../viewmodels/inicio_cliente_viewmodel.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/MapaClienteModel.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/view/historial_viaje_cliente.dart';
+import 'package:taxi_app/widgets/perfil.dart';
 
 class InicioClienteView extends StatefulWidget {
   const InicioClienteView({super.key, this.authUid});
@@ -27,6 +29,7 @@ class _InicioClienteViewState extends State<InicioClienteView>
   late InicioClienteViewModel vm;
   late VoidCallback _vmListener;
   GoogleMapController? _mapController;
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   int _selectedIndex = 1;
   final PageController _carouselController = PageController(
     viewportFraction: 0.98,
@@ -273,98 +276,178 @@ class _InicioClienteViewState extends State<InicioClienteView>
     final double carouselHeight = isTablet
         ? baseCarouselHeight.clamp(220.0, 340.0)
         : baseCarouselHeight.clamp(140.0, 220.0);
+    // Ajustar estilo de la barra de estado según pestaña activa
+    final SystemUiOverlayStyle overlayStyle = _selectedIndex == 0
+      ? SystemUiOverlayStyle.light.copyWith(statusBarColor: Colors.amber)
+      : SystemUiOverlayStyle.dark.copyWith(statusBarColor: Colors.white);
+    SystemChrome.setSystemUIOverlayStyle(overlayStyle);
+
     // Se elimina el mapa y sus espacios
     return WillPopScope(
-      onWillPop: _onWillPop,
+      onWillPop: () async => false,
       child: Scaffold(
+        extendBodyBehindAppBar: true,
+        key: _scaffoldKey,
         backgroundColor: AppColores.background,
-        // AppBar eliminado
-        body: SafeArea(
-          child: Stack(
-            children: [
-              Padding(
-                padding: EdgeInsets.fromLTRB(
-                  isTablet ? 48.0 : 16.0 * scale,
-                  isTablet ? 32.0 : 12.0 * scale,
-                  isTablet ? 48.0 : 16.0 * scale,
-                  isTablet ? 32.0 : 18.0 * scale,
-                ),
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final compactThreshold = isTablet ? 720.0 : 540.0;
-                    final useScrollableLayout =
-                        constraints.maxHeight < compactThreshold;
-
-                    if (!useScrollableLayout) {
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildSaludoYNombre(scale),
-                          SizedBox(height: isTablet ? 20 : 14 * scale),
-                          _buildSubtitle(scale),
-                          SizedBox(height: isTablet ? 22 : 18 * scale),
-                          _buildSearchBox(scale),
-                          SizedBox(height: isTablet ? 4 : 1 * scale),
-                          _buildFavoritos(scale),
-                          SizedBox(
-                            height: carouselHeight,
-                            child: _buildCarousel(),
-                          ),
-                          SizedBox(height: isTablet ? 6 : 2 * scale),
-                          _buildLocationLabel(scale),
-                          SizedBox(height: isTablet ? 8 : 8 * scale),
-                          Expanded(child: _buildMap()),
-                          SizedBox(height: isTablet ? 8 : 10 * scale),
-                        ],
-                      );
-                    }
-
-                    final compactCarouselHeight = (carouselHeight * 0.82)
-                        .clamp(120.0, 180.0)
-                        .toDouble();
-                    final compactMapHeight = (constraints.maxHeight * 0.34)
-                        .clamp(140.0, 220.0)
-                        .toDouble();
-
-                    return SingleChildScrollView(
-                      keyboardDismissBehavior:
-                          ScrollViewKeyboardDismissBehavior.onDrag,
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(
-                          minHeight: constraints.maxHeight,
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _buildSaludoYNombre(scale),
-                            SizedBox(height: 10 * scale),
-                            _buildSubtitle(scale),
-                            SizedBox(height: 10 * scale),
-                            _buildSearchBox(scale),
-                            _buildFavoritos(scale),
-                            SizedBox(
-                              height: compactCarouselHeight,
-                              child: _buildCarousel(),
-                            ),
-                            SizedBox(height: 6 * scale),
-                            _buildLocationLabel(scale),
-                            SizedBox(height: 6 * scale),
-                            SizedBox(
-                              height: compactMapHeight,
-                              child: _buildMap(),
-                            ),
-                            SizedBox(height: 8 * scale),
-                          ],
-                        ),
-                      ),
-                    );
+        endDrawer: Drawer(
+          child: SafeArea(
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.security),
+                  title: const Text('Seguridad'),
+                  onTap: () async {
+                    Navigator.of(context).pop();
+                    await InicioClienteNavigation.irASeguridad(context);
                   },
                 ),
-              ),
-              if (vm.isLoadingLocation) _buildLoader(),
-              if (_isPreparingNavigation) _buildNavigationLoader(),
-            ],
+                ListTile(
+                  leading: const Icon(Icons.settings),
+                  title: const Text('Configuracion'),
+                  onTap: () async {
+                    Navigator.of(context).pop();
+                    await InicioClienteNavigation.irAConfiguracion(context);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.help_outline),
+                  title: const Text('Ayuda'),
+                  onTap: () async {
+                    Navigator.of(context).pop();
+                    await InicioClienteNavigation.irAAyuda(context);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.support_agent),
+                  title: const Text('Soporte'),
+                  onTap: () async {
+                    Navigator.of(context).pop();
+                    await InicioClienteNavigation.irASoporte(context);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.notifications_none),
+                  title: const Text('Notificaciones'),
+                  onTap: () async {
+                    Navigator.of(context).pop();
+                    await InicioClienteNavigation.irANotificaciones(context);
+                  },
+                ),
+              ],
+            ),
           ),
+        ),
+        // AppBar eliminado
+        body: Stack(
+          children: [
+            // top status bar color area
+            Container(
+              height: MediaQuery.of(context).padding.top,
+              color: _selectedIndex == 0 ? Colors.amber : Colors.white,
+            ),
+
+            SafeArea(
+              child: Stack(
+                children: [
+                  IndexedStack(
+                    index: _selectedIndex,
+                    children: [
+                      // 0 - Historial
+                      const HistorialCliente(),
+
+                      // 1 - Home content (original padding/layout)
+                      Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          isTablet ? 48.0 : 16.0 * scale,
+                          isTablet ? 32.0 : 12.0 * scale,
+                          isTablet ? 48.0 : 16.0 * scale,
+                          isTablet ? 32.0 : 18.0 * scale,
+                        ),
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            final compactThreshold = isTablet ? 720.0 : 540.0;
+                            final useScrollableLayout =
+                                constraints.maxHeight < compactThreshold;
+
+                            if (!useScrollableLayout) {
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildSaludoYNombre(scale),
+                                  SizedBox(height: isTablet ? 20 : 14 * scale),
+                                  _buildSubtitle(scale),
+                                  SizedBox(height: isTablet ? 22 : 18 * scale),
+                                  _buildSearchBox(scale),
+                                  SizedBox(height: isTablet ? 4 : 1 * scale),
+                                  _buildFavoritos(scale),
+                                  SizedBox(
+                                    height: carouselHeight,
+                                    child: _buildCarousel(),
+                                  ),
+                                  SizedBox(height: isTablet ? 6 : 2 * scale),
+                                  _buildLocationLabel(scale),
+                                  SizedBox(height: isTablet ? 8 : 8 * scale),
+                                  Expanded(child: _buildMap()),
+                                  SizedBox(height: isTablet ? 8 : 10 * scale),
+                                ],
+                              );
+                            }
+
+                            final compactCarouselHeight = (carouselHeight * 0.82)
+                                .clamp(120.0, 180.0)
+                                .toDouble();
+                            final compactMapHeight = (constraints.maxHeight * 0.34)
+                                .clamp(140.0, 220.0)
+                                .toDouble();
+
+                            return SingleChildScrollView(
+                              keyboardDismissBehavior:
+                                  ScrollViewKeyboardDismissBehavior.onDrag,
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  minHeight: constraints.maxHeight,
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    _buildSaludoYNombre(scale),
+                                    SizedBox(height: 10 * scale),
+                                    _buildSubtitle(scale),
+                                    SizedBox(height: 10 * scale),
+                                    _buildSearchBox(scale),
+                                    _buildFavoritos(scale),
+                                    SizedBox(
+                                      height: compactCarouselHeight,
+                                      child: _buildCarousel(),
+                                    ),
+                                    SizedBox(height: 6 * scale),
+                                    _buildLocationLabel(scale),
+                                    SizedBox(height: 6 * scale),
+                                    SizedBox(
+                                      height: compactMapHeight,
+                                      child: _buildMap(),
+                                    ),
+                                    SizedBox(height: 8 * scale),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+
+                      // 2 - Perfil
+                      const PaginaPerfilUsuario(tipoUsuario: 'cliente'),
+                    ],
+                  ),
+
+                  if (vm.isLoadingLocation) _buildLoader(),
+                  if (_isPreparingNavigation) _buildNavigationLoader(),
+                ],
+              ),
+            ),
+          ],
         ),
         bottomNavigationBar: _buildBottomNavigationBar(),
       ),
@@ -676,8 +759,8 @@ class _InicioClienteViewState extends State<InicioClienteView>
         onTap: _onBottomNavTap,
         items: const [
           BottomNavigationBarItem(
-            icon: Icon(Icons.menu),
-            label: 'Mas opciones',
+            icon: Icon(Icons.history),
+            label: 'Historial',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.map_outlined),
@@ -727,6 +810,9 @@ class _InicioClienteViewState extends State<InicioClienteView>
       subtitle: fav.direccion,
     );
     if (!mounted) return;
+    try {
+      FocusScope.of(context).unfocus();
+    } catch (_) {}
     await InicioClienteNavigation.irAMapaPreview(
       context,
       origenModel,
@@ -735,13 +821,17 @@ class _InicioClienteViewState extends State<InicioClienteView>
   }
 
   Future<void> _navigateToPerfil() async {
-    await InicioClienteNavigation.irAPerfil(context);
+    // Open profile inside the same scaffold by switching index
     if (!mounted) return;
-    setState(() => _selectedIndex = 0);
+    setState(() => _selectedIndex = 2);
   }
 
   Future<void> _navigateToDestinoSeleccion() async {
     if (_isPreparingNavigation) return;
+
+    try {
+      FocusScope.of(context).unfocus();
+    } catch (_) {}
 
     if (mounted) {
       setState(() => _isPreparingNavigation = true);
@@ -775,19 +865,12 @@ class _InicioClienteViewState extends State<InicioClienteView>
   }
 
   Future<void> _onBottomNavTap(int index) async {
-    if (index == 0) {
-      setState(() => _selectedIndex = 0);
-      await _showMoreOptionsSheet();
-      if (!mounted) return;
-      setState(() => _selectedIndex = 1);
-    } else if (index == 2) {
-      setState(() => _selectedIndex = 2);
-      await _navigateToPerfil();
-      if (!mounted) return;
-      setState(() => _selectedIndex = 1);
-    } else {
-      setState(() => _selectedIndex = index);
-    }
+    // Close keyboard first if open, then switch tab
+    try {
+      FocusScope.of(context).unfocus();
+    } catch (_) {}
+    if (!mounted) return;
+    setState(() => _selectedIndex = index);
   }
 
   Future<void> _showMoreOptionsSheet() async {
@@ -833,22 +916,6 @@ class _InicioClienteViewState extends State<InicioClienteView>
                   await InicioClienteNavigation.irASoporte(context);
                 },
               ),
-              ListTile(
-                leading: Icon(Icons.notifications_none),
-                title: Text('Notificaciones'),
-                onTap: () async {
-                  Navigator.of(ctx).pop();
-                  await InicioClienteNavigation.irANotificaciones(context);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.history),
-                title: const Text('Historial'),
-                onTap: () async {
-                  Navigator.of(ctx).pop();
-                  await InicioClienteNavigation.irAHistorial(context);
-                },
-              ),
             ],
           ),
         );
@@ -856,12 +923,6 @@ class _InicioClienteViewState extends State<InicioClienteView>
     );
   }
 
-  Future<bool> _onWillPop() async {
-    try {
-      SystemNavigator.pop();
-    } catch (_) {}
-    return false;
-  }
 
   Widget _buildSaludoYNombre(double scale) {
     final rawName = vm.clientName.trim();
@@ -881,24 +942,40 @@ class _InicioClienteViewState extends State<InicioClienteView>
       padding: EdgeInsets.symmetric(horizontal: 12.0 * scale),
       child: Row(
         children: [
-          Text(
-            'Hola,',
-            style: TextStyle(
-              fontSize: fontSize,
-              fontWeight: FontWeight.w800,
-              color: AppColores.textPrimary,
+          Expanded(
+            child: Row(
+              children: [
+                Text(
+                  'Hola,',
+                  style: TextStyle(
+                    fontSize: fontSize,
+                    fontWeight: FontWeight.w800,
+                    color: AppColores.textPrimary,
+                  ),
+                ),
+                SizedBox(width: 2 * scale),
+                Expanded(
+                  child: Text(
+                    formattedName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: fontSize,
+                      fontWeight: FontWeight.w800,
+                      color: AppColores.textPrimary,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-          SizedBox(width: 2 * scale),
-          Text(
-            formattedName,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: fontSize,
-              fontWeight: FontWeight.w800,
-              color: AppColores.textPrimary,
-            ),
+          // Más opciones icon (tres líneas) colocado al lado del nombre
+          IconButton(
+            icon: const Icon(Icons.menu, color: Colors.black87),
+            onPressed: () async {
+              // Open end drawer (right side)
+              _scaffoldKey.currentState?.openEndDrawer();
+            },
           ),
         ],
       ),

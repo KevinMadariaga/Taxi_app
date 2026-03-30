@@ -228,83 +228,84 @@ class _MapPreviewState extends State<MapPreview> {
               statusBarIconBrightness: Brightness.dark,
             ),
           ),
-          body: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(height: 8),
-              _buildMap(context),
-              Expanded(child: _buildBottomContent(context)),
-            ],
-          ),
+          body: LayoutBuilder(builder: (context, constraints) {
+            final resp = ResponsiveHelper.getResponsiveData(context);
+            double bottomPct;
+            if (resp.deviceType == DeviceType.mobile) {
+              bottomPct = 40.0; // smaller bottom area on mobile -> taller map
+            } else if (resp.deviceType == DeviceType.tablet) {
+              bottomPct = 30.0; // tablet: reduce bottom to increase map
+            } else {
+              bottomPct = 25.0; // desktop: even smaller bottom
+            }
+
+            final bottomHeight = ResponsiveHelper.hp(context, bottomPct).clamp(140.0, constraints.maxHeight * 0.6) as double;
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(height: 8),
+                Expanded(child: _buildMapFlexible(context)),
+                SizedBox(height: bottomHeight, child: _buildBottomContent(context)),
+              ],
+            );
+          }),
         ),
       ),
     );
   }
 
-  Widget _buildMap(BuildContext context) {
-    final size = MediaQuery.of(context).size;
-    final isTablet = size.width >= 1000;
-    // Detectar si el dispositivo tiene una barra de navegación en la parte inferior
-    // y reducir ligeramente la altura del mapa para evitar que quede cortado.
-    final bottomPadding = MediaQuery.of(context).viewPadding.bottom;
-    double mapHeight = isTablet ? size.height * 0.50 : size.height * 0.45;
-    if (bottomPadding > 0 && Platform.isAndroid) {
-      // Limitar la reducción a un máximo razonable (8% de la altura de la pantalla)
-      final reduce = bottomPadding.clamp(0.0, size.height * 0.08);
-      mapHeight = (mapHeight - reduce).clamp(size.height * 0.25, size.height * 0.6);
-    }
-
+  Widget _buildMapFlexible(BuildContext context) {
     return Center(
-      child: Container(
-        width: size.width * 0.92,
-        height: mapHeight,
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.black, width: 1.5),
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: const [
-            BoxShadow(
-              color: Colors.black12,
-              blurRadius: 8,
-              offset: Offset(0, 3),
-            ),
-          ],
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Consumer<MapapreviewViewModel>(
-          builder: (context, vm, _) {
-            final origen = vm.origen.position;
-            final destino = vm.destino.position;
-            return ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Mapagoogle(
-                initialTarget: LatLng(
-                  (origen.latitude + destino.latitude) / 2,
-                  (origen.longitude + destino.longitude) / 2,
-                ),
-                initialZoom: 13,
-                myLocationEnabled: true,
-                onMapCreated: _onMapCreated,
-                markers: {
-                  Marker(
-                    markerId: const MarkerId('destino'),
-                    position: destino,
-                    infoWindow: InfoWindow(
-                      title: vm.destino.title ?? 'Destino',
-                      snippet: vm.destino.subtitle,
-                    ),
-                    icon:
-                        _destIcon ??
-                        BitmapDescriptor.defaultMarkerWithHue(
-                          BitmapDescriptor.hueRed,
-                        ),
-                  ),
-                },
-                polylines: vm.polylines,
+      child: LayoutBuilder(builder: (ctx, constraints) {
+        final width = constraints.maxWidth > 0 ? constraints.maxWidth : MediaQuery.of(context).size.width * 0.92;
+        return Container(
+          width: width * 0.92,
+          // height left unconstrained so it fills the Expanded area
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.black, width: 1.5),
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: const [
+              BoxShadow(
+                color: Colors.black12,
+                blurRadius: 8,
+                offset: Offset(0, 3),
               ),
-            );
-          },
-        ),
-      ),
+            ],
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Consumer<MapapreviewViewModel>(
+            builder: (context, vm, _) {
+              final origen = vm.origen.position;
+              final destino = vm.destino.position;
+              return ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Mapagoogle(
+                  initialTarget: LatLng(
+                    (origen.latitude + destino.latitude) / 2,
+                    (origen.longitude + destino.longitude) / 2,
+                  ),
+                  initialZoom: 13,
+                  myLocationEnabled: true,
+                  onMapCreated: _onMapCreated,
+                  markers: {
+                    Marker(
+                      markerId: const MarkerId('destino'),
+                      position: destino,
+                      infoWindow: InfoWindow(
+                        title: vm.destino.title ?? 'Destino',
+                        snippet: vm.destino.subtitle,
+                      ),
+                      icon: _destIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+                    ),
+                  },
+                  polylines: vm.polylines,
+                ),
+              );
+            },
+          ),
+        );
+      }),
     );
   }
 

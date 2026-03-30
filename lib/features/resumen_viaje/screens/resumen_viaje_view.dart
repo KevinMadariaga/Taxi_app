@@ -152,7 +152,13 @@ class _ResumenViajeBodyState extends State<_ResumenViajeBody> {
                 ? 44.0
                 : 20.0;
 
-            return Scaffold(
+            return WillPopScope(
+              onWillPop: () async {
+                FocusScope.of(context).unfocus();
+                await Future.delayed(const Duration(milliseconds: 150));
+                return true;
+              },
+              child: Scaffold(
               backgroundColor: AppColores.background,
               body: SafeArea(
                 bottom: false,
@@ -223,7 +229,7 @@ class _ResumenViajeBodyState extends State<_ResumenViajeBody> {
                   ),
                 ),
               ),
-            );
+            ));
           },
         );
       },
@@ -234,6 +240,9 @@ class _ResumenViajeBodyState extends State<_ResumenViajeBody> {
     BuildContext context,
     ResumenViajeController vm,
   ) async {
+    FocusScope.of(context).unfocus();
+    await Future.delayed(const Duration(milliseconds: 150));
+
     final isCliente = vm.tipoUsuario == TipoUsuarioResumen.cliente;
 
     if (isCliente) {

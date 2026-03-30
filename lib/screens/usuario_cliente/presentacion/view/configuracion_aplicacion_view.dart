@@ -14,7 +14,7 @@ class ConfiguracionAplicacionView extends StatefulWidget {
 
 class _ConfiguracionAplicacionViewState
     extends State<ConfiguracionAplicacionView> {
-  static const String _appVersion = '1.0.0+4';
+  static const String _appVersion = '1.0.1+14';
 
   String _apariencia = 'Sistema';
   bool _isLoggingOut = false;
