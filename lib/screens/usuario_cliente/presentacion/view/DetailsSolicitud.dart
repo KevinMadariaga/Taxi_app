@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:io' show Platform;
 import 'package:geocoding/geocoding.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
@@ -9,6 +10,7 @@ import 'package:taxi_app/screens/usuario_cliente/presentacion/view/buscar_destin
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/buscando_taxi_view.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/mapapreview_viewmodel.dart';
 import 'package:taxi_app/widgets/MapaGoogle.dart';
+import 'SeleccionaUbicacionEnMapaView.dart';
 
 import 'package:taxi_app/core/app_colores.dart';
 
@@ -242,9 +244,15 @@ class _MapPreviewState extends State<MapPreview> {
   Widget _buildMap(BuildContext context) {
     final size = MediaQuery.of(context).size;
     final isTablet = size.width >= 1000;
-    final mapHeight = isTablet
-        ? size.height * 0.50
-        : size.height * 0.50; // responsivo para diferentes pantallas
+    // Detectar si el dispositivo tiene una barra de navegación en la parte inferior
+    // y reducir ligeramente la altura del mapa para evitar que quede cortado.
+    final bottomPadding = MediaQuery.of(context).viewPadding.bottom;
+    double mapHeight = isTablet ? size.height * 0.50 : size.height * 0.45;
+    if (bottomPadding > 0 && Platform.isAndroid) {
+      // Limitar la reducción a un máximo razonable (8% de la altura de la pantalla)
+      final reduce = bottomPadding.clamp(0.0, size.height * 0.08);
+      mapHeight = (mapHeight - reduce).clamp(size.height * 0.25, size.height * 0.6);
+    }
 
     return Center(
       child: Container(
@@ -350,13 +358,66 @@ class _MapPreviewState extends State<MapPreview> {
   }
 
   Widget _buildDestinationCard(BuildContext context, MapapreviewViewModel vm) {
-    return _buildLocationInfoCard(
-      context,
-      header: '¿Adónde va?',
-      value: vm.destino.title ?? vm.destino.subtitle ?? 'Destino',
-      icon: Icons.place,
-      iconBorderColor: Colors.black12,
-      cardBorderRadius: ResponsiveHelper.wp(context, 3),
+    return GestureDetector(
+      onTap: () async {
+        final inicial = vm.destino.position;
+        final direccionInicial = vm.destino.title ?? vm.destino.subtitle;
+        final resultado = await Navigator.of(context).push<LatLng>(
+          _buildSmoothRoute(
+            SeleccionaUbicacionEnMapaView(
+              ubicacionInicial: inicial,
+              titulo: 'Ajusta tu destino en el mapa',
+              direccionInicial: direccionInicial,
+            ),
+          ),
+        );
+
+        if (resultado is LatLng) {
+          if (!mounted) return;
+          setState(() {});
+          String resolved = '${resultado.latitude.toStringAsFixed(6)}, ${resultado.longitude.toStringAsFixed(6)}';
+          try {
+            final placemarks = await placemarkFromCoordinates(
+              resultado.latitude,
+              resultado.longitude,
+            );
+            if (placemarks.isNotEmpty) {
+              final p = placemarks.first;
+              final direccion = [
+                p.street,
+                p.subLocality,
+                p.locality,
+                p.administrativeArea,
+              ].where((s) => s != null && s.isNotEmpty).join(', ');
+              if (direccion.isNotEmpty) resolved = direccion;
+            }
+          } catch (_) {}
+
+          // Recreate ViewModel with updated destino
+          if (_vmListener != null) _vm.removeListener(_vmListener!);
+          _controller?.dispose();
+          _vm.dispose();
+
+          final nuevoDestino = LocationModel(position: resultado, title: resolved, subtitle: resolved);
+          setState(() {
+            _vm = MapapreviewViewModel(origen: widget.origen, destino: nuevoDestino);
+            _vm.init();
+            _vmListener = () {
+              if (!mounted) return;
+              WidgetsBinding.instance.addPostFrameCallback((_) => _fitBoundsToMarkers());
+            };
+            _vm.addListener(_vmListener!);
+          });
+        }
+      },
+      child: _buildLocationInfoCard(
+        context,
+        header: '¿Adónde va?',
+        value: vm.destino.title ?? vm.destino.subtitle ?? 'Destino',
+        icon: Icons.place,
+        iconBorderColor: Colors.black12,
+        cardBorderRadius: ResponsiveHelper.wp(context, 3),
+      ),
     );
   }
 
