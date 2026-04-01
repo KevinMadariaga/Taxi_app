@@ -1,7 +1,5 @@
 import 'dart:async';
 import 'dart:math' as math;
-import 'dart:convert';
-import 'package:http/http.dart' as http;
 
 import 'package:flutter/foundation.dart';
 import 'package:geocoding/geocoding.dart';
@@ -15,6 +13,7 @@ import 'package:taxi_app/helper/session_helper.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/preview_solicitud.dart';
 import 'package:taxi_app/core/services/tracking_service.dart';
 import 'package:taxi_app/core/services/services.dart';
+import 'package:taxi_app/core/services/map_service_adapter.dart';
 
 class InicioConductorViewmodel extends ChangeNotifier {
   // Variables de estado y colecciones faltantes
@@ -23,6 +22,7 @@ class InicioConductorViewmodel extends ChangeNotifier {
   final Map<String, List<LatLng>> routePoints = {};
   final Set<Polyline> routePolylines = {};
   final Set<Marker> extraMarkers = {};
+  bool isLoadingPreviewRoute = false;
   bool isConnected = false;
   final Map<String, String> _clientePhotoById = {};
   final Set<String> _clientePhotoLoadedIds = {};
@@ -349,10 +349,10 @@ class InicioConductorViewmodel extends ChangeNotifier {
               _newSolicitudController.add(id);
             } catch (_) {}
             try {
-              NotificationService.instance.showNotification(
-                id.hashCode & 0x7fffffff,
-                'Solicitud entrante',
-                'Cliente necesita servicio',
+              NotificacionesServicio.instance.showNotification(
+                id: id.hashCode & 0x7fffffff,
+                title: 'Solicitud entrante',
+                body: 'Un cliente cerca de ti necesita servicio',
               );
             } catch (_) {}
           }
@@ -643,28 +643,19 @@ class InicioConductorViewmodel extends ChangeNotifier {
   }
 
   Future<void> fetchRouteOSRM(String id, LatLng origin, LatLng dest) async {
+    isLoadingPreviewRoute = true;
+    _safeNotify();
     try {
-      final url = Uri.parse(
-        'https://router.project-osrm.org/route/v1/driving/${origin.longitude},${origin.latitude};${dest.longitude},${dest.latitude}?overview=full&geometries=geojson',
-      );
-      final resp = await http.get(url).timeout(const Duration(seconds: 6));
-      if (resp.statusCode != 200) return;
-      final data = json.decode(resp.body) as Map<String, dynamic>?;
-      if (data == null) return;
-      final routesList = data['routes'] as List?;
-      if (routesList == null || routesList.isEmpty) return;
-      final geometry = routesList[0]['geometry'] as Map<String, dynamic>?;
-      if (geometry == null || geometry['coordinates'] == null) return;
-      final coords = geometry['coordinates'] as List;
-      final points = coords.map<LatLng>((c) {
-        final lon = (c[0] as num).toDouble();
-        final lat = (c[1] as num).toDouble();
-        return LatLng(lat, lon);
-      }).toList();
-
-      setRoute(id, points);
+      final mapService = const MapService();
+      final points = await mapService.getRoutePolyline(origin, dest);
+      if (points.isNotEmpty) {
+        setRoute(id, points);
+      }
     } catch (e) {
-      debugPrint('Error fetching route OSRM: $e');
+      debugPrint('Error fetching route: $e');
+    } finally {
+      isLoadingPreviewRoute = false;
+      _safeNotify();
     }
   }
 
@@ -749,6 +740,23 @@ class InicioConductorViewmodel extends ChangeNotifier {
         math.sin(lat1) * math.cos(lat2) * math.cos(dLon);
     final brng = math.atan2(y, x);
     return (brng * 180 / math.pi + 360) % 360;
+  }
+
+  CameraPosition? getCameraPerspectiveForPreview() {
+    if (selectedPreview == null || currentLocation == null) return null;
+    final s = selectedPreview!.solicitud;
+    final client = LatLng(
+      s.ubicacionInicial.latitude,
+      s.ubicacionInicial.longitude,
+    );
+    final driver = currentLocation!;
+    final bearing = calculateBearing(driver, client);
+    return CameraPosition(
+      target: driver,
+      bearing: bearing,
+      tilt: 10.0,
+      zoom: 16.0,
+    );
   }
 
   Future<void> _completarDatosSolicitud(SolicitudItem item) async {

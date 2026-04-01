@@ -25,7 +25,7 @@ class MapPreview extends StatefulWidget {
 }
 
 class _MapPreviewState extends State<MapPreview> {
-  static const double _boundsPadding = 120;
+
   GoogleMapController? _controller;
   late MapapreviewViewModel _vm;
   BitmapDescriptor? _destIcon;
@@ -82,7 +82,7 @@ class _MapPreviewState extends State<MapPreview> {
     _vmListener = () {
       if (!mounted) return;
       WidgetsBinding.instance.addPostFrameCallback(
-        (_) => _fitBoundsToMarkers(),
+        (_) => _applyPerspective(),
       );
     };
     _vm.addListener(_vmListener!);
@@ -167,23 +167,19 @@ class _MapPreviewState extends State<MapPreview> {
 
   void _onMapCreated(GoogleMapController controller) {
     _controller = controller;
-    WidgetsBinding.instance.addPostFrameCallback((_) => _fitBoundsToMarkers());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _applyPerspective());
   }
 
-  Future<void> _fitBoundsToMarkers() async {
+  Future<void> _applyPerspective() async {
     if (_controller == null) return;
     final bounds = _vm.cameraBounds;
     if (bounds == null) return;
     try {
-      await _controller!.animateCamera(
-        CameraUpdate.newLatLngBounds(bounds, _boundsPadding),
-      );
+      await _controller!.animateCamera(CameraUpdate.newLatLngBounds(bounds, 80));
     } catch (_) {
-      await Future.delayed(const Duration(milliseconds: 200));
+      await Future.delayed(const Duration(milliseconds: 300));
       try {
-        await _controller!.animateCamera(
-          CameraUpdate.newLatLngBounds(bounds, _boundsPadding),
-        );
+        await _controller!.animateCamera(CameraUpdate.newLatLngBounds(bounds, 80));
       } catch (_) {}
     }
   }
@@ -280,26 +276,62 @@ class _MapPreviewState extends State<MapPreview> {
               final destino = vm.destino.position;
               return ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                child: Mapagoogle(
-                  initialTarget: LatLng(
-                    (origen.latitude + destino.latitude) / 2,
-                    (origen.longitude + destino.longitude) / 2,
-                  ),
-                  initialZoom: 13,
-                  myLocationEnabled: true,
-                  onMapCreated: _onMapCreated,
-                  markers: {
-                    Marker(
-                      markerId: const MarkerId('destino'),
-                      position: destino,
-                      infoWindow: InfoWindow(
-                        title: vm.destino.title ?? 'Destino',
-                        snippet: vm.destino.subtitle,
+                child: Stack(
+                  children: [
+                    Mapagoogle(
+                      initialTarget: LatLng(
+                        (origen.latitude + destino.latitude) / 2,
+                        (origen.longitude + destino.longitude) / 2,
                       ),
-                      icon: _destIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+                      initialZoom: 13,
+                      myLocationEnabled: true,
+                      onMapCreated: _onMapCreated,
+                      markers: {
+                        // Marker(
+                        //   markerId: const MarkerId('origen'),
+                        //   position: origen,
+                        //   infoWindow: InfoWindow(
+                        //     title: 'Origen',
+                        //     snippet: vm.origen.subtitle,
+                        //   ),
+                        //   icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+                        // ),
+                        Marker(
+                          markerId: const MarkerId('destino'),
+                          position: destino,
+                          infoWindow: InfoWindow(
+                            title: vm.destino.title ?? 'Destino',
+                            snippet: vm.destino.subtitle,
+                          ),
+                          icon: _destIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+                        ),
+                      },
+                      polylines: vm.polylines,
                     ),
-                  },
-                  polylines: vm.polylines,
+                    if (vm.isLoadingRoute)
+                      Positioned.fill(
+                        child: Container(
+                          color: Colors.white.withOpacity(0.6),
+                          child: const Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                CircularProgressIndicator(color: AppColores.primary),
+                                SizedBox(height: 12),
+                                Text(
+                                  'Cargando ruta...',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 16,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               );
             },
@@ -405,7 +437,7 @@ class _MapPreviewState extends State<MapPreview> {
             _vm.init();
             _vmListener = () {
               if (!mounted) return;
-              WidgetsBinding.instance.addPostFrameCallback((_) => _fitBoundsToMarkers());
+              WidgetsBinding.instance.addPostFrameCallback((_) => _applyPerspective());
             };
             _vm.addListener(_vmListener!);
           });

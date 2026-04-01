@@ -1,7 +1,7 @@
 name: taxi_app
 description: "Aplicación móvil de servicio de taxi con geolocalización en tiempo real."
 publish_to: 'none'
-version: 1.0.1+14
+version: 1.0.1+16
 
 environment:
   sdk: ^3.10.7
@@ -43,6 +43,7 @@ dependencies:
   flutter_polyline_points: ^3.1.0
   flutter_background_service: ^5.1.0
   connectivity_plus: ^7.0.0
+  sign_in_with_apple: ^7.0.1
     
 
 dev_dependencies:

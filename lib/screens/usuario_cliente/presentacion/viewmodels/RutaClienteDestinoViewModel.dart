@@ -1,16 +1,17 @@
 import 'package:taxi_app/core/services/map_service_adapter.dart';
 import 'package:taxi_app/data/solicitud_repository.dart';
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:taxi_app/helper/session_helper.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/RutaClienteDestinoView.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/ResumenClienteView.dart';
 import 'package:taxi_app/widgets/intermediate_transition_view.dart';
+import 'package:taxi_app/core/services/services.dart';
 
 class Rutaclientedestinoviewmodel extends ChangeNotifier {
   bool _disposed = false;
@@ -18,8 +19,10 @@ class Rutaclientedestinoviewmodel extends ChangeNotifier {
   void _safeNotify() {
     if (!_disposed) notifyListeners();
   }
+
   // Servicio de mapas
   final MapService _mapService = const MapService();
+  bool isLoadingRoute = false;
 
   /// Obtiene la polyline entre conductor y destino usando la API de direcciones.
   /// Si la API falla, retorna una línea recta entre ambos.
@@ -30,9 +33,46 @@ class Rutaclientedestinoviewmodel extends ChangeNotifier {
         lngDestino == null) {
       return [];
     }
-    final origen = LatLng(latConductor!, lngConductor!);
-    final destino = LatLng(latDestino!, lngDestino!);
-    return await _mapService.getRoutePolyline(origen, destino);
+    isLoadingRoute = true;
+    _safeNotify();
+    try {
+      final origen = LatLng(latConductor!, lngConductor!);
+      final destino = LatLng(latDestino!, lngDestino!);
+      return await _mapService.getRoutePolyline(origen, destino);
+    } finally {
+      isLoadingRoute = false;
+      _safeNotify();
+    }
+  }
+
+  double calculateBearing(LatLng from, LatLng to) {
+    final lat1 = from.latitude * math.pi / 180;
+    final lat2 = to.latitude * math.pi / 180;
+    final dLon = (to.longitude - from.longitude) * math.pi / 180;
+    final y = math.sin(dLon) * math.cos(lat2);
+    final x =
+        math.cos(lat1) * math.sin(lat2) -
+        math.sin(lat1) * math.cos(lat2) * math.cos(dLon);
+    final brng = math.atan2(y, x);
+    return (brng * 180 / math.pi + 360) % 360;
+  }
+
+  CameraPosition? getCameraPerspective() {
+    if (latConductor == null ||
+        lngConductor == null ||
+        latDestino == null ||
+        lngDestino == null) {
+      return null;
+    }
+    final from = LatLng(latConductor!, lngConductor!);
+    final to = LatLng(latDestino!, lngDestino!);
+    final bearing = calculateBearing(from, to);
+    return CameraPosition(
+      target: from,
+      bearing: bearing,
+      tilt: 0.0,
+      zoom: 16.5,
+    );
   }
 
   /// Calcula la distancia total de la polyline (en metros).
@@ -115,9 +155,9 @@ class Rutaclientedestinoviewmodel extends ChangeNotifier {
   String nombreConductorEstado = 'Conductor';
   String estado = 'Disponible';
 
-  // Notificaciones
-  final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
-      FlutterLocalNotificationsPlugin();
+  // Notificaciones unified
+  final NotificacionesServicio _notificaciones =
+      NotificacionesServicio.instance;
 
   /// Detecta si es la primera vez que se ingresa a la clase con el idSolicitud
   Future<bool> esPrimeraVezClase(String solicitudId) async {
@@ -145,6 +185,8 @@ class Rutaclientedestinoviewmodel extends ChangeNotifier {
             );
             ultimoEstado = estado;
             _navegandoAResumen = true;
+
+            // Trigger completion notification
 
             if (!context.mounted) return;
             debugPrint(
@@ -324,41 +366,16 @@ class Rutaclientedestinoviewmodel extends ChangeNotifier {
   }
 
   void inicializarNotificaciones() {
-    const AndroidInitializationSettings initializationSettingsAndroid =
-        AndroidInitializationSettings('@mipmap/ic_launcher');
-    const DarwinInitializationSettings initializationSettingsIOS =
-        DarwinInitializationSettings();
-    const InitializationSettings initializationSettings =
-        InitializationSettings(
-          android: initializationSettingsAndroid,
-          iOS: initializationSettingsIOS,
-        );
-    flutterLocalNotificationsPlugin.initialize(initializationSettings);
+    _notificaciones.init();
   }
 
-   
-
   Future<void> mostrarNotificacion(String titulo, String cuerpo) async {
-    debugPrint('[Notificacion] Titulo: $titulo, Cuerpo: $cuerpo');
-    // Canal de chat y descripción comentados, solo notificación genérica
-    const AndroidNotificationDetails
-    androidPlatformChannelSpecifics = AndroidNotificationDetails(
-      'notificacion_channel', // 'chat_channel',
-      'Notificaciones', // 'Mensajes del chat',
-      // channelDescription: 'Notificaciones de mensajes nuevos del cliente',
-      importance: Importance.max,
-      priority: Priority.high,
-      showWhen: true,
-    );
-    const NotificationDetails platformChannelSpecifics = NotificationDetails(
-      android: androidPlatformChannelSpecifics,
-    );
-    await flutterLocalNotificationsPlugin.show(
-      0,
-      titulo,
-      cuerpo,
-      platformChannelSpecifics,
-    );
-    debugPrint('[Notificacion] show() ejecutado');
+    try {
+      await _notificaciones.showNotification(
+        id: DateTime.now().millisecondsSinceEpoch % 100000,
+        title: titulo,
+        body: cuerpo,
+      );
+    } catch (_) {}
   }
 }

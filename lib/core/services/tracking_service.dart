@@ -78,7 +78,7 @@ class TrackingService {
   /// Retorna `true` si el tracking se inició correctamente, `false` si ya estaba activo.
   Future<bool> iniciarEscuchaGPS({
     Function(Position)? onLocationUpdate,
-    double distanceFilter = 1.0,
+    double distanceFilter = 15.0,
     int timeInterval = 10,
     // When true, skip interactive permission requests (useful for background isolates).
     bool skipPermissionRequest = false,
@@ -237,7 +237,7 @@ class TrackingService {
     required String userId,
     required String userType,
     String? solicitudId,
-    double distanceFilter = 1.0,
+    double distanceFilter = 15.0,
     int timeInterval = 10,
     /// Optional callback invoked on every new Position received by the GPS stream.
     /// Use this to update UI markers without waiting for Firestore roundtrips.

@@ -302,14 +302,7 @@ class _InicioClienteViewState extends State<InicioClienteView>
                     await InicioClienteNavigation.irASeguridad(context);
                   },
                 ),
-                ListTile(
-                  leading: const Icon(Icons.settings),
-                  title: const Text('Configuracion'),
-                  onTap: () async {
-                    Navigator.of(context).pop();
-                    await InicioClienteNavigation.irAConfiguracion(context);
-                  },
-                ),
+               
                 ListTile(
                   leading: const Icon(Icons.help_outline),
                   title: const Text('Ayuda'),
@@ -890,14 +883,6 @@ class _InicioClienteViewState extends State<InicioClienteView>
                 onTap: () async {
                   Navigator.of(ctx).pop();
                   await InicioClienteNavigation.irASeguridad(context);
-                },
-              ),
-              ListTile(
-                leading: Icon(Icons.settings),
-                title: Text('Configuracion'),
-                onTap: () async {
-                  Navigator.of(ctx).pop();
-                  await InicioClienteNavigation.irAConfiguracion(context);
                 },
               ),
               ListTile(

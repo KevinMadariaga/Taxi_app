@@ -15,6 +15,7 @@ const { onDocumentUpdated } = require("firebase-functions/v2/firestore");
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
+const { onRequest } = require("firebase-functions/v2/https");
 
 initializeApp();
 
@@ -32,8 +33,8 @@ const ESTADO_MENSAJES = {
     body: "El conductor está esperando tu confirmación para iniciar el viaje.",
   },
   "en camino": {
-    title: "🟢 Conductor en camino",
-    body: "Tu conductor ya viene hacia ti. Espéralo en el punto de recogida.",
+    title: "Cliente en camino",
+    body: "Espera que llegue el cliente al vehiculo.",
   },
   "en ruta": {
     title: "🚕 Viaje iniciado",
@@ -78,10 +79,11 @@ function normalizeEstado(raw) {
 function extractClienteId(data) {
   // Estructura anidada: { cliente: { id: "...", uid: "..." } }
   if (data.cliente && typeof data.cliente === "object") {
-    return data.cliente.id || data.cliente.uid || data.cliente.clienteId || null;
+    const id = data.cliente.id || data.cliente.uid || data.cliente.clienteId;
+    if (id) return id;
   }
   // Campos planos
-  return data.clienteId || data.userId || data.cliente_id || null;
+  return data.clienteId || data.userId || data.cliente_id || data.id_cliente || null;
 }
 
 /**
@@ -100,6 +102,8 @@ exports.onSolicitudEstadoChange = onDocumentUpdated(
       console.log("Datos incompletos, saltando.");
       return null;
     }
+
+    console.log("DEBUG: Datos del documento actual:", JSON.stringify(afterData));
 
     // Obtener estados normalizados
     const estadoAnterior = normalizeEstado(
@@ -167,6 +171,7 @@ exports.onSolicitudEstadoChange = onDocumentUpdated(
     }
 
     // Enviar notificación push vía FCM
+    // Configuración específica para iOS (APNs)
     const fcmMessage = {
       token: fcmToken,
       notification: {
@@ -177,13 +182,10 @@ exports.onSolicitudEstadoChange = onDocumentUpdated(
         solicitudId: event.params.solicitudId,
         estado: estadoNuevo,
         type: "trip_status_change",
+        title: mensaje.title,
+        body: mensaje.body,
       },
-      // Configuración específica para iOS (APNs)
       apns: {
-        headers: {
-          "apns-priority": "10", // Prioridad alta
-          "apns-push-type": "alert",
-        },
         payload: {
           aps: {
             alert: {
@@ -192,12 +194,14 @@ exports.onSolicitudEstadoChange = onDocumentUpdated(
             },
             badge: 1,
             sound: "default",
-            "content-available": 1, // Permite que iOS despierte la app en background
-            "mutable-content": 1,
+            contentAvailable: true,
+            mutableContent: true,
           },
         },
+        headers: {
+          "apns-priority": "10",
+        },
       },
-      // Configuración para Android (respaldo)
       android: {
         priority: "high",
         notification: {
@@ -227,10 +231,49 @@ exports.onSolicitudEstadoChange = onDocumentUpdated(
             .collection("usuarios")
             .doc(clienteId)
             .update({ fcmToken: null });
-        } catch (_) {}
+        } catch (_) { }
       }
     }
 
     return null;
   }
 );
+
+/**
+ * Función de diagnóstico: Permite enviar una notificación de prueba a un token.
+ * URL: https://[region]-[project].cloudfunctions.net/debugPush?token=[FCM_TOKEN]
+ */
+exports.debugPush = onRequest({ region: "us-central1" }, async (req, res) => {
+  const token = req.query.token;
+  if (!token) {
+    res.status(400).send("Falta el parámetro 'token'");
+    return;
+  }
+
+  const message = {
+    token: token,
+    notification: {
+      title: "Prueba de Conexión",
+      body: "Si ves esto, la comunicación Firebase -> iOS es exitosa.",
+    },
+    data: {
+      type: "debug",
+    },
+    apns: {
+      payload: {
+        aps: {
+          sound: "default",
+          badge: 1,
+          contentAvailable: true,
+        },
+      },
+    },
+  };
+
+  try {
+    const response = await getMessaging().send(message);
+    res.status(200).send(`✅ Mensaje enviado: ${response}`);
+  } catch (err) {
+    res.status(500).send(`❌ Error: ${err.message}`);
+  }
+});

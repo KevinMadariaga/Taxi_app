@@ -679,11 +679,11 @@ class AuthService {
     _activeSolicitudNotificationShown = true;
 
     try {
-      await NotificationService.instance.init();
-      await NotificationService.instance.showNotification(
-        DateTime.now().millisecondsSinceEpoch % 100000,
-        'Solicitud activa',
-        'Solicitud activa, el conductor ya viene en camino.',
+      await NotificacionesServicio.instance.init();
+      await NotificacionesServicio.instance.showNotification(
+        id: DateTime.now().millisecondsSinceEpoch % 100000,
+        title: 'Solicitud activa',
+        body: 'Tienes una solicitud activa en curso.',
       );
     } catch (_) {}
   }

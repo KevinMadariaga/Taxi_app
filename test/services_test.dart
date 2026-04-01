@@ -25,10 +25,6 @@ void main() {
       final service = NotificacionesServicio.instance;
       expect(service, isNotNull);
     });
-    test('NotificationService puede instanciarse', () {
-      final service = NotificationService.instance;
-      expect(service, isNotNull);
-    });
     test('RouteCacheService puede instanciarse', () {
       final service = RouteCacheService();
       expect(service, isNotNull);

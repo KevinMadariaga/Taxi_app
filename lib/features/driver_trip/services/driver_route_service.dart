@@ -3,12 +3,15 @@ import 'dart:math' as math;
 
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
+import 'package:taxi_app/core/services/map_service_adapter.dart';
 
 class DriverRouteService {
   // Cost note:
-  // - OSRM public API is free and avoids paid route APIs.
-  // - If OSRM is unavailable, fallback to straight-line polyline and local math ETA.
+  // - Prefer Google Directions via MapService adapter for better street-level accuracy.
+  // - Fallback to OSRM if Directions fails.
   static const String _osrmBaseUrl = 'https://router.project-osrm.org';
+
+  final MapService _mapServiceAdapter = const MapService();
 
   DateTime? _lastRequestAt;
   String? _lastKey;
@@ -73,6 +76,16 @@ class DriverRouteService {
     if (canReuse) return _lastRoute!;
 
     try {
+      // Intentar primero con el MapServiceAdapter (Google Directions + Fallback)
+      final points = await _mapServiceAdapter.getRoutePolyline(from, to);
+      if (points.isNotEmpty) {
+        _lastKey = key;
+        _lastRoute = points;
+        _lastRequestAt = now;
+        return points;
+      }
+      
+      // Fallback manual a OSRM si el adapter no retorna puntos
       final uri = Uri.parse(
         '$_osrmBaseUrl/route/v1/driving/'
         '${from.longitude},${from.latitude};${to.longitude},${to.latitude}'
@@ -91,18 +104,18 @@ class DriverRouteService {
 
       if (coordinates == null || coordinates.isEmpty) return [from, to];
 
-      final points = coordinates
+      final pts = coordinates
           .whereType<List<dynamic>>()
           .where((item) => item.length >= 2)
           .map((item) => LatLng((item[1] as num).toDouble(), (item[0] as num).toDouble()))
           .toList(growable: false);
 
-      if (points.isEmpty) return [from, to];
+      if (pts.isEmpty) return [from, to];
 
       _lastKey = key;
-      _lastRoute = points;
+      _lastRoute = pts;
       _lastRequestAt = now;
-      return points;
+      return pts;
     } catch (_) {
       return [from, to];
     }

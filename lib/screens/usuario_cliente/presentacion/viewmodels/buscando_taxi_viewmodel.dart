@@ -55,12 +55,14 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
   }
 
   /// Muestra una notificación local indicando que hay una solicitud entrante/asignada.
+  /// NOTA: esto funciona en primer plano. Para background en iOS,
+  /// se requiere un mensaje FCM enviado desde el servidor.
   Future<void> mostrarNotificacionSolicitudEntrante() async {
     try {
-      await NotificationService.instance.showNotification(
-        1001, // ID único para la notificación
-        'Solicitud asignada',
-        '¡Un conductor ha sido asignado a tu viaje!'
+      await NotificacionesServicio.instance.showNotification(
+        id: 1001,
+        title: 'Solicitud asignada',
+        body: '¡Un conductor ha sido asignado a tu viaje!'
       );
     } catch (_) {}
   }

@@ -77,18 +77,22 @@ class NotificacionesServicio {
     _initialized = true;
   }
 
-  /// Notificación simple (genérica)
+  /// Notificación simple (genérica) con ID opcional
   Future<void> showNotification({
+    int? id,
     required String title,
     required String body,
+    String? channelId,
+    String? channelName,
   }) async {
     await _ensureInitialized();
 
-    const androidDetails = AndroidNotificationDetails(
-      _systemChannelId,
-      _systemChannelName,
+    final androidDetails = AndroidNotificationDetails(
+      channelId ?? _systemChannelId,
+      channelName ?? _systemChannelName,
       importance: Importance.high,
       priority: Priority.high,
+      icon: 'ic_notification',
     );
 
     const iosDetails = DarwinNotificationDetails(
@@ -97,13 +101,13 @@ class NotificacionesServicio {
       presentSound: true,
     );
 
-    const notificationDetails = NotificationDetails(
+    final notificationDetails = NotificationDetails(
       android: androidDetails,
       iOS: iosDetails,
     );
 
     await _plugin.show(
-      _systemNotificationId,
+      id ?? _systemNotificationId,
       title,
       body,
       notificationDetails,

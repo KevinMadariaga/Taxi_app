@@ -10,13 +10,13 @@ import '../widgets/waiting_driver_modal.dart';
 class SolicitudEstadoController {
   SolicitudEstadoController({
     TripTrackingFirebaseService? firebaseService,
-    NotificationService? notificationService,
+    NotificacionesServicio? notificationService,
   }) : _firebaseService = firebaseService ?? TripTrackingFirebaseService(),
        _notificationService =
-           notificationService ?? NotificationService.instance;
+           notificationService ?? NotificacionesServicio.instance;
 
   final TripTrackingFirebaseService _firebaseService;
-  final NotificationService _notificationService;
+  final NotificacionesServicio _notificationService;
 
   final ValueNotifier<int> _remainingSeconds = ValueNotifier<int>(180);
   // Notifier to indicate whether the waiting modal is currently visible.
@@ -192,9 +192,9 @@ class SolicitudEstadoController {
       }
 
       await _notificationService.showNotification(
-        DateTime.now().millisecondsSinceEpoch % 100000,
-        title,
-        body,
+        id: DateTime.now().millisecondsSinceEpoch % 100000,
+        title: title,
+        body: body,
       );
     } catch (_) {}
   }

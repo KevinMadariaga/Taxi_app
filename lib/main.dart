@@ -10,6 +10,7 @@ import 'package:taxi_app/core/constants/app_constants.dart';
 import 'package:taxi_app/core/theme/app_theme.dart';
 import 'package:taxi_app/core/utils/app_dependencies.dart';
 import 'package:taxi_app/domain/usecases/client_auth/sign_in_google_client_usecase.dart';
+import 'package:taxi_app/domain/usecases/client_auth/sign_in_apple_client_usecase.dart';
 import 'package:taxi_app/domain/usecases/client_auth/send_client_phone_otp_usecase.dart';
 import 'package:taxi_app/domain/usecases/client_auth/verify_client_phone_otp_usecase.dart';
 import 'package:taxi_app/domain/usecases/client_auth/get_client_user_usecase.dart';
@@ -96,6 +97,9 @@ class MyApp extends StatelessWidget {
             // Domain usecases provided centrally so consumers can obtain them
             Provider<SignInGoogleClientUseCase>(
               create: (ctx) => SignInGoogleClientUseCase(ctx.read<ClientAuthRepository>()),
+            ),
+            Provider<SignInAppleClientUseCase>(
+              create: (ctx) => SignInAppleClientUseCase(ctx.read<ClientAuthRepository>()),
             ),
             Provider<SendClientPhoneOtpUseCase>(
               create: (ctx) => SendClientPhoneOtpUseCase(ctx.read<ClientAuthRepository>()),

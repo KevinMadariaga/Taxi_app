@@ -235,6 +235,62 @@ class _HomeViewState extends State<HomeView> {
                           SizedBox(
                             width: double.infinity,
                             child: OutlinedButton.icon(
+                              onPressed: isBusy
+                                  ? null
+                                  : () async {
+                                      authVm.clearError();
+                                      final result = await authVm.loginWithApple();
+                                      if (result == null) {
+                                        setState(() {
+                                          _error = authVm.errorMessage ?? 'Apple Sign-in no disponible.';
+                                        });
+                                      } else {
+                                        _showLoginSuccessSnackbar();
+                                        if (result.destination == AuthFlowDestination.completeProfile) {
+                                          Navigator.of(context).pushAndRemoveUntil(
+                                            MaterialPageRoute(
+                                              builder: (_) => CompleteProfilePage(
+                                                uid: result.user.id,
+                                                initialNombre: result.user.nombre,
+                                                initialApellido: result.user.apellido,
+                                                initialTelefono: result.user.telefono,
+                                              ),
+                                            ),
+                                            (route) => false,
+                                          );
+                                          return;
+                                        }
+                                        Navigator.of(context).pushAndRemoveUntil(
+                                          MaterialPageRoute(
+                                            builder: (_) => HomeClienteView(authUid: result.user.id),
+                                          ),
+                                          (route) => false,
+                                        );
+                                      }
+                                    },
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColores.textPrimary,
+                                side: const BorderSide(
+                                  color: AppColores.buttonPrimary,
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              icon: const Icon(Icons.apple, size: 20),
+                              label: const Text(
+                                'Ingresar con Apple',
+                                style: TextStyle(fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
                               onPressed: () {
                                 Navigator.push(
                                   context,

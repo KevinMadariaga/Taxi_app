@@ -14,6 +14,24 @@ import 'package:taxi_app/core/services/notificacion_servicio.dart';
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   debugPrint('[FCM Background] Mensaje recibido: ${message.messageId}');
+
+  // En Android/iOS, si el mensaje trae un bloque 'notification', el OS lo muestra.
+  // Sin embargo, si es solo 'data' o queremos asegurar que sea visible:
+  final data = message.data;
+  final notification = message.notification;
+
+  if (data.containsKey('title') || data.containsKey('body') || notification != null) {
+    final String title = data['title'] ?? notification?.title ?? 'Taxi Ya';
+    final String body = data['body'] ?? notification?.body ?? 'Actualización de servicio';
+
+    // Importante: No llamar a init() aquí si no es necesario,
+    // showNotification ya lo hace con _ensureInitialized().
+    await NotificacionesServicio.instance.showNotification(
+      id: message.messageId.hashCode,
+      title: title,
+      body: body,
+    );
+  }
 }
 
 /// Servicio centralizado para Firebase Cloud Messaging.

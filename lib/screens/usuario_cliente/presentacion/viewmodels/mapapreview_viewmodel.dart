@@ -1,13 +1,11 @@
 import 'dart:ui';
 import 'dart:math' as math;
-import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:http/http.dart' as http;
 import 'package:taxi_app/core/constants/solicitud_estado.dart';
 import 'package:taxi_app/helper/map_helper.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/location_model.dart';
@@ -93,6 +91,9 @@ class MapapreviewViewModel extends ChangeNotifier {
 
   /// Indica si se está creando la solicitud.
   bool isSubmitting = false;
+
+  /// Indica si se está creando la ruta.
+  bool isLoadingRoute = false;
 
   /// Distancia aproximada de la ruta, en km (opcional, por si se quiere mostrar).
   double? routeDistanceKm;
@@ -199,7 +200,11 @@ class MapapreviewViewModel extends ChangeNotifier {
 
   Future<void> init() async {
     _calcularValorServicio();
+    isLoadingRoute = true;
+    notifyListeners();
     await _buildRouteFollowingRoads();
+    isLoadingRoute = false;
+    notifyListeners();
   }
 
   /// Actualiza el centro del mapa cuando la cámara se mueve (solo en selección).
@@ -290,6 +295,18 @@ class MapapreviewViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  double calculateBearing(LatLng from, LatLng to) {
+    final lat1 = from.latitude * math.pi / 180;
+    final lat2 = to.latitude * math.pi / 180;
+    final dLon = (to.longitude - from.longitude) * math.pi / 180;
+    final y = math.sin(dLon) * math.cos(lat2);
+    final x =
+        math.cos(lat1) * math.sin(lat2) -
+        math.sin(lat1) * math.cos(lat2) * math.cos(dLon);
+    final brng = math.atan2(y, x);
+    return (brng * 180 / math.pi + 360) % 360;
+  }
+
   /// Bounds de cámara que abarcan origen, destino y la ruta.
   LatLngBounds? get cameraBounds {
     final points = <LatLng>[];
@@ -302,59 +319,43 @@ class MapapreviewViewModel extends ChangeNotifier {
     return _mapService.computeBoundsFromPoints(points);
   }
 
+  /// Cámara con perspectiva 3D desde el origen hacia el destino.
+  CameraPosition? get cameraPerspective {
+    final ori = origen.position;
+    final dest = destino.position;
+    final bearing = calculateBearing(ori, dest);
+    return CameraPosition(
+      target: ori,
+      bearing: bearing,
+      tilt: 10.0,
+      zoom: 15.5,
+    );
+  }
+
   /// Intenta trazar la ruta real por calles; si falla, usa un fallback matematico.
   Future<void> _buildRouteFollowingRoads() async {
     final o = origen.position;
     final d = destino.position;
 
     try {
-      final uri = Uri.parse(
-        'https://router.project-osrm.org/route/v1/driving/'
-        '${o.longitude},${o.latitude};${d.longitude},${d.latitude}'
-        '?overview=full&geometries=geojson',
-      );
+      final points = await _mapService.getRoutePolyline(o, d);
+      
+      if (points.isNotEmpty) {
+        polylines = {
+          _mapService.createPolyline(
+            id: 'route',
+            points: points,
+            color: const Color(0xFFFAC001),
+            width: 5,
+            geodesic: true,
+          ),
+        };
 
-      final response = await http.get(uri).timeout(const Duration(seconds: 8));
+        // Estimación de distancia basada en los puntos de la polilínea física
+        routeDistanceKm = _mapService.calcularDistanciaPolyline(points) / 1000.0;
 
-      if (response.statusCode == 200) {
-        final body = jsonDecode(response.body) as Map<String, dynamic>;
-        final routes = body['routes'] as List<dynamic>?;
-        if (routes != null && routes.isNotEmpty) {
-          final route = routes.first as Map<String, dynamic>;
-          final geometry = route['geometry'] as Map<String, dynamic>?;
-          final rawCoords = geometry?['coordinates'] as List<dynamic>?;
-
-          if (rawCoords != null && rawCoords.length >= 2) {
-            final points = rawCoords
-                .map((entry) {
-                  final item = entry as List<dynamic>;
-                  final lng = (item[0] as num).toDouble();
-                  final lat = (item[1] as num).toDouble();
-                  return LatLng(lat, lng);
-                })
-                .toList(growable: false);
-
-            polylines = {
-              _mapService.createPolyline(
-                id: 'route',
-                points: points,
-                color: const Color(0xFFFAC001),
-                width: 5,
-                geodesic: true,
-              ),
-            };
-
-            final distanceFromApi = (route['distance'] as num?)?.toDouble();
-            if (distanceFromApi != null) {
-              routeDistanceKm = distanceFromApi / 1000.0;
-            } else {
-              routeDistanceKm = MapHelper.routeDistanceMeters(points) / 1000.0;
-            }
-
-            notifyListeners();
-            return;
-          }
-        }
+        notifyListeners();
+        return;
       }
     } catch (_) {}
 

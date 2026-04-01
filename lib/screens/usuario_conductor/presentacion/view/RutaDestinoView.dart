@@ -11,7 +11,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:taxi_app/helper/session_helper.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/resumen_conductor_view.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/RutaDestinoViewModel.dart';
-import 'package:taxi_app/core/services/map_service_adapter.dart';
 import 'package:taxi_app/core/services/background_tracking_service.dart';
 import 'package:taxi_app/features/trip_tracking_cliente/services/firebase_service.dart';
 import 'package:taxi_app/widgets/MapaGoogle.dart';
@@ -90,8 +89,6 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent> with WidgetsBi
 
   final Set<Circle> _circles = {};
 
-  List<LatLng> _polylinePoints = [];
-  bool _loadingPolyline = false;
   LatLng? _ubicacionInicialConductor;
   BitmapDescriptor? _destinoMarkerIcon;
   // Calcula los bounds de la polyline para ajustar la cámara
@@ -324,37 +321,25 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent> with WidgetsBi
           vm.latDestino != null &&
           vm.lngDestino != null) {
         if (!mounted) return;
-        setState(() {
-          _loadingPolyline = true;
-        });
         try {
-          final mapService = const MapService();
-          final points = await mapService.getRoutePolyline(
+          await vm.fetchRoute(
             _ubicacionConductor!,
             LatLng(vm.latDestino!, vm.lngDestino!),
           );
-          if (points.isNotEmpty) {
-            _polylinePoints = points;
+          if (vm.routePoints.isNotEmpty) {
             // Ajusta la cámara para mostrar la polyline completa
-            if (_mapController != null && _polylinePoints.isNotEmpty) {
-              final bounds = _calcularBoundsPolyline(_polylinePoints);
+            if (_mapController != null) {
+              final bounds = _calcularBoundsPolyline(vm.routePoints);
               if (bounds != null) {
                 await _mapController!.animateCamera(
                   CameraUpdate.newLatLngBounds(bounds, 80),
                 );
               }
             }
-          } else {
-            _polylinePoints = [];
           }
         } catch (e) {
-          _polylinePoints = [];
           debugPrint('Error obteniendo polyline: $e');
         }
-        if (!mounted) return;
-        setState(() {
-          _loadingPolyline = false;
-        });
       }
     } catch (e) {
       if (mounted) {
@@ -408,20 +393,18 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent> with WidgetsBi
             debugPrint('Error guardando ubicación obtenida (servicio): $e');
           }
 
-          // Ajusta la cámara para mostrar la polyline completa al mover el conductor
-          if (_mapController != null && _polylinePoints.isNotEmpty) {
-            final bounds = _calcularBoundsPolyline(_polylinePoints);
-            if (bounds != null && mounted) {
-              _mapController!.animateCamera(
-                CameraUpdate.newLatLngBounds(bounds, 80),
-              );
-            }
+          // Ajusta la cámara para mostrar perspectiva 3D
+          final vm = Provider.of<RutaDestinoViewModel>(context, listen: false);
+          vm.currentDriverLocation = nuevaUbicacion;
+          final persp = vm.getCameraPerspective();
+          if (persp != null && _mapController != null && mounted) {
+            _mapController!.animateCamera(CameraUpdate.newCameraPosition(persp));
           }
 
           // Si el conductor se desvía más de 50 metros de la polyline, solicita nueva ruta
-          if (_polylinePoints.isNotEmpty && _ubicacionConductor != null) {
+          if (vm.routePoints.isNotEmpty && _ubicacionConductor != null) {
             double minDist = double.infinity;
-            for (final p in _polylinePoints) {
+            for (final p in vm.routePoints) {
               final dist = Geolocator.distanceBetween(
                 _ubicacionConductor!.latitude,
                 _ubicacionConductor!.longitude,
@@ -470,10 +453,6 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent> with WidgetsBi
 
       final vm = Provider.of<RutaDestinoViewModel>(context, listen: false);
       await vm.finalizarSolicitud(widget.idSolicitud);
-      await RutaDestinoViewModel.mostrarNotificacion(
-        'Viaje terminado',
-        'El viaje ha finalizado correctamente.',
-      );
 
       if (!mounted) return;
       await navigateWithIntermediateLoader(
@@ -503,38 +482,11 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent> with WidgetsBi
     if (_ubicacionConductor != null &&
         vm.latDestino != null &&
         vm.lngDestino != null) {
-      if (!mounted) return;
-      setState(() {
-        _loadingPolyline = true;
-      });
-      try {
-        final mapService = const MapService();
-        final points = await mapService.getRoutePolyline(
-          _ubicacionConductor!,
-          LatLng(vm.latDestino!, vm.lngDestino!),
-        );
-        if (points.isNotEmpty) {
-          _polylinePoints = points;
-          // Ajusta la cámara para mostrar la polyline completa
-          if (_mapController != null && _polylinePoints.isNotEmpty) {
-            final bounds = _calcularBoundsPolyline(_polylinePoints);
-            if (bounds != null) {
-              await _mapController!.animateCamera(
-                CameraUpdate.newLatLngBounds(bounds, 80),
-              );
-            }
-          }
-        } else {
-          _polylinePoints = [];
-        }
-      } catch (e) {
-        _polylinePoints = [];
-        debugPrint('Error obteniendo polyline: $e');
-      }
-      if (!mounted) return;
-      setState(() {
-        _loadingPolyline = false;
-      });
+      await vm.fetchRoute(
+        _ubicacionConductor!,
+        LatLng(vm.latDestino!, vm.lngDestino!),
+      );
+      _fitMarkers();
     }
   }
 
@@ -579,11 +531,11 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent> with WidgetsBi
       return null;
     }
 
-    if (_polylinePoints.isNotEmpty) {
+    if (vm.routePoints.isNotEmpty) {
       double total = 0.0;
-      for (int i = 0; i < _polylinePoints.length - 1; i++) {
-        final a = _polylinePoints[i];
-        final b = _polylinePoints[i + 1];
+      for (int i = 0; i < vm.routePoints.length - 1; i++) {
+        final a = vm.routePoints[i];
+        final b = vm.routePoints[i + 1];
         total += Geolocator.distanceBetween(a.latitude, a.longitude, b.latitude, b.longitude);
       }
       // If polyline somehow gave zero, fallback to straight-line
@@ -638,17 +590,6 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent> with WidgetsBi
     }
     final target = _ubicacionConductor ?? destinoLatLng ?? _initialTarget;
     final markers = <Marker>{
-      // // Marcador del conductor
-      // if (_ubicacionConductor != null)
-      //   Marker(
-      //     markerId: const MarkerId('conductor'),
-      //     position: _ubicacionConductor!,
-      //     rotation: _bearing,
-      //     anchor: const Offset(0.5, 0.5),
-      //     flat: true,
-      //     infoWindow: const InfoWindow(title: 'Tú'),
-      //     icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
-      //   ),
       // Marcador del destino
       if (destinoLatLng != null)
         Marker(
@@ -666,10 +607,10 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent> with WidgetsBi
         ),
     };
     final polylines = <Polyline>{
-      if (_polylinePoints.isNotEmpty)
+      if (vm.routePoints.isNotEmpty)
         Polyline(
           polylineId: const PolylineId('google_route'),
-          points: _polylinePoints,
+          points: vm.routePoints,
           color: AppColores.primary,
           width: 5,
         )
@@ -681,12 +622,7 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent> with WidgetsBi
           width: 5,
         ),
     };
-    if (_polylinePoints.isEmpty) {
-      debugPrint("⚠️ POLYLINE VACÍA → usando línea recta");
-    } else {
-      debugPrint("✅ POLYLINE DE GOOGLE DIRECTIONS");
-    }
-    debugPrint("📍 Puntos polyline cargados: ${_polylinePoints.length}");
+
     return Stack(
       children: [
         Mapagoogle(
@@ -696,11 +632,10 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent> with WidgetsBi
           polylines: polylines,
           circles: _circles,
           myLocationEnabled: true,
-
-          //myLocationButtonEnabled: true,
+          // Shift visual center down
+          padding: const EdgeInsets.only(top: 180, bottom: 20),
           onMapCreated: (controller) {
             _mapController = controller;
-            // No llamar _fitMarkers aquí, se llama tras obtener ubicación
           },
         ),
         Positioned(
@@ -720,11 +655,27 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent> with WidgetsBi
             ),
           ),
         ),
-        if (_loadingUbicacion || _loadingPolyline)
+        if (_loadingUbicacion || vm.isLoadingRoute)
           Positioned.fill(
             child: Container(
-              color: Colors.black.withOpacity(0.2),
-              child: const Center(child: CircularProgressIndicator()),
+              color: Colors.white.withOpacity(0.6),
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const CircularProgressIndicator(color: AppColores.primary),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Cargando ruta...',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
       ],

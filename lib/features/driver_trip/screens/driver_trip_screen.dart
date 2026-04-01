@@ -162,7 +162,7 @@ class _DriverTripScreenState extends State<DriverTripScreen>
             if (status == 'cancelado') {
               try {
                 await NotificacionesServicio.instance.showTripNotification(
-                  title: '❌ Servicio cancelado',
+                  title: 'Servicio cancelado',
                   body: 'El cliente ha cancelado el servicio.',
                 );
               } catch (_) {}
@@ -219,7 +219,6 @@ class _DriverTripScreenState extends State<DriverTripScreen>
                     BitmapDescriptor.defaultMarkerWithHue(
                       BitmapDescriptor.hueRed,
                     ),
-                rotation: controller.driverHeading,
                 anchor: const Offset(0.5, 0.5),
               ),
           };
@@ -279,6 +278,9 @@ class _DriverTripScreenState extends State<DriverTripScreen>
                                 compassEnabled: true,
                                 markers: markers,
                                 polylines: polylines,
+                                // Add higher top padding to shift the map's visual center 
+                                // significantly downwards, avoiding the large expanded info card.
+                                padding: const EdgeInsets.only(top: 350, bottom: 20),
                                 onMapCreated: (map) {
                                   _mapController = map;
                                   _fitInitialCameraIfNeeded(controller);
@@ -339,13 +341,25 @@ class _DriverTripScreenState extends State<DriverTripScreen>
                           ],
                         ),
 
-                        if (controller.isLoading)
-                          const Positioned.fill(
-                            child: ColoredBox(
-                              color: AppColores.overlayLight,
+                        if (controller.isLoading || controller.isRouteLoading)
+                          Positioned.fill(
+                            child: Container(
+                              color: Colors.white.withOpacity(0.6),
                               child: Center(
-                                child: CircularProgressIndicator(
-                                  color: AppColores.primary,
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const CircularProgressIndicator(color: AppColores.primary),
+                                    const SizedBox(height: 12),
+                                    const Text(
+                                      'Cargando ruta...',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 16,
+                                        color: Colors.black87,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
@@ -481,9 +495,14 @@ class _DriverTripScreenState extends State<DriverTripScreen>
     if (map == null) return;
 
     if (controller.focusMode == DriverMapFocusMode.clientOnly) {
-      final target = controller.clientLatLng;
-      if (target != null) {
-        await map.animateCamera(CameraUpdate.newLatLngZoom(target, 16));
+      final persp = controller.getCameraPerspective();
+      if (persp != null) {
+        await map.animateCamera(CameraUpdate.newCameraPosition(persp));
+      } else {
+        final target = controller.clientLatLng;
+        if (target != null) {
+          await map.animateCamera(CameraUpdate.newLatLngZoom(target, 16));
+        }
       }
       await controller.toggleMapFocusMode();
       return;
@@ -588,17 +607,24 @@ class _DriverTripScreenState extends State<DriverTripScreen>
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
-      final bounds = LatLngBounds(
-        southwest: LatLng(
-          a.latitude < b.latitude ? a.latitude : b.latitude,
-          a.longitude < b.longitude ? a.longitude : b.longitude,
-        ),
-        northeast: LatLng(
-          a.latitude > b.latitude ? a.latitude : b.latitude,
-          a.longitude > b.longitude ? a.longitude : b.longitude,
-        ),
-      );
-      await map.animateCamera(CameraUpdate.newLatLngBounds(bounds, 90));
+
+      final persp = controller.getCameraPerspective();
+      if (persp != null) {
+        await map.animateCamera(CameraUpdate.newCameraPosition(persp));
+      } else {
+        final bounds = LatLngBounds(
+          southwest: LatLng(
+            a.latitude < b.latitude ? a.latitude : b.latitude,
+            a.longitude < b.longitude ? a.longitude : b.longitude,
+          ),
+          northeast: LatLng(
+            a.latitude > b.latitude ? a.latitude : b.latitude,
+            a.longitude > b.longitude ? a.longitude : b.longitude,
+          ),
+        );
+        // Using a smaller padding here because Map padding already shifts the center
+        await map.animateCamera(CameraUpdate.newLatLngBounds(bounds, 60));
+      }
     });
   }
 

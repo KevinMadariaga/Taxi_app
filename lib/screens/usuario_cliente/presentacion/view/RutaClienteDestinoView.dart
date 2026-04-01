@@ -1,4 +1,3 @@
-
 import 'dart:async';
 import 'dart:math' as Math;
 
@@ -6,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:taxi_app/core/services/route_cache_service.dart';
 import 'package:taxi_app/helper/session_helper.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/RutaClienteDestinoViewModel.dart';
 import 'package:taxi_app/widgets/MapaGoogle.dart';
@@ -20,7 +18,7 @@ import 'package:taxi_app/features/trip_tracking_cliente/widgets/user_trip_info_c
 class RutaClienteDestino extends StatelessWidget {
   final String idSolicitud;
   const RutaClienteDestino({Key? key, required this.idSolicitud})
-      : super(key: key);
+    : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -45,26 +43,28 @@ class RutaClienteDestino extends StatelessWidget {
 class _RutaClienteDestinoContent extends StatefulWidget {
   final String idSolicitud;
   const _RutaClienteDestinoContent({Key? key, required this.idSolicitud})
-      : super(key: key);
+    : super(key: key);
 
   @override
   State<_RutaClienteDestinoContent> createState() =>
       _RutaClienteDestinoContentState();
 }
 
-class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent> with WidgetsBindingObserver {
+class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
+    with WidgetsBindingObserver {
   // =====================
   // UI & System Styles
   // =====================
-  static const SystemUiOverlayStyle _rutaClienteDestinoOverlayStyle = SystemUiOverlayStyle(
-    statusBarColor: Colors.transparent,
-    statusBarIconBrightness: Brightness.dark,
-    statusBarBrightness: Brightness.light,
-    systemNavigationBarColor: Colors.white,
-    systemNavigationBarIconBrightness: Brightness.dark,
-    systemNavigationBarDividerColor: Colors.white,
-    systemNavigationBarContrastEnforced: false,
-  );
+  static const SystemUiOverlayStyle _rutaClienteDestinoOverlayStyle =
+      SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+        statusBarBrightness: Brightness.light,
+        systemNavigationBarColor: Colors.white,
+        systemNavigationBarIconBrightness: Brightness.dark,
+        systemNavigationBarDividerColor: Colors.white,
+        systemNavigationBarContrastEnforced: false,
+      );
 
   // =====================
   // State & Controllers
@@ -110,22 +110,15 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent> 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       await SessionHelper.setActiveSolicitud(widget.idSolicitud);
-      try { await SessionHelper.setActiveSolicitudScreen('ruta_cliente_destino'); } catch (_) {}
-            try {
-              await SessionHelper.clearActiveSolicitud();
-              try { await SessionHelper.clearActiveSolicitudScreen(); } catch (_) {}
-              await RouteCacheService.clearSolicitud(widget.idSolicitud);
-            } catch (_) {}
+      try {
+        await SessionHelper.setActiveSolicitudScreen('ruta_cliente_destino');
+      } catch (_) {}
       // Persist that the user is on the RutaClienteDestino screen so reload
       // keeps this exact view when the solicitud está 'asignado'.
       try {
         await SessionHelper.setActiveSolicitudScreen('ruta_cliente_destino');
       } catch (_) {}
       _viewModel!.inicializarNotificaciones();
-      await _viewModel!.mostrarNotificacion(
-        '🚕 Ruta iniciada',
-        'Se comenzó la ruta hacia el destino. ¡Prepárate para llegar!',
-      );
       if (!mounted) return;
       await _viewModel!.cargarDatosConductorYUbicacionDestino(
         widget.idSolicitud,
@@ -144,56 +137,62 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent> 
       // Suscribirse a cambios en la solicitud para actualizar ubicación del conductor en tiempo real
       try {
         final svc = TripTrackingFirebaseService();
-        _conductorLocationFirestoreSub = svc.watchSolicitudRaw(widget.idSolicitud).listen((data) {
-          if (!mounted) return;
-          try {
-            final conductor = data['conductor'];
-            if (conductor is Map) {
-              final ubic = conductor['ubicacion'];
-              if (ubic is Map) {
-                final lat = (ubic['lat'] as num).toDouble();
-                final lng = (ubic['lng'] as num).toDouble();
-                final newPos = LatLng(lat, lng);
-                setState(() {
-                  _conductorLatLng = newPos;
-                  _lastConductorLatLng = newPos;
-                });
-              }
-            }
+        _conductorLocationFirestoreSub = svc
+            .watchSolicitudRaw(widget.idSolicitud)
+            .listen((data) {
+              if (!mounted) return;
+              try {
+                final conductor = data['conductor'];
+                if (conductor is Map) {
+                  final ubic = conductor['ubicacion'];
+                  if (ubic is Map) {
+                    final lat = (ubic['lat'] as num).toDouble();
+                    final lng = (ubic['lng'] as num).toDouble();
+                    final newPos = LatLng(lat, lng);
+                    setState(() {
+                      _conductorLatLng = newPos;
+                      _lastConductorLatLng = newPos;
+                    });
+                  }
+                }
 
-            // Si hay historial de tracking, actualizar polyline
-            final tracking = data['tracking'];
-            if (tracking is Map) {
-              final driverHistory = tracking['driverHistory'];
-              if (driverHistory is List && driverHistory.isNotEmpty) {
-                final points = <LatLng>[];
-                for (final item in driverHistory) {
-                  try {
-                    final lat = (item['lat'] as num).toDouble();
-                    final lng = (item['lng'] as num).toDouble();
-                    points.add(LatLng(lat, lng));
-                  } catch (_) {}
+                // Si hay historial de tracking, actualizar polyline
+                final tracking = data['tracking'];
+                if (tracking is Map) {
+                  final driverHistory = tracking['driverHistory'];
+                  if (driverHistory is List && driverHistory.isNotEmpty) {
+                    final points = <LatLng>[];
+                    for (final item in driverHistory) {
+                      try {
+                        final lat = (item['lat'] as num).toDouble();
+                        final lng = (item['lng'] as num).toDouble();
+                        points.add(LatLng(lat, lng));
+                      } catch (_) {}
+                    }
+                    if (points.isNotEmpty) {
+                      setState(() {
+                        _polylines = {
+                          Polyline(
+                            polylineId: const PolylineId('driver_history'),
+                            color: AppColores.buttonPrimary,
+                            width: 5,
+                            points: points,
+                          ),
+                        };
+                      });
+                    }
+                  }
                 }
-                if (points.isNotEmpty) {
-                  setState(() {
-                    _polylines = {
-                      Polyline(
-                        polylineId: const PolylineId('driver_history'),
-                        color: AppColores.buttonPrimary,
-                        width: 5,
-                        points: points,
-                      ),
-                    };
-                  });
-                }
+              } catch (e) {
+                debugPrint(
+                  '[RutaClienteDestino] Error procesando snapshot solicitud: $e',
+                );
               }
-            }
-          } catch (e) {
-            debugPrint('[RutaClienteDestino] Error procesando snapshot solicitud: $e');
-          }
-        });
+            });
       } catch (e) {
-        debugPrint('[RutaClienteDestino] No se pudo subscribir a solicitud: $e');
+        debugPrint(
+          '[RutaClienteDestino] No se pudo subscribir a solicitud: $e',
+        );
       }
     });
   }
@@ -214,7 +213,7 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent> 
     });
   }
 
-   Future<void> _actualizarRuta() async {
+  Future<void> _actualizarRuta() async {
     if (!mounted || _isUpdatingRoute) return;
     _isUpdatingRoute = true;
 
@@ -380,6 +379,17 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent> 
     final controller = _mapController;
     if (controller == null || conductor == null || destino == null) return;
 
+    final vm = Provider.of<Rutaclientedestinoviewmodel>(context, listen: false);
+    final persp = vm.getCameraPerspective();
+
+    if (persp != null) {
+      try {
+        await controller.animateCamera(CameraUpdate.newCameraPosition(persp));
+        return;
+      } catch (_) {}
+    }
+
+    // Fallback to old logic if perspective fails or is null
     final distanceMeters = _calculateDistance(
       conductor.latitude,
       conductor.longitude,
@@ -416,10 +426,12 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent> 
       );
     } catch (_) {}
   }
-// Detecta si el dispositivo tiene barra de navegación inferior (Android/iOS)
-bool hasNavigationBar(BuildContext context) {
-  return MediaQuery.of(context).padding.bottom > 0;
-}
+
+  // Detecta si el dispositivo tiene barra de navegación inferior (Android/iOS)
+  bool hasNavigationBar(BuildContext context) {
+    return MediaQuery.of(context).padding.bottom > 0;
+  }
+
   // Calcula la distancia entre dos coordenadas en metros (Haversine)
   double _calculateDistance(
     double lat1,
@@ -505,7 +517,8 @@ bool hasNavigationBar(BuildContext context) {
   }
 
   void _shareLocation(Rutaclientedestinoviewmodel vm) async {
-    final conductorLatLng = _conductorLatLng ??
+    final conductorLatLng =
+        _conductorLatLng ??
         ((vm.latConductor != null && vm.lngConductor != null)
             ? LatLng(vm.latConductor!, vm.lngConductor!)
             : null);
@@ -529,7 +542,7 @@ bool hasNavigationBar(BuildContext context) {
                 mainAxisSize: MainAxisSize.min,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                   Container(
+                  Container(
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
@@ -540,19 +553,21 @@ bool hasNavigationBar(BuildContext context) {
                   const SizedBox(height: 24),
                   const Text(
                     'Compartir ubicación',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 32),
                   ElevatedButton.icon(
                     icon: const Icon(Icons.map, color: Colors.white),
-                    label: const Text('Google Maps', style: TextStyle(color: Colors.white)),
+                    label: const Text(
+                      'Google Maps',
+                      style: TextStyle(color: Colors.white),
+                    ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColores.primary,
                       minimumSize: const Size(double.infinity, 50),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
                     onPressed: () async {
                       await launchUrl(Uri.parse(url));
@@ -561,11 +576,16 @@ bool hasNavigationBar(BuildContext context) {
                   const SizedBox(height: 16),
                   ElevatedButton.icon(
                     icon: const Icon(Icons.chat, color: Colors.white),
-                    label: const Text('WhatsApp', style: TextStyle(color: Colors.white)),
+                    label: const Text(
+                      'WhatsApp',
+                      style: TextStyle(color: Colors.white),
+                    ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green,
                       minimumSize: const Size(double.infinity, 50),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
                     onPressed: () async {
                       final whatsappUrl =
@@ -591,9 +611,7 @@ bool hasNavigationBar(BuildContext context) {
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Ubicación no disponible aún'),
-        ),
+        const SnackBar(content: Text('Ubicación no disponible aún')),
       );
     }
   }
@@ -609,7 +627,10 @@ bool hasNavigationBar(BuildContext context) {
       builder: (ctx) {
         return SafeArea(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 24.0,
+              vertical: 16.0,
+            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -631,14 +652,24 @@ bool hasNavigationBar(BuildContext context) {
                           ? NetworkImage(vm.fotoConductor)
                           : null,
                       child: vm.fotoConductor.isEmpty
-                          ? const Icon(Icons.person, size: 24, color: Colors.white)
+                          ? const Icon(
+                              Icons.person,
+                              size: 24,
+                              color: Colors.white,
+                            )
                           : null,
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        vm.nombreConductor.isNotEmpty ? vm.nombreConductor : 'Conductor',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColores.textPrimary),
+                        vm.nombreConductor.isNotEmpty
+                            ? vm.nombreConductor
+                            : 'Conductor',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: AppColores.textPrimary,
+                        ),
                       ),
                     ),
                   ],
@@ -647,23 +678,47 @@ bool hasNavigationBar(BuildContext context) {
                 const Divider(height: 1, color: Colors.black12),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: const Text('¿Cuál es el estado de mi solicitud?', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
-                  trailing: const Icon(Icons.chevron_right, color: Colors.black54),
-                  onTap: () { Navigator.pop(ctx); },
+                  title: const Text(
+                    '¿Cuál es el estado de mi solicitud?',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                  ),
+                  trailing: const Icon(
+                    Icons.chevron_right,
+                    color: Colors.black54,
+                  ),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                  },
                 ),
                 const Divider(height: 1, color: Colors.black12),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: const Text('Cambiar mi dirección destino', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
-                  trailing: const Icon(Icons.chevron_right, color: Colors.black54),
-                  onTap: () { Navigator.pop(ctx); },
+                  title: const Text(
+                    'Cambiar mi dirección destino',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                  ),
+                  trailing: const Icon(
+                    Icons.chevron_right,
+                    color: Colors.black54,
+                  ),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                  },
                 ),
                 const Divider(height: 1, color: Colors.black12),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: const Text('Problemas con el conductor', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
-                  trailing: const Icon(Icons.chevron_right, color: Colors.black54),
-                  onTap: () { Navigator.pop(ctx); },
+                  title: const Text(
+                    'Problemas con el conductor',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                  ),
+                  trailing: const Icon(
+                    Icons.chevron_right,
+                    color: Colors.black54,
+                  ),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                  },
                 ),
               ],
             ),
@@ -684,7 +739,10 @@ bool hasNavigationBar(BuildContext context) {
       builder: (ctx) {
         return SafeArea(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 24.0,
+              vertical: 24.0,
+            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -709,14 +767,22 @@ bool hasNavigationBar(BuildContext context) {
                 CircleAvatar(
                   radius: 46,
                   backgroundColor: AppColores.primary.withValues(alpha: 0.1),
-                  backgroundImage: vm.fotoConductor.isNotEmpty ? NetworkImage(vm.fotoConductor) : null,
+                  backgroundImage: vm.fotoConductor.isNotEmpty
+                      ? NetworkImage(vm.fotoConductor)
+                      : null,
                   child: vm.fotoConductor.isEmpty
-                      ? const Icon(Icons.person, size: 40, color: AppColores.primary)
+                      ? const Icon(
+                          Icons.person,
+                          size: 40,
+                          color: AppColores.primary,
+                        )
                       : null,
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  vm.nombreConductor.isNotEmpty ? vm.nombreConductor : 'Conductor',
+                  vm.nombreConductor.isNotEmpty
+                      ? vm.nombreConductor
+                      : 'Conductor',
                   style: const TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.w600,
@@ -746,7 +812,10 @@ bool hasNavigationBar(BuildContext context) {
                                 width: 80,
                                 height: 60,
                                 color: Colors.grey.shade200,
-                                child: const Icon(Icons.local_taxi, color: Colors.grey),
+                                child: const Icon(
+                                  Icons.local_taxi,
+                                  color: Colors.grey,
+                                ),
                               ),
                       ),
                       const SizedBox(width: 16),
@@ -764,7 +833,9 @@ bool hasNavigationBar(BuildContext context) {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              vm.placaVehiculo.isNotEmpty ? vm.placaVehiculo : '---',
+                              vm.placaVehiculo.isNotEmpty
+                                  ? vm.placaVehiculo
+                                  : '---',
                               style: const TextStyle(
                                 fontSize: 20,
                                 fontWeight: FontWeight.bold,
@@ -786,11 +857,15 @@ bool hasNavigationBar(BuildContext context) {
   }
 
   // Main content extracted for clarity
-  Widget _buildMainContent(BuildContext context, Rutaclientedestinoviewmodel vm) {
+  Widget _buildMainContent(
+    BuildContext context,
+    Rutaclientedestinoviewmodel vm,
+  ) {
     LatLng? destinoLatLng = (vm.latDestino != null && vm.lngDestino != null)
         ? LatLng(vm.latDestino!, vm.lngDestino!)
         : null;
-    LatLng? conductorLatLng = _conductorLatLng ??
+    LatLng? conductorLatLng =
+        _conductorLatLng ??
         ((vm.latConductor != null && vm.lngConductor != null)
             ? LatLng(vm.latConductor!, vm.lngConductor!)
             : null);
@@ -803,14 +878,18 @@ bool hasNavigationBar(BuildContext context) {
           anchor: const Offset(0.5, 0.5),
           flat: true,
           infoWindow: const InfoWindow(title: 'Conductor'),
-          icon: _conductorMarkerIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+          icon:
+              _conductorMarkerIcon ??
+              BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
         ),
       if (destinoLatLng != null)
         Marker(
           markerId: const MarkerId('destino'),
           position: destinoLatLng,
           infoWindow: const InfoWindow(title: 'Destino'),
-          icon: _destinoMarkerIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+          icon:
+              _destinoMarkerIcon ??
+              BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
         ),
     };
 
@@ -829,7 +908,7 @@ bool hasNavigationBar(BuildContext context) {
             polylines: _polylines,
           ),
         ),
-        
+
         // Controles Inferiores (Botón de Enfoque)
         Positioned(
           right: 16,
@@ -857,7 +936,7 @@ bool hasNavigationBar(BuildContext context) {
             },
           ),
         ),
-        
+
         // Tarjeta Superior Flotante
         Positioned(
           top: 0,
@@ -882,6 +961,31 @@ bool hasNavigationBar(BuildContext context) {
             onDetails: () => _onDetails(vm),
           ),
         ),
+
+        // Loader Overlay
+        if (vm.isLoadingRoute)
+          Positioned.fill(
+            child: Container(
+              color: Colors.white.withOpacity(0.6),
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const CircularProgressIndicator(color: AppColores.primary),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Cargando ruta...',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
       ],
     );
   }
@@ -924,6 +1028,8 @@ class _MapWidget extends StatelessWidget {
           polylines: polylines,
           myLocationEnabled: false,
           myLocationButtonEnabled: false,
+          // Shift visual center down below the top info card
+          padding: const EdgeInsets.only(top: 180, bottom: 20),
           onMapCreated: (controller) {
             mapControllerSetter(controller);
           },

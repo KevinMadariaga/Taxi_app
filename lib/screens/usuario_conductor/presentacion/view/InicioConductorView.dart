@@ -181,61 +181,17 @@ class _InicioConductorState extends State<InicioConductor>
     }
   }
 
-  Future<void> _fitBoundsForPreview(
+  Future<void> _applyPerspectiveForPreview(
     PreviewSolicitud preview,
     InicioConductorViewmodel vm,
   ) async {
     if (_mapController == null) return;
-    final s = preview.solicitud;
-    final client = LatLng(
-      s.ubicacionInicial.latitude,
-      s.ubicacionInicial.longitude,
-    );
-
-    final points = <LatLng>[];
-    if (vm.currentLocation != null) points.add(vm.currentLocation!);
-    points.add(client);
-
-    // Include all polyline points for accurate bounds
-    for (final poly in vm.routePolylines) {
-      try {
-        points.addAll(poly.points);
-      } catch (_) {}
-    }
-
-    if (points.isEmpty) return;
-
-    double minLat = points.first.latitude;
-    double maxLat = points.first.latitude;
-    double minLng = points.first.longitude;
-    double maxLng = points.first.longitude;
-
-    for (final p in points) {
-      if (p.latitude < minLat) minLat = p.latitude;
-      if (p.latitude > maxLat) maxLat = p.latitude;
-      if (p.longitude < minLng) minLng = p.longitude;
-      if (p.longitude > maxLng) maxLng = p.longitude;
-    }
-
-    final bounds = LatLngBounds(
-      southwest: LatLng(minLat, minLng),
-      northeast: LatLng(maxLat, maxLng),
-    );
-
+    final persp = vm.getCameraPerspectiveForPreview();
+    if (persp == null) return;
     try {
-      // Use larger padding to ensure the full polyline is visible
-      await _mapController!.animateCamera(
-        CameraUpdate.newLatLngBounds(bounds, 120),
-      );
+      await _mapController!.animateCamera(CameraUpdate.newCameraPosition(persp));
       _hasCenteredForPreview = true;
-    } catch (_) {
-      try {
-        await _mapController!.animateCamera(
-          CameraUpdate.newLatLngZoom(client, 15),
-        );
-        _hasCenteredForPreview = true;
-      } catch (_) {}
-    }
+    } catch (_) {}
   }
 
   double get _previewHeight {
@@ -343,7 +299,7 @@ class _InicioConductorState extends State<InicioConductor>
           // fire-and-forget notification init
           () async {
             try {
-              await NotificationService.instance.init();
+              await NotificacionesServicio.instance.init();
             } catch (_) {}
           }();
 
@@ -422,10 +378,10 @@ class _InicioConductorState extends State<InicioConductor>
               if (_lastFittedPreviewId != id) {
                 _lastFittedPreviewId = id;
                 _hasCenteredForPreview = false;
-                _fitBoundsForPreview(preview, vm);
+                _applyPerspectiveForPreview(preview, vm);
               } else if (!_hasCenteredForPreview &&
                   vm.routePolylines.isNotEmpty) {
-                _fitBoundsForPreview(preview, vm);
+                _applyPerspectiveForPreview(preview, vm);
               }
             } else {
               _lastFittedPreviewId = null;
@@ -838,6 +794,29 @@ class _InicioConductorState extends State<InicioConductor>
                                     },
                                   ),
                                 ),
+                                if (vm.isLoadingPreviewRoute)
+                                  Positioned.fill(
+                                    child: Container(
+                                      color: Colors.white.withOpacity(0.6),
+                                      child: const Center(
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            CircularProgressIndicator(color: AppColores.primary),
+                                            SizedBox(height: 12),
+                                            Text(
+                                              'Cargando ruta...',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.w700,
+                                                fontSize: 16,
+                                                color: Colors.black87,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
 
                                 // Lista de solicitudes flotante encima del mapa (apiladas verticalmente)
                                 Positioned(
@@ -1383,14 +1362,6 @@ class _InicioConductorState extends State<InicioConductor>
                 onTap: () async {
                   Navigator.of(ctx).pop();
                   await InicioConductorNavigation.irASeguridad(context);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.settings),
-                title: const Text('Configuracion'),
-                onTap: () async {
-                  Navigator.of(ctx).pop();
-                  await InicioConductorNavigation.irAConfiguracion(context);
                 },
               ),
               ListTile(

@@ -12,7 +12,7 @@ import 'dart:ui' as ui;
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/helper/responsive_helper.dart';
 import 'package:taxi_app/helper/session_helper.dart';
-import 'package:taxi_app/screens/cambiar_contrasena_screen.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/view/configuracion_aplicacion_view.dart';
 import 'package:taxi_app/widgets/editar_perfil.dart';
 
 class PaginaPerfilUsuario extends StatefulWidget {
@@ -599,8 +599,6 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
     const double baseNameFontSize = 22.0;
     const double avatarRadius = 50.0;
     const double avatarIconSize = 45.0;
-    const double buttonFontSize = 16.0;
-    const double buttonIconSize = 24.0;
 
     // Ajuste simple de tamaño para nombres muy largos
     double computedNameFontSize = baseNameFontSize;
@@ -618,11 +616,18 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
       body: userData == null
           ? const Center(child: CircularProgressIndicator())
           : SafeArea(
-              child: SingleChildScrollView(
-                padding: EdgeInsets.all(ResponsiveHelper.wp(context, 4)),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
+              child: Stack(
+                children: [
+                  SingleChildScrollView(
+                    padding: EdgeInsets.only(
+                      left: ResponsiveHelper.wp(context, 4),
+                      right: ResponsiveHelper.wp(context, 4),
+                      top: ResponsiveHelper.hp(context, 0.5),
+                      bottom: ResponsiveHelper.hp(context, 18),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
                     SizedBox(height: ResponsiveHelper.hp(context, 0.5)),
                     Center(
                       child: Stack(
@@ -691,26 +696,13 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
                       _buildVehiclePhotoCard(),
                       SizedBox(height: ResponsiveHelper.hp(context, 0.4)),
                     ],
-                    _buildInfoCard(Icons.email, 'Correo', correo),
-                    SizedBox(height: ResponsiveHelper.hp(context, 0.4)),
+                    if (correo.isNotEmpty && correo != 'Sin correo registrado') ...[
+                      _buildInfoCard(Icons.email, 'Correo', correo),
+                      SizedBox(height: ResponsiveHelper.hp(context, 0.4)),
+                    ],
                     _buildInfoCard(Icons.phone, 'Teléfono', telefono),
                     SizedBox(height: ResponsiveHelper.hp(context, 1.4)),
-                    ElevatedButton.icon(
-                      onPressed: _mostrarDialogoEditar,
-                      icon: const Icon(Icons.edit, size: buttonIconSize),
-                      label: const Text(
-                        'Editar Datos',
-                        style: TextStyle(fontSize: buttonFontSize),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColores.buttonPrimary,
-                        foregroundColor: AppColores.textWhite,
-                        padding: EdgeInsets.symmetric(
-                          vertical: ResponsiveHelper.hp(context, 1.5),
-                          horizontal: ResponsiveHelper.wp(context, 2),
-                        ),
-                      ),
-                    ),
+                    // NOTE: Buttons moved to bottom fixed area
                     // SizedBox(height: ResponsiveHelper.hp(context, 1)),
                     // OutlinedButton.icon(
                     //   onPressed: () {
@@ -738,7 +730,72 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
                     //   ),
                     // ),
                   ],
-                ),
+                      ),
+                  ),
+
+                  // Bottom fixed action area
+                  Align(
+                    alignment: Alignment.bottomCenter,
+                    child: Container(
+                      width: double.infinity,
+                      padding: EdgeInsets.symmetric(
+                        horizontal: ResponsiveHelper.wp(context, 4),
+                        vertical: ResponsiveHelper.hp(context, 2),
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColores.background,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.04),
+                            blurRadius: 8,
+                            offset: const Offset(0, -2),
+                          ),
+                        ],
+                      ),
+                      child: SafeArea(
+                        top: false,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            ElevatedButton.icon(
+                              onPressed: _mostrarDialogoEditar,
+                              icon: const Icon(Icons.edit, size: 20),
+                              label: const Text('Editar Datos'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColores.buttonPrimary,
+                                foregroundColor: AppColores.textWhite,
+                                minimumSize: const Size.fromHeight(48),
+                                padding: EdgeInsets.symmetric(
+                                  vertical: ResponsiveHelper.hp(context, 1.2),
+                                ),
+                              ),
+                            ),
+                            SizedBox(height: ResponsiveHelper.hp(context, 1)),
+                            OutlinedButton.icon(
+                              onPressed: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => const ConfiguracionAplicacionView(),
+                                  ),
+                                );
+                              },
+                              icon: const Icon(Icons.settings, size: 20),
+                              label: const Text('Configuración'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColores.textPrimary,
+                                side: const BorderSide(color: AppColores.borderSubtle),
+                                minimumSize: const Size.fromHeight(48),
+                                padding: EdgeInsets.symmetric(
+                                  vertical: ResponsiveHelper.hp(context, 1.2),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
     );

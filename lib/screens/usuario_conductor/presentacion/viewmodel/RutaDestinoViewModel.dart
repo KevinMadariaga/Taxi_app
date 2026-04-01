@@ -8,9 +8,11 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import 'package:taxi_app/helper/session_helper.dart';
+import 'dart:math' as math;
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/chat_message.dart';
 import 'package:taxi_app/core/services/chat_service_adapter.dart';
 import 'package:taxi_app/core/services/services.dart';
+import 'package:taxi_app/core/services/map_service_adapter.dart' as adapter;
 
 class RutaDestinoViewModel extends ChangeNotifier {
   late final FirebaseService _firebaseService;
@@ -21,6 +23,11 @@ class RutaDestinoViewModel extends ChangeNotifier {
     TrackingService? trackingService,
   }) : _firebaseService = firebaseService ?? FirebaseService(),
        _trackingService = trackingService ?? TrackingService();
+
+  final adapter.MapService _mapServiceAdapter = const adapter.MapService();
+  bool isLoadingRoute = false;
+  LatLng? currentDriverLocation;
+  List<LatLng> routePoints = [];
 
   /// Tracking background location for conductor during trip
   Future<void> iniciarTrackingUbicacion(String solicitudId) async {
@@ -84,8 +91,52 @@ class RutaDestinoViewModel extends ChangeNotifier {
   }
 
   // Polyline management
-  List<LatLng> polylinePoints = [];
   int indiceActual = 0;
+
+  Future<void> fetchRoute(LatLng from, LatLng to) async {
+    isLoadingRoute = true;
+    currentDriverLocation = from;
+    notifyListeners();
+
+    try {
+      final points = await _mapServiceAdapter.getRoutePolyline(from, to);
+      if (points.isNotEmpty) {
+        routePoints = points;
+      }
+    } catch (e) {
+      debugPrint('Error fetching route in ViewModel: $e');
+    } finally {
+      isLoadingRoute = false;
+      notifyListeners();
+    }
+  }
+
+  double calculateBearing(LatLng from, LatLng to) {
+    final lat1 = from.latitude * math.pi / 180;
+    final lat2 = to.latitude * math.pi / 180;
+    final dLon = (to.longitude - from.longitude) * math.pi / 180;
+    final y = math.sin(dLon) * math.cos(lat2);
+    final x =
+        math.cos(lat1) * math.sin(lat2) -
+        math.sin(lat1) * math.cos(lat2) * math.cos(dLon);
+    final brng = math.atan2(y, x);
+    return (brng * 180 / math.pi + 360) % 360;
+  }
+
+  CameraPosition? getCameraPerspective() {
+    if (currentDriverLocation == null ||
+        (latDestino == null || lngDestino == null)) {
+      return null;
+    }
+    final dest = LatLng(latDestino!, lngDestino!);
+    final bearing = calculateBearing(currentDriverLocation!, dest);
+    return CameraPosition(
+      target: currentDriverLocation!,
+      bearing: bearing,
+      tilt: 0.0,
+      zoom: 16.5,
+    );
+  }
 
   /// ------------------------------------------------
   /// ESCUCHA DE ESTADO DE SOLICITUD

@@ -71,7 +71,6 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
       });
     });
     _loadTaxiMarkerIcon();
-    _showDriverAssignedNotification();
     _startCancelDisableTimer();
     // Persist current screen so reload restores this exact view
     try {
@@ -94,32 +93,7 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
 bool hasNavigationBar(BuildContext context) {
   return MediaQuery.of(context).padding.bottom > 0;
 }
-  Future<void> _showDriverAssignedNotification() async {
-    if (_assignmentNotificationShown) return;
 
-    final sid = widget.solicitudId;
-    if (sid.isNotEmpty && _globalAssignmentNotificationsShown.contains(sid)) {
-      _assignmentNotificationShown = true;
-      return;
-    }
-
-    _assignmentNotificationShown = true;
-    if (sid.isNotEmpty) _globalAssignmentNotificationsShown.add(sid);
-
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted) return;
-      try {
-        await NotificationService.instance.init();
-        await NotificationService.instance.showNotification(
-          DateTime.now().millisecondsSinceEpoch % 100000,
-          'Se asigno conductor',
-          'Ya viene a recogerte.',
-        );
-      } catch (_) {
-        // No interrumpe la experiencia si la notificacion falla.
-      }
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -199,7 +173,7 @@ bool hasNavigationBar(BuildContext context) {
                             myLocationButtonEnabled: false,
                             compassEnabled: true,
                             padding: EdgeInsets.only(
-                              top: mq.padding.top + 260, // Evita que se tape el logo de Google
+                              top: mq.padding.top + 350, // Evita que se tape con la card superior
                               bottom: safeBottom + 20,
                             ),
                             markers: markers,
@@ -538,13 +512,29 @@ bool hasNavigationBar(BuildContext context) {
                       ),
                     ),
 
-                    if (vm.isLoading)
-                      const Positioned.fill(
+                    if (vm.isLoading || vm.isUpdatingRoute)
+                      Positioned.fill(
                         child: ColoredBox(
                           color: AppColores.overlayLight,
                           child: Center(
-                            child: CircularProgressIndicator(
-                              color: AppColores.primary,
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const CircularProgressIndicator(
+                                  color: AppColores.primary,
+                                ),
+                                if (vm.isUpdatingRoute) ...[
+                                  const SizedBox(height: 16),
+                                  const Text(
+                                    'Cargando ruta...',
+                                    style: TextStyle(
+                                      color: AppColores.primary,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
                           ),
                         ),
@@ -741,9 +731,14 @@ bool hasNavigationBar(BuildContext context) {
     if (map == null) return;
 
     if (vm.focusMode == MapFocusMode.clientOnly) {
-      final target = vm.clienteLatLng;
-      if (target != null) {
-        await map.animateCamera(CameraUpdate.newLatLngZoom(target, 16));
+      final persp = vm.getCameraPerspective();
+      if (persp != null) {
+        await map.animateCamera(CameraUpdate.newCameraPosition(persp));
+      } else {
+        final target = vm.clienteLatLng;
+        if (target != null) {
+          await map.animateCamera(CameraUpdate.newLatLngZoom(target, 16));
+        }
       }
       await vm.toggleMapFocusMode();
       return;
@@ -779,17 +774,23 @@ bool hasNavigationBar(BuildContext context) {
     _initialCameraApplied = true;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
-      final bounds = LatLngBounds(
-        southwest: LatLng(
-          a.latitude < b.latitude ? a.latitude : b.latitude,
-          a.longitude < b.longitude ? a.longitude : b.longitude,
-        ),
-        northeast: LatLng(
-          a.latitude > b.latitude ? a.latitude : b.latitude,
-          a.longitude > b.longitude ? a.longitude : b.longitude,
-        ),
-      );
-      await map.animateCamera(CameraUpdate.newLatLngBounds(bounds, 80));
+
+      final persp = vm.getCameraPerspective();
+      if (persp != null) {
+        await map.animateCamera(CameraUpdate.newCameraPosition(persp));
+      } else {
+        final bounds = LatLngBounds(
+          southwest: LatLng(
+            a.latitude < b.latitude ? a.latitude : b.latitude,
+            a.longitude < b.longitude ? a.longitude : b.longitude,
+          ),
+          northeast: LatLng(
+            a.latitude > b.latitude ? a.latitude : b.latitude,
+            a.longitude > b.longitude ? a.longitude : b.longitude,
+          ),
+        );
+        await map.animateCamera(CameraUpdate.newLatLngBounds(bounds, 80));
+      }
     });
   }
 

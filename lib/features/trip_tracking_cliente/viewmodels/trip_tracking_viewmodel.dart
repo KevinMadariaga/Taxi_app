@@ -66,8 +66,6 @@ class TripTrackingViewModel extends ChangeNotifier {
 
   bool _disposed = false;
   bool _chatBootstrapped = false;
-  bool _solicitudBootstrapped = false;
-  String? _lastNotifiedEstado;
 
   // Heading (degrees) for the conductor marker; 0 = north, 90 = east.
   double conductorHeading = 0.0;
@@ -174,6 +172,21 @@ class TripTrackingViewModel extends ChangeNotifier {
     _safeNotify();
   }
 
+  CameraPosition? getCameraPerspective() {
+    final client = clienteLatLng;
+    final driver = conductorLatLng;
+    if (client == null || driver == null) return null;
+
+    final bearing = _mathService.bearingBetween(client, driver);
+
+    return CameraPosition(
+      target: client,
+      bearing: bearing,
+      tilt: 0.0,
+      zoom: 16.5,
+    );
+  }
+
   Future<void> sendMessage(String text) {
     return _chatService.sendMessage(
       solicitudId: solicitudId,
@@ -246,14 +259,7 @@ class TripTrackingViewModel extends ChangeNotifier {
 
             await _localCacheService.saveSolicitud(item);
 
-            // ─── Notificacion de cambio de estado (funciona en background) ───
-            if (_solicitudBootstrapped) {
-              await _handleStatusNotification(item.estado);
-            } else {
-              _solicitudBootstrapped = true;
-              // Guardar estado inicial sin notificar
-              _lastNotifiedEstado = _normalizeEstado(item.estado);
-            }
+            // ─── Actualizacion de ruta y heading ───
 
                   await _updateRouteIfNeeded();
                   _updateConductorHeading();
@@ -419,40 +425,6 @@ class TripTrackingViewModel extends ChangeNotifier {
     } catch (_) {
       // Sin bloquear la UX si notificaciones no estan disponibles.
     }
-  }
-
-  /// Normaliza un estado raw para comparacion
-  String _normalizeEstado(String raw) {
-    final v = raw.toLowerCase().trim().replaceAll('_', ' ').replaceAll('-', ' ');
-    if (v.contains('espera')) return 'en_espera';
-    if (v.contains('cancel')) return 'cancelado';
-    if (v.contains('sin respuesta') || v.contains('sinrespuesta')) return 'sin_respuesta';
-    if (v.contains('en ruta') || v.contains('enruta')) return 'en_ruta';
-    if (v.contains('en camino') || v.contains('encam')) return 'en_camino';
-    if (v.contains('complet') || v.contains('finaliz')) return 'completado';
-    return v;
-  }
-
-  /// Dispara notificaciones segun el cambio de estado.
-  /// Se ejecuta desde el listener de Firestore, por lo que funciona
-  /// incluso cuando la app esta en segundo plano.
-  Future<void> _handleStatusNotification(String rawEstado) async {
-    final estado = _normalizeEstado(rawEstado);
-    if (_lastNotifiedEstado == estado) return;
-    _lastNotifiedEstado = estado;
-
-    try {
-      switch (estado) {
-        case 'en_espera':
-          await NotificacionesServicio.instance.showTripNotification(
-            title: '\u{1F695} El conductor ha llegado',
-            body: 'El conductor ha llegado, confirma que est\u00e1s ah\u00ed.',
-          );
-          break;
-        default:
-          break;
-      }
-    } catch (_) {}
   }
 
   void _computeUnreadCount() {

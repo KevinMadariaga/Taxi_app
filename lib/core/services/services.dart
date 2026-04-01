@@ -13,6 +13,5 @@ export 'package:taxi_app/core/services/solicitud_firestore_datasource.dart';
 // chat and map shims intentionally not exported here to avoid symbol duplication
 // with feature-local service implementations while migration is in progress.
 export 'package:taxi_app/core/services/route_cache_service.dart';
-export 'package:taxi_app/core/services/notification_service.dart';
 export 'package:taxi_app/core/services/ride_service.dart';
 export 'package:taxi_app/core/services/fcm_service.dart';

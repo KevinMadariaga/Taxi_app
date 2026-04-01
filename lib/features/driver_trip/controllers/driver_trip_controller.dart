@@ -144,6 +144,20 @@ class DriverTripController extends ChangeNotifier {
     _safeNotify();
   }
 
+  CameraPosition? getCameraPerspective() {
+    final driver = driverLatLng;
+    final client = clientLatLng;
+    if (driver == null || client == null) return null;
+
+    final bearing = _mathService.bearingBetween(driver, client);
+    return CameraPosition(
+      target: driver,
+      bearing: bearing,
+      tilt: 0.0,
+      zoom: 16.5,
+    );
+  }
+
   /// Llamar desde [DriverTripScreen.didChangeAppLifecycleState] para
   /// mantener sincronizado el flag de segundo plano.
   void setAppBackground(bool inBackground) {
@@ -319,7 +333,8 @@ class DriverTripController extends ChangeNotifier {
         unawaited(
           NotificacionesServicio.instance.showTripNotification(
             title: '⚠️ Sin respuesta del cliente',
-            body: 'El cliente no contestó la validación, se cancelará el servicio.',
+            body:
+                'El cliente no contestó la validación, se cancelará el servicio.',
           ),
         );
       }
@@ -462,7 +477,7 @@ class DriverTripController extends ChangeNotifier {
 
   Future<void> _ensureNotifications() async {
     if (_notificationsReady) return;
-    await NotificationService.instance.init();
+    await NotificacionesServicio.instance.init();
     _notificationsReady = true;
   }
 
@@ -475,10 +490,10 @@ class DriverTripController extends ChangeNotifier {
   Future<void> _notify(String title, String body) async {
     try {
       await _ensureNotifications();
-      await NotificationService.instance.showNotification(
-        DateTime.now().millisecondsSinceEpoch % 100000,
-        title,
-        body,
+      await NotificacionesServicio.instance.showNotification(
+        id: DateTime.now().millisecondsSinceEpoch % 100000,
+        title: title,
+        body: body,
       );
     } catch (_) {}
   }
