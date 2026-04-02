@@ -24,6 +24,16 @@ class SeleccionaUbicacionEnMapaView extends StatefulWidget {
       _SeleccionaUbicacionEnMapaViewState();
 }
 
+class SeleccionUbicacionResult {
+  final LatLng position;
+  final String? direccion;
+
+  const SeleccionUbicacionResult({
+    required this.position,
+    this.direccion,
+  });
+}
+
 class _SeleccionaUbicacionEnMapaViewState
     extends State<SeleccionaUbicacionEnMapaView> {
   late LatLng _center;
@@ -149,7 +159,9 @@ class _SeleccionaUbicacionEnMapaViewState
   }
 
   void _onConfirmarUbicacion() {
-    Navigator.of(context).pop(_center);
+    Navigator.of(context).pop(
+      SeleccionUbicacionResult(position: _center, direccion: _direccion),
+    );
   }
 
   @override

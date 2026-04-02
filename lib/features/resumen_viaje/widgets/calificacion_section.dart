@@ -76,6 +76,7 @@ class CalificacionSection extends StatelessWidget {
                 key: const ValueKey('comentario_baja_calificacion'),
                 initialValue: comentarioInicial,
                 maxLines: 3,
+                textInputAction: TextInputAction.done,
                 decoration: InputDecoration(
                   hintText: 'Cuentanos que paso... (obligatorio)',
                   border: OutlineInputBorder(
@@ -83,6 +84,7 @@ class CalificacionSection extends StatelessWidget {
                   ),
                 ),
                 onChanged: onComentarioChanged,
+                onEditingComplete: () => FocusScope.of(context).unfocus(),
               ),
             ],
           ],

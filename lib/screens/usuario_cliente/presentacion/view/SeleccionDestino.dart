@@ -159,10 +159,19 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
                 title: direccionOrigen,
                 subtitle: direccionOrigen,
               ),
+              // Si ya tenemos direccion resuelta del mapa ajustado,
+              // usarla como texto principal del destino.
+              // Asi la tarjeta "¿Adónde va?" muestra la ubicacion final elegida.
               destino: LocationModel(
                 position: destino,
-                title: tituloDestino,
-                subtitle: direccionDestino,
+                title:
+                    (direccionDestino?.trim().isNotEmpty == true)
+                        ? direccionDestino!.trim()
+                        : tituloDestino,
+                subtitle:
+                    (direccionDestino?.trim().isNotEmpty == true)
+                        ? direccionDestino!.trim()
+                        : tituloDestino,
               ),
             ),
           ),
@@ -206,11 +215,11 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
     return trimmed;
   }
 
-  Future<LatLng?> _abrirSeleccionUbicacionEnMapa({
+  Future<SeleccionUbicacionResult?> _abrirSeleccionUbicacionEnMapa({
     required String titulo,
     LatLng? ubicacionInicial,
   }) async {
-    return _runPreparedNavigation<LatLng>(
+    return _runPreparedNavigation<SeleccionUbicacionResult>(
       message: 'Preparando mapa...',
       action: () async {
         await _cerrarTecladoAntesDeNavegar();
@@ -232,7 +241,7 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
           ),
         );
 
-        if (resultado is LatLng) return resultado;
+        if (resultado is SeleccionUbicacionResult) return resultado;
         return null;
       },
     );
@@ -250,9 +259,12 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
     if (destinoAjustado == null) return;
 
     await _abrirMapPreviewConDestino(
-      destino: destinoAjustado,
+      destino: destinoAjustado.position,
       tituloDestino: tituloDestino,
-      direccionDestino: direccionDestino,
+      direccionDestino:
+          destinoAjustado.direccion?.trim().isNotEmpty == true
+              ? destinoAjustado.direccion
+              : direccionDestino,
     );
   }
 
@@ -264,8 +276,16 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
     if (resultado == null) return;
 
     final nombre = await _solicitarNombreFavorito();
-    await _guardarUbicacionPersonalizada('Favorito', resultado, nombre);
-    await _abrirMapPreviewConDestino(destino: resultado, tituloDestino: nombre);
+    await _guardarUbicacionPersonalizada(
+      'Favorito',
+      resultado.position,
+      nombre,
+    );
+    await _abrirMapPreviewConDestino(
+      destino: resultado.position,
+      tituloDestino: nombre,
+      direccionDestino: resultado.direccion,
+    );
   }
 
   Future<void> _seleccionarYGuardarUbicacion(String tipo) async {
@@ -372,8 +392,16 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
     );
     if (resultado == null) return;
 
-    await _guardarUbicacionPersonalizada(tipo, resultado, tipo);
-    await _abrirMapPreviewConDestino(destino: resultado, tituloDestino: tipo);
+    await _guardarUbicacionPersonalizada(
+      tipo,
+      resultado.position,
+      tipo,
+    );
+    await _abrirMapPreviewConDestino(
+      destino: resultado.position,
+      tituloDestino: tipo,
+      direccionDestino: resultado.direccion,
+    );
   }
 
   Future<void> _guardarUbicacionPersonalizada(

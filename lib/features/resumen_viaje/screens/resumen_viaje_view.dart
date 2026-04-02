@@ -159,6 +159,7 @@ class _ResumenViajeBodyState extends State<_ResumenViajeBody> {
                 return true;
               },
               child: Scaffold(
+              resizeToAvoidBottomInset: true,
               backgroundColor: AppColores.background,
               body: SafeArea(
                 bottom: false,
@@ -174,6 +175,8 @@ class _ResumenViajeBodyState extends State<_ResumenViajeBody> {
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 760),
                       child: SingleChildScrollView(
+                        keyboardDismissBehavior:
+                            ScrollViewKeyboardDismissBehavior.onDrag,
                         padding: EdgeInsets.fromLTRB(
                           horizontalPadding,
                           18,

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'dart:io' show Platform;
+// import 'dart:io' show Platform; // unused here
 import 'package:geocoding/geocoding.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
@@ -235,7 +235,9 @@ class _MapPreviewState extends State<MapPreview> {
               bottomPct = 25.0; // desktop: even smaller bottom
             }
 
-            final bottomHeight = ResponsiveHelper.hp(context, bottomPct).clamp(140.0, constraints.maxHeight * 0.6) as double;
+            final double bottomHeight = ResponsiveHelper.hp(context, bottomPct)
+              .clamp(140.0, constraints.maxHeight * 0.6)
+              .toDouble();
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -279,6 +281,7 @@ class _MapPreviewState extends State<MapPreview> {
                 child: Stack(
                   children: [
                     Mapagoogle(
+                      key: ValueKey('${destino.latitude},${destino.longitude}'),
                       initialTarget: LatLng(
                         (origen.latitude + destino.latitude) / 2,
                         (origen.longitude + destino.longitude) / 2,
@@ -395,7 +398,8 @@ class _MapPreviewState extends State<MapPreview> {
       onTap: () async {
         final inicial = vm.destino.position;
         final direccionInicial = vm.destino.title ?? vm.destino.subtitle;
-        final resultado = await Navigator.of(context).push<LatLng>(
+        final resultado = await Navigator.of(context)
+            .push<SeleccionUbicacionResult>(
           _buildSmoothRoute(
             SeleccionaUbicacionEnMapaView(
               ubicacionInicial: inicial,
@@ -405,33 +409,42 @@ class _MapPreviewState extends State<MapPreview> {
           ),
         );
 
-        if (resultado is LatLng) {
+        if (resultado is SeleccionUbicacionResult) {
           if (!mounted) return;
           setState(() {});
-          String resolved = '${resultado.latitude.toStringAsFixed(6)}, ${resultado.longitude.toStringAsFixed(6)}';
-          try {
-            final placemarks = await placemarkFromCoordinates(
-              resultado.latitude,
-              resultado.longitude,
-            );
-            if (placemarks.isNotEmpty) {
-              final p = placemarks.first;
-              final direccion = [
-                p.street,
-                p.subLocality,
-                p.locality,
-                p.administrativeArea,
-              ].where((s) => s != null && s.isNotEmpty).join(', ');
-              if (direccion.isNotEmpty) resolved = direccion;
-            }
-          } catch (_) {}
+          final destinoSeleccionado = resultado.position;
+          String resolved = resultado.direccion?.trim() ?? '';
+          if (resolved.isEmpty) {
+            resolved =
+                '${destinoSeleccionado.latitude.toStringAsFixed(6)}, ${destinoSeleccionado.longitude.toStringAsFixed(6)}';
+            try {
+              final placemarks = await placemarkFromCoordinates(
+                destinoSeleccionado.latitude,
+                destinoSeleccionado.longitude,
+              );
+              if (placemarks.isNotEmpty) {
+                final p = placemarks.first;
+                final direccion = [
+                  p.street,
+                  p.subLocality,
+                  p.locality,
+                  p.administrativeArea,
+                ].where((s) => s != null && s.isNotEmpty).join(', ');
+                if (direccion.isNotEmpty) resolved = direccion;
+              }
+            } catch (_) {}
+          }
 
           // Recreate ViewModel with updated destino
           if (_vmListener != null) _vm.removeListener(_vmListener!);
           _controller?.dispose();
           _vm.dispose();
 
-          final nuevoDestino = LocationModel(position: resultado, title: resolved, subtitle: resolved);
+          final nuevoDestino = LocationModel(
+            position: destinoSeleccionado,
+            title: resolved,
+            subtitle: resolved,
+          );
           setState(() {
             _vm = MapapreviewViewModel(origen: widget.origen, destino: nuevoDestino);
             _vm.init();
@@ -441,6 +454,12 @@ class _MapPreviewState extends State<MapPreview> {
             };
             _vm.addListener(_vmListener!);
           });
+          // Force camera to new destination so the marker (map_pin_red) updates visibly.
+          try {
+            _controller?.animateCamera(
+              CameraUpdate.newLatLng(destinoSeleccionado),
+            );
+          } catch (_) {}
         }
       },
       child: _buildLocationInfoCard(

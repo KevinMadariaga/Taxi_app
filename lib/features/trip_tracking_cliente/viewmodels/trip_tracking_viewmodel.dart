@@ -70,8 +70,19 @@ class TripTrackingViewModel extends ChangeNotifier {
   // Heading (degrees) for the conductor marker; 0 = north, 90 = east.
   double conductorHeading = 0.0;
 
+  // Smoothed marker state.
+  LatLng? _smoothedConductorLatLng;
+  final List<LatLng> _pendingConductorTargets = <LatLng>[];
+  List<LatLng> _activePathPoints = const [];
+  int _activePathIndex = 0;
+  Timer? _movementTimer;
+  double _movementSpeedMps = 8.0;
+  LatLng? _lastRawConductor;
+  DateTime? _lastRawConductorAt;
+
   LatLng? _lastFrom;
   LatLng? _lastTo;
+  bool _routeCalculatedOnce = false;
 
   Future<void> init() async {
     await _restoreFromCache();
@@ -110,13 +121,15 @@ class TripTrackingViewModel extends ChangeNotifier {
     return LatLng(c.lat!, c.lng!);
   }
 
-  LatLng? get conductorLatLng {
+  LatLng? get _rawConductorLatLng {
     final d = solicitud?.conductor;
     if (d == null || !d.hasLocation) return null;
     return LatLng(d.lat!, d.lng!);
   }
 
-  bool get hasBothLocations => clienteLatLng != null && conductorLatLng != null;
+  LatLng? get conductorLatLng => _smoothedConductorLatLng ?? _rawConductorLatLng;
+
+  bool get hasBothLocations => clienteLatLng != null && _rawConductorLatLng != null;
 
   String get distanciaTexto {
     final d = distanceMeters;
@@ -245,6 +258,7 @@ class TripTrackingViewModel extends ChangeNotifier {
         .listen(
           (item) async {
             solicitud = item;
+            _handleConductorLocationUpdate(item);
             try {
               final d = solicitud?.conductor;
               if (d != null && d.hasLocation) {
@@ -350,6 +364,7 @@ class TripTrackingViewModel extends ChangeNotifier {
     if (cachedSolicitud != null) {
       solicitud = cachedSolicitud;
       isLoading = false;
+      _smoothedConductorLatLng ??= _rawConductorLatLng;
     }
 
     final cachedRoute = await _localCacheService.readRoute(solicitudId);
@@ -373,7 +388,11 @@ class TripTrackingViewModel extends ChangeNotifier {
   Future<void> _updateRouteIfNeeded({bool forceRefresh = false}) async {
     if (!hasBothLocations || isUpdatingRoute) return;
 
-    final from = conductorLatLng!;
+    // Si ya calculamos la ruta una vez, no volver a calcular a menos que se
+    // solicite explícitamente con `forceRefresh`.
+    if (_routeCalculatedOnce && !forceRefresh) return;
+
+    final from = _rawConductorLatLng!;
     final to = clienteLatLng!;
 
     final shouldRefresh =
@@ -408,6 +427,7 @@ class TripTrackingViewModel extends ChangeNotifier {
 
       _lastFrom = from;
       _lastTo = to;
+      _routeCalculatedOnce = true;
     } catch (_) {
       // No rompe la UI: conserva la ultima ruta valida.
     } finally {
@@ -433,6 +453,129 @@ class TripTrackingViewModel extends ChangeNotifier {
         .length;
   }
 
+  void _handleConductorLocationUpdate(SolicitudModel item) {
+    final d = item.conductor;
+    if (d == null || !d.hasLocation) return;
+    final next = LatLng(d.lat!, d.lng!);
+    _enqueueConductorTarget(next);
+  }
+
+  void _enqueueConductorTarget(LatLng target) {
+    final now = DateTime.now();
+    if (_lastRawConductor != null && _lastRawConductorAt != null) {
+      final elapsedMs = now.difference(_lastRawConductorAt!).inMilliseconds;
+      if (elapsedMs > 0) {
+        final distance = _mapService.distanceMeters(_lastRawConductor!, target);
+        final speed = distance / (elapsedMs / 1000.0);
+        _movementSpeedMps = speed.clamp(3.0, 18.0);
+      }
+    }
+    _lastRawConductor = target;
+    _lastRawConductorAt = now;
+
+    if (_smoothedConductorLatLng == null) {
+      _smoothedConductorLatLng = target;
+      _safeNotify();
+      return;
+    }
+
+    if (_pendingConductorTargets.length >= 3) {
+      _pendingConductorTargets[_pendingConductorTargets.length - 1] = target;
+    } else {
+      _pendingConductorTargets.add(target);
+    }
+
+    _ensureMovementTimer();
+  }
+
+  void _ensureMovementTimer() {
+    if (_movementTimer != null) return;
+    _movementTimer = Timer.periodic(
+      const Duration(milliseconds: 50),
+      (_) => _tickMovement(),
+    );
+  }
+
+  void _prepareActivePath(LatLng from, LatLng to) {
+    if (routePoints.length < 2) {
+      _activePathPoints = <LatLng>[to];
+      _activePathIndex = 0;
+      return;
+    }
+
+    final startIdx = _mathService.nearestPointIndex(from, routePoints);
+    final endIdx = _mathService.nearestPointIndex(to, routePoints);
+
+    if (startIdx <= endIdx) {
+      final segment = routePoints.sublist(startIdx, endIdx + 1);
+      _activePathPoints = <LatLng>[...segment, to];
+    } else {
+      final segment = routePoints.sublist(endIdx, startIdx + 1).reversed;
+      _activePathPoints = <LatLng>[...segment, to];
+    }
+
+    _activePathIndex = 0;
+  }
+
+  void _tickMovement() {
+    if (_smoothedConductorLatLng == null) {
+      _stopMovement();
+      return;
+    }
+
+    if (_activePathPoints.isEmpty) {
+      if (_pendingConductorTargets.isEmpty) {
+        _stopMovement();
+        return;
+      }
+      _prepareActivePath(_smoothedConductorLatLng!, _pendingConductorTargets.first);
+    }
+
+    final stepMeters = _movementSpeedMps * 0.05;
+    var remaining = stepMeters;
+    var current = _smoothedConductorLatLng!;
+
+    while (remaining > 0 && _activePathIndex < _activePathPoints.length) {
+      final next = _activePathPoints[_activePathIndex];
+      final segmentDistance = _mapService.distanceMeters(current, next);
+
+      if (segmentDistance <= 0.1) {
+        current = next;
+        _activePathIndex += 1;
+        continue;
+      }
+
+      if (remaining >= segmentDistance) {
+        current = next;
+        remaining -= segmentDistance;
+        _activePathIndex += 1;
+      } else {
+        final t = remaining / segmentDistance;
+        current = LatLng(
+          current.latitude + (next.latitude - current.latitude) * t,
+          current.longitude + (next.longitude - current.longitude) * t,
+        );
+        remaining = 0;
+      }
+    }
+
+    _smoothedConductorLatLng = current;
+    _updateConductorHeading();
+
+    if (_activePathIndex >= _activePathPoints.length) {
+      if (_pendingConductorTargets.isNotEmpty) {
+        _pendingConductorTargets.removeAt(0);
+      }
+      _activePathPoints = const [];
+      _activePathIndex = 0;
+    }
+  }
+
+  void _stopMovement() {
+    _movementTimer?.cancel();
+    _movementTimer = null;
+  }
+
   void _safeNotify() {
     if (!_disposed) notifyListeners();
   }
@@ -443,6 +586,7 @@ class TripTrackingViewModel extends ChangeNotifier {
     _solicitudSub?.cancel();
     _messagesSub?.cancel();
     _connectivitySub?.cancel();
+    _movementTimer?.cancel();
     super.dispose();
   }
 }
