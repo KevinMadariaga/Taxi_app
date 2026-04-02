@@ -122,6 +122,7 @@ bool hasNavigationBar(BuildContext context) {
                       BitmapDescriptor.hueAzure,
                     ),
                 rotation: vm.conductorHeading,
+                flat: true,
                 anchor: const Offset(0.5, 0.5),
               ),
           };
@@ -583,7 +584,7 @@ bool hasNavigationBar(BuildContext context) {
   Future<void> _loadTaxiMarkerIcon() async {
     try {
       final icon = await BitmapDescriptor.asset(
-        const ImageConfiguration(size: Size(30, 50)),
+        const ImageConfiguration(size: Size(20, 30)),
         'assets/img/taxi_icon.png',
       );
 

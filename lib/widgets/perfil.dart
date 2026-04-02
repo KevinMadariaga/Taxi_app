@@ -610,6 +610,7 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
 
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: widget.tipoUsuario == 'cliente' ? false : true,
         title: const Text('Perfil', style: TextStyle(fontSize: appBarFontSize)),
         systemOverlayStyle: SystemUiOverlayStyle.dark,
       ),

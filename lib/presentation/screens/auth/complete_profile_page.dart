@@ -32,6 +32,9 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
   late final TextEditingController _nombreController;
   late final TextEditingController _apellidoController;
   late final TextEditingController _telefonoController;
+  late final FocusNode _nombreFocusNode;
+  late final FocusNode _apellidoFocusNode;
+  late final FocusNode _telefonoFocusNode;
 
   bool _hydratedFromData = false;
 
@@ -45,6 +48,9 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
     _telefonoController = TextEditingController(
       text: _normalizeToTenDigits(widget.initialTelefono),
     );
+    _nombreFocusNode = FocusNode();
+    _apellidoFocusNode = FocusNode();
+    _telefonoFocusNode = FocusNode();
   }
 
   @override
@@ -52,6 +58,9 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
     _nombreController.dispose();
     _apellidoController.dispose();
     _telefonoController.dispose();
+    _nombreFocusNode.dispose();
+    _apellidoFocusNode.dispose();
+    _telefonoFocusNode.dispose();
     super.dispose();
   }
 
@@ -73,10 +82,9 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
         builder: (context, vm, _) {
           _hydrateFieldsFromRemote(vm);
 
-          final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
-
           return Scaffold(
             backgroundColor: AppColores.background,
+            resizeToAvoidBottomInset: false,
             appBar: AppBar(
               title: const Text('Completa tu perfil'),
               backgroundColor: AppColores.background,
@@ -127,7 +135,7 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
                                     Align(
                                       alignment: Alignment.center,
                                       child: CircleAvatar(
-                                        radius: 34,
+                                        radius: 40,
                                         backgroundImage: NetworkImage(
                                           vm.currentUser!.fotoUrl,
                                         ),
@@ -139,7 +147,7 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
                                     const SizedBox(height: 12),
                                   ImagePickerTile(
                                     title:
-                                        'Foto de perfil (opcional pero recomendada)',
+                                        'Foto de perfil',
                                     image: vm.selectedImage,
                                     circular: true,
                                     onTap: vm.saving
@@ -149,8 +157,12 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
                                   const SizedBox(height: 12),
                                   TextField(
                                     controller: _nombreController,
+                                    focusNode: _nombreFocusNode,
                                     enabled: !vm.saving,
                                     textInputAction: TextInputAction.next,
+                                    onEditingComplete: () {
+                                      _apellidoFocusNode.requestFocus();
+                                    },
                                     decoration: const InputDecoration(
                                       labelText: 'Nombre',
                                       border: OutlineInputBorder(),
@@ -159,8 +171,12 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
                                   const SizedBox(height: 12),
                                   TextField(
                                     controller: _apellidoController,
+                                    focusNode: _apellidoFocusNode,
                                     enabled: !vm.saving,
                                     textInputAction: TextInputAction.next,
+                                    onEditingComplete: () {
+                                      _telefonoFocusNode.requestFocus();
+                                    },
                                     decoration: const InputDecoration(
                                       labelText: 'Apellido',
                                       border: OutlineInputBorder(),
@@ -169,17 +185,28 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
                                   const SizedBox(height: 12),
                                   TextField(
                                     controller: _telefonoController,
+                                    focusNode: _telefonoFocusNode,
                                     enabled: !vm.saving,
                                     keyboardType: TextInputType.phone,
                                     textInputAction: TextInputAction.done,
+                                    onEditingComplete: () {
+                                      FocusScope.of(context).unfocus();
+                                    },
                                     inputFormatters: [
                                       FilteringTextInputFormatter.digitsOnly,
                                       LengthLimitingTextInputFormatter(10),
                                     ],
-                                    decoration: const InputDecoration(
+                                    decoration: InputDecoration(
                                       labelText: 'Telefono',
                                       hintText: 'Solo 10 digitos',
-                                      border: OutlineInputBorder(),
+                                      border: const OutlineInputBorder(),
+                                      suffixIcon: IconButton(
+                                        icon: const Icon(Icons.check),
+                                        tooltip: 'Hecho',
+                                        onPressed: () {
+                                          FocusScope.of(context).unfocus();
+                                        },
+                                      ),
                                     ),
                                   ),
                                   if (vm.errorMessage != null) ...[
@@ -204,7 +231,7 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
             bottomNavigationBar: AnimatedPadding(
               duration: const Duration(milliseconds: 220),
               curve: Curves.easeOutCubic,
-              padding: EdgeInsets.only(bottom: keyboardInset + 12),
+              padding: const EdgeInsets.only(bottom: 12),
               child: SafeArea(
                 top: false,
                 minimum: const EdgeInsets.fromLTRB(20, 8, 20, 24),

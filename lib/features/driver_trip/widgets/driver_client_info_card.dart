@@ -13,6 +13,7 @@ class DriverClientInfoCard extends StatefulWidget {
     required this.onReportArrival,
     required this.isSendingArrival,
     required this.isArrivalReported,
+    this.arrivalButtonEnabled = true,
     required this.etaText,
     required this.distanceText,
     required this.title,
@@ -36,6 +37,7 @@ class DriverClientInfoCard extends StatefulWidget {
   final VoidCallback onDetails;
   final String? primaryButtonText;
   final String? primaryButtonSuccessText;
+  final bool arrivalButtonEnabled;
 
   @override
   State<DriverClientInfoCard> createState() => _DriverClientInfoCardState();
@@ -304,7 +306,7 @@ class _DriverClientInfoCardState extends State<DriverClientInfoCard>
                   width: double.infinity,
                   child: ElevatedButton.icon(
                     onPressed:
-                        (widget.isSendingArrival || widget.isArrivalReported)
+                        (widget.isSendingArrival || widget.isArrivalReported || !widget.arrivalButtonEnabled)
                         ? null
                         : widget.onReportArrival,
                     style: ElevatedButton.styleFrom(

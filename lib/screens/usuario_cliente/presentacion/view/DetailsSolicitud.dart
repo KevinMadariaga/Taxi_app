@@ -575,7 +575,7 @@ class _MapPreviewState extends State<MapPreview> {
                   ),
                   ListTile(
                     leading: Image.asset(
-                      'assets/img/nequi.jpeg',
+                      'assets/img/nequi.png',
                       width: 28,
                       height: 28,
                       fit: BoxFit.cover,
@@ -740,7 +740,7 @@ class _MapPreviewState extends State<MapPreview> {
           height: buttonHeight,
           child: Tooltip(
             message: 'Metodo: ${vm.metodoPago}',
-            child: OutlinedButton(
+              child: OutlinedButton(
               onPressed: () => _abrirModalMetodoPago(context, vm),
               style: OutlinedButton.styleFrom(
                 shape: RoundedRectangleBorder(
@@ -752,7 +752,24 @@ class _MapPreviewState extends State<MapPreview> {
                 foregroundColor: Colors.black87,
                 padding: EdgeInsets.zero,
               ),
-              child: const Icon(Icons.account_balance_wallet_outlined),
+              child: Builder(builder: (ctx) {
+                final metodo = vm.metodoPago.toLowerCase();
+                if (metodo.contains('nequi')) {
+                  return Image.asset(
+                    'assets/img/nequi.png',
+                    width: 26,
+                    height: 26,
+                    fit: BoxFit.cover,
+                  );
+                }
+
+                if (metodo.contains('efectivo') || metodo.contains('cash')) {
+                  return const Icon(Icons.attach_money, size: 22);
+                }
+
+                // Default wallet/payment icon
+                return const Icon(Icons.account_balance_wallet_outlined);
+              }),
             ),
           ),
         ),

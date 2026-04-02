@@ -36,6 +36,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
   BitmapDescriptor? _taxiIcon;
   BitmapDescriptor? _smallTaxiIcon;
   BitmapDescriptor? _bigTaxiIcon;
+  final Map<String, LatLng> _latestConductoresPositions = {};
   double _sonarRadius = 220.0;
   Timer? _sonarTimer;
   Timer? _searchTimer;
@@ -156,13 +157,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
   Future<void> _loadTaxiIcon() async {
     try {
       _taxiIcon = await _bitmapDescriptorFromAsset('assets/img/taxi_icon.png', 40);
-      setState(() {
-        _taxiMarkers = _taxiMarkers
-            .map(
-              (marker) => marker.copyWith(iconParam: _taxiIcon ?? marker.icon),
-            )
-            .toSet();
-      });
+      _updateTaxiMarkers();
     } catch (_) {
       // fallback si no existe el asset o hay error
     }
@@ -255,44 +250,52 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
         .snapshots()
         .listen(
           (snapshot) {
-            final markers = snapshot.docs
-                .map((doc) {
-                  final data = doc.data();
-                  final ubicacion = data['ubicacion'];
-                  if (ubicacion is! Map) return null;
-                  final lat = ubicacion['lat'] ?? ubicacion['latitude'];
-                  final lng = ubicacion['lng'] ?? ubicacion['longitude'];
-                  if (lat == null || lng == null) return null;
-                  return Marker(
-                    markerId: MarkerId('taxi_${doc.id}'),
-                    position: LatLng(
-                      (lat as num).toDouble(),
-                      (lng as num).toDouble(),
-                    ),
-                    icon:
-                        _taxiIcon ??
-                        BitmapDescriptor.defaultMarkerWithHue(
-                          BitmapDescriptor.hueYellow,
-                        ),
-                    infoWindow: InfoWindow(
-                      title: 'Taxi cercano',
-                      snippet:
-                          data['nombre']?.toString() ?? 'Conductor conectado',
-                    ),
-                  );
-                })
-                .whereType<Marker>()
-                .toSet();
+            final positions = <String, LatLng>{};
+            for (final doc in snapshot.docs) {
+              final data = doc.data();
+              final ubicacion = data['ubicacion'];
+              if (ubicacion is! Map) continue;
+              final lat = ubicacion['lat'] ?? ubicacion['latitude'];
+              final lng = ubicacion['lng'] ?? ubicacion['longitude'];
+              if (lat == null || lng == null) continue;
+              positions[doc.id] = LatLng((lat as num).toDouble(), (lng as num).toDouble());
+            }
 
             if (!mounted) return;
-            setState(() {
-              _taxiMarkers = markers;
-            });
+            _latestConductoresPositions
+              ..clear()
+              ..addAll(positions);
+            _updateTaxiMarkers();
           },
           onError: (_) {
             // ignore
           },
         );
+  }
+
+  void _updateTaxiMarkers() {
+    if (!mounted) return;
+    if (_taxiIcon == null) {
+      setState(() {
+        _taxiMarkers = {};
+      });
+      return;
+    }
+
+    final markers = _latestConductoresPositions.entries.map((e) {
+      final id = e.key;
+      final pos = e.value;
+      return Marker(
+        markerId: MarkerId('taxi_$id'),
+        position: pos,
+        icon: _taxiIcon!,
+        infoWindow: const InfoWindow(title: 'Taxi cercano'),
+      );
+    }).toSet();
+
+    setState(() {
+      _taxiMarkers = markers;
+    });
   }
 
     void _subscribeConductoresConectados() {

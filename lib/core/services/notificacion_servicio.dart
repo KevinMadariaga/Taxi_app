@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'dart:ui' show Color;
 
 
 /// Servicio centralizado para notificaciones locales.
@@ -93,6 +94,7 @@ class NotificacionesServicio {
       importance: Importance.high,
       priority: Priority.high,
       icon: 'ic_notification',
+      color: const Color(0xFF081B33),
     );
 
     const iosDetails = DarwinNotificationDetails(
@@ -130,6 +132,7 @@ class NotificacionesServicio {
       enableVibration: true,
       playSound: true,
       icon: 'ic_notification',
+      color: Color(0xFF081B33),
     );
 
     const iosDetails = DarwinNotificationDetails(
@@ -168,7 +171,8 @@ class NotificacionesServicio {
       priority: Priority.high,
       enableVibration: vibrate,
       playSound: playSound,
-      icon: '@drawable/ic_notification',
+      icon: 'ic_notification',
+      color: const Color(0xFF081B33),
     );
 
     final iosDetails = DarwinNotificationDetails(

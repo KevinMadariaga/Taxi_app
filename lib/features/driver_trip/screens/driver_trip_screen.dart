@@ -332,6 +332,7 @@ class _DriverTripScreenState extends State<DriverTripScreen>
                                 isSendingArrival: controller.isSendingArrival,
                                 isArrivalReported:
                                     controller.hasReportedArrival,
+                                arrivalButtonEnabled: controller.distanceMeters != null && controller.distanceMeters! <= 50,
                                 etaText: controller.etaText,
                                 distanceText: controller.distanceText,
                                 title: dynamicTitle,

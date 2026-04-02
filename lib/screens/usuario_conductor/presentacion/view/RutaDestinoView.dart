@@ -740,6 +740,7 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent> with WidgetsBi
   @override
   Widget build(BuildContext context) {
     final vm = Provider.of<RutaDestinoViewModel>(context);
+    final double? _metersToDestino = _distanceMetersToDestino();
 
     return WillPopScope(
       onWillPop: () async => false,
@@ -786,6 +787,7 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent> with WidgetsBi
                 },
                 isSendingArrival: _completionFlowInProgress,
                 isArrivalReported: _terminarViajePressed,
+                arrivalButtonEnabled: !_loadingUbicacion && _metersToDestino != null && _metersToDestino <= 50,
                 etaText: _tiempoEstimadoLlegada().replaceFirst('Tiempo estimado: ', ''),
                 distanceText: _distanciaKmConductorDestino(),
                 title: 'En viaje hacia el destino',

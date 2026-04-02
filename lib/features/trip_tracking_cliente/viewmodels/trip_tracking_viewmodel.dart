@@ -83,6 +83,8 @@ class TripTrackingViewModel extends ChangeNotifier {
   LatLng? _lastFrom;
   LatLng? _lastTo;
   bool _routeCalculatedOnce = false;
+  List<LatLng> _fullRoutePoints = const [];
+  int _routeProgressIndex = 0;
 
   Future<void> init() async {
     await _restoreFromCache();
@@ -94,17 +96,23 @@ class TripTrackingViewModel extends ChangeNotifier {
   void _updateConductorHeading() {
     try {
       final current = conductorLatLng;
-      if (current == null || routePoints.length < 2) {
+      final headingPoints = _fullRoutePoints.length >= 2
+          ? _fullRoutePoints
+          : routePoints;
+      if (current == null || headingPoints.length < 2) {
         conductorHeading = 0.0;
         return;
       }
 
-      final nearest = _mathService.nearestPointIndex(current, routePoints);
+      final nearest = _nearestForwardIndex(current, headingPoints);
       LatLng? target;
-      if (nearest < routePoints.length - 1) {
-        target = routePoints[nearest + 1];
+      final lookAhead = nearest + 3;
+      if (lookAhead < headingPoints.length) {
+        target = headingPoints[lookAhead];
+      } else if (nearest < headingPoints.length - 1) {
+        target = headingPoints[nearest + 1];
       } else if (nearest > 0) {
-        target = routePoints[nearest];
+        target = headingPoints[nearest];
       }
       if (target != null) {
         conductorHeading = _mathService.bearingBetween(current, target);
@@ -370,6 +378,8 @@ class TripTrackingViewModel extends ChangeNotifier {
     final cachedRoute = await _localCacheService.readRoute(solicitudId);
     if (cachedRoute != null && cachedRoute.points.length >= 2) {
       routePoints = cachedRoute.points;
+      _fullRoutePoints = _densifyPolyline(cachedRoute.points);
+      _routeProgressIndex = 0;
       distanceMeters = cachedRoute.distanceMeters;
       eta = cachedRoute.etaSeconds != null
           ? Duration(seconds: cachedRoute.etaSeconds!)
@@ -414,9 +424,13 @@ class TripTrackingViewModel extends ChangeNotifier {
       final points = await _mapService.fetchRoadPolyline(from: from, to: to);
       final distance = _mapService.routeDistanceMeters(points);
 
-      routePoints = points;
-      distanceMeters = distance;
-      eta = _mapService.etaFromDistance(distance);
+      _fullRoutePoints = _densifyPolyline(points);
+      _routeProgressIndex = 0;
+      final current = conductorLatLng ?? from;
+      routePoints = _buildRemainingRoutePoints(current);
+      final remainingDistance = _mapService.routeDistanceMeters(routePoints);
+      distanceMeters = remainingDistance > 0 ? remainingDistance : distance;
+      eta = _mapService.etaFromDistance(distanceMeters!);
 
       await _localCacheService.saveRoute(
         solicitudId: solicitudId,
@@ -455,7 +469,7 @@ class TripTrackingViewModel extends ChangeNotifier {
 
   void _handleConductorLocationUpdate(SolicitudModel item) {
     final d = item.conductor;
-    if (d == null || !d.hasLocation) return;
+    if (!d.hasLocation) return;
     final next = LatLng(d.lat!, d.lng!);
     _enqueueConductorTarget(next);
   }
@@ -479,11 +493,28 @@ class TripTrackingViewModel extends ChangeNotifier {
       return;
     }
 
-    if (_pendingConductorTargets.length >= 3) {
-      _pendingConductorTargets[_pendingConductorTargets.length - 1] = target;
-    } else {
-      _pendingConductorTargets.add(target);
+    final snappedTarget = _snapTargetToRouteForward(target);
+
+    if (_pendingConductorTargets.isNotEmpty) {
+      final lastQueued = _pendingConductorTargets.last;
+      final delta = _mapService.distanceMeters(lastQueued, snappedTarget);
+      if (delta < 1.2) {
+        return;
+      }
     }
+
+    if (_pendingConductorTargets.isEmpty && _smoothedConductorLatLng != null) {
+      final deltaFromCurrent = _mapService.distanceMeters(
+        _smoothedConductorLatLng!,
+        snappedTarget,
+      );
+      if (deltaFromCurrent < 1.2) {
+        return;
+      }
+    }
+
+    // Encola cada update para reproducir correctamente la trayectoria.
+    _pendingConductorTargets.add(snappedTarget);
 
     _ensureMovementTimer();
   }
@@ -497,20 +528,21 @@ class TripTrackingViewModel extends ChangeNotifier {
   }
 
   void _prepareActivePath(LatLng from, LatLng to) {
-    if (routePoints.length < 2) {
+    final source = _fullRoutePoints.length >= 2 ? _fullRoutePoints : routePoints;
+    if (source.length < 2) {
       _activePathPoints = <LatLng>[to];
       _activePathIndex = 0;
       return;
     }
 
-    final startIdx = _mathService.nearestPointIndex(from, routePoints);
-    final endIdx = _mathService.nearestPointIndex(to, routePoints);
+    final startIdx = _mathService.nearestPointIndex(from, source);
+    final endIdx = _mathService.nearestPointIndex(to, source);
 
     if (startIdx <= endIdx) {
-      final segment = routePoints.sublist(startIdx, endIdx + 1);
+      final segment = source.sublist(startIdx, endIdx + 1);
       _activePathPoints = <LatLng>[...segment, to];
     } else {
-      final segment = routePoints.sublist(endIdx, startIdx + 1).reversed;
+      final segment = source.sublist(endIdx, startIdx + 1).reversed;
       _activePathPoints = <LatLng>[...segment, to];
     }
 
@@ -531,9 +563,10 @@ class TripTrackingViewModel extends ChangeNotifier {
       _prepareActivePath(_smoothedConductorLatLng!, _pendingConductorTargets.first);
     }
 
-    final stepMeters = _movementSpeedMps * 0.05;
-    var remaining = stepMeters;
     var current = _smoothedConductorLatLng!;
+    final effectiveSpeed = _effectiveSpeedForBacklog(current);
+    final stepMeters = effectiveSpeed * 0.05;
+    var remaining = stepMeters;
 
     while (remaining > 0 && _activePathIndex < _activePathPoints.length) {
       final next = _activePathPoints[_activePathIndex];
@@ -560,6 +593,10 @@ class TripTrackingViewModel extends ChangeNotifier {
     }
 
     _smoothedConductorLatLng = current;
+    routePoints = _buildRemainingRoutePoints(current);
+    final remainingDistance = _mapService.routeDistanceMeters(routePoints);
+    distanceMeters = remainingDistance;
+    eta = _mapService.etaFromDistance(remainingDistance);
     _updateConductorHeading();
 
     if (_activePathIndex >= _activePathPoints.length) {
@@ -574,6 +611,116 @@ class TripTrackingViewModel extends ChangeNotifier {
   void _stopMovement() {
     _movementTimer?.cancel();
     _movementTimer = null;
+  }
+
+  double _effectiveSpeedForBacklog(LatLng current) {
+    var speed = _movementSpeedMps;
+    final backlog = _pendingConductorTargets.length;
+
+    if (backlog >= 2) {
+      speed *= (1.0 + (backlog - 1) * 0.35).clamp(1.0, 2.8);
+    }
+
+    if (backlog > 0) {
+      final lagDistance = _mapService.distanceMeters(current, _pendingConductorTargets.first);
+      if (lagDistance > 70) {
+        speed *= 1.5;
+      } else if (lagDistance > 40) {
+        speed *= 1.3;
+      } else if (lagDistance > 20) {
+        speed *= 1.15;
+      }
+    }
+
+    return speed.clamp(3.0, 28.0);
+  }
+
+  LatLng _snapTargetToRouteForward(LatLng target) {
+    final source = _fullRoutePoints;
+    if (source.length < 2 || _smoothedConductorLatLng == null) {
+      return target;
+    }
+
+    final start = _routeProgressIndex.clamp(0, source.length - 1);
+    final end = (start + 240) < source.length ? (start + 240) : (source.length - 1);
+    var nearest = start;
+    var best = double.infinity;
+
+    for (var i = start; i <= end; i++) {
+      final p = source[i];
+      final dist = _mapService.distanceMeters(target, p);
+      if (dist < best) {
+        best = dist;
+        nearest = i;
+      }
+    }
+
+    if (best > 80) {
+      return target;
+    }
+
+    if (nearest > _routeProgressIndex) {
+      _routeProgressIndex = nearest;
+    }
+
+    return source[_routeProgressIndex];
+  }
+
+  List<LatLng> _buildRemainingRoutePoints(LatLng current) {
+    final source = _fullRoutePoints;
+    if (source.length < 2) {
+      return source;
+    }
+
+    final nearest = _nearestForwardIndex(current, source);
+    if (nearest >= source.length - 1) {
+      return <LatLng>[current, source.last];
+    }
+
+    final tail = source.sublist(nearest + 1);
+    return <LatLng>[current, ...tail];
+  }
+
+  int _nearestForwardIndex(LatLng current, List<LatLng> source) {
+    if (source.isEmpty) return 0;
+    final nearest = _mathService.nearestPointIndex(current, source);
+    if (nearest > _routeProgressIndex) {
+      _routeProgressIndex = nearest;
+    }
+    if (_routeProgressIndex >= source.length) {
+      _routeProgressIndex = source.length - 1;
+    }
+    return _routeProgressIndex;
+  }
+
+  List<LatLng> _densifyPolyline(List<LatLng> points) {
+    if (points.length < 2) return points;
+    const stepMeters = 6.0;
+    final dense = <LatLng>[points.first];
+
+    for (var i = 0; i < points.length - 1; i++) {
+      final a = points[i];
+      final b = points[i + 1];
+      final segment = _mapService.distanceMeters(a, b);
+      if (segment <= stepMeters) {
+        dense.add(b);
+        continue;
+      }
+
+      final steps = (segment / stepMeters).floor();
+      for (var s = 1; s <= steps; s++) {
+        final t = s / (steps + 1);
+        dense.add(
+          LatLng(
+            a.latitude + (b.latitude - a.latitude) * t,
+            a.longitude + (b.longitude - a.longitude) * t,
+          ),
+        );
+      }
+      dense.add(b);
+    }
+
+    return dense;
   }
 
   void _safeNotify() {

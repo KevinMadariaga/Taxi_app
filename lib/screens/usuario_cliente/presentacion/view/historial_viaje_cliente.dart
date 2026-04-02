@@ -284,6 +284,7 @@ class HistorialClienteState extends State<HistorialCliente> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         title: const Text(
           "Historial de Viajes",
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),

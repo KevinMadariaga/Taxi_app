@@ -79,7 +79,14 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
   // Map & Route State
   // =====================
   LatLng? _conductorLatLng;
-  LatLng? _lastConductorLatLng;
+  List<LatLng> _fullRoutePoints = const [];
+  final List<LatLng> _pendingConductorTargets = <LatLng>[];
+  List<LatLng> _activePathPoints = const [];
+  int _activePathIndex = 0;
+  int _routeProgressIndex = 0;
+  double _movementSpeedMps = 8.0;
+  LatLng? _lastRawConductor;
+  DateTime? _lastRawConductorAt;
   Set<Polyline> _polylines = {};
   BitmapDescriptor? _conductorMarkerIcon;
   BitmapDescriptor? _destinoMarkerIcon;
@@ -149,38 +156,7 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
                     final lat = (ubic['lat'] as num).toDouble();
                     final lng = (ubic['lng'] as num).toDouble();
                     final newPos = LatLng(lat, lng);
-                    setState(() {
-                      _conductorLatLng = newPos;
-                      _lastConductorLatLng = newPos;
-                    });
-                  }
-                }
-
-                // Si hay historial de tracking, actualizar polyline
-                final tracking = data['tracking'];
-                if (tracking is Map) {
-                  final driverHistory = tracking['driverHistory'];
-                  if (driverHistory is List && driverHistory.isNotEmpty) {
-                    final points = <LatLng>[];
-                    for (final item in driverHistory) {
-                      try {
-                        final lat = (item['lat'] as num).toDouble();
-                        final lng = (item['lng'] as num).toDouble();
-                        points.add(LatLng(lat, lng));
-                      } catch (_) {}
-                    }
-                    if (points.isNotEmpty) {
-                      setState(() {
-                        _polylines = {
-                          Polyline(
-                            polylineId: const PolylineId('driver_history'),
-                            color: AppColores.buttonPrimary,
-                            width: 5,
-                            points: points,
-                          ),
-                        };
-                      });
-                    }
+                    _enqueueConductorTarget(newPos);
                   }
                 }
               } catch (e) {
@@ -232,56 +208,43 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
           : null;
 
       if (!mounted) return;
-
-      LatLng? nextLastConductor = _lastConductorLatLng;
-      LatLng? nextConductorLatLng = _conductorLatLng;
-      double nextConductorRotation = _conductorRotation;
-
       if (conductorLatLng != null) {
-        if (nextLastConductor != null) {
-          final movedMeters = _calculateDistance(
-            nextLastConductor.latitude,
-            nextLastConductor.longitude,
-            conductorLatLng.latitude,
-            conductorLatLng.longitude,
-          );
-          if (movedMeters >= 1.5) {
-            final targetHeading = _bearingBetween(
-              nextLastConductor,
-              conductorLatLng,
-            );
-            nextConductorRotation = _lerpAngle(
-              nextConductorRotation,
-              targetHeading,
-              0.45,
-            );
-          }
-        } else if (destinoLatLng != null) {
-          nextConductorRotation = _bearingBetween(
-            conductorLatLng,
-            destinoLatLng,
-          );
-        }
-
-        nextLastConductor = conductorLatLng;
-        nextConductorLatLng = conductorLatLng;
+        _enqueueConductorTarget(conductorLatLng);
       }
 
       if (puntos.isEmpty) {
-        setState(() {
-          _polylines = {};
-          _distancia = '';
-          _conductorLatLng = nextConductorLatLng;
-          _lastConductorLatLng = nextLastConductor;
-          _conductorRotation = nextConductorRotation;
-        });
+        // Mantener la ultima ruta valida evita saltos visuales cuando la API
+        // devuelve vacio temporalmente.
+        if (_fullRoutePoints.isNotEmpty && _conductorLatLng != null) {
+          final visibleRoute = _buildRemainingRoutePoints(_conductorLatLng!);
+          setState(() {
+            _polylines = {
+              Polyline(
+                polylineId: const PolylineId('ruta'),
+                color: AppColores.buttonPrimary,
+                width: 6,
+                points: visibleRoute,
+              ),
+            };
+            _distancia = _distanceToLabel(_polylineDistance(visibleRoute));
+          });
+        }
         return;
       }
 
-      final distanciaMetros = vm.calcularDistanciaPolyline(puntos);
-      final distanciaStr = distanciaMetros >= 1000
-          ? '${(distanciaMetros / 1000).toStringAsFixed(2)} km'
-          : '${distanciaMetros.toStringAsFixed(0)} m';
+      _fullRoutePoints = _densifyPolyline(puntos);
+      if (_conductorLatLng != null) {
+        _routeProgressIndex = _nearestIndexRaw(_conductorLatLng!, _fullRoutePoints);
+      } else {
+        _routeProgressIndex = 0;
+      }
+
+      final currentMarker = _conductorLatLng ?? conductorLatLng;
+      final visibleRoute = currentMarker != null
+          ? _buildRemainingRoutePoints(currentMarker)
+          : _fullRoutePoints;
+
+      final distanciaStr = _distanceToLabel(_polylineDistance(visibleRoute));
 
       setState(() {
         _polylines = {
@@ -289,14 +252,20 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
             polylineId: const PolylineId('ruta'),
             color: AppColores.buttonPrimary,
             width: 6,
-            points: puntos,
+            points: visibleRoute,
           ),
         };
         _distancia = distanciaStr;
-        _conductorLatLng = nextConductorLatLng;
-        _lastConductorLatLng = nextLastConductor;
-        _conductorRotation = nextConductorRotation;
       });
+
+      if (currentMarker != null) {
+        final nextRotation = _computeConductorHeading(currentMarker, _conductorRotation);
+        if (nextRotation != _conductorRotation) {
+          setState(() {
+            _conductorRotation = nextRotation;
+          });
+        }
+      }
 
       final segundos = await vm.calcularTiempoEstimado();
       if (segundos != null) {
@@ -304,7 +273,10 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
         vm.setTiempoEstimado('$minutos min');
       }
 
-      await _fitConductorDestinoCamera(conductorLatLng, destinoLatLng);
+      await _fitConductorDestinoCamera(
+        _conductorLatLng ?? conductorLatLng,
+        destinoLatLng,
+      );
     } finally {
       _isUpdatingRoute = false;
     }
@@ -370,6 +342,403 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
   double _lerpAngle(double from, double to, double t) {
     final diff = ((to - from + 540) % 360) - 180;
     return _normalizeAngle(from + diff * t);
+  }
+
+  void _enqueueConductorTarget(LatLng target) {
+    final now = DateTime.now();
+    if (_lastRawConductor != null && _lastRawConductorAt != null) {
+      final elapsedMs = now.difference(_lastRawConductorAt!).inMilliseconds;
+      if (elapsedMs > 0) {
+        final moved = _calculateDistance(
+          _lastRawConductor!.latitude,
+          _lastRawConductor!.longitude,
+          target.latitude,
+          target.longitude,
+        );
+        final speed = moved / (elapsedMs / 1000.0);
+        _movementSpeedMps = speed.clamp(3.0, 18.0);
+      }
+    }
+    _lastRawConductor = target;
+    _lastRawConductorAt = now;
+
+    if (_conductorLatLng == null) {
+      final initialRotation = _computeConductorHeading(target, _conductorRotation);
+      setState(() {
+        _conductorLatLng = target;
+        _conductorRotation = initialRotation;
+      });
+      return;
+    }
+
+    final snappedTarget = _snapTargetToRouteForward(target);
+
+    // Evita agregar duplicados casi iguales que solo meten ruido al movimiento.
+    if (_pendingConductorTargets.isNotEmpty) {
+      final lastQueued = _pendingConductorTargets.last;
+      final delta = _calculateDistance(
+        lastQueued.latitude,
+        lastQueued.longitude,
+        snappedTarget.latitude,
+        snappedTarget.longitude,
+      );
+      if (delta < 1.2) {
+        return;
+      }
+    }
+
+    if (_pendingConductorTargets.isEmpty && _conductorLatLng != null) {
+      final deltaFromCurrent = _calculateDistance(
+        _conductorLatLng!.latitude,
+        _conductorLatLng!.longitude,
+        snappedTarget.latitude,
+        snappedTarget.longitude,
+      );
+      if (deltaFromCurrent < 1.2) {
+        return;
+      }
+    }
+
+    // Encola cada ubicacion escuchada para reproducir el recorrido completo.
+    _pendingConductorTargets.add(snappedTarget);
+
+    _ensureMovementTimer();
+  }
+
+  void _ensureMovementTimer() {
+    if (_animacionMarcadorTimer != null) return;
+    _animacionMarcadorTimer = Timer.periodic(
+      const Duration(milliseconds: 50),
+      (_) => _tickMovement(),
+    );
+  }
+
+  void _tickMovement() {
+    final currentMarker = _conductorLatLng;
+    if (currentMarker == null) {
+      _stopMovement();
+      return;
+    }
+
+    if (_activePathPoints.isEmpty) {
+      if (_pendingConductorTargets.isEmpty) {
+        _stopMovement();
+        return;
+      }
+      _prepareActivePath(currentMarker, _pendingConductorTargets.first);
+    }
+
+    final effectiveSpeed = _effectiveSpeedForBacklog(currentMarker);
+    final stepMeters = effectiveSpeed * 0.05;
+    var remaining = stepMeters;
+    var current = currentMarker;
+
+    while (remaining > 0 && _activePathIndex < _activePathPoints.length) {
+      final next = _activePathPoints[_activePathIndex];
+      final segmentDistance = _calculateDistance(
+        current.latitude,
+        current.longitude,
+        next.latitude,
+        next.longitude,
+      );
+
+      if (segmentDistance <= 0.1) {
+        current = next;
+        _activePathIndex += 1;
+        continue;
+      }
+
+      if (remaining >= segmentDistance) {
+        current = next;
+        remaining -= segmentDistance;
+        _activePathIndex += 1;
+      } else {
+        final t = remaining / segmentDistance;
+        current = LatLng(
+          current.latitude + (next.latitude - current.latitude) * t,
+          current.longitude + (next.longitude - current.longitude) * t,
+        );
+        remaining = 0;
+      }
+    }
+
+    final visibleRoute = _buildRemainingRoutePoints(current);
+    final distance = _polylineDistance(visibleRoute);
+    LatLng? headingTarget;
+    if (_activePathIndex < _activePathPoints.length) {
+      final lookAheadIndex = (_activePathIndex + 2) < _activePathPoints.length
+          ? (_activePathIndex + 2)
+          : (_activePathPoints.length - 1);
+      headingTarget = _activePathPoints[lookAheadIndex];
+    } else if (visibleRoute.length >= 2) {
+      headingTarget = visibleRoute[1];
+    }
+
+    var nextRotation = _conductorRotation;
+    if (headingTarget != null) {
+      final heading = _bearingBetween(current, headingTarget);
+      nextRotation = _lerpAngle(_conductorRotation, heading, 0.55);
+    } else {
+      nextRotation = _computeConductorHeading(current, _conductorRotation);
+    }
+
+    setState(() {
+      _conductorLatLng = current;
+      _polylines = {
+        Polyline(
+          polylineId: const PolylineId('ruta'),
+          color: AppColores.buttonPrimary,
+          width: 6,
+          points: visibleRoute,
+        ),
+      };
+      _distancia = _distanceToLabel(distance);
+      _conductorRotation = nextRotation;
+    });
+
+    if (_activePathIndex >= _activePathPoints.length) {
+      if (_pendingConductorTargets.isNotEmpty) {
+        _pendingConductorTargets.removeAt(0);
+      }
+      _activePathPoints = const [];
+      _activePathIndex = 0;
+    }
+  }
+
+  double _effectiveSpeedForBacklog(LatLng currentMarker) {
+    var speed = _movementSpeedMps;
+    final backlog = _pendingConductorTargets.length;
+
+    // Si ya hay 2+ updates pendientes, acelera para no quedar atras.
+    if (backlog >= 2) {
+      speed *= (1.0 + (backlog - 1) * 0.35).clamp(1.0, 2.8);
+    }
+
+    if (backlog > 0) {
+      final next = _pendingConductorTargets.first;
+      final lagDistance = _calculateDistance(
+        currentMarker.latitude,
+        currentMarker.longitude,
+        next.latitude,
+        next.longitude,
+      );
+
+      if (lagDistance > 70) {
+        speed *= 1.5;
+      } else if (lagDistance > 40) {
+        speed *= 1.3;
+      } else if (lagDistance > 20) {
+        speed *= 1.15;
+      }
+    }
+
+    return speed.clamp(3.0, 28.0);
+  }
+
+  void _prepareActivePath(LatLng from, LatLng to) {
+    final source = _fullRoutePoints;
+    if (source.length < 2) {
+      _activePathPoints = <LatLng>[to];
+      _activePathIndex = 0;
+      return;
+    }
+
+    final startIdx = _nearestForwardIndex(from, source);
+    var endIdx = _nearestForwardIndex(to, source);
+    if (endIdx < startIdx) {
+      endIdx = startIdx;
+    }
+
+    if (startIdx <= endIdx) {
+      final segment = source.sublist(startIdx, endIdx + 1);
+      _activePathPoints = <LatLng>[...segment, to];
+    } else {
+      final segment = source.sublist(endIdx, startIdx + 1).reversed;
+      _activePathPoints = <LatLng>[...segment, to];
+    }
+    _activePathIndex = 0;
+  }
+
+  void _stopMovement() {
+    _animacionMarcadorTimer?.cancel();
+    _animacionMarcadorTimer = null;
+  }
+
+  double _computeConductorHeading(LatLng current, double currentRotation) {
+    final source = _fullRoutePoints;
+    if (source.length < 2) return currentRotation;
+
+    final nearest = _nearestForwardIndex(current, source);
+    final lookAhead = nearest + 4;
+
+    LatLng? target;
+    if (lookAhead < source.length) {
+      target = source[lookAhead];
+    } else if (nearest < source.length - 1) {
+      target = source[nearest + 1];
+    } else if (nearest > 0) {
+      target = source[nearest];
+    }
+
+    if (target == null) return currentRotation;
+    final heading = _bearingBetween(current, target);
+    return _lerpAngle(currentRotation, heading, 0.5);
+  }
+
+  LatLng _snapTargetToRouteForward(LatLng target) {
+    final source = _fullRoutePoints;
+    if (source.length < 2 || _conductorLatLng == null) {
+      return target;
+    }
+
+    final start = _routeProgressIndex;
+    final end = Math.min(source.length - 1, start + 240);
+    var nearest = start;
+    var best = double.infinity;
+
+    for (var i = start; i <= end; i++) {
+      final p = source[i];
+      final dist = _calculateDistance(
+        target.latitude,
+        target.longitude,
+        p.latitude,
+        p.longitude,
+      );
+      if (dist < best) {
+        best = dist;
+        nearest = i;
+      }
+    }
+
+    // Si el GPS cae muy lejos de la ruta, dejamos el punto original para
+    // permitir recuperación de ruta sin bloquear el marcador.
+    if (best > 80) {
+      return target;
+    }
+
+    if (nearest > _routeProgressIndex) {
+      _routeProgressIndex = nearest;
+    }
+    return source[_routeProgressIndex];
+  }
+
+  List<LatLng> _buildRemainingRoutePoints(LatLng current) {
+    final source = _fullRoutePoints;
+    if (source.length < 2) {
+      return source;
+    }
+
+    final nearest = _nearestForwardIndex(current, source);
+    if (nearest >= source.length - 1) {
+      return <LatLng>[current, source.last];
+    }
+
+    final tail = source.sublist(nearest + 1);
+    return <LatLng>[current, ...tail];
+  }
+
+  int _nearestForwardIndex(LatLng current, List<LatLng> source) {
+    if (source.isEmpty) return 0;
+
+    var nearest = _routeProgressIndex.clamp(0, source.length - 1);
+    var best = double.infinity;
+    final start = _routeProgressIndex.clamp(0, source.length - 1);
+    final end = Math.min(source.length - 1, start + 260);
+    for (var i = start; i <= end; i++) {
+      final p = source[i];
+      final dist = _calculateDistance(
+        current.latitude,
+        current.longitude,
+        p.latitude,
+        p.longitude,
+      );
+      if (dist < best) {
+        best = dist;
+        nearest = i;
+      }
+    }
+
+    if (nearest > _routeProgressIndex) {
+      _routeProgressIndex = nearest;
+    }
+    if (_routeProgressIndex >= source.length) {
+      _routeProgressIndex = source.length - 1;
+    }
+    return _routeProgressIndex;
+  }
+
+  int _nearestIndexRaw(LatLng current, List<LatLng> source) {
+    if (source.isEmpty) return 0;
+
+    var nearest = 0;
+    var best = double.infinity;
+    for (var i = 0; i < source.length; i++) {
+      final p = source[i];
+      final dist = _calculateDistance(
+        current.latitude,
+        current.longitude,
+        p.latitude,
+        p.longitude,
+      );
+      if (dist < best) {
+        best = dist;
+        nearest = i;
+      }
+    }
+    return nearest;
+  }
+
+  List<LatLng> _densifyPolyline(List<LatLng> points) {
+    if (points.length < 2) return points;
+    const stepMeters = 4.0;
+    final dense = <LatLng>[points.first];
+
+    for (var i = 0; i < points.length - 1; i++) {
+      final a = points[i];
+      final b = points[i + 1];
+      final segment = _calculateDistance(
+        a.latitude,
+        a.longitude,
+        b.latitude,
+        b.longitude,
+      );
+      if (segment <= stepMeters) {
+        dense.add(b);
+        continue;
+      }
+
+      final steps = (segment / stepMeters).floor();
+      for (var s = 1; s <= steps; s++) {
+        final t = s / (steps + 1);
+        dense.add(
+          LatLng(
+            a.latitude + (b.latitude - a.latitude) * t,
+            a.longitude + (b.longitude - a.longitude) * t,
+          ),
+        );
+      }
+      dense.add(b);
+    }
+
+    return dense;
+  }
+
+  double _polylineDistance(List<LatLng> points) {
+    if (points.length < 2) return 0;
+    var total = 0.0;
+    for (var i = 0; i < points.length - 1; i++) {
+      final a = points[i];
+      final b = points[i + 1];
+      total += _calculateDistance(a.latitude, a.longitude, b.latitude, b.longitude);
+    }
+    return total;
+  }
+
+  String _distanceToLabel(double meters) {
+    if (meters >= 1000) {
+      return '${(meters / 1000).toStringAsFixed(2)} km';
+    }
+    return '${meters.toStringAsFixed(0)} m';
   }
 
   Future<void> _fitConductorDestinoCamera(
@@ -962,30 +1331,7 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
           ),
         ),
 
-        // Loader Overlay
-        if (vm.isLoadingRoute)
-          Positioned.fill(
-            child: Container(
-              color: Colors.white.withOpacity(0.6),
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const CircularProgressIndicator(color: AppColores.primary),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'Cargando ruta...',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 16,
-                        color: Colors.black87,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
+        // Loader oculto para mantener continuidad visual del movimiento del taxi.
       ],
     );
   }
