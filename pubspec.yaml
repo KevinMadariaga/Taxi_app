@@ -1,7 +1,7 @@
 name: taxi_app
 description: "Aplicación móvil de servicio de taxi con geolocalización en tiempo real."
 publish_to: 'none'
-version: 1.0.2+2
+version: 1.0.1+21
 
 environment:
   sdk: ^3.10.7
@@ -67,7 +67,7 @@ flutter_icons:
   android: true
   ios: true
   image_path: "assets/img/icono.png"
-  adaptive_icon_foreground: "assets/img/foreground_car.png"
+  adaptive_icon_foreground: "assets/img/icono.png"
   adaptive_icon_background: "assets/img/background_car.png"
 
 flutter_native_splash:
@@ -84,5 +84,5 @@ flutter_native_splash:
   android_12:
     color: "#081B33"
     color_dark: "#081B33"
-    image: assets/img/foreground_car.png
+    image: assets/img/icono.png
     icon_background_color: "#081B33"

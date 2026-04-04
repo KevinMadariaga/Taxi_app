@@ -77,6 +77,20 @@ class UserDataService {
     return doc.exists;
   }
 
+  Future<bool> administradorRegistradoCompleto(String uid) async {
+    final doc = await _firestore.collection('administradores').doc(uid).get();
+    if (!doc.exists) return false;
+    final data = doc.data() ?? <String, dynamic>{};
+    final nombre = (data['nombre'] ?? '').toString().trim();
+    final telefono = (data['telefono'] ?? '').toString().trim();
+    final foto = (data['foto'] ?? '').toString().trim();
+    final gremio = (data['gremio'] ?? '').toString().trim();
+    return nombre.isNotEmpty &&
+        telefono.isNotEmpty &&
+        foto.isNotEmpty &&
+        gremio.isNotEmpty;
+  }
+
   Future<void> guardarAdministrador({
     required String uid,
     required String nombre,

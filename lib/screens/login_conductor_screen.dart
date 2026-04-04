@@ -3,6 +3,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/services/services.dart';
+import 'package:taxi_app/features/phone_auth/screens/admin_ingreso_screen.dart';
+import 'package:taxi_app/features/phone_auth/screens/auth_phone_screen.dart';
+import 'package:taxi_app/features/phone_auth/controllers/phone_auth_controller.dart';
 import 'package:awesome_snackbar_content/awesome_snackbar_content.dart';
 
 class LoginConductor extends StatefulWidget {
@@ -257,6 +260,70 @@ class _LoginConductorState extends State<LoginConductor> {
                               fontWeight: FontWeight.w600,
                             ),
                           ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: () async {
+                      final controller = TextEditingController();
+                      final accepted = await showDialog<bool>(
+                        context: context,
+                        builder: (dialogContext) {
+                          return AlertDialog(
+                            title: const Text('Acceso administrador'),
+                            content: TextField(
+                              controller: controller,
+                              obscureText: true,
+                              decoration: const InputDecoration(
+                                hintText: 'Código admin',
+                              ),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () =>
+                                    Navigator.pop(dialogContext, false),
+                                child: const Text('Cancelar'),
+                              ),
+                              ElevatedButton(
+                                onPressed: () =>
+                                    Navigator.pop(dialogContext, true),
+                                child: const Text('Validar'),
+                              ),
+                            ],
+                          );
+                        },
+                      );
+
+                      if (accepted != true) return;
+                      final code = controller.text.trim();
+                      if (code.isEmpty) return;
+
+                      // If the code matches the admin secret, open AdminIngresoScreen.
+                      if (code == PhoneAuthController.adminSecret) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const AdminIngresoScreen(),
+                          ),
+                        );
+                      } else {
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Código incorrecto')),
+                        );
+                      }
+                    },
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColores.textPrimary,
+                      side: const BorderSide(color: AppColores.buttonPrimary),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: const Text('Acceso administrador'),
                   ),
                 ),
               ],

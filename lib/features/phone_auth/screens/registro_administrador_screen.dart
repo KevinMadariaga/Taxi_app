@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:taxi_app/core/app_colores.dart';
 
@@ -25,12 +26,20 @@ class _RegistroAdministradorScreenState
     extends State<RegistroAdministradorScreen> {
   final TextEditingController _nombreController = TextEditingController();
   final TextEditingController _gremioController = TextEditingController();
+  final TextEditingController _telefonoController = TextEditingController();
 
   @override
   void dispose() {
     _nombreController.dispose();
     _gremioController.dispose();
+    _telefonoController.dispose();
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _telefonoController.text = widget.telefono;
   }
 
   @override
@@ -65,14 +74,24 @@ class _RegistroAdministradorScreenState
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            const Text(
-                              'Completa tu perfil de administrador',
-                              style: TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.w800,
+                            Center(
+                              child: Text(
+                                'Completa tu perfil de administrador',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w800,
+                                ),
                               ),
                             ),
-                            const SizedBox(height: 10),
+                            const SizedBox(height: 12),
+                            ImagePickerTile(
+                              title: 'Seleccionar foto de perfil',
+                              image: vm.profileImage,
+                              circular: true,
+                              onTap: vm.pickProfileImage,
+                            ),
+                            const SizedBox(height: 12),
                             TextField(
                               controller: _nombreController,
                               decoration: const InputDecoration(
@@ -90,20 +109,16 @@ class _RegistroAdministradorScreenState
                             ),
                             const SizedBox(height: 10),
                             TextField(
-                              enabled: false,
-                              readOnly: true,
-                              decoration: InputDecoration(
-                                labelText: 'Telefono verificado',
-                                border: const OutlineInputBorder(),
-                                hintText: widget.telefono,
+                              controller: _telefonoController,
+                              keyboardType: TextInputType.phone,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly,
+                                LengthLimitingTextInputFormatter(10),
+                              ],
+                              decoration: const InputDecoration(
+                                labelText: 'Telefono',
+                                border: OutlineInputBorder(),
                               ),
-                            ),
-                            const SizedBox(height: 12),
-                            ImagePickerTile(
-                              title: 'Seleccionar foto de perfil',
-                              image: vm.profileImage,
-                              circular: true,
-                              onTap: vm.pickProfileImage,
                             ),
                             const SizedBox(height: 16),
                             ElevatedButton(
@@ -151,6 +166,7 @@ class _RegistroAdministradorScreenState
     final error = await vm.registerAdmin(
       nombre: _nombreController.text,
       gremio: _gremioController.text,
+      telefonoParam: _telefonoController.text,
     );
 
     if (!context.mounted) return;
