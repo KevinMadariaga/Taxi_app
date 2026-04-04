@@ -159,80 +159,81 @@ class _ResumenViajeBodyState extends State<_ResumenViajeBody> {
                 return true;
               },
               child: Scaffold(
-              resizeToAvoidBottomInset: true,
-              backgroundColor: AppColores.background,
-              body: SafeArea(
-                bottom: false,
-                child: Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [AppColores.surface, AppColores.background],
+                resizeToAvoidBottomInset: true,
+                backgroundColor: AppColores.background,
+                body: SafeArea(
+                  bottom: false,
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [AppColores.surface, AppColores.background],
+                      ),
                     ),
-                  ),
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 760),
-                      child: SingleChildScrollView(
-                        keyboardDismissBehavior:
-                            ScrollViewKeyboardDismissBehavior.onDrag,
-                        padding: EdgeInsets.fromLTRB(
-                          horizontalPadding,
-                          18,
-                          horizontalPadding,
-                          20,
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            const ResumenHeader(),
-                            const SizedBox(height: 14),
-                            _SummaryCard(
-                              resumen: resumen,
-                              isCliente: isCliente,
-                            ),
-                            if (isCliente) ...[
-                              const SizedBox(height: 10),
-                              CalificacionSection(
-                                calificacion: vm.calificacionSeleccionada,
-                                onCalificacionChanged: vm.setCalificacion,
-                                requiereComentario: vm.requiereComentario,
-                                comentarioInicial: vm.comentarioCalificacion,
-                                onComentarioChanged: vm.setComentario,
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 760),
+                        child: SingleChildScrollView(
+                          keyboardDismissBehavior:
+                              ScrollViewKeyboardDismissBehavior.onDrag,
+                          padding: EdgeInsets.fromLTRB(
+                            horizontalPadding,
+                            18,
+                            horizontalPadding,
+                            20,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              const ResumenHeader(),
+                              const SizedBox(height: 14),
+                              _SummaryCard(
+                                resumen: resumen,
+                                isCliente: isCliente,
                               ),
+                              if (isCliente) ...[
+                                const SizedBox(height: 10),
+                                CalificacionSection(
+                                  calificacion: vm.calificacionSeleccionada,
+                                  onCalificacionChanged: vm.setCalificacion,
+                                  requiereComentario: vm.requiereComentario,
+                                  comentarioInicial: vm.comentarioCalificacion,
+                                  onComentarioChanged: vm.setComentario,
+                                ),
+                              ],
                             ],
-                          ],
+                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
-              ),
-              bottomNavigationBar: Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: SafeArea(
-                  top: false,
-                  minimum: EdgeInsets.fromLTRB(
-                    horizontalPadding,
-                    8,
-                    horizontalPadding,
-                    20,
-                  ),
-                  child: CustomButton(
-                    text: isCliente ? 'Continuar' : 'Volver al inicio',
-                    onPressed: vm.guardando
-                        ? null
-                        : () {
-                            _onActionPressed(context, vm);
-                          },
-                    width: double.infinity,
-                    height: 52,
-                    color: AppColores.buttonPrimary,
+                bottomNavigationBar: Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: SafeArea(
+                    top: false,
+                    minimum: EdgeInsets.fromLTRB(
+                      horizontalPadding,
+                      8,
+                      horizontalPadding,
+                      20,
+                    ),
+                    child: CustomButton(
+                      text: isCliente ? 'Continuar' : 'Volver al inicio',
+                      onPressed: vm.guardando
+                          ? null
+                          : () {
+                              _onActionPressed(context, vm);
+                            },
+                      width: double.infinity,
+                      height: 52,
+                      color: AppColores.buttonPrimary,
+                    ),
                   ),
                 ),
               ),
-            ));
+            );
           },
         );
       },
@@ -253,9 +254,9 @@ class _ResumenViajeBodyState extends State<_ResumenViajeBody> {
       final result = await vm.guardarCalificacionCliente();
       if (result != null) {
         if (!context.mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(result)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(result)));
         return;
       }
 

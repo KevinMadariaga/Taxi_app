@@ -5,7 +5,6 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:taxi_app/firebase_options.dart';
 
-
 import 'tracking_service.dart';
 
 Future<void> initializeBackgroundService() async {
@@ -39,11 +38,11 @@ Future<void> startBackgroundTrackingService() async {
   }
 }
 
-
 @pragma('vm:entry-point')
 Future<bool> onIosBackground(ServiceInstance service) async {
   return true;
 }
+
 @pragma('vm:entry-point')
 void onStart(ServiceInstance service) async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -63,7 +62,6 @@ void onStart(ServiceInstance service) async {
   developer.log("🚀 Background tracking iniciado");
 
   service.on("startTracking").listen((event) async {
-
     final userId = event?["userId"]?.toString();
     final userType = event?["userType"]?.toString();
     final solicitudId = event?["solicitudId"]?.toString();
@@ -75,7 +73,9 @@ void onStart(ServiceInstance service) async {
       try {
         await service.setForegroundNotificationInfo(
           title: 'Taxi Ya',
-          content: userType == 'conductor' ? 'Recolectando ubicación en segundo plano' : '',
+          content: userType == 'conductor'
+              ? 'Recolectando ubicación en segundo plano'
+              : '',
         );
       } catch (_) {}
     }
@@ -84,6 +84,7 @@ void onStart(ServiceInstance service) async {
       userId: userId,
       userType: userType,
       solicitudId: solicitudId,
+
       // Background isolate: assume permissions were already granted by foreground.
       // Avoid triggering permission_handler calls from the background isolate.
       // This prevents MissingPluginException in the background isolate.
@@ -92,17 +93,13 @@ void onStart(ServiceInstance service) async {
       //
       // See permisos_helper.requestAllPermissions usage in UI flow.
       //
-      
       skipPermissionRequest: true,
     );
-
   });
 
   service.on("stop").listen((event) {
-
     tracking.detenerTracking();
 
     service.stopSelf();
-
   });
 }

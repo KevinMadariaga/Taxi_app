@@ -15,19 +15,19 @@ class _AyudaViewState extends State<AyudaView> {
 
   final List<Map<String, String>> _faqItems = const [
     {
-      'q': 'Como solicito un viaje?',
+      'q': '¿Cómo solicito un viaje?',
       'a':
-          'Toca "¿A donde vamos?", selecciona tu destino y confirma la solicitud para empezar a buscar conductor.',
+          'Toca "¿A dónde vamos?", selecciona tu destino y confirma la solicitud para empezar a buscar conductor.',
     },
     {
       'q': 'Como cambio mi metodo de pago?',
       'a':
-          'En la vista de confirmacion del viaje puedes tocar el metodo de pago y escoger entre las opciones disponibles.',
+          'En la vista de confirmación del viaje puedes tocar el método de pago y escoger entre las opciones disponibles.',
     },
     {
       'q': 'Que hago si no aparece ningun conductor?',
       'a':
-          'Revisa tu conexion, confirma que el GPS este activo y vuelve a intentar. Tambien puedes usar la seccion de soporte.',
+          'Revisa tu conexión, confirma que el GPS esté activo y vuelve a intentar. También puedes usar la sección de soporte.',
     },
     {
       'q': 'Como reporto un problema con un viaje?',
@@ -35,24 +35,17 @@ class _AyudaViewState extends State<AyudaView> {
           'Desde Historial selecciona el viaje y usa la opcion de soporte para enviarnos detalles del inconveniente.',
     },
   ];
-
   @override
   void dispose() {
-    _searchFocusNode.unfocus();
     _searchController.dispose();
     _searchFocusNode.dispose();
     super.dispose();
   }
 
   Future<bool> _onWillPop() async {
-    if (_searchFocusNode.hasFocus) {
-      _searchFocusNode.unfocus();
-      return false;
-    }
     return true;
   }
 
-  @override
   Widget build(BuildContext context) {
     final filtered = _faqItems.where((item) {
       if (_query.trim().isEmpty) return true;
@@ -97,7 +90,7 @@ class _AyudaViewState extends State<AyudaView> {
               child: filtered.isEmpty
                   ? const Center(
                       child: Text(
-                        'No hay resultados para tu busqueda.',
+                        'No hay resultados para tu búsqueda.',
                         style: TextStyle(color: AppColores.textSecondary),
                       ),
                     )

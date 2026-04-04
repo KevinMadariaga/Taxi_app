@@ -27,17 +27,11 @@ class LoaderWidget extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        const SpinKitCircle(
-          color: AppColores.buttonPrimary,
-          size: 60.0,
-        ),
+        const SpinKitCircle(color: AppColores.buttonPrimary, size: 60.0),
         const SizedBox(height: 18),
         Text(
           text,
-          style: const TextStyle(
-            color: AppColores.textPrimary,
-            fontSize: 16,
-          ),
+          style: const TextStyle(color: AppColores.textPrimary, fontSize: 16),
         ),
       ],
     );
@@ -53,9 +47,6 @@ class LoaderWidget extends StatelessWidget {
       );
     }
     // Si no, usar Align
-    return Align(
-      alignment: alignment,
-      child: loaderContent,
-    );
+    return Align(alignment: alignment, child: loaderContent);
   }
 }

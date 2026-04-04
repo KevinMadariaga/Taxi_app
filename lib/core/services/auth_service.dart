@@ -51,8 +51,10 @@ class AuthService {
           (persistedUid != null && persistedUid.isNotEmpty) ||
           (activeFromSession != null && activeFromSession.isNotEmpty) ||
           (activeFromRouteCache != null && activeFromRouteCache.isNotEmpty) ||
-          (solicitudActivaCliente != null && solicitudActivaCliente.isNotEmpty) ||
-          (solicitudActivaConductor != null && solicitudActivaConductor.isNotEmpty);
+          (solicitudActivaCliente != null &&
+              solicitudActivaCliente.isNotEmpty) ||
+          (solicitudActivaConductor != null &&
+              solicitudActivaConductor.isNotEmpty);
       if (currentUser == null && hasLocalAuthResidue) {
         await _clearPersistedSessionAndCaches(prefs);
         try {
@@ -140,7 +142,10 @@ class AuthService {
       // --- PATCH: Forzar restauración correcta para clientes ---
       // Respect the explicit saved screen for an active solicitud (if any).
       final savedActiveScreen = await SessionHelper.getActiveSolicitudScreen();
-      if (savedActiveScreen != null && savedActiveScreen.isNotEmpty && candidateSolicitudId != null && candidateSolicitudId.isNotEmpty) {
+      if (savedActiveScreen != null &&
+          savedActiveScreen.isNotEmpty &&
+          candidateSolicitudId != null &&
+          candidateSolicitudId.isNotEmpty) {
         // If the user had a specific view open (client or driver), restore it.
         if (savedActiveScreen == 'trip_tracking') {
           return TripTrackingScreen(

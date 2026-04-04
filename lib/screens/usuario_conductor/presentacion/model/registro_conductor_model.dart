@@ -25,7 +25,9 @@ class RegistroConductorModel {
       telefono: (map['telefono'] ?? '').toString(),
       placa: (map['placa'] ?? '').toString(),
       conectado: (map['conectado'] ?? true) as bool,
-      foto: (map['foto'] ?? map['photo'] ?? '')?.toString().isEmpty == true ? null : (map['foto'] ?? map['photo'])?.toString(),
+      foto: (map['foto'] ?? map['photo'] ?? '')?.toString().isEmpty == true
+          ? null
+          : (map['foto'] ?? map['photo'])?.toString(),
     );
   }
 

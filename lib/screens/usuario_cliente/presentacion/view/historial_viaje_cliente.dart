@@ -43,8 +43,12 @@ class HistorialClienteState extends State<HistorialCliente> {
       final latObj = ubicacion['lat'];
       final lngObj = ubicacion['lng'];
       if (latObj != null && lngObj != null) {
-        final lat = (latObj is num) ? latObj.toDouble() : double.tryParse(latObj.toString());
-        final lng = (lngObj is num) ? lngObj.toDouble() : double.tryParse(lngObj.toString());
+        final lat = (latObj is num)
+            ? latObj.toDouble()
+            : double.tryParse(latObj.toString());
+        final lng = (lngObj is num)
+            ? lngObj.toDouble()
+            : double.tryParse(lngObj.toString());
         if (lat != null && lng != null) {
           try {
             final placemarks = await placemarkFromCoordinates(lat, lng);
@@ -65,7 +69,8 @@ class HistorialClienteState extends State<HistorialCliente> {
 
   int _extraerCalificacion(Map<String, dynamic> data) {
     int calificacionNum = 0;
-    final calificacionObj = data['calificacion cliente'] ??
+    final calificacionObj =
+        data['calificacion cliente'] ??
         data['calificacion'] ??
         data['calificacion_cliente'] ??
         data['rating'];
@@ -73,7 +78,8 @@ class HistorialClienteState extends State<HistorialCliente> {
     if (calificacionObj == null) return 0;
 
     if (calificacionObj is Map) {
-      final score = calificacionObj['score'] ??
+      final score =
+          calificacionObj['score'] ??
           calificacionObj['valor'] ??
           calificacionObj['rating'] ??
           calificacionObj['value'];
@@ -222,7 +228,9 @@ class HistorialClienteState extends State<HistorialCliente> {
                           child: Icon(
                             Icons.star,
                             size: 32,
-                            color: esStar ? Colors.amber[600] : Colors.grey[300],
+                            color: esStar
+                                ? Colors.amber[600]
+                                : Colors.grey[300],
                           ),
                         );
                       }),
@@ -318,8 +326,12 @@ class HistorialClienteState extends State<HistorialCliente> {
               allViajes.sort((a, b) {
                 final aData = a.data() as Map<String, dynamic>;
                 final bData = b.data() as Map<String, dynamic>;
-                final aTime = (aData['completedAt'] ?? aData['fecha de terminacion']) as Timestamp?;
-                final bTime = (bData['completedAt'] ?? bData['fecha de terminacion']) as Timestamp?;
+                final aTime =
+                    (aData['completedAt'] ?? aData['fecha de terminacion'])
+                        as Timestamp?;
+                final bTime =
+                    (bData['completedAt'] ?? bData['fecha de terminacion'])
+                        as Timestamp?;
                 if (aTime == null && bTime == null) return 0;
                 if (aTime == null) return 1;
                 if (bTime == null) return -1;
@@ -338,27 +350,46 @@ class HistorialClienteState extends State<HistorialCliente> {
                   final destinoField = data['destino'];
                   final destinoFuture = obtenerDireccion(destinoField);
 
-                  final horaFin = (data['completedAt'] ?? data['fecha de terminacion']) as Timestamp?;
-
-                  
+                  final horaFin =
+                      (data['completedAt'] ?? data['fecha de terminacion'])
+                          as Timestamp?;
 
                   return Card(
-                    margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    margin: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                     child: ListTile(
-                      leading: const Icon(Icons.local_taxi, color: Colors.amber),
+                      leading: const Icon(
+                        Icons.local_taxi,
+                        color: Colors.amber,
+                      ),
                       title: FutureBuilder<String>(
                         future: destinoFuture,
                         builder: (context, snapshot) {
-                          if (snapshot.connectionState == ConnectionState.waiting) {
-                            return const Text('CARGANDO...', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15));
+                          if (snapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return const Text(
+                              'CARGANDO...',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                              ),
+                            );
                           }
-                          final text = (snapshot.data ??
+                          final text =
+                              (snapshot.data ??
                               (destinoField is Map
-                                  ? (destinoField['title']?.toString() ?? destinoField['address']?.toString() ?? 'DESTINO')
+                                  ? (destinoField['title']?.toString() ??
+                                        destinoField['address']?.toString() ??
+                                        'DESTINO')
                                   : (destinoField?.toString() ?? 'DESTINO')));
                           return Text(
                             text.toUpperCase(),
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                            ),
                           );
                         },
                       ),
@@ -369,7 +400,11 @@ class HistorialClienteState extends State<HistorialCliente> {
                           if (horaFin != null)
                             Text(
                               formatoFechaHora(horaFin),
-                              style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13, color: Colors.grey),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w500,
+                                fontSize: 13,
+                                color: Colors.grey,
+                              ),
                             ),
                         ],
                       ),
@@ -382,7 +417,6 @@ class HistorialClienteState extends State<HistorialCliente> {
           );
         },
       ),
-        
     );
   }
 }

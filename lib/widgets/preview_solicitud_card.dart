@@ -132,12 +132,11 @@ class PreviewSolicitudCard extends StatelessWidget {
                                 child: CircleAvatar(
                                   radius: avatarSize / 2,
                                   backgroundColor: AppColores.grey400,
-                                    backgroundImage:
+                                  backgroundImage:
                                       photoUrl != null && photoUrl.isNotEmpty
                                       ? NetworkImage(photoUrl)
                                       : null,
-                                    child:
-                                      (photoUrl == null || photoUrl.isEmpty)
+                                  child: (photoUrl == null || photoUrl.isEmpty)
                                       ? Icon(
                                           Icons.person,
                                           color: AppColores.textWhite,
@@ -302,7 +301,7 @@ class PreviewSolicitudCard extends StatelessWidget {
                           ),
                         ],
                       ),
-                      SizedBox(height: ResponsiveHelper.hp(context, sectionGap)),
+                    SizedBox(height: ResponsiveHelper.hp(context, sectionGap)),
                     if (hasComentario) ...[
                       SizedBox(height: ResponsiveHelper.hp(context, 1.2)),
                       Container(

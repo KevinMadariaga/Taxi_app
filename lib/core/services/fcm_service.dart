@@ -20,9 +20,12 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   final data = message.data;
   final notification = message.notification;
 
-  if (data.containsKey('title') || data.containsKey('body') || notification != null) {
+  if (data.containsKey('title') ||
+      data.containsKey('body') ||
+      notification != null) {
     final String title = data['title'] ?? notification?.title ?? 'Taxi Ya';
-    final String body = data['body'] ?? notification?.body ?? 'Actualización de servicio';
+    final String body =
+        data['body'] ?? notification?.body ?? 'Actualización de servicio';
 
     // Importante: No llamar a init() aquí si no es necesario,
     // showNotification ya lo hace con _ensureInitialized().
@@ -98,7 +101,9 @@ class FcmService {
           break;
         }
         if (i < maxAttempts - 1) {
-          debugPrint('[FCM] APNs token no listo, reintentando en 3s... (${i + 1}/$maxAttempts)');
+          debugPrint(
+            '[FCM] APNs token no listo, reintentando en 3s... (${i + 1}/$maxAttempts)',
+          );
           await Future<void>.delayed(const Duration(seconds: 3));
         }
       }
@@ -117,20 +122,22 @@ class FcmService {
 
     // 5) Escuchar authStateChanges para detectar cuando Firebase Auth restaura
     //    la sesión o el usuario hace login. Guarda _pendingToken si existe.
-    _authStateSub = FirebaseAuth.instance.authStateChanges().listen(
-      (user) async {
-        if (user == null) return;
+    _authStateSub = FirebaseAuth.instance.authStateChanges().listen((
+      user,
+    ) async {
+      if (user == null) return;
 
-        if (_pendingToken != null) {
-          debugPrint('[FCM] Usuario disponible → persistiendo token pendiente...');
-          await _persistToken(_pendingToken!);
-          _pendingToken = null;
-        } else {
-          // Asegurarse de que el token más reciente esté guardado
-          await _saveCurrentToken();
-        }
-      },
-    );
+      if (_pendingToken != null) {
+        debugPrint(
+          '[FCM] Usuario disponible → persistiendo token pendiente...',
+        );
+        await _persistToken(_pendingToken!);
+        _pendingToken = null;
+      } else {
+        // Asegurarse de que el token más reciente esté guardado
+        await _saveCurrentToken();
+      }
+    });
 
     // 6) Escuchar renovaciones del token FCM
     _messaging.onTokenRefresh.listen(_onTokenRefresh);
@@ -144,7 +151,9 @@ class FcmService {
     // 9) Verificar si la app se abrió desde una notificación (app terminada)
     final initialMessage = await _messaging.getInitialMessage();
     if (initialMessage != null) {
-      debugPrint('[FCM] App abierta desde notificación: ${initialMessage.messageId}');
+      debugPrint(
+        '[FCM] App abierta desde notificación: ${initialMessage.messageId}',
+      );
     }
 
     _initialized = true;
@@ -198,13 +207,10 @@ class FcmService {
 
     // Guardar en `usuarios` (siempre — es la colección principal)
     try {
-      await firestore.collection('usuarios').doc(uid).set(
-        {
-          'fcmToken': token,
-          'fcmTokenUpdatedAt': FieldValue.serverTimestamp(),
-        },
-        SetOptions(merge: true),
-      );
+      await firestore.collection('usuarios').doc(uid).set({
+        'fcmToken': token,
+        'fcmTokenUpdatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
       debugPrint('[FCM] ✅ Token guardado en usuarios/$uid');
     } catch (e) {
       debugPrint('[FCM] Error guardando token en usuarios: $e');
@@ -214,10 +220,9 @@ class FcmService {
     try {
       final doc = await firestore.collection('conductor').doc(uid).get();
       if (doc.exists) {
-        await firestore
-            .collection('conductor')
-            .doc(uid)
-            .set({'fcmToken': token}, SetOptions(merge: true));
+        await firestore.collection('conductor').doc(uid).set({
+          'fcmToken': token,
+        }, SetOptions(merge: true));
         debugPrint('[FCM] ✅ Token guardado en conductor/$uid');
       }
     } catch (_) {}
@@ -226,10 +231,9 @@ class FcmService {
     try {
       final doc = await firestore.collection('cliente').doc(uid).get();
       if (doc.exists) {
-        await firestore
-            .collection('cliente')
-            .doc(uid)
-            .set({'fcmToken': token}, SetOptions(merge: true));
+        await firestore.collection('cliente').doc(uid).set({
+          'fcmToken': token,
+        }, SetOptions(merge: true));
         debugPrint('[FCM] ✅ Token guardado en cliente/$uid');
       }
     } catch (_) {}

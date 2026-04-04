@@ -1,4 +1,3 @@
- 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -22,7 +21,10 @@ class MapService {
     }
   }
 
-  Future<List<LatLng>> getRoutePolyline(LatLng origin, LatLng destination) async {
+  Future<List<LatLng>> getRoutePolyline(
+    LatLng origin,
+    LatLng destination,
+  ) async {
     final feature_map.MapService f = feature_map.MapService();
     return await f.fetchRoadPolyline(from: origin, to: destination);
   }
@@ -158,6 +160,12 @@ class MapService {
     final feature_map.MapService f = feature_map.MapService();
     final pts = await f.fetchRoadPolyline(from: origin, to: destination);
     if (pts.isEmpty) return null;
-    return createPolyline(id: id, points: pts, color: color, width: width, geodesic: geodesic);
+    return createPolyline(
+      id: id,
+      points: pts,
+      color: color,
+      width: width,
+      geodesic: geodesic,
+    );
   }
 }

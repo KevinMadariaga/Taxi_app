@@ -278,9 +278,12 @@ class _DriverTripScreenState extends State<DriverTripScreen>
                                 compassEnabled: true,
                                 markers: markers,
                                 polylines: polylines,
-                                // Add higher top padding to shift the map's visual center 
+                                // Add higher top padding to shift the map's visual center
                                 // significantly downwards, avoiding the large expanded info card.
-                                padding: const EdgeInsets.only(top: 350, bottom: 20),
+                                padding: const EdgeInsets.only(
+                                  top: 350,
+                                  bottom: 20,
+                                ),
                                 onMapCreated: (map) {
                                   _mapController = map;
                                   _fitInitialCameraIfNeeded(controller);
@@ -332,7 +335,9 @@ class _DriverTripScreenState extends State<DriverTripScreen>
                                 isSendingArrival: controller.isSendingArrival,
                                 isArrivalReported:
                                     controller.hasReportedArrival,
-                                arrivalButtonEnabled: controller.distanceMeters != null && controller.distanceMeters! <= 50,
+                                arrivalButtonEnabled:
+                                    controller.distanceMeters != null &&
+                                    controller.distanceMeters! <= 50,
                                 etaText: controller.etaText,
                                 distanceText: controller.distanceText,
                                 title: dynamicTitle,
@@ -350,7 +355,9 @@ class _DriverTripScreenState extends State<DriverTripScreen>
                                 child: Column(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    const CircularProgressIndicator(color: AppColores.primary),
+                                    const CircularProgressIndicator(
+                                      color: AppColores.primary,
+                                    ),
                                     const SizedBox(height: 12),
                                     const Text(
                                       'Cargando ruta...',

@@ -14,7 +14,8 @@ class GoogleSignInButton extends StatelessWidget {
         height: 18,
         width: 18,
         fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) => const Icon(Icons.mail, color: Colors.red, size: 18),
+        errorBuilder: (_, __, ___) =>
+            const Icon(Icons.mail, color: Colors.red, size: 18),
       ),
       label: const Text('Iniciar sesión con Google'),
       onPressed: () async {

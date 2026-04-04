@@ -5,5 +5,5 @@ import 'package:taxi_app/features/client/data/firebaseDB.dart';
 /// `AuthRepository(firebase)` while the centralized implementation lives in
 /// `LegacyAuthRepository`.
 class AuthRepository extends LegacyAuthRepository {
-	AuthRepository(FirebaseDataSource firebase) : super(firebase);
+  AuthRepository(FirebaseDataSource firebase) : super(firebase);
 }

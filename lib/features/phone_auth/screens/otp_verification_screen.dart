@@ -37,11 +37,15 @@ class OtpVerificationScreen extends StatelessWidget {
             resendToken: resendToken,
             phoneNumber: phoneNumber,
             isAdminMode: isAdminMode,
-            verifyClientPhoneOtpUseCase: Provider.of<VerifyClientPhoneOtpUseCase>(
+            verifyClientPhoneOtpUseCase:
+                Provider.of<VerifyClientPhoneOtpUseCase>(
+                  context,
+                  listen: false,
+                ),
+            clientAuthRepository: Provider.of<ClientAuthRepository>(
               context,
               listen: false,
             ),
-            clientAuthRepository: Provider.of<ClientAuthRepository>(context, listen: false),
           )..startTimer();
         } catch (_) {
           return OtpVerificationController(

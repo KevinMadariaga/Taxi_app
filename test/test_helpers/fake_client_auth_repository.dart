@@ -8,17 +8,36 @@ import 'package:taxi_app/domain/repositories/client_auth_repository.dart';
 class FakeClientAuthRepository implements ClientAuthRepository {
   @override
   Future<AuthIdentityEntity?> signInWithGoogle() async {
-    return const AuthIdentityEntity(uid: 'fake-uid', displayName: 'Fake', email: 'fake@example.com', phoneNumber: null);
+    return const AuthIdentityEntity(
+      uid: 'fake-uid',
+      displayName: 'Fake',
+      email: 'fake@example.com',
+      phoneNumber: null,
+    );
   }
 
   @override
-  Future<PhoneVerificationResult> sendPhoneOtp({required String phoneNumber, int? forceResendingToken}) async {
-    return const PhoneVerificationResult(verificationId: 'fake-verification-id', resendToken: 1);
+  Future<PhoneVerificationResult> sendPhoneOtp({
+    required String phoneNumber,
+    int? forceResendingToken,
+  }) async {
+    return const PhoneVerificationResult(
+      verificationId: 'fake-verification-id',
+      resendToken: 1,
+    );
   }
 
   @override
-  Future<AuthIdentityEntity> verifyPhoneOtp({required String verificationId, required String otpCode}) async {
-    return const AuthIdentityEntity(uid: 'fake-uid', displayName: null, email: null, phoneNumber: '0000000000');
+  Future<AuthIdentityEntity> verifyPhoneOtp({
+    required String verificationId,
+    required String otpCode,
+  }) async {
+    return const AuthIdentityEntity(
+      uid: 'fake-uid',
+      displayName: null,
+      email: null,
+      phoneNumber: '0000000000',
+    );
   }
 
   @override
@@ -37,12 +56,19 @@ class FakeClientAuthRepository implements ClientAuthRepository {
   }
 
   @override
-  Future<ClientUserEntity> ensureClientUserForGoogle({required String uid, required String? displayName, required String? email}) async {
+  Future<ClientUserEntity> ensureClientUserForGoogle({
+    required String uid,
+    required String? displayName,
+    required String? email,
+  }) async {
     return (await getClientUserById(uid))!;
   }
 
   @override
-  Future<ClientUserEntity> ensureClientUserForPhone({required String uid, required String phoneNumber}) async {
+  Future<ClientUserEntity> ensureClientUserForPhone({
+    required String uid,
+    required String phoneNumber,
+  }) async {
     return ClientUserEntity(
       id: uid,
       nombre: 'Nombre',
@@ -57,12 +83,21 @@ class FakeClientAuthRepository implements ClientAuthRepository {
   }
 
   @override
-  Future<String> uploadProfileImage({required String uid, required File imageFile}) async {
+  Future<String> uploadProfileImage({
+    required String uid,
+    required File imageFile,
+  }) async {
     return 'https://example.com/fake_profile.png';
   }
 
   @override
-  Future<void> completeClientProfile({required String uid, required String nombre, required String apellido, required String telefono, required String? fotoUrl}) async {
+  Future<void> completeClientProfile({
+    required String uid,
+    required String nombre,
+    required String apellido,
+    required String telefono,
+    required String? fotoUrl,
+  }) async {
     return;
   }
 }

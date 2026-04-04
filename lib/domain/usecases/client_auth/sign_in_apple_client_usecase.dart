@@ -5,7 +5,7 @@ import 'package:taxi_app/domain/entities/auth_identity_entity.dart';
 
 class SignInAppleClientUseCase {
   SignInAppleClientUseCase(this._repository, {AppleSignInService? appleService})
-      : _appleService = appleService ?? AppleSignInService();
+    : _appleService = appleService ?? AppleSignInService();
 
   final ClientAuthRepository _repository;
   final AppleSignInService _appleService;

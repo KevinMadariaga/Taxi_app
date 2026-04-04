@@ -71,8 +71,15 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
         try {
           return CompleteProfileController(
             uid: widget.uid,
-            getClientUserUseCase: Provider.of<GetClientUserUseCase>(context, listen: false),
-            completeClientProfileUseCase: Provider.of<CompleteClientProfileUseCase>(context, listen: false),
+            getClientUserUseCase: Provider.of<GetClientUserUseCase>(
+              context,
+              listen: false,
+            ),
+            completeClientProfileUseCase:
+                Provider.of<CompleteClientProfileUseCase>(
+                  context,
+                  listen: false,
+                ),
           )..loadInitialData();
         } catch (_) {
           return CompleteProfileController(uid: widget.uid)..loadInitialData();
@@ -146,8 +153,7 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
                                       vm.selectedImage == null)
                                     const SizedBox(height: 12),
                                   ImagePickerTile(
-                                    title:
-                                        'Foto de perfil',
+                                    title: 'Foto de perfil',
                                     image: vm.selectedImage,
                                     circular: true,
                                     onTap: vm.saving

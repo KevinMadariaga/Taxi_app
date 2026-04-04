@@ -35,9 +35,13 @@ Future<void> showFloatingLoader(
               decoration: BoxDecoration(
                 color: AppColores.cardBackground,
                 borderRadius: BorderRadius.circular(12),
-                boxShadow: [BoxShadow(color: AppColores.overlayLight, blurRadius: 10)],
+                boxShadow: [
+                  BoxShadow(color: AppColores.overlayLight, blurRadius: 10),
+                ],
               ),
-              child: const Center(child: CircularProgressIndicator(color: AppColores.primary)),
+              child: const Center(
+                child: CircularProgressIndicator(color: AppColores.primary),
+              ),
             ),
           ),
         ),

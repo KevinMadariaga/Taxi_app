@@ -11,18 +11,20 @@ class ChatService {
   final feature_chat.ChatService _inner;
 
   ChatService({FirebaseFirestore? db, feature_chat.ChatService? inner})
-      : _inner = inner ?? feature_chat.ChatService(firestore: db);
+    : _inner = inner ?? feature_chat.ChatService(firestore: db);
 
   Stream<List<ChatMessage>> listenMessages(String solicitudId) {
     return _inner.watchMessages(solicitudId).map((list) {
       return list
-          .map((m) => ChatMessage(
-                id: m.id,
-                senderId: m.senderId,
-                texto: m.texto,
-                timestamp: m.timestamp,
-                readBy: m.readBy,
-              ))
+          .map(
+            (m) => ChatMessage(
+              id: m.id,
+              senderId: m.senderId,
+              texto: m.texto,
+              timestamp: m.timestamp,
+              readBy: m.readBy,
+            ),
+          )
           .toList(growable: false);
     });
   }
@@ -57,13 +59,15 @@ class ChatService {
     required List<ChatMessage> messages,
   }) async {
     final converted = messages
-        .map((m) => feature_model.MensajeModel(
-              id: m.id,
-              senderId: m.senderId,
-              texto: m.texto,
-              timestamp: m.timestamp,
-              readBy: m.readBy,
-            ))
+        .map(
+          (m) => feature_model.MensajeModel(
+            id: m.id,
+            senderId: m.senderId,
+            texto: m.texto,
+            timestamp: m.timestamp,
+            readBy: m.readBy,
+          ),
+        )
         .toList(growable: false);
     await _inner.markAllAsRead(
       solicitudId: solicitudId,

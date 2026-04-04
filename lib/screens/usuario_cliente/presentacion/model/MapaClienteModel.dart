@@ -1,4 +1,3 @@
-
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 /// Modelo para la configuración y estado del mapa del cliente.
@@ -36,14 +35,14 @@ class MapaClienteModel {
   }
 }
 
-
-
 /// Resultado simple de búsqueda de ubicación usado en selección de destino.
 class UbicacionResultado {
   /// Coordenadas de la ubicación.
   final LatLng? location;
+
   /// Nombre o etiqueta asignada por el usuario (ej: "Casa", "Colegio").
   final String nombre;
+
   /// Dirección completa en texto de la ubicación.
   final String direccion;
 

@@ -35,9 +35,7 @@ class AppRoutes {
         return MaterialPageRoute(
           builder: (_) => Scaffold(
             appBar: AppBar(title: const Text('Ruta no encontrada')),
-            body: Center(
-              child: Text('No existe la ruta: ${settings.name}'),
-            ),
+            body: Center(child: Text('No existe la ruta: ${settings.name}')),
           ),
         );
     }

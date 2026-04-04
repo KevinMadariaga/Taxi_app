@@ -62,7 +62,7 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
       await NotificacionesServicio.instance.showNotification(
         id: 1001,
         title: 'Solicitud asignada',
-        body: '¡Un conductor ha sido asignado a tu viaje!'
+        body: '¡Un conductor ha sido asignado a tu viaje!',
       );
     } catch (_) {}
   }
@@ -102,12 +102,18 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
       await Future<void>.delayed(const Duration(seconds: 5));
       try {
         await docRef.delete();
-        debugPrint('[BuscandoTaxiViewModel] Solicitud $solicitudId eliminada tras cancelación');
+        debugPrint(
+          '[BuscandoTaxiViewModel] Solicitud $solicitudId eliminada tras cancelación',
+        );
       } catch (e) {
-        debugPrint('[BuscandoTaxiViewModel] Error eliminando solicitud tras cancelación: $e');
+        debugPrint(
+          '[BuscandoTaxiViewModel] Error eliminando solicitud tras cancelación: $e',
+        );
       }
     } catch (e) {
-      debugPrint('[BuscandoTaxiViewModel] Error en temporizador de borrado: $e');
+      debugPrint(
+        '[BuscandoTaxiViewModel] Error en temporizador de borrado: $e',
+      );
     } finally {
       _isCancelling = false;
       _safeNotify();

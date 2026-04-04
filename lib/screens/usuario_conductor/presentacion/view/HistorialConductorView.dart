@@ -27,10 +27,7 @@ class HistorialConductorView extends StatelessWidget {
       body: const Center(
         child: Text(
           'No hay viajes registrados.',
-          style: TextStyle(
-            color: Colors.black54,
-            fontSize: 18,
-          ),
+          style: TextStyle(color: Colors.black54, fontSize: 18),
         ),
       ),
       floatingActionButton: Padding(

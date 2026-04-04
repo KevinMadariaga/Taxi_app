@@ -10,8 +10,10 @@ class PhoneAuthController extends ChangeNotifier {
     SendClientPhoneOtpUseCase? sendClientPhoneOtpUseCase,
     ClientAuthRepository? clientAuthRepository,
   }) : _sendClientPhoneOtpUseCase =
-          sendClientPhoneOtpUseCase ??
-          SendClientPhoneOtpUseCase(clientAuthRepository ?? ClientAuthRepositoryImpl());
+           sendClientPhoneOtpUseCase ??
+           SendClientPhoneOtpUseCase(
+             clientAuthRepository ?? ClientAuthRepositoryImpl(),
+           );
 
   final SendClientPhoneOtpUseCase _sendClientPhoneOtpUseCase;
 

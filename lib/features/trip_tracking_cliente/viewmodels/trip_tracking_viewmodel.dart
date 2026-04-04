@@ -135,9 +135,11 @@ class TripTrackingViewModel extends ChangeNotifier {
     return LatLng(d.lat!, d.lng!);
   }
 
-  LatLng? get conductorLatLng => _smoothedConductorLatLng ?? _rawConductorLatLng;
+  LatLng? get conductorLatLng =>
+      _smoothedConductorLatLng ?? _rawConductorLatLng;
 
-  bool get hasBothLocations => clienteLatLng != null && _rawConductorLatLng != null;
+  bool get hasBothLocations =>
+      clienteLatLng != null && _rawConductorLatLng != null;
 
   String get distanciaTexto {
     final d = distanceMeters;
@@ -270,9 +272,13 @@ class TripTrackingViewModel extends ChangeNotifier {
             try {
               final d = solicitud?.conductor;
               if (d != null && d.hasLocation) {
-                debugPrint('[TripTrackingViewModel] Conductor location update: ${d.lat}, ${d.lng}');
+                debugPrint(
+                  '[TripTrackingViewModel] Conductor location update: ${d.lat}, ${d.lng}',
+                );
               } else {
-                debugPrint('[TripTrackingViewModel] Conductor location update: none');
+                debugPrint(
+                  '[TripTrackingViewModel] Conductor location update: none',
+                );
               }
             } catch (_) {}
             isLoading = false;
@@ -281,10 +287,10 @@ class TripTrackingViewModel extends ChangeNotifier {
 
             await _localCacheService.saveSolicitud(item);
 
-            // ─── Actualizacion de ruta y heading ───
+            // ─── Actualización de ruta y heading ───
 
-                  await _updateRouteIfNeeded();
-                  _updateConductorHeading();
+            await _updateRouteIfNeeded();
+            _updateConductorHeading();
           },
           onError: (error) async {
             isLoading = false;
@@ -292,7 +298,7 @@ class TripTrackingViewModel extends ChangeNotifier {
             final cached = await _localCacheService.readSolicitud(solicitudId);
             if (cached != null) {
               solicitud = cached;
-              errorText = 'Sin conexion: mostrando datos en cache';
+              errorText = 'Sin conexión: mostrando datos en caché';
             } else {
               errorText = 'No se pudo cargar la solicitud: $error';
             }
@@ -528,7 +534,9 @@ class TripTrackingViewModel extends ChangeNotifier {
   }
 
   void _prepareActivePath(LatLng from, LatLng to) {
-    final source = _fullRoutePoints.length >= 2 ? _fullRoutePoints : routePoints;
+    final source = _fullRoutePoints.length >= 2
+        ? _fullRoutePoints
+        : routePoints;
     if (source.length < 2) {
       _activePathPoints = <LatLng>[to];
       _activePathIndex = 0;
@@ -560,7 +568,10 @@ class TripTrackingViewModel extends ChangeNotifier {
         _stopMovement();
         return;
       }
-      _prepareActivePath(_smoothedConductorLatLng!, _pendingConductorTargets.first);
+      _prepareActivePath(
+        _smoothedConductorLatLng!,
+        _pendingConductorTargets.first,
+      );
     }
 
     var current = _smoothedConductorLatLng!;
@@ -622,7 +633,10 @@ class TripTrackingViewModel extends ChangeNotifier {
     }
 
     if (backlog > 0) {
-      final lagDistance = _mapService.distanceMeters(current, _pendingConductorTargets.first);
+      final lagDistance = _mapService.distanceMeters(
+        current,
+        _pendingConductorTargets.first,
+      );
       if (lagDistance > 70) {
         speed *= 1.5;
       } else if (lagDistance > 40) {
@@ -642,7 +656,9 @@ class TripTrackingViewModel extends ChangeNotifier {
     }
 
     final start = _routeProgressIndex.clamp(0, source.length - 1);
-    final end = (start + 240) < source.length ? (start + 240) : (source.length - 1);
+    final end = (start + 240) < source.length
+        ? (start + 240)
+        : (source.length - 1);
     var nearest = start;
     var best = double.infinity;
 

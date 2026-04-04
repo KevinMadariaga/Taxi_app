@@ -146,7 +146,8 @@ class PermissionsHelper {
       final plugin = FlutterLocalNotificationsPlugin();
       final iosImpl = plugin
           .resolvePlatformSpecificImplementation<
-              IOSFlutterLocalNotificationsPlugin>();
+            IOSFlutterLocalNotificationsPlugin
+          >();
       if (iosImpl != null) {
         final settings = await iosImpl.checkPermissions();
         return settings?.isEnabled ?? false;
@@ -171,7 +172,8 @@ class PermissionsHelper {
         final plugin = FlutterLocalNotificationsPlugin();
         final iosImpl = plugin
             .resolvePlatformSpecificImplementation<
-                IOSFlutterLocalNotificationsPlugin>();
+              IOSFlutterLocalNotificationsPlugin
+            >();
 
         if (iosImpl != null) {
           // Inicializar si aún no está listo
@@ -214,7 +216,9 @@ class PermissionsHelper {
         }
 
         // Fallback: si no hay implementación iOS disponible aún
-        debugPrint('⚠️ IOSFlutterLocalNotificationsPlugin no disponible todavía.');
+        debugPrint(
+          '⚠️ IOSFlutterLocalNotificationsPlugin no disponible todavía.',
+        );
         return false;
       }
 

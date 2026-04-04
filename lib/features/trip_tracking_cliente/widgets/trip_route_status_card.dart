@@ -23,9 +23,7 @@ class TripRouteStatusCard extends StatelessWidget {
       color: Colors.white,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        decoration: BoxDecoration(borderRadius: BorderRadius.circular(16)),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [

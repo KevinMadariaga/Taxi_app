@@ -8,11 +8,7 @@ class ResumenHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: const [
-        Icon(
-          Icons.check_circle_rounded,
-          color: AppColores.success,
-          size: 68,
-        ),
+        Icon(Icons.check_circle_rounded, color: AppColores.success, size: 68),
         SizedBox(height: 8),
         Text(
           'Viaje completado',

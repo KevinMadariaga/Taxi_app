@@ -409,6 +409,30 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "4.1.4"
+  firebase_remote_config:
+    dependency: "direct main"
+    description:
+      name: firebase_remote_config
+      sha256: "823c9017277daa6f754e6d7389de8fb4b96723894fca3f42cf0860019e6a4053"
+      url: "https://pub.dev"
+    source: hosted
+    version: "6.3.0"
+  firebase_remote_config_platform_interface:
+    dependency: transitive
+    description:
+      name: firebase_remote_config_platform_interface
+      sha256: "93662b23fc8cc4463f98355a2aeebbfb6f67ab81bfc763c7e6e874107f31d217"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.1.1"
+  firebase_remote_config_web:
+    dependency: transitive
+    description:
+      name: firebase_remote_config_web
+      sha256: "427e4d1495580e3edde5b2b6f641a712799fec7b43c7db157622b29267daa15b"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.10.5"
   firebase_storage:
     dependency: "direct main"
     description:
@@ -785,10 +809,10 @@ packages:
     dependency: transitive
     description:
       name: geolocator_linux
-      sha256: d64112a205931926f4363bb6bd48f14cb38e7326833041d170615586cd143797
+      sha256: c4e966f0a7a87e70049eac7a2617f9e16fd4c585a26e4330bdfc3a71e6a721f3
       url: "https://pub.dev"
     source: hosted
-    version: "0.2.4"
+    version: "0.2.3"
   geolocator_platform_interface:
     dependency: transitive
     description:
@@ -1141,6 +1165,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.0"
+  new_version_plus:
+    dependency: "direct main"
+    description:
+      name: new_version_plus
+      sha256: "13081e189d3334c45bd708ffb42a0f1043a316e8c77d458d1ccb486d5572e2c6"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.1.1"
   nm:
     dependency: transitive
     description:
@@ -1166,13 +1198,13 @@ packages:
     source: hosted
     version: "2.1.0"
   package_info_plus:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: package_info_plus
-      sha256: "468c26b4254ab01979fa5e4a98cb343ea3631b9acee6f21028997419a80e1a20"
+      sha256: "16eee997588c60225bda0488b6dcfac69280a6b7a3cf02c741895dd370a02968"
       url: "https://pub.dev"
     source: hosted
-    version: "9.0.1"
+    version: "8.3.1"
   package_info_plus_platform_interface:
     dependency: transitive
     description:

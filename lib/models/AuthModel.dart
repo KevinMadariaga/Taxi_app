@@ -47,9 +47,13 @@ class AuthViewModel extends ChangeNotifier {
       notifyListeners();
 
       if (_authRepository is LegacyAuthRepository) {
-        await (_authRepository as LegacyAuthRepository).login(_email, _password);
+        await (_authRepository as LegacyAuthRepository).login(
+          _email,
+          _password,
+        );
       } else {
-        _errorMessage = 'Login por email no soportado por el repositorio actual';
+        _errorMessage =
+            'Login por email no soportado por el repositorio actual';
         _isAuthenticated = false;
         notifyListeners();
         return;
@@ -61,11 +65,17 @@ class AuthViewModel extends ChangeNotifier {
       String role = 'cliente';
       if (uid.isNotEmpty) {
         final firestore = FirebaseFirestore.instance;
-        final conductorDoc = await firestore.collection('conductor').doc(uid).get();
+        final conductorDoc = await firestore
+            .collection('conductor')
+            .doc(uid)
+            .get();
         if (conductorDoc.exists) {
           role = 'conductor';
         } else {
-          final clienteDoc = await firestore.collection('cliente').doc(uid).get();
+          final clienteDoc = await firestore
+              .collection('cliente')
+              .doc(uid)
+              .get();
           if (clienteDoc.exists) {
             role = 'cliente';
           }

@@ -234,7 +234,10 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
 
       _fullRoutePoints = _densifyPolyline(puntos);
       if (_conductorLatLng != null) {
-        _routeProgressIndex = _nearestIndexRaw(_conductorLatLng!, _fullRoutePoints);
+        _routeProgressIndex = _nearestIndexRaw(
+          _conductorLatLng!,
+          _fullRoutePoints,
+        );
       } else {
         _routeProgressIndex = 0;
       }
@@ -259,7 +262,10 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
       });
 
       if (currentMarker != null) {
-        final nextRotation = _computeConductorHeading(currentMarker, _conductorRotation);
+        final nextRotation = _computeConductorHeading(
+          currentMarker,
+          _conductorRotation,
+        );
         if (nextRotation != _conductorRotation) {
           setState(() {
             _conductorRotation = nextRotation;
@@ -363,7 +369,10 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
     _lastRawConductorAt = now;
 
     if (_conductorLatLng == null) {
-      final initialRotation = _computeConductorHeading(target, _conductorRotation);
+      final initialRotation = _computeConductorHeading(
+        target,
+        _conductorRotation,
+      );
       setState(() {
         _conductorLatLng = target;
         _conductorRotation = initialRotation;
@@ -729,7 +738,12 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
     for (var i = 0; i < points.length - 1; i++) {
       final a = points[i];
       final b = points[i + 1];
-      total += _calculateDistance(a.latitude, a.longitude, b.latitude, b.longitude);
+      total += _calculateDistance(
+        a.latitude,
+        a.longitude,
+        b.latitude,
+        b.longitude,
+      );
     }
     return total;
   }

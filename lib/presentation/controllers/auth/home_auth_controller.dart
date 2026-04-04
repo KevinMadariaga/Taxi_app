@@ -16,10 +16,14 @@ class HomeAuthController extends ChangeNotifier {
     ClientAuthRepository? clientAuthRepository,
   }) : _signInGoogleClientUseCase =
            signInGoogleClientUseCase ??
-           SignInGoogleClientUseCase(clientAuthRepository ?? ClientAuthRepositoryImpl()),
+           SignInGoogleClientUseCase(
+             clientAuthRepository ?? ClientAuthRepositoryImpl(),
+           ),
        _signInAppleClientUseCase =
            signInAppleClientUseCase ??
-           SignInAppleClientUseCase(clientAuthRepository ?? ClientAuthRepositoryImpl()),
+           SignInAppleClientUseCase(
+             clientAuthRepository ?? ClientAuthRepositoryImpl(),
+           ),
        _authService = authService ?? AuthService();
 
   final SignInGoogleClientUseCase _signInGoogleClientUseCase;

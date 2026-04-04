@@ -334,7 +334,7 @@ class ConductorDetalleScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const Text(
-                    'Actualiza el correo y la contrasena de acceso del conductor.',
+                    'Actualiza el correo y la contraseña de acceso del conductor.',
                     style: TextStyle(
                       color: AppColores.textSecondary,
                       fontSize: 13,
@@ -357,7 +357,7 @@ class ConductorDetalleScreen extends StatelessWidget {
                     controller: passController,
                     textInputAction: TextInputAction.done,
                     decoration: const InputDecoration(
-                      labelText: 'Contrasena',
+                      labelText: 'Contraseña',
                       prefixIcon: Icon(Icons.lock_outline),
                       border: OutlineInputBorder(),
                     ),
@@ -398,13 +398,13 @@ class ConductorDetalleScreen extends StatelessWidget {
     if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(correo)) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Correo invalido.')));
+      ).showSnackBar(const SnackBar(content: Text('Correo inválido.')));
       return;
     }
     if (password.length < 6) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('La contrasena debe tener al menos 6 caracteres.'),
+          content: Text('La contraseña debe tener al menos 6 caracteres.'),
         ),
       );
       return;

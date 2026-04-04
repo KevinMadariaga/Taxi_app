@@ -61,7 +61,8 @@ class RegistroAdministradorController extends ChangeNotifier {
     try {
       final profileUrl = await _storageService.uploadImage(
         file: File(_profileImage!.path),
-        path: 'administradores/$uid/profile_${DateTime.now().millisecondsSinceEpoch}.webp',
+        path:
+            'administradores/$uid/profile_${DateTime.now().millisecondsSinceEpoch}.webp',
       );
 
       await _userDataService.guardarAdministrador(

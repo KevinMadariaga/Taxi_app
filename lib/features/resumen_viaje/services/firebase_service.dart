@@ -24,14 +24,21 @@ class ResumenViajeFirebaseService {
   }
 
   Stream<ResumenViajeModel> streamResumenViaje(String solicitudId) {
-    return _firestore.collection('solicitudes').doc(solicitudId).snapshots().map((snap) {
-      if (!snap.exists) {
-        throw StateError('No se encontro la solicitud solicitada.');
-      }
+    return _firestore
+        .collection('solicitudes')
+        .doc(solicitudId)
+        .snapshots()
+        .map((snap) {
+          if (!snap.exists) {
+            throw StateError('No se encontro la solicitud solicitada.');
+          }
 
-      final data = snap.data() ?? <String, dynamic>{};
-      return ResumenViajeModel.fromFirestore(solicitudId: snap.id, data: data);
-    });
+          final data = snap.data() ?? <String, dynamic>{};
+          return ResumenViajeModel.fromFirestore(
+            solicitudId: snap.id,
+            data: data,
+          );
+        });
   }
 
   Future<void> guardarCalificacion({

@@ -20,11 +20,15 @@ class CompleteProfileController extends ChangeNotifier {
     ImagePicker? imagePicker,
     AuthService? authService,
   }) : _getClientUserUseCase =
-         getClientUserUseCase ??
-         GetClientUserUseCase(clientAuthRepository ?? ClientAuthRepositoryImpl()),
+           getClientUserUseCase ??
+           GetClientUserUseCase(
+             clientAuthRepository ?? ClientAuthRepositoryImpl(),
+           ),
        _completeClientProfileUseCase =
-         completeClientProfileUseCase ??
-         CompleteClientProfileUseCase(clientAuthRepository ?? ClientAuthRepositoryImpl()),
+           completeClientProfileUseCase ??
+           CompleteClientProfileUseCase(
+             clientAuthRepository ?? ClientAuthRepositoryImpl(),
+           ),
        _imagePicker = imagePicker ?? ImagePicker(),
        _authService = authService ?? AuthService();
 

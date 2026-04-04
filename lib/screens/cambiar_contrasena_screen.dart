@@ -9,16 +9,18 @@ class CambiarContrasenaScreen extends StatefulWidget {
   const CambiarContrasenaScreen({Key? key}) : super(key: key);
 
   @override
-  State<CambiarContrasenaScreen> createState() => _CambiarContrasenaScreenState();
+  State<CambiarContrasenaScreen> createState() =>
+      _CambiarContrasenaScreenState();
 }
 
 class _CambiarContrasenaScreenState extends State<CambiarContrasenaScreen> {
-    // Método para encriptar la contraseña igual que en el registro
-    String _encryptPassword(String password) {
-      final bytes = utf8.encode(password);
-      final digest = sha256.convert(bytes);
-      return digest.toString();
-    }
+  // Método para encriptar la contraseña igual que en el registro
+  String _encryptPassword(String password) {
+    final bytes = utf8.encode(password);
+    final digest = sha256.convert(bytes);
+    return digest.toString();
+  }
+
   final TextEditingController actualController = TextEditingController();
   final TextEditingController nuevaController = TextEditingController();
   bool _verActual = false;
@@ -34,7 +36,8 @@ class _CambiarContrasenaScreenState extends State<CambiarContrasenaScreen> {
 
   void _actualizarEstadoBoton() {
     setState(() {
-      _botonHabilitado = actualController.text.isNotEmpty && nuevaController.text.isNotEmpty;
+      _botonHabilitado =
+          actualController.text.isNotEmpty && nuevaController.text.isNotEmpty;
     });
   }
 
@@ -65,7 +68,11 @@ class _CambiarContrasenaScreenState extends State<CambiarContrasenaScreen> {
             const SizedBox(height: 16),
             const Text(
               'Cambiar mi contraseña',
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.w600, color: AppColores.textPrimary),
+              style: TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.w600,
+                color: AppColores.textPrimary,
+              ),
             ),
             const SizedBox(height: 12),
             const Text(
@@ -78,10 +85,16 @@ class _CambiarContrasenaScreenState extends State<CambiarContrasenaScreen> {
               obscureText: !_verActual,
               decoration: InputDecoration(
                 labelText: 'Contraseña actual',
-                labelStyle: const TextStyle(fontSize: 22, color: AppColores.textSecondary),
+                labelStyle: const TextStyle(
+                  fontSize: 22,
+                  color: AppColores.textSecondary,
+                ),
                 border: const UnderlineInputBorder(),
                 suffixIcon: IconButton(
-                  icon: Icon(_verActual ? Icons.visibility : Icons.visibility_off, color: AppColores.buttonPrimary),
+                  icon: Icon(
+                    _verActual ? Icons.visibility : Icons.visibility_off,
+                    color: AppColores.buttonPrimary,
+                  ),
                   onPressed: () {
                     setState(() {
                       _verActual = !_verActual;
@@ -97,10 +110,16 @@ class _CambiarContrasenaScreenState extends State<CambiarContrasenaScreen> {
               obscureText: !_verNueva,
               decoration: InputDecoration(
                 labelText: 'Contraseña nueva',
-                labelStyle: const TextStyle(fontSize: 22, color: AppColores.textSecondary),
+                labelStyle: const TextStyle(
+                  fontSize: 22,
+                  color: AppColores.textSecondary,
+                ),
                 border: const UnderlineInputBorder(),
                 suffixIcon: IconButton(
-                  icon: Icon(_verNueva ? Icons.visibility : Icons.visibility_off, color: AppColores.buttonPrimary),
+                  icon: Icon(
+                    _verNueva ? Icons.visibility : Icons.visibility_off,
+                    color: AppColores.buttonPrimary,
+                  ),
                   onPressed: () {
                     setState(() {
                       _verNueva = !_verNueva;
@@ -124,61 +143,76 @@ class _CambiarContrasenaScreenState extends State<CambiarContrasenaScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: _botonHabilitado ? () async {
-                  final user = FirebaseAuth.instance.currentUser;
-                  if (user == null) return;
-                  final actual = actualController.text.trim();
-                  final nueva = nuevaController.text.trim();
-                  try {
-                    // 1. Consultar la contraseña encriptada en Firestore
-                    final clienteDoc = await FirebaseFirestore.instance
-                        .collection('cliente')
-                        .doc(user.uid)
-                        .get();
-                    final firestorePassword = clienteDoc.data()?['contraseña'] as String?;
-                    if (firestorePassword == null) {
-                      throw Exception('No se encontró la contraseña en la base de datos.');
-                    }
-                    // 2. Encriptar la contraseña actual ingresada y comparar
-                    final actualEncriptada = _encryptPassword(actual);
-                    if (actualEncriptada != firestorePassword) {
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('La contraseña actual es incorrecta.')),
-                        );
+                onPressed: _botonHabilitado
+                    ? () async {
+                        final user = FirebaseAuth.instance.currentUser;
+                        if (user == null) return;
+                        final actual = actualController.text.trim();
+                        final nueva = nuevaController.text.trim();
+                        try {
+                          // 1. Consultar la contraseña encriptada en Firestore
+                          final clienteDoc = await FirebaseFirestore.instance
+                              .collection('cliente')
+                              .doc(user.uid)
+                              .get();
+                          final firestorePassword =
+                              clienteDoc.data()?['contraseña'] as String?;
+                          if (firestorePassword == null) {
+                            throw Exception(
+                              'No se encontró la contraseña en la base de datos.',
+                            );
+                          }
+                          // 2. Encriptar la contraseña actual ingresada y comparar
+                          final actualEncriptada = _encryptPassword(actual);
+                          if (actualEncriptada != firestorePassword) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'La contraseña actual es incorrecta.',
+                                  ),
+                                ),
+                              );
+                            }
+                            return;
+                          }
+                          // 3. Reautenticación con la contraseña actual
+                          final cred = EmailAuthProvider.credential(
+                            email: user.email ?? '',
+                            password: actual,
+                          );
+                          await user.reauthenticateWithCredential(cred);
+                          // 4. Actualizar la contraseña en Auth
+                          await user.updatePassword(nueva);
+                          // 5. Guardar la nueva contraseña encriptada en Firestore
+                          final nuevaEncriptada = _encryptPassword(nueva);
+                          await FirebaseFirestore.instance
+                              .collection('cliente')
+                              .doc(user.uid)
+                              .update({'contraseña': nuevaEncriptada});
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Contraseña actualizada correctamente',
+                                ),
+                              ),
+                            );
+                            Navigator.of(context).pop();
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Error: ${e.toString()}')),
+                            );
+                          }
+                        }
                       }
-                      return;
-                    }
-                    // 3. Reautenticación con la contraseña actual
-                    final cred = EmailAuthProvider.credential(
-                      email: user.email ?? '',
-                      password: actual,
-                    );
-                    await user.reauthenticateWithCredential(cred);
-                    // 4. Actualizar la contraseña en Auth
-                    await user.updatePassword(nueva);
-                    // 5. Guardar la nueva contraseña encriptada en Firestore
-                    final nuevaEncriptada = _encryptPassword(nueva);
-                    await FirebaseFirestore.instance
-                        .collection('cliente')
-                        .doc(user.uid)
-                        .update({'contraseña': nuevaEncriptada});
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Contraseña actualizada correctamente')),
-                      );
-                      Navigator.of(context).pop();
-                    }
-                  } catch (e) {
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Error: ${e.toString()}')),
-                      );
-                    }
-                  }
-                } : null,
+                    : null,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: _botonHabilitado ? AppColores.buttonPrimary : AppColores.buttonPrimary,
+                  backgroundColor: _botonHabilitado
+                      ? AppColores.buttonPrimary
+                      : AppColores.buttonPrimary,
                   foregroundColor: AppColores.textWhite,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   elevation: 0,

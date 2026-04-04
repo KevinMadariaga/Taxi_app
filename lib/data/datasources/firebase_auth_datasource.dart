@@ -57,9 +57,9 @@ class FirebaseAuthDataSource {
     final isAppAuthConfigError =
         error.code == 'app-not-authorized' ||
         error.code == 'invalid-app-credential' ||
-      rawMessage.contains('missing a valid app identifier') ||
-      rawMessage.contains('play integrity checks') ||
-      rawMessage.contains('recaptcha checks were unsuccessful') ||
+        rawMessage.contains('missing a valid app identifier') ||
+        rawMessage.contains('play integrity checks') ||
+        rawMessage.contains('recaptcha checks were unsuccessful') ||
         rawMessage.contains('play_integrity_token') ||
         rawMessage.contains('not authorized to use firebase authentication') ||
         rawMessage.contains('sha-1') ||

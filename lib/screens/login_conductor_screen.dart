@@ -68,7 +68,7 @@ class _LoginConductorState extends State<LoginConductor> {
               .trim();
       if (passwordEnUsuarios.isNotEmpty && passwordEnUsuarios != password) {
         setState(() {
-          _error = 'Credenciales invalidas.';
+          _error = 'Credenciales inválidas.';
         });
         return;
       }

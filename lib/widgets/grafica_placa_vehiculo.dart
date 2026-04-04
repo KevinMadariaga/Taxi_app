@@ -26,41 +26,26 @@ class VehiclePlateWidget extends StatelessWidget {
       width: w,
       height: h,
       decoration: BoxDecoration(
-        color: const Color.fromARGB(255, 255, 255, 255), // blanco tipo placa colombiana
+        color: const Color.fromARGB(
+          255,
+          255,
+          255,
+          255,
+        ), // blanco tipo placa colombiana
         border: Border.all(color: Colors.black, width: 2.2),
         borderRadius: BorderRadius.circular(6),
         boxShadow: const [
-          BoxShadow(
-            color: Colors.black26,
-            blurRadius: 4,
-            offset: Offset(0, 2),
-          ),
+          BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2)),
         ],
       ),
       child: Stack(
         alignment: Alignment.center,
         children: [
           // Pequeños "remaches" en las esquinas
-          Positioned(
-            left: 6,
-            top: 6,
-            child: _screwDot(),
-          ),
-          Positioned(
-            right: 6,
-            top: 6,
-            child: _screwDot(),
-          ),
-          Positioned(
-            left: 6,
-            bottom: 6,
-            child: _screwDot(),
-          ),
-          Positioned(
-            right: 6,
-            bottom: 6,
-            child: _screwDot(),
-          ),
+          Positioned(left: 6, top: 6, child: _screwDot()),
+          Positioned(right: 6, top: 6, child: _screwDot()),
+          Positioned(left: 6, bottom: 6, child: _screwDot()),
+          Positioned(right: 6, bottom: 6, child: _screwDot()),
           // Contenido principal
           Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -103,9 +88,6 @@ Widget _screwDot() {
   return Container(
     width: 5,
     height: 5,
-    decoration: BoxDecoration(
-      color: Colors.black54,
-      shape: BoxShape.circle,
-    ),
+    decoration: BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
   );
 }

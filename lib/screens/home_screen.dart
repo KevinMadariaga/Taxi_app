@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:taxi_app/core/app_colores.dart';
-import 'package:taxi_app/features/phone_auth/screens/auth_phone_screen.dart';
+// import 'package:taxi_app/features/phone_auth/screens/auth_phone_screen.dart';
 import 'package:taxi_app/domain/models/auth_flow_result.dart';
 import 'package:taxi_app/presentation/controllers/auth/home_auth_controller.dart';
 import 'package:taxi_app/domain/usecases/client_auth/sign_in_google_client_usecase.dart';
@@ -164,41 +164,42 @@ class _HomeViewState extends State<HomeView> {
                             ),
                             const SizedBox(height: 12),
                           ],
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton.icon(
-                              onPressed: isBusy
-                                  ? null
-                                  : () {
-                                      authVm.clearError();
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) =>
-                                              const AuthPhoneScreen(),
-                                        ),
-                                      );
-                                    },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColores.buttonPrimary,
-                                foregroundColor: AppColores.textWhite,
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 14,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                              icon: const Icon(Icons.phone),
-                              label: const Text(
-                                'Ingresa tu número',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ),
+                          // Inicio por teléfono deshabilitado por petición del usuario.
+                          // SizedBox(
+                          //   width: double.infinity,
+                          //   child: ElevatedButton.icon(
+                          //     onPressed: isBusy
+                          //         ? null
+                          //         : () {
+                          //             authVm.clearError();
+                          //             Navigator.push(
+                          //               context,
+                          //               MaterialPageRoute(
+                          //                 builder: (context) =>
+                          //                     const AuthPhoneScreen(),
+                          //               ),
+                          //             );
+                          //           },
+                          //     style: ElevatedButton.styleFrom(
+                          //       backgroundColor: AppColores.buttonPrimary,
+                          //       foregroundColor: AppColores.textWhite,
+                          //       padding: const EdgeInsets.symmetric(
+                          //         vertical: 14,
+                          //       ),
+                          //       shape: RoundedRectangleBorder(
+                          //         borderRadius: BorderRadius.circular(8),
+                          //       ),
+                          //     ),
+                          //     icon: const Icon(Icons.phone),
+                          //     label: const Text(
+                          //       'Ingresa tu número',
+                          //       style: TextStyle(
+                          //         fontSize: 16,
+                          //         fontWeight: FontWeight.w600,
+                          //       ),
+                          //     ),
+                          //   ),
+                          // ),
                           const SizedBox(height: 20),
                           SizedBox(
                             width: double.infinity,
@@ -239,30 +240,45 @@ class _HomeViewState extends State<HomeView> {
                                   ? null
                                   : () async {
                                       authVm.clearError();
-                                      final result = await authVm.loginWithApple();
+                                      final result = await authVm
+                                          .loginWithApple();
                                       if (result == null) {
                                         setState(() {
-                                          _error = authVm.errorMessage ?? 'Apple Sign-in no disponible.';
+                                          _error =
+                                              authVm.errorMessage ??
+                                              'Apple Sign-in no disponible.';
                                         });
                                       } else {
                                         _showLoginSuccessSnackbar();
-                                        if (result.destination == AuthFlowDestination.completeProfile) {
-                                          Navigator.of(context).pushAndRemoveUntil(
+                                        if (result.destination ==
+                                            AuthFlowDestination
+                                                .completeProfile) {
+                                          Navigator.of(
+                                            context,
+                                          ).pushAndRemoveUntil(
                                             MaterialPageRoute(
-                                              builder: (_) => CompleteProfilePage(
-                                                uid: result.user.id,
-                                                initialNombre: result.user.nombre,
-                                                initialApellido: result.user.apellido,
-                                                initialTelefono: result.user.telefono,
-                                              ),
+                                              builder: (_) =>
+                                                  CompleteProfilePage(
+                                                    uid: result.user.id,
+                                                    initialNombre:
+                                                        result.user.nombre,
+                                                    initialApellido:
+                                                        result.user.apellido,
+                                                    initialTelefono:
+                                                        result.user.telefono,
+                                                  ),
                                             ),
                                             (route) => false,
                                           );
                                           return;
                                         }
-                                        Navigator.of(context).pushAndRemoveUntil(
+                                        Navigator.of(
+                                          context,
+                                        ).pushAndRemoveUntil(
                                           MaterialPageRoute(
-                                            builder: (_) => HomeClienteView(authUid: result.user.id),
+                                            builder: (_) => HomeClienteView(
+                                              authUid: result.user.id,
+                                            ),
                                           ),
                                           (route) => false,
                                         );
@@ -295,7 +311,8 @@ class _HomeViewState extends State<HomeView> {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) => const LoginConductor(),
+                                    builder: (context) =>
+                                        const LoginConductor(),
                                   ),
                                 );
                               },

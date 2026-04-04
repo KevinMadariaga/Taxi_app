@@ -18,17 +18,18 @@ import 'package:taxi_app/core/services/map_service_adapter.dart';
 import 'package:taxi_app/core/services/services.dart';
 
 class RutaClienteViewModel extends ChangeNotifier {
-      /// Método público para recalcular la ruta desde la vista
-      Future<void> fetchRouteOSRM(LatLng origin, LatLng dest, String polyId) async {
-        await _fetchRouteOSRM(origin, dest, polyId);
-      }
+  /// Método público para recalcular la ruta desde la vista
+  Future<void> fetchRouteOSRM(LatLng origin, LatLng dest, String polyId) async {
+    await _fetchRouteOSRM(origin, dest, polyId);
+  }
 
-      /// Setter público para actualizar los puntos de la ruta desde la vista
-      set routePoints(List<LatLng> points) {
-        _lastRoutePoints = points;
-      }
-    /// Getter público para los puntos de la ruta
-    List<LatLng> get routePoints => _lastRoutePoints ?? [];
+  /// Setter público para actualizar los puntos de la ruta desde la vista
+  set routePoints(List<LatLng> points) {
+    _lastRoutePoints = points;
+  }
+
+  /// Getter público para los puntos de la ruta
+  List<LatLng> get routePoints => _lastRoutePoints ?? [];
   final String solicitudId;
   final String? conductorId;
   final String? conductorName;
@@ -90,7 +91,6 @@ class RutaClienteViewModel extends ChangeNotifier {
   /// Bearing (rotación) estimada del vehículo (en grados) — calculada
   /// a partir de la última y la actual posición del conductor.
   double? conductorBearing;
-
 
   // --- Dependencias internas ---
 
@@ -160,15 +160,19 @@ class RutaClienteViewModel extends ChangeNotifier {
 
       final newMarkers = Set<Marker>.from(markers);
       newMarkers.removeWhere((m) => m.markerId.value == 'conductor');
-      newMarkers.add(Marker(
-        markerId: const MarkerId('conductor'),
-        position: pos,
-        rotation: conductorBearing ?? 0.0,
-        flat: true,
-        anchor: const Offset(0.5, 0.5),
-        infoWindow: const InfoWindow(title: 'Conductor'),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
-      ));
+      newMarkers.add(
+        Marker(
+          markerId: const MarkerId('conductor'),
+          position: pos,
+          rotation: conductorBearing ?? 0.0,
+          flat: true,
+          anchor: const Offset(0.5, 0.5),
+          infoWindow: const InfoWindow(title: 'Conductor'),
+          icon: BitmapDescriptor.defaultMarkerWithHue(
+            BitmapDescriptor.hueGreen,
+          ),
+        ),
+      );
       markers = newMarkers;
       _safeNotify();
 
@@ -229,15 +233,19 @@ class RutaClienteViewModel extends ChangeNotifier {
       // ubicación del conductor desde el objeto 'conductor' en la solicitud
       final rawConductor = data['conductor'];
       if (rawConductor is Map) {
-        final lat = (rawConductor['lat'] ??
+        final lat =
+            (rawConductor['lat'] ??
             rawConductor['latitude'] ??
             rawConductor['latitud']);
-        final lng = (rawConductor['lng'] ??
+        final lng =
+            (rawConductor['lng'] ??
             rawConductor['longitude'] ??
             rawConductor['longitud']);
         if (lat != null && lng != null) {
-          conductorPos =
-              LatLng((lat as num).toDouble(), (lng as num).toDouble());
+          conductorPos = LatLng(
+            (lat as num).toDouble(),
+            (lng as num).toDouble(),
+          );
         }
       }
 
@@ -245,28 +253,32 @@ class RutaClienteViewModel extends ChangeNotifier {
 
       // marcador de la ubicación del cliente
       if (origen != null) {
-        newMarkers.add(Marker(
-          markerId: const MarkerId('cliente'),
-          position: origen,
-          infoWindow: const InfoWindow(title: 'Cliente'),
-          icon: BitmapDescriptor.defaultMarkerWithHue(
-            BitmapDescriptor.hueAzure,
+        newMarkers.add(
+          Marker(
+            markerId: const MarkerId('cliente'),
+            position: origen,
+            infoWindow: const InfoWindow(title: 'Cliente'),
+            icon: BitmapDescriptor.defaultMarkerWithHue(
+              BitmapDescriptor.hueAzure,
+            ),
           ),
-        ));
+        );
       }
 
       // marcador de la ubicación del conductor
       if (conductorPos != null) {
         // almacenar posición para cálculo de bearing en actualizaciones
         _previousConductorPos = conductorPos;
-        newMarkers.add(Marker(
-          markerId: const MarkerId('conductor'),
-          position: conductorPos,
-          infoWindow: const InfoWindow(title: 'Conductor'),
-          icon: BitmapDescriptor.defaultMarkerWithHue(
-            BitmapDescriptor.hueGreen,
+        newMarkers.add(
+          Marker(
+            markerId: const MarkerId('conductor'),
+            position: conductorPos,
+            infoWindow: const InfoWindow(title: 'Conductor'),
+            icon: BitmapDescriptor.defaultMarkerWithHue(
+              BitmapDescriptor.hueGreen,
+            ),
           ),
-        ));
+        );
       }
 
       // Trazabilidad (ruta por calles): solicitar la ruta desde conductor hacia cliente
@@ -288,11 +300,12 @@ class RutaClienteViewModel extends ChangeNotifier {
       }
 
       // Datos del conductor
-      final resolvedConductorId = conductorId ??
+      final resolvedConductorId =
+          conductorId ??
           (data['conductor'] is Map
                   ? (data['conductor']['id'] ??
-                      data['conductorId'] ??
-                      data['driverId'])
+                        data['conductorId'] ??
+                        data['driverId'])
                   : (data['conductorId'] ?? data['driverId']))
               ?.toString();
 
@@ -309,23 +322,24 @@ class RutaClienteViewModel extends ChangeNotifier {
             conductorRating = (cdata['rating'] is num)
                 ? (cdata['rating'] as num).toDouble()
                 : null;
-            conductorDisplayName =
-                cdata['nombre']?.toString() ?? conductorName;
+            conductorDisplayName = cdata['nombre']?.toString() ?? conductorName;
             conductorPlate = cdata['placa']?.toString();
             // Si tenemos datos del conductor, persistir cache para restaurar UI
             try {
               if (!_routeCacheSaved) {
-                await RouteCacheService.saveForSolicitud(RouteCacheData(
-                  solicitudId: solicitudId,
-                  role: 'cliente',
-                  conductorId: resolvedConductorId,
-                  conductorName: conductorDisplayName,
-                  conductorPhone: null,
-                  conductorPlate: conductorPlate,
-                  conductorPhotoUrl: conductorPhotoUrl,
-                  conductorVehiclePhotoUrl: conductorVehiclePhotoUrl,
-                  conductorRating: conductorRating,
-                ));
+                await RouteCacheService.saveForSolicitud(
+                  RouteCacheData(
+                    solicitudId: solicitudId,
+                    role: 'cliente',
+                    conductorId: resolvedConductorId,
+                    conductorName: conductorDisplayName,
+                    conductorPhone: null,
+                    conductorPlate: conductorPlate,
+                    conductorPhotoUrl: conductorPhotoUrl,
+                    conductorVehiclePhotoUrl: conductorVehiclePhotoUrl,
+                    conductorRating: conductorRating,
+                  ),
+                );
                 _routeCacheSaved = true;
               }
             } catch (_) {}
@@ -356,198 +370,241 @@ class RutaClienteViewModel extends ChangeNotifier {
         .doc(solicitudId)
         .snapshots()
         .listen((doc) async {
-      try {
-        if (!doc.exists) return;
-        final data = doc.data();
-        if (data == null) return;
-
-        LatLng? origen;
-        LatLng? conductorPos;
-
-        final rawCliente = data['cliente'];
-        if (rawCliente is Map && rawCliente['ubicacion'] is Map) {
-          final cu = Map<String, dynamic>.from(rawCliente['ubicacion']);
-          final lat = (cu['lat'] ?? cu['latitude'] ?? cu['latitud']);
-          final lng = (cu['lng'] ?? cu['longitude'] ?? cu['longitud']);
-          if (lat != null && lng != null) {
-            origen =
-                LatLng((lat as num).toDouble(), (lng as num).toDouble());
-          }
-        }
-
-        final rawConductor = data['conductor'];
-        if (rawConductor is Map) {
-          final lat = (rawConductor['lat'] ??
-              rawConductor['latitude'] ??
-              rawConductor['latitud']);
-          final lng = (rawConductor['lng'] ??
-              rawConductor['longitude'] ??
-              rawConductor['longitud']);
-          if (lat != null && lng != null) {
-            conductorPos = LatLng(
-              (lat as num).toDouble(),
-              (lng as num).toDouble(),
-            );
-          }
-        }
-
-        // Calcular bearing estimado del conductor:
-        // - Preferir la orientación de la ruta (si tenemos puntos de ruta),
-        // - si no está disponible, fallback a la diferencia entre posiciones.
-        if (conductorPos != null) {
           try {
-            final routeBearing = _bearingAlongRouteAt(conductorPos);
-            if (routeBearing != null) {
-              conductorBearing = routeBearing;
-            } else if (_previousConductorPos != null) {
-              conductorBearing = _calculateBearing(_previousConductorPos!, conductorPos);
+            if (!doc.exists) return;
+            final data = doc.data();
+            if (data == null) return;
+
+            LatLng? origen;
+            LatLng? conductorPos;
+
+            final rawCliente = data['cliente'];
+            if (rawCliente is Map && rawCliente['ubicacion'] is Map) {
+              final cu = Map<String, dynamic>.from(rawCliente['ubicacion']);
+              final lat = (cu['lat'] ?? cu['latitude'] ?? cu['latitud']);
+              final lng = (cu['lng'] ?? cu['longitude'] ?? cu['longitud']);
+              if (lat != null && lng != null) {
+                origen = LatLng(
+                  (lat as num).toDouble(),
+                  (lng as num).toDouble(),
+                );
+              }
             }
-          } catch (_) {
-            conductorBearing = null;
-          }
-          _previousConductorPos = conductorPos;
-        }
 
-        final newMarkers = <Marker>{};
+            final rawConductor = data['conductor'];
+            if (rawConductor is Map) {
+              final lat =
+                  (rawConductor['lat'] ??
+                  rawConductor['latitude'] ??
+                  rawConductor['latitud']);
+              final lng =
+                  (rawConductor['lng'] ??
+                  rawConductor['longitude'] ??
+                  rawConductor['longitud']);
+              if (lat != null && lng != null) {
+                conductorPos = LatLng(
+                  (lat as num).toDouble(),
+                  (lng as num).toDouble(),
+                );
+              }
+            }
 
-        if (origen != null) {
-          newMarkers.add(Marker(
-            markerId: const MarkerId('cliente'),
-            position: origen,
-            infoWindow: const InfoWindow(title: 'Cliente'),
-            icon: BitmapDescriptor.defaultMarkerWithHue(
-              BitmapDescriptor.hueAzure,
-            ),
-          ));
-        }
-
-        if (conductorPos != null) {
-          // Añadir marcador del conductor inicialmente; la animación lo
-          // ajustará suavemente cuando haya movimiento.
-          newMarkers.add(Marker(
-            markerId: const MarkerId('conductor'),
-            position: conductorPos,
-            infoWindow: const InfoWindow(title: 'Conductor'),
-            icon: BitmapDescriptor.defaultMarkerWithHue(
-              BitmapDescriptor.hueGreen,
-            ),
-          ));
-        }
-
-        if (origen != null && conductorPos != null) {
-          await _fetchRouteOSRM(conductorPos, origen, 'cliente_conductor');
-        }
-
-        // Priorizar siempre la ubicación del cliente como centro
-        LatLng center = initialTarget;
-        if (origen != null) {
-          center = origen;
-          // Calcular bearing desde cliente hacia conductor para orientar la cámara
-          if (conductorPos != null) {
-            initialBearing = _calculateBearing(origen, conductorPos);
-          }
-        } else if (conductorPos != null) {
-          center = conductorPos;
-        }
-
-        final estado =
-            (data['estado'] ?? '').toString().toLowerCase();
-
-        markers = newMarkers;
-        initialTarget = center;
-        loading = false;
-
-        // Si recibimos ubicación del conductor y ya teníamos una previa,
-        // iniciar interpolación suave hacia la nueva posición.
-        try {
-          if (conductorPos != null && _previousConductorPos != null) {
-            _animateConductorTo(_previousConductorPos!, conductorPos);
-          }
-        } catch (_) {}
-
-        // actualizar info de conductor si está presente, preferir objeto
-        conductorDisplayName = (data['conductor'] is Map
-                    ? (data['conductor']['nombre'] ??
-                        data['conductorName'] ??
-                        data['conductor_name'])
-                    : (data['conductorName'] ?? data['conductor_name']))
-                ?.toString() ??
-            conductorDisplayName;
-
-        // intentar obtener foto/placa/rating del objeto 'conductor' si viene embebido
-        try {
-          if (data['conductor'] is Map) {
-            final cmap = Map<String, dynamic>.from(data['conductor'] as Map);
-            conductorPhotoUrl = (cmap['foto'] ?? cmap['fotoUrl'] ?? cmap['photo'])?.toString() ?? conductorPhotoUrl;
-            conductorPlate = (cmap['placa'] ?? cmap['plate'])?.toString() ?? conductorPlate;
-            conductorRating = (cmap['calificacion_promedio'] is num) ? (cmap['calificacion_promedio'] as num).toDouble() : conductorRating;
-          } else {
-            // si no viene embebido, intentar resolver por id
-            final resolvedConductorId = conductorId ??
-                (data['conductor'] is Map
-                        ? (data['conductor']['id'] ?? data['conductorId'] ?? data['driverId'])
-                        : (data['conductorId'] ?? data['driverId']))
-                    ?.toString();
-            if (resolvedConductorId != null && resolvedConductorId.isNotEmpty) {
+            // Calcular bearing estimado del conductor:
+            // - Preferir la orientación de la ruta (si tenemos puntos de ruta),
+            // - si no está disponible, fallback a la diferencia entre posiciones.
+            if (conductorPos != null) {
               try {
-                final cdoc = await FirebaseFirestore.instance.collection('conductor').doc(resolvedConductorId).get();
-                final cdata = cdoc.data();
-                if (cdata != null) {
-                  conductorPhotoUrl = cdata['foto']?.toString() ?? conductorPhotoUrl;
-                  conductorPlate = cdata['placa']?.toString() ?? conductorPlate;
-                  conductorRating = (cdata['rating'] is num) ? (cdata['rating'] as num).toDouble() : conductorRating;
-                  conductorDisplayName = cdata['nombre']?.toString() ?? conductorDisplayName;
+                final routeBearing = _bearingAlongRouteAt(conductorPos);
+                if (routeBearing != null) {
+                  conductorBearing = routeBearing;
+                } else if (_previousConductorPos != null) {
+                  conductorBearing = _calculateBearing(
+                    _previousConductorPos!,
+                    conductorPos,
+                  );
                 }
-              } catch (_) {}
+              } catch (_) {
+                conductorBearing = null;
+              }
+              _previousConductorPos = conductorPos;
             }
-          }
-        } catch (_) {}
 
-        // persistir solicitud activa en cache/shared si está asignada
-        try {
-          if (estado == 'asignado' || estado == 'assigned') {
-            SessionHelper.setActiveSolicitud(solicitudId);
-            // guardar en RouteCache si tenemos conductor
+            final newMarkers = <Marker>{};
+
+            if (origen != null) {
+              newMarkers.add(
+                Marker(
+                  markerId: const MarkerId('cliente'),
+                  position: origen,
+                  infoWindow: const InfoWindow(title: 'Cliente'),
+                  icon: BitmapDescriptor.defaultMarkerWithHue(
+                    BitmapDescriptor.hueAzure,
+                  ),
+                ),
+              );
+            }
+
+            if (conductorPos != null) {
+              // Añadir marcador del conductor inicialmente; la animación lo
+              // ajustará suavemente cuando haya movimiento.
+              newMarkers.add(
+                Marker(
+                  markerId: const MarkerId('conductor'),
+                  position: conductorPos,
+                  infoWindow: const InfoWindow(title: 'Conductor'),
+                  icon: BitmapDescriptor.defaultMarkerWithHue(
+                    BitmapDescriptor.hueGreen,
+                  ),
+                ),
+              );
+            }
+
+            if (origen != null && conductorPos != null) {
+              await _fetchRouteOSRM(conductorPos, origen, 'cliente_conductor');
+            }
+
+            // Priorizar siempre la ubicación del cliente como centro
+            LatLng center = initialTarget;
+            if (origen != null) {
+              center = origen;
+              // Calcular bearing desde cliente hacia conductor para orientar la cámara
+              if (conductorPos != null) {
+                initialBearing = _calculateBearing(origen, conductorPos);
+              }
+            } else if (conductorPos != null) {
+              center = conductorPos;
+            }
+
+            final estado = (data['estado'] ?? '').toString().toLowerCase();
+
+            markers = newMarkers;
+            initialTarget = center;
+            loading = false;
+
+            // Si recibimos ubicación del conductor y ya teníamos una previa,
+            // iniciar interpolación suave hacia la nueva posición.
             try {
-              if (!_routeCacheSaved) {
-                await RouteCacheService.saveForSolicitud(RouteCacheData(
-                  solicitudId: solicitudId,
-                  role: 'cliente',
-                  conductorId: (data['conductor'] is Map ? (data['conductor']['id'] ?? data['conductorId'])?.toString() : (data['conductorId'] ?? data['driverId'])?.toString()),
-                  conductorName: conductorDisplayName,
-                  conductorPhone: null,
-                  conductorPlate: conductorPlate,
-                  conductorPhotoUrl: conductorPhotoUrl,
-                  conductorRating: conductorRating,
-                ));
-                _routeCacheSaved = true;
+              if (conductorPos != null && _previousConductorPos != null) {
+                _animateConductorTo(_previousConductorPos!, conductorPos);
               }
             } catch (_) {}
-          } else if (estado == 'cancelado' ||
-              estado == 'cancelada' ||
-              estado == 'finalizado' ||
-              estado == 'completed') {
-            SessionHelper.clearActiveSolicitud();
-            try { await RouteCacheService.clearSolicitud(solicitudId); } catch (_) {}
-            _routeCacheSaved = false;
-          }
-        } catch (_) {}
 
-        // Notificar a la vista que la solicitud fue cancelada remotamente
-        if (!cancelStatusHandled &&
-            (estado == 'cancelado' || estado == 'cancelada')) {
-          cancelStatusHandled = true;
-        }
+            // actualizar info de conductor si está presente, preferir objeto
+            conductorDisplayName =
+                (data['conductor'] is Map
+                        ? (data['conductor']['nombre'] ??
+                              data['conductorName'] ??
+                              data['conductor_name'])
+                        : (data['conductorName'] ?? data['conductor_name']))
+                    ?.toString() ??
+                conductorDisplayName;
 
-        // Señalar a la vista que debe ir a la pantalla de destino cuando el viaje está en camino
-        if (!goToDestino &&
-            (estado == 'en camino' || estado == 'en_camino' || estado == 'encamino' || estado == 'en_progreso')) {
-          goToDestino = true;
-        }
+            // intentar obtener foto/placa/rating del objeto 'conductor' si viene embebido
+            try {
+              if (data['conductor'] is Map) {
+                final cmap = Map<String, dynamic>.from(
+                  data['conductor'] as Map,
+                );
+                conductorPhotoUrl =
+                    (cmap['foto'] ?? cmap['fotoUrl'] ?? cmap['photo'])
+                        ?.toString() ??
+                    conductorPhotoUrl;
+                conductorPlate =
+                    (cmap['placa'] ?? cmap['plate'])?.toString() ??
+                    conductorPlate;
+                conductorRating = (cmap['calificacion_promedio'] is num)
+                    ? (cmap['calificacion_promedio'] as num).toDouble()
+                    : conductorRating;
+              } else {
+                // si no viene embebido, intentar resolver por id
+                final resolvedConductorId =
+                    conductorId ??
+                    (data['conductor'] is Map
+                            ? (data['conductor']['id'] ??
+                                  data['conductorId'] ??
+                                  data['driverId'])
+                            : (data['conductorId'] ?? data['driverId']))
+                        ?.toString();
+                if (resolvedConductorId != null &&
+                    resolvedConductorId.isNotEmpty) {
+                  try {
+                    final cdoc = await FirebaseFirestore.instance
+                        .collection('conductor')
+                        .doc(resolvedConductorId)
+                        .get();
+                    final cdata = cdoc.data();
+                    if (cdata != null) {
+                      conductorPhotoUrl =
+                          cdata['foto']?.toString() ?? conductorPhotoUrl;
+                      conductorPlate =
+                          cdata['placa']?.toString() ?? conductorPlate;
+                      conductorRating = (cdata['rating'] is num)
+                          ? (cdata['rating'] as num).toDouble()
+                          : conductorRating;
+                      conductorDisplayName =
+                          cdata['nombre']?.toString() ?? conductorDisplayName;
+                    }
+                  } catch (_) {}
+                }
+              }
+            } catch (_) {}
 
-        _safeNotify();
-      } catch (_) {}
-    });
+            // persistir solicitud activa en cache/shared si está asignada
+            try {
+              if (estado == 'asignado' || estado == 'assigned') {
+                SessionHelper.setActiveSolicitud(solicitudId);
+                // guardar en RouteCache si tenemos conductor
+                try {
+                  if (!_routeCacheSaved) {
+                    await RouteCacheService.saveForSolicitud(
+                      RouteCacheData(
+                        solicitudId: solicitudId,
+                        role: 'cliente',
+                        conductorId: (data['conductor'] is Map
+                            ? (data['conductor']['id'] ?? data['conductorId'])
+                                  ?.toString()
+                            : (data['conductorId'] ?? data['driverId'])
+                                  ?.toString()),
+                        conductorName: conductorDisplayName,
+                        conductorPhone: null,
+                        conductorPlate: conductorPlate,
+                        conductorPhotoUrl: conductorPhotoUrl,
+                        conductorRating: conductorRating,
+                      ),
+                    );
+                    _routeCacheSaved = true;
+                  }
+                } catch (_) {}
+              } else if (estado == 'cancelado' ||
+                  estado == 'cancelada' ||
+                  estado == 'finalizado' ||
+                  estado == 'completed') {
+                SessionHelper.clearActiveSolicitud();
+                try {
+                  await RouteCacheService.clearSolicitud(solicitudId);
+                } catch (_) {}
+                _routeCacheSaved = false;
+              }
+            } catch (_) {}
+
+            // Notificar a la vista que la solicitud fue cancelada remotamente
+            if (!cancelStatusHandled &&
+                (estado == 'cancelado' || estado == 'cancelada')) {
+              cancelStatusHandled = true;
+            }
+
+            // Señalar a la vista que debe ir a la pantalla de destino cuando el viaje está en camino
+            if (!goToDestino &&
+                (estado == 'en camino' ||
+                    estado == 'en_camino' ||
+                    estado == 'encamino' ||
+                    estado == 'en_progreso')) {
+              goToDestino = true;
+            }
+
+            _safeNotify();
+          } catch (_) {}
+        });
   }
 
   /// La vista consume el disparo de navegación a destino para no re-navegar.
@@ -595,25 +652,22 @@ class RutaClienteViewModel extends ChangeNotifier {
   void _listenChatMessages() {
     final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
     _chatSub?.cancel();
-    _chatSub = _chatService.listenMessages(solicitudId).listen(
-      (mensajes) {
-        if (mensajes.isEmpty) return;
-        final last = mensajes.last;
-        final esDeOtro = last.senderId != uid;
-        if (esDeOtro) {
-          hasNewChat = true;
-          final texto = last.texto.trim();
-          if (texto.isNotEmpty) {
-            NotificacionesServicio.instance.showChatNotification(
-              senderName: 'Conductor',
-              message: texto,
-            );
-          }
-          _safeNotify();
+    _chatSub = _chatService.listenMessages(solicitudId).listen((mensajes) {
+      if (mensajes.isEmpty) return;
+      final last = mensajes.last;
+      final esDeOtro = last.senderId != uid;
+      if (esDeOtro) {
+        hasNewChat = true;
+        final texto = last.texto.trim();
+        if (texto.isNotEmpty) {
+          NotificacionesServicio.instance.showChatNotification(
+            senderName: 'Conductor',
+            message: texto,
+          );
         }
-      },
-      onError: (_) {},
-    );
+        _safeNotify();
+      }
+    }, onError: (_) {});
   }
 
   /// Permite que la vista "consuma" el indicador de nuevo chat
@@ -626,12 +680,15 @@ class RutaClienteViewModel extends ChangeNotifier {
   // --- OSRM: cálculo de ruta y métricas ---
 
   Future<void> _fetchRouteOSRM(
-      LatLng origin, LatLng dest, String polyId) async {
+    LatLng origin,
+    LatLng dest,
+    String polyId,
+  ) async {
     try {
       final url = Uri.parse(
-          'https://router.project-osrm.org/route/v1/driving/${origin.longitude},${origin.latitude};${dest.longitude},${dest.latitude}?overview=full&geometries=geojson');
-      final resp =
-          await http.get(url).timeout(const Duration(seconds: 6));
+        'https://router.project-osrm.org/route/v1/driving/${origin.longitude},${origin.latitude};${dest.longitude},${dest.latitude}?overview=full&geometries=geojson',
+      );
+      final resp = await http.get(url).timeout(const Duration(seconds: 6));
       if (resp.statusCode != 200) return;
       final data = json.decode(resp.body) as Map<String, dynamic>?;
       if (data == null) return;
@@ -655,13 +712,15 @@ class RutaClienteViewModel extends ChangeNotifier {
       final color = polyId == 'route'
           ? const Color.fromARGB(255, 211, 162, 0)
           : Colores.amarillo;
-      newPolylines.add(_mapService.createPolyline(
-        id: polyId,
-        points: points,
-        color: color,
-        width: 5,
-        geodesic: true,
-      ));
+      newPolylines.add(
+        _mapService.createPolyline(
+          id: polyId,
+          points: points,
+          color: color,
+          width: 5,
+          geodesic: true,
+        ),
+      );
       polylines = newPolylines;
 
       final distance = (route0['distance'] is num)
@@ -747,7 +806,7 @@ class RutaClienteViewModel extends ChangeNotifier {
     final dLng = toLng - fromLng;
     final y = sin(dLng) * cos(toLat);
     final x = cos(fromLat) * sin(toLat) - sin(fromLat) * cos(toLat) * cos(dLng);
-    
+
     final bearing = atan2(y, x);
     return (bearing * (180.0 / 3.141592653589793) + 360) % 360;
   }

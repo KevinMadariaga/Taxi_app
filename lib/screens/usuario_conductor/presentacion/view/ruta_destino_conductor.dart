@@ -128,7 +128,6 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView>
         },
       );
     } catch (_) {}
-
   }
 
   void _maybeCompleteInitialization() {
@@ -290,7 +289,10 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView>
     int startIdx = closestIdx;
     double accumulated = 0.0;
     for (int i = closestIdx; i < _routePoints.length - 1; i++) {
-      accumulated += _haversineDistanceMeters(_routePoints[i], _routePoints[i + 1]);
+      accumulated += _haversineDistanceMeters(
+        _routePoints[i],
+        _routePoints[i + 1],
+      );
       if (accumulated >= 10) {
         startIdx = i;
         break;
@@ -331,9 +333,9 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView>
             closestIdx = i;
           }
         }
-          if (closestIdx >= 0 && closestIdx < _routePoints.length) {
-            adjustedPos = _routePoints[closestIdx];
-          }
+        if (closestIdx >= 0 && closestIdx < _routePoints.length) {
+          adjustedPos = _routePoints[closestIdx];
+        }
       }
 
       // Si el conductor se desvía más de 30 metros de la ruta, recalcular la ruta
@@ -732,8 +734,7 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView>
                             vertical: ResponsiveHelper.hp(context, 0.6),
                           ),
                           decoration: BoxDecoration(
-                            color:
-                                AppColores.cardBackground.withOpacity(0.95),
+                            color: AppColores.cardBackground.withOpacity(0.95),
                             borderRadius: BorderRadius.circular(24),
                             boxShadow: [
                               BoxShadow(
@@ -776,8 +777,7 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView>
                             vertical: ResponsiveHelper.hp(context, 0.6),
                           ),
                           decoration: BoxDecoration(
-                            color:
-                                AppColores.cardBackground.withOpacity(0.95),
+                            color: AppColores.cardBackground.withOpacity(0.95),
                             borderRadius: BorderRadius.circular(24),
                             boxShadow: [
                               BoxShadow(

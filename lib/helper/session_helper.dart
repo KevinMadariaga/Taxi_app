@@ -74,12 +74,15 @@ class SessionHelper {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_keyCachedName, name);
-      try { _cachedNameController.add(name); } catch (_) {}
+      try {
+        _cachedNameController.add(name);
+      } catch (_) {}
     } catch (_) {}
   }
 
   // Stream controller to notify listeners when cached name changes
-  static final StreamController<String?> _cachedNameController = StreamController<String?>.broadcast();
+  static final StreamController<String?> _cachedNameController =
+      StreamController<String?>.broadcast();
 
   static Stream<String?> get cachedNameStream => _cachedNameController.stream;
 
@@ -96,7 +99,9 @@ class SessionHelper {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_keyCachedName);
-      try { _cachedNameController.add(null); } catch (_) {}
+      try {
+        _cachedNameController.add(null);
+      } catch (_) {}
     } catch (_) {}
   }
 
@@ -131,13 +136,17 @@ class SessionHelper {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_keyActiveSolicitud, solicitudId);
-      try { _activeSolicitudController.add(solicitudId); } catch (_) {}
+      try {
+        _activeSolicitudController.add(solicitudId);
+      } catch (_) {}
     } catch (_) {}
   }
 
-  static final StreamController<String?> _activeSolicitudController = StreamController<String?>.broadcast();
+  static final StreamController<String?> _activeSolicitudController =
+      StreamController<String?>.broadcast();
 
-  static Stream<String?> get activeSolicitudStream => _activeSolicitudController.stream;
+  static Stream<String?> get activeSolicitudStream =>
+      _activeSolicitudController.stream;
 
   static Future<String?> getActiveSolicitud() async {
     try {
@@ -152,7 +161,9 @@ class SessionHelper {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_keyActiveSolicitud);
-      try { _activeSolicitudController.add(null); } catch (_) {}
+      try {
+        _activeSolicitudController.add(null);
+      } catch (_) {}
     } catch (_) {}
   }
 

@@ -3,14 +3,14 @@ import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:taxi_app/helper/permisos_helper.dart';
 
-
 class UbicacionService {
   UbicacionService._internal();
   static final UbicacionService _instance = UbicacionService._internal();
   factory UbicacionService() => _instance;
 
   StreamSubscription<Position>? _positionStream;
-  final StreamController<LatLng> _locationController = StreamController<LatLng>.broadcast();
+  final StreamController<LatLng> _locationController =
+      StreamController<LatLng>.broadcast();
 
   /// Última ubicación conocida (cacheada)
   LatLng? lastKnownLocation;
@@ -20,7 +20,7 @@ class UbicacionService {
 
   /// Solicita y devuelve la ubicación actual una sola vez.
   Future<LatLng?> obtenerUbicacionActual() async {
-     // Verificar y solicitar permisos usando PermissionsHelper
+    // Verificar y solicitar permisos usando PermissionsHelper
     final hasPermission = await PermissionsHelper.requestLocationPermission();
     if (!hasPermission) return null;
 
@@ -42,18 +42,22 @@ class UbicacionService {
 
   /// Comienza a escuchar cambios de ubicación y publica en `onLocationChanged`.
   /// Si ya está escuchando, no reinicia la suscripción.
-  void startListening({int distanceFilter = 1, LocationAccuracy accuracy = LocationAccuracy.high}) {
+  void startListening({
+    int distanceFilter = 1,
+    LocationAccuracy accuracy = LocationAccuracy.high,
+  }) {
     if (_positionStream != null) return;
-    _positionStream = Geolocator.getPositionStream(
-      locationSettings: LocationSettings(
-        accuracy: accuracy,
-        distanceFilter: distanceFilter,
-      ),
-    ).listen((pos) {
-      final latlng = LatLng(pos.latitude, pos.longitude);
-      lastKnownLocation = latlng;
-      if (!_locationController.isClosed) _locationController.add(latlng);
-    });
+    _positionStream =
+        Geolocator.getPositionStream(
+          locationSettings: LocationSettings(
+            accuracy: accuracy,
+            distanceFilter: distanceFilter,
+          ),
+        ).listen((pos) {
+          final latlng = LatLng(pos.latitude, pos.longitude);
+          lastKnownLocation = latlng;
+          if (!_locationController.isClosed) _locationController.add(latlng);
+        });
   }
 
   /// Permite escuchar con un callback específico sin suscribirse al stream.
@@ -82,7 +86,9 @@ class UbicacionService {
 
   /// Obtiene la ubicación actual y opcionalmente la pasa al callback `onResult`.
   /// El callback puede guardar la ubicación en Firestore, SharedPreferences, etc.
-  Future<LatLng?> obtenerYEnviarUbicacion({void Function(LatLng)? onResult}) async {
+  Future<LatLng?> obtenerYEnviarUbicacion({
+    void Function(LatLng)? onResult,
+  }) async {
     final latlng = await obtenerUbicacionActual();
     if (latlng != null && onResult != null) {
       try {
@@ -94,7 +100,11 @@ class UbicacionService {
 
   /// Inicia la escucha (si no está iniciada) y suscribe un callback al stream
   /// broadcast; devuelve la suscripción para que el llamador la cancele cuando quiera.
-  StreamSubscription<LatLng> listenWithCallback(void Function(LatLng) onData, {int distanceFilter = 1, LocationAccuracy accuracy = LocationAccuracy.high}) {
+  StreamSubscription<LatLng> listenWithCallback(
+    void Function(LatLng) onData, {
+    int distanceFilter = 1,
+    LocationAccuracy accuracy = LocationAccuracy.high,
+  }) {
     startListening(distanceFilter: distanceFilter, accuracy: accuracy);
     return onLocationChanged.listen(onData);
   }

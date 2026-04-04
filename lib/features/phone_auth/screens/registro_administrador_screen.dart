@@ -17,10 +17,12 @@ class RegistroAdministradorScreen extends StatefulWidget {
   final String telefono;
 
   @override
-  State<RegistroAdministradorScreen> createState() => _RegistroAdministradorScreenState();
+  State<RegistroAdministradorScreen> createState() =>
+      _RegistroAdministradorScreenState();
 }
 
-class _RegistroAdministradorScreenState extends State<RegistroAdministradorScreen> {
+class _RegistroAdministradorScreenState
+    extends State<RegistroAdministradorScreen> {
   final TextEditingController _nombreController = TextEditingController();
   final TextEditingController _gremioController = TextEditingController();
 
@@ -51,7 +53,10 @@ class _RegistroAdministradorScreenState extends State<RegistroAdministradorScree
             body: SafeArea(
               child: Center(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 16,
+                  ),
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 520),
                     child: Card(
@@ -119,7 +124,9 @@ class _RegistroAdministradorScreenState extends State<RegistroAdministradorScree
                                   ? const SizedBox(
                                       width: 20,
                                       height: 20,
-                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
                                     )
                                   : const Text('Registrar administrador'),
                             ),
@@ -149,7 +156,9 @@ class _RegistroAdministradorScreenState extends State<RegistroAdministradorScree
     if (!context.mounted) return;
 
     if (error != null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error)));
       return;
     }
 

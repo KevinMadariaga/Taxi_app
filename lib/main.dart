@@ -78,7 +78,8 @@ Future<void> _initializeCoreServices() async {
 /// Root widget for the Taxi App.
 /// Sets up providers, theming, and navigation.
 class MyApp extends StatelessWidget {
-  MyApp({super.key, required this.dependencies}) : _authAdapter = AppAuthAdapter(FirebaseDataSource());
+  MyApp({super.key, required this.dependencies})
+    : _authAdapter = AppAuthAdapter(FirebaseDataSource());
 
   final AppDependencies dependencies;
   final AppAuthAdapter _authAdapter;
@@ -96,27 +97,32 @@ class MyApp extends StatelessWidget {
 
             // Domain usecases provided centrally so consumers can obtain them
             Provider<SignInGoogleClientUseCase>(
-              create: (ctx) => SignInGoogleClientUseCase(ctx.read<ClientAuthRepository>()),
+              create: (ctx) =>
+                  SignInGoogleClientUseCase(ctx.read<ClientAuthRepository>()),
             ),
             Provider<SignInAppleClientUseCase>(
-              create: (ctx) => SignInAppleClientUseCase(ctx.read<ClientAuthRepository>()),
+              create: (ctx) =>
+                  SignInAppleClientUseCase(ctx.read<ClientAuthRepository>()),
             ),
             Provider<SendClientPhoneOtpUseCase>(
-              create: (ctx) => SendClientPhoneOtpUseCase(ctx.read<ClientAuthRepository>()),
+              create: (ctx) =>
+                  SendClientPhoneOtpUseCase(ctx.read<ClientAuthRepository>()),
             ),
             Provider<VerifyClientPhoneOtpUseCase>(
-              create: (ctx) => VerifyClientPhoneOtpUseCase(ctx.read<ClientAuthRepository>()),
+              create: (ctx) =>
+                  VerifyClientPhoneOtpUseCase(ctx.read<ClientAuthRepository>()),
             ),
             Provider<GetClientUserUseCase>(
-              create: (ctx) => GetClientUserUseCase(ctx.read<ClientAuthRepository>()),
+              create: (ctx) =>
+                  GetClientUserUseCase(ctx.read<ClientAuthRepository>()),
             ),
             Provider<CompleteClientProfileUseCase>(
-              create: (ctx) => CompleteClientProfileUseCase(ctx.read<ClientAuthRepository>()),
+              create: (ctx) => CompleteClientProfileUseCase(
+                ctx.read<ClientAuthRepository>(),
+              ),
             ),
 
-            ChangeNotifierProvider(
-              create: (_) => AuthViewModel(_authAdapter),
-            ),
+            ChangeNotifierProvider(create: (_) => AuthViewModel(_authAdapter)),
             ChangeNotifierProvider(create: (_) => RutaConductorViewModel()),
             ChangeNotifierProvider(create: (_) => Rutaclienteviewmodel()),
           ],

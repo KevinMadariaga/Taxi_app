@@ -20,9 +20,9 @@ class ClientProfileImageDataSource {
   }) async {
     final optimized = await _compressToWebP(file);
 
-    final ref = _storage
-        .ref()
-        .child('usuarios/$uid/profile_${DateTime.now().millisecondsSinceEpoch}.webp');
+    final ref = _storage.ref().child(
+      'usuarios/$uid/profile_${DateTime.now().millisecondsSinceEpoch}.webp',
+    );
 
     final task = await ref.putData(
       optimized,

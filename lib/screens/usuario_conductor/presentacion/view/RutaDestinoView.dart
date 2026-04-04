@@ -56,7 +56,8 @@ class _RutaDestinoContent extends StatefulWidget {
   State<_RutaDestinoContent> createState() => _RutaDestinoContentState();
 }
 
-class _RutaDestinoContentState extends State<_RutaDestinoContent> with WidgetsBindingObserver {
+class _RutaDestinoContentState extends State<_RutaDestinoContent>
+    with WidgetsBindingObserver {
   static const SystemUiOverlayStyle _rutaDestinoOverlayStyle =
       SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
@@ -241,7 +242,9 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent> with WidgetsBi
       final data = doc.data();
       final storedLat = (data?['conductor']?['ubicacion']?['lat']);
       final storedLng = (data?['conductor']?['ubicacion']?['lng']);
-      debugPrint('[VERIFY] Solicitud ${widget.idSolicitud} storedLat=$storedLat storedLng=$storedLng expectedLat=${loc.latitude} expectedLng=${loc.longitude}');
+      debugPrint(
+        '[VERIFY] Solicitud ${widget.idSolicitud} storedLat=$storedLat storedLng=$storedLng expectedLat=${loc.latitude} expectedLng=${loc.longitude}',
+      );
       if (storedLat == null || storedLng == null) {
         debugPrint('[VERIFY][ERROR] ubicacion no encontrada en documento');
         return;
@@ -251,7 +254,9 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent> with WidgetsBi
       final latDiff = (lat - loc.latitude).abs();
       final lngDiff = (lng - loc.longitude).abs();
       if (latDiff > 0.0005 || lngDiff > 0.0005) {
-        debugPrint('[VERIFY][WARN] Diferencia significativa entre escrito y leído (latDiff=$latDiff, lngDiff=$lngDiff)');
+        debugPrint(
+          '[VERIFY][WARN] Diferencia significativa entre escrito y leído (latDiff=$latDiff, lngDiff=$lngDiff)',
+        );
       } else {
         debugPrint('[VERIFY][OK] Ubicación persistida correctamente');
       }
@@ -398,7 +403,9 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent> with WidgetsBi
           vm.currentDriverLocation = nuevaUbicacion;
           final persp = vm.getCameraPerspective();
           if (persp != null && _mapController != null && mounted) {
-            _mapController!.animateCamera(CameraUpdate.newCameraPosition(persp));
+            _mapController!.animateCamera(
+              CameraUpdate.newCameraPosition(persp),
+            );
           }
 
           // Si el conductor se desvía más de 50 metros de la polyline, solicita nueva ruta
@@ -490,8 +497,6 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent> with WidgetsBi
     }
   }
 
-  
-
   void _centerOnConductor() {
     if (_mapController != null && _ubicacionConductor != null) {
       _mapController!.animateCamera(
@@ -527,7 +532,9 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent> with WidgetsBi
   // Si existe una polyline (ruta) usa la suma de segmentos, sino usa la distancia en línea recta.
   double? _distanceMetersToDestino() {
     final vm = Provider.of<RutaDestinoViewModel>(context, listen: false);
-    if (_ubicacionConductor == null || vm.latDestino == null || vm.lngDestino == null) {
+    if (_ubicacionConductor == null ||
+        vm.latDestino == null ||
+        vm.lngDestino == null) {
       return null;
     }
 
@@ -536,20 +543,35 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent> with WidgetsBi
       for (int i = 0; i < vm.routePoints.length - 1; i++) {
         final a = vm.routePoints[i];
         final b = vm.routePoints[i + 1];
-        total += Geolocator.distanceBetween(a.latitude, a.longitude, b.latitude, b.longitude);
+        total += Geolocator.distanceBetween(
+          a.latitude,
+          a.longitude,
+          b.latitude,
+          b.longitude,
+        );
       }
       // If polyline somehow gave zero, fallback to straight-line
       if (total <= 0) {
         final destLat = vm.latDestino!;
         final destLng = vm.lngDestino!;
-        return Geolocator.distanceBetween(_ubicacionConductor!.latitude, _ubicacionConductor!.longitude, destLat, destLng);
+        return Geolocator.distanceBetween(
+          _ubicacionConductor!.latitude,
+          _ubicacionConductor!.longitude,
+          destLat,
+          destLng,
+        );
       }
       return total;
     }
 
     final destLat = vm.latDestino!;
     final destLng = vm.lngDestino!;
-    return Geolocator.distanceBetween(_ubicacionConductor!.latitude, _ubicacionConductor!.longitude, destLat, destLng);
+    return Geolocator.distanceBetween(
+      _ubicacionConductor!.latitude,
+      _ubicacionConductor!.longitude,
+      destLat,
+      destLng,
+    );
   }
 
   // Calcula la distancia en kilómetros entre conductor y destino
@@ -691,23 +713,41 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent> with WidgetsBi
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
         decoration: const BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.only(topLeft: Radius.circular(32), topRight: Radius.circular(32)),
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(32),
+            topRight: Radius.circular(32),
+          ),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
             const SizedBox(height: 24),
             CircleAvatar(
               radius: 50,
               backgroundColor: AppColores.grey200,
-              backgroundImage: vm.fotoCliente.isNotEmpty ? CachedNetworkImageProvider(vm.fotoCliente) : null,
-              child: vm.fotoCliente.isEmpty ? const Icon(Icons.person, size: 50, color: Colors.grey) : null,
+              backgroundImage: vm.fotoCliente.isNotEmpty
+                  ? CachedNetworkImageProvider(vm.fotoCliente)
+                  : null,
+              child: vm.fotoCliente.isEmpty
+                  ? const Icon(Icons.person, size: 50, color: Colors.grey)
+                  : null,
             ),
             const SizedBox(height: 16),
             Text(
               vm.nombreCliente.isNotEmpty ? vm.nombreCliente : 'Cliente',
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColores.textPrimary),
+              style: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: AppColores.textPrimary,
+              ),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
@@ -726,9 +766,14 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent> with WidgetsBi
                   foregroundColor: AppColores.textPrimary,
                   elevation: 0,
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                 ),
-                child: const Text('Cerrar', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                child: const Text(
+                  'Cerrar',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
               ),
             ),
           ],
@@ -747,80 +792,98 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent> with WidgetsBi
       child: AnnotatedRegion<SystemUiOverlayStyle>(
         value: _rutaDestinoOverlayStyle,
         child: Scaffold(
-        resizeToAvoidBottomInset: false,
-        extendBodyBehindAppBar: true,
-        backgroundColor: AppColores.background,
-        body: Stack(
-          children: [
-            Positioned.fill(
-              child: _mapWidget(context),
-            ),
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: DriverClientInfoCard(
-                clientName: vm.nombreCliente.isNotEmpty ? vm.nombreCliente : 'Cliente',
-                clientAddress: vm.direccionDestino,
-                clientPhotoUrl: vm.fotoCliente,
-                unreadCount: 0,
-                onOpenNavigation: () async {
-                  if (_ubicacionConductor != null && vm.latDestino != null && vm.lngDestino != null) {
-                    final origen = '${_ubicacionConductor!.latitude},${_ubicacionConductor!.longitude}';
-                    final destino = '${vm.latDestino},${vm.lngDestino}';
-                    final url = 'https://www.google.com/maps/dir/?api=1&origin=$origen&destination=$destino&travelmode=driving';
-                    try {
-                      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-                    } catch (e) {
-                      debugPrint('No se pudo abrir Google Maps: $e');
-                    }
-                  } else {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Ubicación no disponible')),
-                      );
-                    }
-                  }
-                },
-                onReportArrival: () async {
-                  await _finalizarFlujoViaje(actualizarEstadoSolicitud: true);
-                },
-                isSendingArrival: _completionFlowInProgress,
-                isArrivalReported: _terminarViajePressed,
-                arrivalButtonEnabled: !_loadingUbicacion && _metersToDestino != null && _metersToDestino <= 50,
-                etaText: _tiempoEstimadoLlegada().replaceFirst('Tiempo estimado: ', ''),
-                distanceText: _distanciaKmConductorDestino(),
-                title: 'En viaje hacia el destino',
-                primaryButtonText: 'Terminar viaje',
-                primaryButtonSuccessText: 'Viaje terminado',
-                onDetails: () => _openDetails(vm),
-              ),
-            ),
-            Positioned(
-              right: 24,
-              bottom: MediaQuery.of(context).padding.bottom + 24,
-              child: FloatingActionButton(
-                heroTag: "fab_centrar",
-                backgroundColor: AppColores.buttonPrimary,
-                child: Icon(
-                  _centraSoloConductor ? Icons.person_pin_circle : Icons.group,
-                  color: AppColores.textWhite,
-                ),
-                onPressed: () {
-                  setState(() {
-                    if (_centraSoloConductor) {
-                      _centerOnConductor();
+          resizeToAvoidBottomInset: false,
+          extendBodyBehindAppBar: true,
+          backgroundColor: AppColores.background,
+          body: Stack(
+            children: [
+              Positioned.fill(child: _mapWidget(context)),
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: DriverClientInfoCard(
+                  clientName: vm.nombreCliente.isNotEmpty
+                      ? vm.nombreCliente
+                      : 'Cliente',
+                  clientAddress: vm.direccionDestino,
+                  clientPhotoUrl: vm.fotoCliente,
+                  unreadCount: 0,
+                  onOpenNavigation: () async {
+                    if (_ubicacionConductor != null &&
+                        vm.latDestino != null &&
+                        vm.lngDestino != null) {
+                      final origen =
+                          '${_ubicacionConductor!.latitude},${_ubicacionConductor!.longitude}';
+                      final destino = '${vm.latDestino},${vm.lngDestino}';
+                      final url =
+                          'https://www.google.com/maps/dir/?api=1&origin=$origen&destination=$destino&travelmode=driving';
+                      try {
+                        await launchUrl(
+                          Uri.parse(url),
+                          mode: LaunchMode.externalApplication,
+                        );
+                      } catch (e) {
+                        debugPrint('No se pudo abrir Google Maps: $e');
+                      }
                     } else {
-                      _fitMarkers();
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Ubicación no disponible'),
+                          ),
+                        );
+                      }
                     }
-                    _centraSoloConductor = !_centraSoloConductor;
-                  });
-                },
+                  },
+                  onReportArrival: () async {
+                    await _finalizarFlujoViaje(actualizarEstadoSolicitud: true);
+                  },
+                  isSendingArrival: _completionFlowInProgress,
+                  isArrivalReported: _terminarViajePressed,
+                  arrivalButtonEnabled:
+                      !_loadingUbicacion &&
+                      _metersToDestino != null &&
+                      _metersToDestino <= 50,
+                  etaText: _tiempoEstimadoLlegada().replaceFirst(
+                    'Tiempo estimado: ',
+                    '',
+                  ),
+                  distanceText: _distanciaKmConductorDestino(),
+                  title: 'En viaje hacia el destino',
+                  primaryButtonText: 'Terminar viaje',
+                  primaryButtonSuccessText: 'Viaje terminado',
+                  onDetails: () => _openDetails(vm),
+                ),
               ),
-            ),
-          ],
+              Positioned(
+                right: 24,
+                bottom: MediaQuery.of(context).padding.bottom + 24,
+                child: FloatingActionButton(
+                  heroTag: "fab_centrar",
+                  backgroundColor: AppColores.buttonPrimary,
+                  child: Icon(
+                    _centraSoloConductor
+                        ? Icons.person_pin_circle
+                        : Icons.group,
+                    color: AppColores.textWhite,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      if (_centraSoloConductor) {
+                        _centerOnConductor();
+                      } else {
+                        _fitMarkers();
+                      }
+                      _centraSoloConductor = !_centraSoloConductor;
+                    });
+                  },
+                ),
+              ),
+            ],
+          ),
         ),
       ),
-    ));
+    );
   }
 }

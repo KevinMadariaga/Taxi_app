@@ -20,7 +20,11 @@ import 'package:taxi_app/widgets/intermediate_transition_view.dart';
 class BuscandoTaxiView extends StatefulWidget {
   final String? solicitudId;
   final double defaultMarkerHue;
-  const BuscandoTaxiView({Key? key, this.solicitudId, this.defaultMarkerHue = BitmapDescriptor.hueYellow}) : super(key: key);
+  const BuscandoTaxiView({
+    Key? key,
+    this.solicitudId,
+    this.defaultMarkerHue = BitmapDescriptor.hueYellow,
+  }) : super(key: key);
 
   @override
   State<BuscandoTaxiView> createState() => _BuscandoTaxiViewState();
@@ -53,7 +57,8 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
   Set<Circle> _sonarCircles = {};
   Set<Circle> _clientCircles = {};
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _conductoresSub;
-  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _conductoresConectadosSub;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
+  _conductoresConectadosSub;
 
   @override
   void initState() {
@@ -149,14 +154,17 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
             fillColor: AppColores.primary.withOpacity(0.08),
           ),
         };
-          _updateVisibleConectadosMarkers();
+        _updateVisibleConectadosMarkers();
       });
     });
   }
 
   Future<void> _loadTaxiIcon() async {
     try {
-      _taxiIcon = await _bitmapDescriptorFromAsset('assets/img/taxi_icon.png', 40);
+      _taxiIcon = await _bitmapDescriptorFromAsset(
+        'assets/img/taxi_icon.png',
+        40,
+      );
       _updateTaxiMarkers();
     } catch (_) {
       // fallback si no existe el asset o hay error
@@ -166,9 +174,15 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
   Future<void> _loadSmallTaxiIcon() async {
     try {
       // Create descriptors from bytes at explicit pixel widths so size changes take effect
-      _smallTaxiIcon = await _bitmapDescriptorFromAsset('assets/img/taxi_icon.png', 42);
+      _smallTaxiIcon = await _bitmapDescriptorFromAsset(
+        'assets/img/taxi_icon.png',
+        42,
+      );
       try {
-        _bigTaxiIcon = await _bitmapDescriptorFromAsset('assets/img/taxi_icon.png', 42);
+        _bigTaxiIcon = await _bitmapDescriptorFromAsset(
+          'assets/img/taxi_icon.png',
+          42,
+        );
       } catch (_) {}
       if (!mounted) return;
       _updateVisibleConectadosMarkers();
@@ -178,12 +192,20 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
     }
   }
 
-  Future<BitmapDescriptor> _bitmapDescriptorFromAsset(String path, int targetWidth) async {
+  Future<BitmapDescriptor> _bitmapDescriptorFromAsset(
+    String path,
+    int targetWidth,
+  ) async {
     final byteData = await rootBundle.load(path);
     final bytes = byteData.buffer.asUint8List();
-    final codec = await ui.instantiateImageCodec(bytes, targetWidth: targetWidth);
+    final codec = await ui.instantiateImageCodec(
+      bytes,
+      targetWidth: targetWidth,
+    );
     final frame = await codec.getNextFrame();
-    final pngBytes = await frame.image.toByteData(format: ui.ImageByteFormat.png);
+    final pngBytes = await frame.image.toByteData(
+      format: ui.ImageByteFormat.png,
+    );
     return BitmapDescriptor.fromBytes(pngBytes!.buffer.asUint8List());
   }
 
@@ -258,7 +280,10 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
               final lat = ubicacion['lat'] ?? ubicacion['latitude'];
               final lng = ubicacion['lng'] ?? ubicacion['longitude'];
               if (lat == null || lng == null) continue;
-              positions[doc.id] = LatLng((lat as num).toDouble(), (lng as num).toDouble());
+              positions[doc.id] = LatLng(
+                (lat as num).toDouble(),
+                (lng as num).toDouble(),
+              );
             }
 
             if (!mounted) return;
@@ -298,34 +323,40 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
     });
   }
 
-    void _subscribeConductoresConectados() {
-      _conductoresConectadosSub?.cancel();
-      _conductoresConectadosSub = FirebaseFirestore.instance
-          .collection('conductores_conectados')
-          .snapshots()
-          .listen((snapshot) {
-        // Store all connected drivers positions and then filter by sonar radius
-        final positions = <String, LatLng>{};
-        for (final doc in snapshot.docs) {
-          final data = doc.data();
-          final ubicacion = data['ubicacion'];
-          if (ubicacion is! Map) continue;
-          final lat = ubicacion['lat'] ?? ubicacion['latitude'];
-          final lng = ubicacion['lng'] ?? ubicacion['longitude'];
-          if (lat == null || lng == null) continue;
-          positions[doc.id] = LatLng((lat as num).toDouble(), (lng as num).toDouble());
-        }
+  void _subscribeConductoresConectados() {
+    _conductoresConectadosSub?.cancel();
+    _conductoresConectadosSub = FirebaseFirestore.instance
+        .collection('conductores_conectados')
+        .snapshots()
+        .listen(
+          (snapshot) {
+            // Store all connected drivers positions and then filter by sonar radius
+            final positions = <String, LatLng>{};
+            for (final doc in snapshot.docs) {
+              final data = doc.data();
+              final ubicacion = data['ubicacion'];
+              if (ubicacion is! Map) continue;
+              final lat = ubicacion['lat'] ?? ubicacion['latitude'];
+              final lng = ubicacion['lng'] ?? ubicacion['longitude'];
+              if (lat == null || lng == null) continue;
+              positions[doc.id] = LatLng(
+                (lat as num).toDouble(),
+                (lng as num).toDouble(),
+              );
+            }
 
-        if (!mounted) return;
-        _allConectadosPositions
-          ..clear()
-          ..addAll(positions);
-        _updateVisibleConectadosMarkers();
-        setState(() {});
-      }, onError: (_) {
-        // ignore
-      });
-    }
+            if (!mounted) return;
+            _allConectadosPositions
+              ..clear()
+              ..addAll(positions);
+            _updateVisibleConectadosMarkers();
+            setState(() {});
+          },
+          onError: (_) {
+            // ignore
+          },
+        );
+  }
 
   void _updateVisibleConectadosMarkers() {
     final center = _clientLocation ?? _defaultCenter;
@@ -344,22 +375,35 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
         newVisibleIds.add(id);
         // If this marker just entered the visible set, show a brief "pop" with bigger icon
         if (!_visibleConectadosIds.contains(id)) {
-          visible.add(Marker(
-            markerId: MarkerId('conectado_$id'),
-            position: pos,
-            icon: _bigTaxiIcon ?? _smallTaxiIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueYellow),
-            infoWindow: const InfoWindow(title: 'Conductor conectado'),
-          ));
+          visible.add(
+            Marker(
+              markerId: MarkerId('conectado_$id'),
+              position: pos,
+              icon:
+                  _bigTaxiIcon ??
+                  _smallTaxiIcon ??
+                  BitmapDescriptor.defaultMarkerWithHue(
+                    BitmapDescriptor.hueYellow,
+                  ),
+              infoWindow: const InfoWindow(title: 'Conductor conectado'),
+            ),
+          );
 
           // schedule to shrink back to small icon after a short delay
           Timer(const Duration(milliseconds: 420), () {
             if (!mounted) return;
             _conectadosMarkers = {
-              ..._conectadosMarkers.where((m) => m.markerId.value != 'conectado_$id'),
+              ..._conectadosMarkers.where(
+                (m) => m.markerId.value != 'conectado_$id',
+              ),
               Marker(
                 markerId: MarkerId('conectado_$id'),
                 position: pos,
-                icon: _smallTaxiIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueYellow),
+                icon:
+                    _smallTaxiIcon ??
+                    BitmapDescriptor.defaultMarkerWithHue(
+                      BitmapDescriptor.hueYellow,
+                    ),
                 infoWindow: const InfoWindow(title: 'Conductor conectado'),
               ),
             };
@@ -367,12 +411,18 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
           });
         } else {
           // already visible before, render with small icon
-          visible.add(Marker(
-            markerId: MarkerId('conectado_$id'),
-            position: pos,
-            icon: _smallTaxiIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueYellow),
-            infoWindow: const InfoWindow(title: 'Conductor conectado'),
-          ));
+          visible.add(
+            Marker(
+              markerId: MarkerId('conectado_$id'),
+              position: pos,
+              icon:
+                  _smallTaxiIcon ??
+                  BitmapDescriptor.defaultMarkerWithHue(
+                    BitmapDescriptor.hueYellow,
+                  ),
+              infoWindow: const InfoWindow(title: 'Conductor conectado'),
+            ),
+          );
         }
       }
     }
@@ -383,7 +433,13 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
 
     // Merge visible with any transient markers currently in _conectadosMarkers
     // so brief pop icons are respected until they are replaced by the timer.
-    final transient = _conectadosMarkers.where((m) => newVisibleIds.contains(m.markerId.value.replaceFirst('conectado_', ''))).toSet();
+    final transient = _conectadosMarkers
+        .where(
+          (m) => newVisibleIds.contains(
+            m.markerId.value.replaceFirst('conectado_', ''),
+          ),
+        )
+        .toSet();
     _conectadosMarkers = {...visible, ...transient};
   }
 
@@ -480,7 +536,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   SizedBox(height: (isTablet ? 40 : 23) * _scale),
-                    Text(
+                  Text(
                     'Buscando taxi...',
                     textAlign: TextAlign.center,
                     style: TextStyle(
@@ -503,7 +559,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
                     ),
                   ),
                   SizedBox(height: (isTablet ? 15 : 10) * _scale),
-                   Center(
+                  Center(
                     child: Container(
                       padding: EdgeInsets.symmetric(
                         horizontal: isTablet ? 14 : 12,
@@ -631,34 +687,35 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
               ),
             ],
           ),
-            child: ClipRRect(
+          child: ClipRRect(
             borderRadius: BorderRadius.circular(16),
-            child: Builder(builder: (ctx) {
-              final defaultIcon = BitmapDescriptor.defaultMarkerWithHue(widget.defaultMarkerHue);
+            child: Builder(
+              builder: (ctx) {
+                final defaultIcon = BitmapDescriptor.defaultMarkerWithHue(
+                  widget.defaultMarkerHue,
+                );
 
-              // All Marker.icon are non-null, so just use the set directly
-              final combinedMarkers = <Marker>{
-                ..._taxiMarkers,
-                ..._conectadosMarkers,
-              };
+                // All Marker.icon are non-null, so just use the set directly
+                final combinedMarkers = <Marker>{
+                  ..._taxiMarkers,
+                  ..._conectadosMarkers,
+                };
 
-              return Mapagoogle(
-                initialTarget: _clientLocation ?? _defaultCenter,
-                initialZoom: 14,
-                markers: combinedMarkers,
-                circles: {
-                  ..._sonarCircles,
-                  ..._clientCircles,
-                },
-                onMapCreated: _onMapCreated,
-                //myLocationEnabled: true,
-                zoomGesturesEnabled: false,
-                rotateGesturesEnabled: false,
-                tiltGesturesEnabled: false,
-                compassEnabled: false,
-                mapToolbarEnabled: false,
-              );
-            }),
+                return Mapagoogle(
+                  initialTarget: _clientLocation ?? _defaultCenter,
+                  initialZoom: 14,
+                  markers: combinedMarkers,
+                  circles: {..._sonarCircles, ..._clientCircles},
+                  onMapCreated: _onMapCreated,
+                  //myLocationEnabled: true,
+                  zoomGesturesEnabled: false,
+                  rotateGesturesEnabled: false,
+                  tiltGesturesEnabled: false,
+                  compassEnabled: false,
+                  mapToolbarEnabled: false,
+                );
+              },
+            ),
           ),
         ),
       ],

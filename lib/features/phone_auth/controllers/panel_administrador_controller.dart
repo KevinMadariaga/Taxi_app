@@ -13,7 +13,8 @@ class PanelAdministradorController extends ChangeNotifier {
   final String adminId;
   final UserDataService _userDataService;
 
-  Stream<AdminModel?> get adminStream => _userDataService.streamAdministrador(adminId);
+  Stream<AdminModel?> get adminStream =>
+      _userDataService.streamAdministrador(adminId);
 
   Stream<List<DriverModel>> get conductoresStream =>
       _userDataService.streamConductores(adminId: adminId);

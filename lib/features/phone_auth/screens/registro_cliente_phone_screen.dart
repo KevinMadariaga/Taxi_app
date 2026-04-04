@@ -17,10 +17,12 @@ class RegistroClientePhoneScreen extends StatefulWidget {
   final String telefono;
 
   @override
-  State<RegistroClientePhoneScreen> createState() => _RegistroClientePhoneScreenState();
+  State<RegistroClientePhoneScreen> createState() =>
+      _RegistroClientePhoneScreenState();
 }
 
-class _RegistroClientePhoneScreenState extends State<RegistroClientePhoneScreen> {
+class _RegistroClientePhoneScreenState
+    extends State<RegistroClientePhoneScreen> {
   final TextEditingController _nombreController = TextEditingController();
 
   @override
@@ -32,10 +34,8 @@ class _RegistroClientePhoneScreenState extends State<RegistroClientePhoneScreen>
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider<RegistroClienteController>(
-      create: (_) => RegistroClienteController(
-        uid: widget.uid,
-        telefono: widget.telefono,
-      ),
+      create: (_) =>
+          RegistroClienteController(uid: widget.uid, telefono: widget.telefono),
       child: Consumer<RegistroClienteController>(
         builder: (context, vm, _) {
           return Scaffold(
@@ -49,12 +49,17 @@ class _RegistroClientePhoneScreenState extends State<RegistroClientePhoneScreen>
             body: SafeArea(
               child: Center(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 16,
+                  ),
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 460),
                     child: Card(
                       elevation: 2,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                       child: Padding(
                         padding: const EdgeInsets.all(16),
                         child: Column(
@@ -71,7 +76,9 @@ class _RegistroClientePhoneScreenState extends State<RegistroClientePhoneScreen>
                             const SizedBox(height: 6),
                             Text(
                               'Telefono verificado: ${widget.telefono}',
-                              style: const TextStyle(color: AppColores.textSecondary),
+                              style: const TextStyle(
+                                color: AppColores.textSecondary,
+                              ),
                             ),
                             const SizedBox(height: 14),
                             TextField(
@@ -108,7 +115,9 @@ class _RegistroClientePhoneScreenState extends State<RegistroClientePhoneScreen>
                                   ? const SizedBox(
                                       width: 20,
                                       height: 20,
-                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
                                     )
                                   : const Text('Guardar y continuar'),
                             ),
@@ -134,7 +143,9 @@ class _RegistroClientePhoneScreenState extends State<RegistroClientePhoneScreen>
     if (!context.mounted) return;
 
     if (error != null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error)));
       return;
     }
 

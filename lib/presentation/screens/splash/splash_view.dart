@@ -3,9 +3,12 @@ import 'package:provider/provider.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/constants/app_constants.dart';
 import 'package:taxi_app/presentation/viewmodels/splash/splash_viewmodel.dart';
+import 'package:taxi_app/presentation/widgets/update_available_dialog.dart';
 import 'package:taxi_app/routes/app_routes.dart';
 import 'package:taxi_app/screens/home_screen.dart';
 import 'package:taxi_app/core/services/services.dart';
+
+const String _iOSAppStoreId = String.fromEnvironment('IOS_APP_STORE_ID');
 
 class SplashView extends StatefulWidget {
   const SplashView({super.key});
@@ -21,6 +24,8 @@ class _SplashViewState extends State<SplashView>
   late final Animation<double> _logoScale;
   late final Animation<Offset> _carSlide;
   late final SplashViewModel _viewModel;
+  late final UpdateService _updateService;
+  late final AppRemoteConfigService _remoteConfigService;
 
   @override
   void initState() {
@@ -43,19 +48,28 @@ class _SplashViewState extends State<SplashView>
       ),
     );
 
-    _carSlide = Tween<Offset>(
-      begin: const Offset(-1.25, 0),
-      end: const Offset(1.25, 0),
-    ).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.2, 1.0, curve: Curves.easeInOut),
-      ),
-    );
+    _carSlide =
+        Tween<Offset>(
+          begin: const Offset(-1.25, 0),
+          end: const Offset(1.25, 0),
+        ).animate(
+          CurvedAnimation(
+            parent: _controller,
+            curve: const Interval(0.2, 1.0, curve: Curves.easeInOut),
+          ),
+        );
 
     _viewModel = context.read<SplashViewModel>();
     _viewModel.addListener(_handleNavigation);
-    _viewModel.start();
+    _remoteConfigService = AppRemoteConfigService.instance;
+
+    _updateService = UpdateService.production(
+      androidId: 'com.taxiya.taxiapp',
+      iOSAppStoreId: _iOSAppStoreId.isEmpty ? null : _iOSAppStoreId,
+      minimumRequiredVersionFetcher: _fetchMinimumRequiredVersion,
+    );
+
+    _startAppFlow();
   }
 
   @override
@@ -73,6 +87,40 @@ class _SplashViewState extends State<SplashView>
     _navigateFromSessionState();
   }
 
+  Future<void> _startAppFlow() async {
+    final shouldContinue = await _validateAppUpdate();
+    if (!mounted || !shouldContinue) return;
+    _viewModel.start();
+  }
+
+  Future<bool> _validateAppUpdate() async {
+    final result = await _updateService.checkForUpdate();
+    if (!mounted) return false;
+
+    if (!result.hasUpdate) return true;
+
+    final action = await UpdateAvailableDialog.show(context, result);
+    if (!mounted) return false;
+
+    if (action == UpdateDialogAction.updateNow) {
+      final didOpenStore = await _updateService.openStore(result);
+      if (!didOpenStore && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No se pudo abrir la tienda. Intenta nuevamente.'),
+          ),
+        );
+      }
+      return !result.isMandatory;
+    }
+
+    return result.canSkip;
+  }
+
+  Future<String?> _fetchMinimumRequiredVersion() async {
+    return _remoteConfigService.fetchMinimumRequiredVersion();
+  }
+
   Future<void> _navigateFromSessionState() async {
     final next = await AuthService().determineInitialScreen();
     if (!mounted) return;
@@ -82,9 +130,9 @@ class _SplashViewState extends State<SplashView>
       return;
     }
 
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => next),
-    );
+    Navigator.of(
+      context,
+    ).pushReplacement(MaterialPageRoute(builder: (_) => next));
   }
 
   @override
@@ -96,66 +144,41 @@ class _SplashViewState extends State<SplashView>
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                FadeTransition(
-                  opacity: _logoFade,
-                  child: ScaleTransition(
-                    scale: _logoScale,
-                    child: SizedBox(
-                      width: 180,
-                      height: 180,
-                      child: Image.asset(
-                        'assets/img/foreground_car.png',
-                        fit: BoxFit.contain,
-                        errorBuilder: (context, error, stackTrace) =>
-                            const Icon(
-                              Icons.local_taxi,
-                              size: 120,
-                              color: AppColores.primary,
-                            ),
+                Expanded(
+                  child: Center(
+                    child: FadeTransition(
+                      opacity: _logoFade,
+                      child: ScaleTransition(
+                        scale: _logoScale,
+                        child: SizedBox(
+                          width: 220,
+                          height: 220,
+                          child: Image.asset(
+                            'assets/img/foreground_car.png',
+                            fit: BoxFit.contain,
+                            errorBuilder: (context, error, stackTrace) =>
+                                const Icon(
+                                  Icons.local_taxi,
+                                  size: 120,
+                                  color: AppColores.primary,
+                                ),
+                          ),
+                        ),
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(height: 18),
-                SizedBox(
-                  width: 260,
-                  height: 72,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Positioned(
-                        left: 0,
-                        right: 0,
-                        bottom: 20,
-                        child: Container(
-                          height: 4,
-                          decoration: BoxDecoration(
-                            color: AppColores.divider,
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                        ),
-                      ),
-                      SlideTransition(
-                        position: _carSlide,
-                        child: const Icon(
-                          Icons.directions_car,
-                          size: 44,
-                          color: AppColores.primary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 14),
-                const Text(
-                  AppConstants.splashMessage,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: AppColores.textPrimary,
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 45.0),
+                  child: Text(
+                    AppConstants.splashMessage,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: AppColores.textPrimary,
+                    ),
                   ),
                 ),
               ],

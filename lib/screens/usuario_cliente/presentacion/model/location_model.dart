@@ -6,9 +6,5 @@ class LocationModel {
   final String? title;
   final String? subtitle;
 
-  const LocationModel({
-    required this.position,
-    this.title,
-    this.subtitle,
-  });
+  const LocationModel({required this.position, this.title, this.subtitle});
 }

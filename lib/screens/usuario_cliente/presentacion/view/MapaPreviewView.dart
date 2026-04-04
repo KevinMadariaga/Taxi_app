@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
@@ -8,7 +7,6 @@ import 'package:taxi_app/screens/usuario_cliente/presentacion/view/DetailsSolici
 import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/mapapreview_viewmodel.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/widgets/MapaGoogle.dart';
-
 
 /// Vista para seleccionar el destino en el mapa.
 /// Permite al usuario mover el marcador y confirmar la ubicación de destino.
@@ -32,8 +30,6 @@ class MapaPreviewView extends StatefulWidget {
 
 class _MapaPreviewViewState extends State<MapaPreviewView> {
   late final MapapreviewViewModel _vm;
-  
-
 
   /// Widget para el botón inferior.
   Widget _buildBottomBar(BuildContext context) {
@@ -55,10 +51,7 @@ class _MapaPreviewViewState extends State<MapaPreviewView> {
             onPressed: () => _onDefinirDestinoPressed(context),
             child: const Text(
               'Definir destino',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-              ),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
             ),
           ),
         ),
@@ -74,14 +67,15 @@ class _MapaPreviewViewState extends State<MapaPreviewView> {
     if (!mounted || !context.mounted) return;
 
     final origenPos = widget.origenLocation ?? widget.location;
-    final origenTitle = (widget.origenDireccion != null && widget.origenDireccion!.isNotEmpty)
+    final origenTitle =
+        (widget.origenDireccion != null && widget.origenDireccion!.isNotEmpty)
         ? _vm.formatAddress(widget.origenDireccion)
         : 'Origen';
     final destinoTitle = _vm.formatAddress(_vm.currentAddress).isNotEmpty
         ? _vm.formatAddress(_vm.currentAddress)
         : _vm.formatAddress(widget.direccion).isNotEmpty
-            ? _vm.formatAddress(widget.direccion)
-            : 'Destino';
+        ? _vm.formatAddress(widget.direccion)
+        : 'Destino';
 
     final origenModel = LocationModel(
       position: origenPos,
@@ -96,10 +90,7 @@ class _MapaPreviewViewState extends State<MapaPreviewView> {
 
     await navigator.push(
       MaterialPageRoute(
-        builder: (_) => MapPreview(
-          origen: origenModel,
-          destino: destinoModel,
-        ),
+        builder: (_) => MapPreview(origen: origenModel, destino: destinoModel),
       ),
     );
   }
@@ -116,7 +107,6 @@ class _MapaPreviewViewState extends State<MapaPreviewView> {
     // Realiza la geocodificación inversa al iniciar
     _vm.reverseGeocodeCenter();
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -142,14 +132,19 @@ class _MapaPreviewViewState extends State<MapaPreviewView> {
           child: Center(
             child: Container(
               constraints: BoxConstraints(maxWidth: maxContentWidth),
-              padding: EdgeInsets.symmetric(horizontal: isTablet ? 32 : 12, vertical: 12),
+              padding: EdgeInsets.symmetric(
+                horizontal: isTablet ? 32 : 12,
+                vertical: 12,
+              ),
               child: Consumer<MapapreviewViewModel>(
                 builder: (context, vm, _) => Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     SizedBox(height: isTablet ? 20 : 10),
                     Padding(
-                      padding: EdgeInsets.symmetric(horizontal: isTablet ? 20 : 15),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: isTablet ? 20 : 15,
+                      ),
                       child: Center(
                         child: Text(
                           'Mueve el indicador en el mapa',
@@ -166,14 +161,19 @@ class _MapaPreviewViewState extends State<MapaPreviewView> {
                     Center(
                       child: SizedBox(
                         height: mapHeight,
-                        width: isTablet ? maxContentWidth * 0.9 : double.infinity,
+                        width: isTablet
+                            ? maxContentWidth * 0.9
+                            : double.infinity,
                         child: Stack(
                           alignment: Alignment.center,
                           children: [
                             Container(
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(10),
-                                border: Border.all(color: Colors.black, width: 1),
+                                border: Border.all(
+                                  color: Colors.black,
+                                  width: 1,
+                                ),
                               ),
                               clipBehavior: Clip.antiAlias,
                               child: ClipRRect(
@@ -212,9 +212,15 @@ class _MapaPreviewViewState extends State<MapaPreviewView> {
                           children: [
                             SizedBox(height: isTablet ? 30 : 20),
                             Padding(
-                              padding: EdgeInsets.symmetric(horizontal: isTablet ? 20 : 15),
+                              padding: EdgeInsets.symmetric(
+                                horizontal: isTablet ? 20 : 15,
+                              ),
                               child: Text(
-                                vm.formatAddress(widget.direccion ?? 'Nombre del lugar').toUpperCase(),
+                                vm
+                                    .formatAddress(
+                                      widget.direccion ?? 'Nombre del lugar',
+                                    )
+                                    .toUpperCase(),
                                 style: TextStyle(
                                   fontSize: addressTitleFontSize,
                                   fontWeight: FontWeight.w800,
@@ -224,7 +230,9 @@ class _MapaPreviewViewState extends State<MapaPreviewView> {
                             ),
                             SizedBox(height: isTablet ? 12 : 8),
                             Padding(
-                              padding: EdgeInsets.symmetric(horizontal: isTablet ? 20 : 15),
+                              padding: EdgeInsets.symmetric(
+                                horizontal: isTablet ? 20 : 15,
+                              ),
                               child: Text(
                                 vm.formatAddress(vm.currentAddress).isNotEmpty
                                     ? vm.formatAddress(vm.currentAddress)

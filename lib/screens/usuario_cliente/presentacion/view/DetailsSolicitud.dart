@@ -24,14 +24,15 @@ class MapPreview extends StatefulWidget {
   State<MapPreview> createState() => _MapPreviewState();
 }
 
-class _MapPreviewState extends State<MapPreview> {
-
+class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
   GoogleMapController? _controller;
   late MapapreviewViewModel _vm;
   BitmapDescriptor? _destIcon;
   VoidCallback? _vmListener;
   String? _origenDireccionActual;
   bool _resolviendoOrigenDireccion = false;
+  bool _wasInBackground = false;
+  DateTime? _pausedAt;
 
   PageRouteBuilder<T> _buildSmoothRoute<T>(Widget page) {
     return PageRouteBuilder<T>(
@@ -77,13 +78,12 @@ class _MapPreviewState extends State<MapPreview> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _vm = MapapreviewViewModel(origen: widget.origen, destino: widget.destino);
     _vm.init();
     _vmListener = () {
       if (!mounted) return;
-      WidgetsBinding.instance.addPostFrameCallback(
-        (_) => _applyPerspective(),
-      );
+      WidgetsBinding.instance.addPostFrameCallback((_) => _applyPerspective());
     };
     _vm.addListener(_vmListener!);
     _loadDestIcon();
@@ -175,21 +175,61 @@ class _MapPreviewState extends State<MapPreview> {
     final bounds = _vm.cameraBounds;
     if (bounds == null) return;
     try {
-      await _controller!.animateCamera(CameraUpdate.newLatLngBounds(bounds, 80));
+      await _controller!.animateCamera(
+        CameraUpdate.newLatLngBounds(bounds, 80),
+      );
     } catch (_) {
       await Future.delayed(const Duration(milliseconds: 300));
       try {
-        await _controller!.animateCamera(CameraUpdate.newLatLngBounds(bounds, 80));
+        await _controller!.animateCamera(
+          CameraUpdate.newLatLngBounds(bounds, 80),
+        );
       } catch (_) {}
     }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     if (_vmListener != null) _vm.removeListener(_vmListener!);
     _controller?.dispose();
     _vm.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
+      _wasInBackground = true;
+      _pausedAt = DateTime.now();
+    } else if (state == AppLifecycleState.resumed) {
+      if (_wasInBackground) {
+        _wasInBackground = false;
+        final pausedAt = _pausedAt ?? DateTime.now();
+        final elapsed = DateTime.now().difference(pausedAt);
+        if (elapsed >= const Duration(seconds: 12)) {
+          _handleAppResumeReload();
+        }
+        _pausedAt = null;
+      }
+    }
+  }
+
+  Future<void> _handleAppResumeReload() async {
+    if (!mounted) return;
+    try {
+      // Reload assets and viewmodel state to ensure map and data refresh correctly
+      _loadDestIcon();
+      final initResult = _vm.init();
+      if (initResult is Future) await initResult;
+      await _resolverDireccionOrigen();
+      // Ensure camera/perspective is reapplied on next frame
+      WidgetsBinding.instance.addPostFrameCallback((_) => _applyPerspective());
+      if (mounted) setState(() {});
+    } catch (_) {
+      // swallow errors silently to avoid crashing on resume
+    }
   }
 
   @override
@@ -224,30 +264,36 @@ class _MapPreviewState extends State<MapPreview> {
               statusBarIconBrightness: Brightness.dark,
             ),
           ),
-          body: LayoutBuilder(builder: (context, constraints) {
-            final resp = ResponsiveHelper.getResponsiveData(context);
-            double bottomPct;
-            if (resp.deviceType == DeviceType.mobile) {
-              bottomPct = 40.0; // smaller bottom area on mobile -> taller map
-            } else if (resp.deviceType == DeviceType.tablet) {
-              bottomPct = 30.0; // tablet: reduce bottom to increase map
-            } else {
-              bottomPct = 25.0; // desktop: even smaller bottom
-            }
+          body: LayoutBuilder(
+            builder: (context, constraints) {
+              final resp = ResponsiveHelper.getResponsiveData(context);
+              double bottomPct;
+              if (resp.deviceType == DeviceType.mobile) {
+                bottomPct = 40.0; // smaller bottom area on mobile -> taller map
+              } else if (resp.deviceType == DeviceType.tablet) {
+                bottomPct = 30.0; // tablet: reduce bottom to increase map
+              } else {
+                bottomPct = 25.0; // desktop: even smaller bottom
+              }
 
-            final double bottomHeight = ResponsiveHelper.hp(context, bottomPct)
-              .clamp(140.0, constraints.maxHeight * 0.6)
-              .toDouble();
+              final double bottomHeight = ResponsiveHelper.hp(
+                context,
+                bottomPct,
+              ).clamp(140.0, constraints.maxHeight * 0.6).toDouble();
 
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const SizedBox(height: 8),
-                Expanded(child: _buildMapFlexible(context)),
-                SizedBox(height: bottomHeight, child: _buildBottomContent(context)),
-              ],
-            );
-          }),
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SizedBox(height: 8),
+                  Expanded(child: _buildMapFlexible(context)),
+                  SizedBox(
+                    height: bottomHeight,
+                    child: _buildBottomContent(context),
+                  ),
+                ],
+              );
+            },
+          ),
         ),
       ),
     );
@@ -255,92 +301,104 @@ class _MapPreviewState extends State<MapPreview> {
 
   Widget _buildMapFlexible(BuildContext context) {
     return Center(
-      child: LayoutBuilder(builder: (ctx, constraints) {
-        final width = constraints.maxWidth > 0 ? constraints.maxWidth : MediaQuery.of(context).size.width * 0.92;
-        return Container(
-          width: width * 0.92,
-          // height left unconstrained so it fills the Expanded area
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.black, width: 1.5),
-            borderRadius: BorderRadius.circular(14),
-            boxShadow: const [
-              BoxShadow(
-                color: Colors.black12,
-                blurRadius: 8,
-                offset: Offset(0, 3),
-              ),
-            ],
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Consumer<MapapreviewViewModel>(
-            builder: (context, vm, _) {
-              final origen = vm.origen.position;
-              final destino = vm.destino.position;
-              return ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Stack(
-                  children: [
-                    Mapagoogle(
-                      key: ValueKey('${destino.latitude},${destino.longitude}'),
-                      initialTarget: LatLng(
-                        (origen.latitude + destino.latitude) / 2,
-                        (origen.longitude + destino.longitude) / 2,
-                      ),
-                      initialZoom: 13,
-                      myLocationEnabled: true,
-                      onMapCreated: _onMapCreated,
-                      markers: {
-                        // Marker(
-                        //   markerId: const MarkerId('origen'),
-                        //   position: origen,
-                        //   infoWindow: InfoWindow(
-                        //     title: 'Origen',
-                        //     snippet: vm.origen.subtitle,
-                        //   ),
-                        //   icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
-                        // ),
-                        Marker(
-                          markerId: const MarkerId('destino'),
-                          position: destino,
-                          infoWindow: InfoWindow(
-                            title: vm.destino.title ?? 'Destino',
-                            snippet: vm.destino.subtitle,
-                          ),
-                          icon: _destIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+      child: LayoutBuilder(
+        builder: (ctx, constraints) {
+          final width = constraints.maxWidth > 0
+              ? constraints.maxWidth
+              : MediaQuery.of(context).size.width * 0.92;
+          return Container(
+            width: width * 0.92,
+            // height left unconstrained so it fills the Expanded area
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.black, width: 1.5),
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: const [
+                BoxShadow(
+                  color: Colors.black12,
+                  blurRadius: 8,
+                  offset: Offset(0, 3),
+                ),
+              ],
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Consumer<MapapreviewViewModel>(
+              builder: (context, vm, _) {
+                final origen = vm.origen.position;
+                final destino = vm.destino.position;
+                return ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Stack(
+                    children: [
+                      Mapagoogle(
+                        key: ValueKey(
+                          '${destino.latitude},${destino.longitude}',
                         ),
-                      },
-                      polylines: vm.polylines,
-                    ),
-                    if (vm.isLoadingRoute)
-                      Positioned.fill(
-                        child: Container(
-                          color: Colors.white.withOpacity(0.6),
-                          child: const Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                CircularProgressIndicator(color: AppColores.primary),
-                                SizedBox(height: 12),
-                                Text(
-                                  'Cargando ruta...',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 16,
-                                    color: Colors.black87,
-                                  ),
+                        initialTarget: LatLng(
+                          (origen.latitude + destino.latitude) / 2,
+                          (origen.longitude + destino.longitude) / 2,
+                        ),
+                        initialZoom: 13,
+                        myLocationEnabled: true,
+                        onMapCreated: _onMapCreated,
+                        markers: {
+                          // Marker(
+                          //   markerId: const MarkerId('origen'),
+                          //   position: origen,
+                          //   infoWindow: InfoWindow(
+                          //     title: 'Origen',
+                          //     snippet: vm.origen.subtitle,
+                          //   ),
+                          //   icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+                          // ),
+                          Marker(
+                            markerId: const MarkerId('destino'),
+                            position: destino,
+                            infoWindow: InfoWindow(
+                              title: vm.destino.title ?? 'Destino',
+                              snippet: vm.destino.subtitle,
+                            ),
+                            icon:
+                                _destIcon ??
+                                BitmapDescriptor.defaultMarkerWithHue(
+                                  BitmapDescriptor.hueRed,
                                 ),
-                              ],
+                          ),
+                        },
+                        polylines: vm.polylines,
+                      ),
+                      if (vm.isLoadingRoute)
+                        Positioned.fill(
+                          child: Container(
+                            color: Colors.white.withOpacity(0.6),
+                            child: const Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  CircularProgressIndicator(
+                                    color: AppColores.primary,
+                                  ),
+                                  SizedBox(height: 12),
+                                  Text(
+                                    'Cargando ruta...',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 16,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                  ],
-                ),
-              );
-            },
-          ),
-        );
-      }),
+                    ],
+                  ),
+                );
+              },
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -400,14 +458,14 @@ class _MapPreviewState extends State<MapPreview> {
         final direccionInicial = vm.destino.title ?? vm.destino.subtitle;
         final resultado = await Navigator.of(context)
             .push<SeleccionUbicacionResult>(
-          _buildSmoothRoute(
-            SeleccionaUbicacionEnMapaView(
-              ubicacionInicial: inicial,
-              titulo: 'Ajusta tu destino en el mapa',
-              direccionInicial: direccionInicial,
-            ),
-          ),
-        );
+              _buildSmoothRoute(
+                SeleccionaUbicacionEnMapaView(
+                  ubicacionInicial: inicial,
+                  titulo: 'Ajusta tu destino en el mapa',
+                  direccionInicial: direccionInicial,
+                ),
+              ),
+            );
 
         if (resultado is SeleccionUbicacionResult) {
           if (!mounted) return;
@@ -446,11 +504,16 @@ class _MapPreviewState extends State<MapPreview> {
             subtitle: resolved,
           );
           setState(() {
-            _vm = MapapreviewViewModel(origen: widget.origen, destino: nuevoDestino);
+            _vm = MapapreviewViewModel(
+              origen: widget.origen,
+              destino: nuevoDestino,
+            );
             _vm.init();
             _vmListener = () {
               if (!mounted) return;
-              WidgetsBinding.instance.addPostFrameCallback((_) => _applyPerspective());
+              WidgetsBinding.instance.addPostFrameCallback(
+                (_) => _applyPerspective(),
+              );
             };
             _vm.addListener(_vmListener!);
           });
@@ -556,7 +619,7 @@ class _MapPreviewState extends State<MapPreview> {
                 children: [
                   ListTile(
                     title: const Text(
-                      'Metodo de pago',
+                      'Método de pago',
                       style: TextStyle(fontWeight: FontWeight.w700),
                     ),
                     subtitle: Text('Seleccionado: ${vm.metodoPago}'),
@@ -739,8 +802,8 @@ class _MapPreviewState extends State<MapPreview> {
           width: buttonHeight,
           height: buttonHeight,
           child: Tooltip(
-            message: 'Metodo: ${vm.metodoPago}',
-              child: OutlinedButton(
+            message: 'Método: ${vm.metodoPago}',
+            child: OutlinedButton(
               onPressed: () => _abrirModalMetodoPago(context, vm),
               style: OutlinedButton.styleFrom(
                 shape: RoundedRectangleBorder(
@@ -752,24 +815,26 @@ class _MapPreviewState extends State<MapPreview> {
                 foregroundColor: Colors.black87,
                 padding: EdgeInsets.zero,
               ),
-              child: Builder(builder: (ctx) {
-                final metodo = vm.metodoPago.toLowerCase();
-                if (metodo.contains('nequi')) {
-                  return Image.asset(
-                    'assets/img/nequi.png',
-                    width: 26,
-                    height: 26,
-                    fit: BoxFit.cover,
-                  );
-                }
+              child: Builder(
+                builder: (ctx) {
+                  final metodo = vm.metodoPago.toLowerCase();
+                  if (metodo.contains('nequi')) {
+                    return Image.asset(
+                      'assets/img/nequi.png',
+                      width: 26,
+                      height: 26,
+                      fit: BoxFit.cover,
+                    );
+                  }
 
-                if (metodo.contains('efectivo') || metodo.contains('cash')) {
-                  return const Icon(Icons.attach_money, size: 22);
-                }
+                  if (metodo.contains('efectivo') || metodo.contains('cash')) {
+                    return const Icon(Icons.attach_money, size: 22);
+                  }
 
-                // Default wallet/payment icon
-                return const Icon(Icons.account_balance_wallet_outlined);
-              }),
+                  // Default wallet/payment icon
+                  return const Icon(Icons.account_balance_wallet_outlined);
+                },
+              ),
             ),
           ),
         ),

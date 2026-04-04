@@ -42,7 +42,9 @@ class SolicitudCard extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        onTap: onTap == null ? null : () => onTap!(PreviewSolicitud.fromSolicitud(solicitud)),
+        onTap: onTap == null
+            ? null
+            : () => onTap!(PreviewSolicitud.fromSolicitud(solicitud)),
         child: Stack(
           children: [
             Padding(
@@ -51,63 +53,98 @@ class SolicitudCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 12,
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Builder(builder: (context) {
-                          return Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        const Padding(
-                                          padding: EdgeInsets.only(top: 2.0, right: 8.0),
-                                          child: Icon(Icons.location_on, size: 18, color: AppColores.error),
-                                        ),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              const Text('Recoger en', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColores.textPrimary,)),
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                pickupText,
-                                                style: const TextStyle(fontSize: 14,color: AppColores.textPrimary,),
-                                                maxLines: 2,
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            ],
+                        Builder(
+                          builder: (context) {
+                            return Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          const Padding(
+                                            padding: EdgeInsets.only(
+                                              top: 2.0,
+                                              right: 8.0,
+                                            ),
+                                            child: Icon(
+                                              Icons.location_on,
+                                              size: 18,
+                                              color: AppColores.error,
+                                            ),
                                           ),
-                                        ),
-                                      ],
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                const Text(
+                                                  'Recoger en',
+                                                  style: TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 14,
+                                                    color:
+                                                        AppColores.textPrimary,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  pickupText,
+                                                  style: const TextStyle(
+                                                    fontSize: 14,
+                                                    color:
+                                                        AppColores.textPrimary,
+                                                  ),
+                                                  maxLines: 2,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    const Text(
+                                      'Distancia',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: AppColores.textPrimary,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 3),
+                                    Text(
+                                      cercania,
+                                      style: TextStyle(
+                                        color: AppColores.textPrimary,
+                                        fontSize: 14,
+                                      ),
                                     ),
                                   ],
                                 ),
-                              ),
-                              const SizedBox(width: 12),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  const Text('Distancia', style: TextStyle(fontSize: 13 , color: AppColores.textPrimary,fontWeight: FontWeight.bold,)),
-                                  const SizedBox(height: 3),
-                                  Text(
-                                    cercania,
-                                    style: TextStyle(
-                                      color: AppColores.textPrimary,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          );
-                        }),
+                              ],
+                            );
+                          },
+                        ),
                       ],
                     ),
                   ),
@@ -147,6 +184,4 @@ class SolicitudCard extends StatelessWidget {
     final lng = solicitud.ubicacionInicial.longitude.toStringAsFixed(5);
     return '$lat, $lng';
   }
-
-
 }

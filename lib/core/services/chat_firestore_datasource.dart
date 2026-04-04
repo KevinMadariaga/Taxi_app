@@ -3,7 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 
 class ChatFirestoreDatasource {
   ChatFirestoreDatasource({FirebaseFirestore? firestore})
-      : _firestoreOverride = firestore;
+    : _firestoreOverride = firestore;
 
   final FirebaseFirestore? _firestoreOverride;
 
@@ -30,9 +30,9 @@ class ChatFirestoreDatasource {
   Stream<QuerySnapshot<Map<String, dynamic>>> watchOrderedMessages(
     String solicitudId,
   ) {
-    return messagesRef(solicitudId)
-        .orderBy('timestamp', descending: false)
-        .snapshots();
+    return messagesRef(
+      solicitudId,
+    ).orderBy('timestamp', descending: false).snapshots();
   }
 
   Future<void> sendMessage({
@@ -56,8 +56,8 @@ class ChatFirestoreDatasource {
     required String messageId,
     required String userId,
   }) {
-    return messagesRef(solicitudId)
-        .doc(messageId)
-        .update({'readBy.$userId': true});
+    return messagesRef(
+      solicitudId,
+    ).doc(messageId).update({'readBy.$userId': true});
   }
 }

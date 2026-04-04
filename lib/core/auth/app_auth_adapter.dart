@@ -11,10 +11,13 @@ import 'package:taxi_app/features/client/data/firebaseDB.dart';
 /// Adapter that unifies legacy email/password `LegacyAuthRepository`
 /// with the domain `ClientAuthRepository` implementation so we can
 /// migrate progressively while keeping a single concrete instance.
-class AppAuthAdapter extends LegacyAuthRepository implements ClientAuthRepository {
-  AppAuthAdapter(FirebaseDataSource firebase, {ClientAuthRepository? clientRepo})
-      : _clientRepo = clientRepo ?? ClientAuthRepositoryImpl(),
-        super(firebase);
+class AppAuthAdapter extends LegacyAuthRepository
+    implements ClientAuthRepository {
+  AppAuthAdapter(
+    FirebaseDataSource firebase, {
+    ClientAuthRepository? clientRepo,
+  }) : _clientRepo = clientRepo ?? ClientAuthRepositoryImpl(),
+       super(firebase);
 
   final ClientAuthRepository _clientRepo;
 

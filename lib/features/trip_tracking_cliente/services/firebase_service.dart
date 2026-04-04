@@ -12,8 +12,9 @@ class TripTrackingFirebaseService {
   TripTrackingFirebaseService({
     FirebaseFirestore? firestore,
     SolicitudFirestoreDatasource? solicitudDatasource,
-  })  : _solicitudDatasource =
-            solicitudDatasource ?? SolicitudFirestoreDatasource(firestore: firestore);
+  }) : _solicitudDatasource =
+           solicitudDatasource ??
+           SolicitudFirestoreDatasource(firestore: firestore);
 
   final SolicitudFirestoreDatasource _solicitudDatasource;
 
@@ -46,7 +47,8 @@ class TripTrackingFirebaseService {
       if (!doc.exists) return null;
       return doc.data();
     } catch (e) {
-      if (kDebugMode) debugPrint('[TripTrackingFirebaseService] getSolicitudOnce error: $e');
+      if (kDebugMode)
+        debugPrint('[TripTrackingFirebaseService] getSolicitudOnce error: $e');
       return null;
     }
   }
@@ -96,7 +98,9 @@ class TripTrackingFirebaseService {
       // This helps confirm writes happen roughly every meter as configured.
       // Remove or lower verbosity in production if needed.
       // ignore: avoid_print
-      debugPrint('[TripTrackingFirebaseService] Persistiendo ubicación conductor -> solicitud:$solicitudId lat:${location.latitude} lng:${location.longitude} ts:$timestampMs appendHistory:$appendRouteHistory');
+      debugPrint(
+        '[TripTrackingFirebaseService] Persistiendo ubicación conductor -> solicitud:$solicitudId lat:${location.latitude} lng:${location.longitude} ts:$timestampMs appendHistory:$appendRouteHistory',
+      );
     } catch (_) {}
 
     if (appendRouteHistory) {
@@ -132,9 +136,7 @@ class TripTrackingFirebaseService {
     );
   }
 
-  Future<void> eliminarSolicitud({
-    required String solicitudId,
-  }) async {
+  Future<void> eliminarSolicitud({required String solicitudId}) async {
     await _solicitudDatasource.eliminarSolicitud(solicitudId: solicitudId);
   }
 }

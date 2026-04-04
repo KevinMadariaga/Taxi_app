@@ -45,7 +45,9 @@ class RutaConductorUsuarioViewModel {
       debugPrint('[ViewModel] Obteniendo solicitud activa de sesión...');
       final activeId = await SessionHelper.getActiveSolicitud();
 
-      debugPrint('[ViewModel] Consultando estado actual de la solicitud en Firestore...');
+      debugPrint(
+        '[ViewModel] Consultando estado actual de la solicitud en Firestore...',
+      );
       String? estadoLower;
       try {
         final snap = await FirebaseFirestore.instance
@@ -59,7 +61,9 @@ class RutaConductorUsuarioViewModel {
         }
         // Log de datos del cliente
         if (data != null && data['cliente'] != null) {
-          debugPrint('[ViewModel] Datos del cliente obtenidos: ${data['cliente']}');
+          debugPrint(
+            '[ViewModel] Datos del cliente obtenidos: ${data['cliente']}',
+          );
         }
       } catch (e) {
         debugPrint('[ViewModel] Error consultando estado: $e');
@@ -77,7 +81,9 @@ class RutaConductorUsuarioViewModel {
           body: 'Continúa el servicio',
         );
       } else if (activeId == null && esEnCamino) {
-        debugPrint('[ViewModel] Estado es "en camino", marcando como activa en sesión.');
+        debugPrint(
+          '[ViewModel] Estado es "en camino", marcando como activa en sesión.',
+        );
         try {
           await SessionHelper.setActiveSolicitud(solicitudId);
         } catch (e) {
@@ -88,7 +94,9 @@ class RutaConductorUsuarioViewModel {
           body: 'Continúa el servicio',
         );
       } else {
-        debugPrint('[ViewModel] Primera vez que se asigna el cliente para esta solicitud.');
+        debugPrint(
+          '[ViewModel] Primera vez que se asigna el cliente para esta solicitud.',
+        );
         await _notificacionesServicio.showNotification(
           title: 'Cliente asignado',
           body: 'Viaja a recogerlo.',
@@ -126,7 +134,9 @@ class RutaConductorUsuarioViewModel {
                 rawConductor['longitude'] ??
                 rawConductor['longitud']);
             if (lat != null && lng != null) {
-              debugPrint('[ViewModel] Posición del conductor actualizada: $lat, $lng');
+              debugPrint(
+                '[ViewModel] Posición del conductor actualizada: $lat, $lng',
+              );
               return LatLng((lat as num).toDouble(), (lng as num).toDouble());
             }
           }
@@ -155,7 +165,9 @@ class RutaConductorUsuarioViewModel {
       try {
         if (estado == null) return;
         final estadoLower = estado.toLowerCase();
-        debugPrint('[ViewModel] Estado de la solicitud actualizado: $estadoLower');
+        debugPrint(
+          '[ViewModel] Estado de la solicitud actualizado: $estadoLower',
+        );
 
         // Persistir la solicitud activa como en la ruta del cliente
         try {
@@ -165,7 +177,9 @@ class RutaConductorUsuarioViewModel {
               estadoLower == 'en camino' ||
               estadoLower == 'on_route' ||
               estadoLower == 'en_ruta') {
-            debugPrint('[ViewModel] Marcando solicitud como activa en sesión...');
+            debugPrint(
+              '[ViewModel] Marcando solicitud como activa en sesión...',
+            );
             SessionHelper.setActiveSolicitud(solicitudId);
             // Persistir en cache mínimo para restaurar UI
             try {
@@ -214,7 +228,9 @@ class RutaConductorUsuarioViewModel {
                                       ubic['direccion'] ??
                                       ubic['title'])
                                   ?.toString();
-                          debugPrint('[ViewModel] Cliente: $clientName, Dirección: $clientAddress, Lat: $clientLat, Lng: $clientLng');
+                          debugPrint(
+                            '[ViewModel] Cliente: $clientName, Dirección: $clientAddress, Lat: $clientLat, Lng: $clientLng',
+                          );
                         }
                       }
                       try {
@@ -228,9 +244,13 @@ class RutaConductorUsuarioViewModel {
                             clientLng: clientLng,
                           ),
                         );
-                        debugPrint('[ViewModel] Cache de ruta guardado para solicitud $solicitudId');
+                        debugPrint(
+                          '[ViewModel] Cache de ruta guardado para solicitud $solicitudId',
+                        );
                       } catch (e) {
-                        debugPrint('[ViewModel] Error guardando cache de ruta: $e');
+                        debugPrint(
+                          '[ViewModel] Error guardando cache de ruta: $e',
+                        );
                       }
                     }
                   });
@@ -253,7 +273,9 @@ class RutaConductorUsuarioViewModel {
                 body: 'Continúa el viaje, lleva el cliente a su destino.',
               );
             } catch (e) {
-              debugPrint('[ViewModel] Error notificando continuación del viaje: $e');
+              debugPrint(
+                '[ViewModel] Error notificando continuación del viaje: $e',
+              );
             }
           }
 
@@ -270,7 +292,9 @@ class RutaConductorUsuarioViewModel {
             SessionHelper.clearActiveSolicitud();
             try {
               RouteCacheService.clearSolicitud(solicitudId);
-              debugPrint('[ViewModel] Cache de ruta limpiado para solicitud $solicitudId');
+              debugPrint(
+                '[ViewModel] Cache de ruta limpiado para solicitud $solicitudId',
+              );
             } catch (e) {
               debugPrint('[ViewModel] Error limpiando cache: $e');
             }
@@ -280,7 +304,9 @@ class RutaConductorUsuarioViewModel {
         }
 
         if (estadoLower == 'cancelado' || estadoLower == 'cancelada') {
-          debugPrint('[ViewModel] Solicitud cancelada, ejecutando callback y notificando...');
+          debugPrint(
+            '[ViewModel] Solicitud cancelada, ejecutando callback y notificando...',
+          );
           // Delegate UI navigation/transition to the view via callback.
           // ViewModels should not operate on BuildContext directly because
           // async listeners may fire when the UI has been disposed.
@@ -289,7 +315,9 @@ class RutaConductorUsuarioViewModel {
             try {
               onSolicitudCancelada!();
             } catch (e) {
-              debugPrint('[ViewModel] Error ejecutando callback de cancelación: $e');
+              debugPrint(
+                '[ViewModel] Error ejecutando callback de cancelación: $e',
+              );
             }
           }
 
@@ -319,12 +347,16 @@ class RutaConductorUsuarioViewModel {
   /// "Ya llegué" para actualizar el estado en Firestore.
   Future<void> marcarEnCamino() async {
     try {
-      debugPrint('[ViewModel] Marcando solicitud $solicitudId como "en camino"...');
+      debugPrint(
+        '[ViewModel] Marcando solicitud $solicitudId como "en camino"...',
+      );
       await FirebaseFirestore.instance
           .collection('solicitudes')
           .doc(solicitudId)
           .update({'estado': 'en camino'});
-      debugPrint('[ViewModel] Estado actualizado a "en camino" para solicitud $solicitudId');
+      debugPrint(
+        '[ViewModel] Estado actualizado a "en camino" para solicitud $solicitudId',
+      );
     } catch (e) {
       debugPrint('[ViewModel] Error marcando "en camino": $e');
     }
@@ -363,11 +395,15 @@ class RutaConductorUsuarioViewModel {
   Future<void> _iniciarTrackingUbicacion() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
-      debugPrint('[ViewModel] UID de conductor no disponible, abortando tracking.');
+      debugPrint(
+        '[ViewModel] UID de conductor no disponible, abortando tracking.',
+      );
       return;
     }
 
-    debugPrint('[ViewModel] Solicitando permisos de ubicación en segundo plano...');
+    debugPrint(
+      '[ViewModel] Solicitando permisos de ubicación en segundo plano...',
+    );
     await PermissionsHelper.requestBackgroundLocationPermission();
 
     debugPrint('[ViewModel] Obteniendo ubicación inicial del conductor...');
@@ -375,7 +411,9 @@ class RutaConductorUsuarioViewModel {
     if (posInicial != null) {
       try {
         final latLng = LatLng(posInicial.latitude, posInicial.longitude);
-        debugPrint('[ViewModel] Ubicación inicial: ${latLng.latitude}, ${latLng.longitude}');
+        debugPrint(
+          '[ViewModel] Ubicación inicial: ${latLng.latitude}, ${latLng.longitude}',
+        );
         await _firebaseService.actualizarUbicacionConductorEnSolicitud(
           solicitudId: solicitudId,
           position: latLng,

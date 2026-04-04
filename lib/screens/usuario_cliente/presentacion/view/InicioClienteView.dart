@@ -278,8 +278,8 @@ class _InicioClienteViewState extends State<InicioClienteView>
         : baseCarouselHeight.clamp(140.0, 220.0);
     // Ajustar estilo de la barra de estado según pestaña activa
     final SystemUiOverlayStyle overlayStyle = _selectedIndex == 0
-      ? SystemUiOverlayStyle.light.copyWith(statusBarColor: Colors.amber)
-      : SystemUiOverlayStyle.dark.copyWith(statusBarColor: Colors.white);
+        ? SystemUiOverlayStyle.light.copyWith(statusBarColor: Colors.amber)
+        : SystemUiOverlayStyle.dark.copyWith(statusBarColor: Colors.white);
     SystemChrome.setSystemUIOverlayStyle(overlayStyle);
 
     // Se elimina el mapa y sus espacios
@@ -302,7 +302,7 @@ class _InicioClienteViewState extends State<InicioClienteView>
                     await InicioClienteNavigation.irASeguridad(context);
                   },
                 ),
-               
+
                 ListTile(
                   leading: const Icon(Icons.help_outline),
                   title: const Text('Ayuda'),
@@ -387,12 +387,14 @@ class _InicioClienteViewState extends State<InicioClienteView>
                               );
                             }
 
-                            final compactCarouselHeight = (carouselHeight * 0.82)
-                                .clamp(120.0, 180.0)
-                                .toDouble();
-                            final compactMapHeight = (constraints.maxHeight * 0.34)
-                                .clamp(140.0, 220.0)
-                                .toDouble();
+                            final compactCarouselHeight =
+                                (carouselHeight * 0.82)
+                                    .clamp(120.0, 180.0)
+                                    .toDouble();
+                            final compactMapHeight =
+                                (constraints.maxHeight * 0.34)
+                                    .clamp(140.0, 220.0)
+                                    .toDouble();
 
                             return SingleChildScrollView(
                               keyboardDismissBehavior:
@@ -664,10 +666,7 @@ class _InicioClienteViewState extends State<InicioClienteView>
                   heroTag: 'center_marker_btn',
                   backgroundColor: AppColores.surface,
                   onPressed: _centerOnMarker,
-                  child: Icon(
-                    Icons.my_location,
-                    color: AppColores.primary,
-                  ),
+                  child: Icon(Icons.my_location, color: AppColores.primary),
                 ),
               ),
             ),
@@ -680,9 +679,9 @@ class _InicioClienteViewState extends State<InicioClienteView>
   Future<void> _centerOnMarker() async {
     if (!mounted) return;
     if (vm.currentLocation == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Ubicación no disponible')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Ubicación no disponible')));
       return;
     }
 
@@ -907,7 +906,6 @@ class _InicioClienteViewState extends State<InicioClienteView>
       },
     );
   }
-
 
   Widget _buildSaludoYNombre(double scale) {
     final rawName = vm.clientName.trim();

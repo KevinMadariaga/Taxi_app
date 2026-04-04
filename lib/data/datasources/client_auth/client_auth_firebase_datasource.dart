@@ -8,11 +8,9 @@ import 'package:taxi_app/domain/entities/auth_identity_entity.dart';
 import 'package:taxi_app/domain/models/phone_verification_result.dart';
 
 class ClientAuthFirebaseDataSource {
-  ClientAuthFirebaseDataSource({
-    FirebaseAuth? auth,
-    GoogleSignIn? googleSignIn,
-  }) : _auth = auth ?? FirebaseAuth.instance,
-       _googleSignIn = googleSignIn ?? GoogleSignIn();
+  ClientAuthFirebaseDataSource({FirebaseAuth? auth, GoogleSignIn? googleSignIn})
+    : _auth = auth ?? FirebaseAuth.instance,
+      _googleSignIn = googleSignIn ?? GoogleSignIn();
 
   final FirebaseAuth _auth;
   final GoogleSignIn _googleSignIn;
@@ -84,7 +82,9 @@ class ClientAuthFirebaseDataSource {
       },
       codeAutoRetrievalTimeout: (verificationId) {
         if (completer.isCompleted) return;
-        completer.complete(PhoneVerificationResult(verificationId: verificationId));
+        completer.complete(
+          PhoneVerificationResult(verificationId: verificationId),
+        );
       },
     );
 
@@ -141,7 +141,7 @@ class ClientAuthFirebaseDataSource {
     }
 
     if (error.code == 'network-request-failed') {
-      return 'Fallo de red. Comprueba tu conexion e intenta otra vez.';
+      return 'Fallo de red. Comprueba tu conexión e intenta otra vez.';
     }
 
     return error.message ?? 'No fue posible verificar el codigo.';

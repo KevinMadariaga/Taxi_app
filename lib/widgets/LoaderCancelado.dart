@@ -17,10 +17,7 @@ class LoaderSolicitudCancelada extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            SpinKitCircle(
-              color: AppColores.primary,
-              size: 60.0,
-            ),
+            SpinKitCircle(color: AppColores.primary, size: 60.0),
             const SizedBox(height: 24),
             Text(
               texto,

@@ -339,7 +339,7 @@ class MapapreviewViewModel extends ChangeNotifier {
 
     try {
       final points = await _mapService.getRoutePolyline(o, d);
-      
+
       if (points.isNotEmpty) {
         polylines = {
           _mapService.createPolyline(
@@ -352,7 +352,8 @@ class MapapreviewViewModel extends ChangeNotifier {
         };
 
         // Estimación de distancia basada en los puntos de la polilínea física
-        routeDistanceKm = _mapService.calcularDistanciaPolyline(points) / 1000.0;
+        routeDistanceKm =
+            _mapService.calcularDistanciaPolyline(points) / 1000.0;
 
         notifyListeners();
         return;

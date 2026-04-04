@@ -10,7 +10,8 @@ class MapService {
   // - Google Directions API puede generar costes según tu cuota de facturación.
   // - La clave se incluye aquí por simplicidad porque el usuario la proporcionó.
   //   En producción es mejor cargarla desde variables de entorno o almacenamiento seguro.
-  static const String? _googleDirectionsKey = 'AIzaSyBijCV2BttW2Sat4GiASFtNOn3zfIBvD-4';
+  static const String? _googleDirectionsKey =
+      'AIzaSyBijCV2BttW2Sat4GiASFtNOn3zfIBvD-4';
 
   static const String _osrmBaseUrl = 'https://router.project-osrm.org';
 

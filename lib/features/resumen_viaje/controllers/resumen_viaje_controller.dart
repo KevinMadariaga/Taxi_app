@@ -10,8 +10,7 @@ class ResumenViajeController extends ChangeNotifier {
     required this.tipoUsuario,
     required this.solicitudId,
     ResumenViajeFirebaseService? firebaseService,
-  }) : _firebaseService =
-           firebaseService ?? ResumenViajeFirebaseService();
+  }) : _firebaseService = firebaseService ?? ResumenViajeFirebaseService();
 
   final TipoUsuarioResumen tipoUsuario;
   final String solicitudId;
@@ -28,12 +27,14 @@ class ResumenViajeController extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
-  Stream<ResumenViajeModel> get resumenStream => _firebaseService.streamResumenViaje(solicitudId);
+  Stream<ResumenViajeModel> get resumenStream =>
+      _firebaseService.streamResumenViaje(solicitudId);
 
   bool get guardando => _guardando;
   double get calificacionSeleccionada => _calificacionSeleccionada;
   String get comentarioCalificacion => _comentarioCalificacion;
-  bool get requiereComentario => _calificacionSeleccionada > 0 && _calificacionSeleccionada < 3;
+  bool get requiereComentario =>
+      _calificacionSeleccionada > 0 && _calificacionSeleccionada < 3;
 
   void setCalificacion(double value) {
     final normalized = value.clamp(0, 5).toDouble();

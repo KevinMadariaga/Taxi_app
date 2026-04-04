@@ -64,7 +64,6 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
         vehicleChanged;
   }
 
-
   File? _image;
   File? _vehicleImage;
   bool _isUploading = false;
@@ -392,8 +391,12 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                                   return;
                                 }
                                 // Solo actualiza si es diferente
-                                final prevDoc = await FirebaseFirestore.instance.collection('usuarios').doc(uid).get();
-                                final prevUrl = prevDoc.data()?['foto'] as String?;
+                                final prevDoc = await FirebaseFirestore.instance
+                                    .collection('usuarios')
+                                    .doc(uid)
+                                    .get();
+                                final prevUrl =
+                                    prevDoc.data()?['foto'] as String?;
                                 if (prevUrl == null ||
                                     prevUrl.isEmpty ||
                                     widget.selectedImage == null ||
@@ -441,8 +444,12 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                                   return;
                                 }
                                 // Solo actualiza si es diferente
-                                final prevDoc = await FirebaseFirestore.instance.collection('usuarios').doc(uid).get();
-                                final prevUrl = prevDoc.data()?['fotoVehiculo'] as String?;
+                                final prevDoc = await FirebaseFirestore.instance
+                                    .collection('usuarios')
+                                    .doc(uid)
+                                    .get();
+                                final prevUrl =
+                                    prevDoc.data()?['fotoVehiculo'] as String?;
                                 if (prevUrl == null ||
                                     prevUrl.isEmpty ||
                                     widget.selectedVehicleImage == null ||

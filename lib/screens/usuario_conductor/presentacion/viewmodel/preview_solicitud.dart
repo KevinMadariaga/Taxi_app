@@ -5,7 +5,8 @@ class PreviewSolicitud {
 
   PreviewSolicitud(this.solicitud);
 
-  factory PreviewSolicitud.fromSolicitud(SolicitudItem s) => PreviewSolicitud(s);
+  factory PreviewSolicitud.fromSolicitud(SolicitudItem s) =>
+      PreviewSolicitud(s);
 
   String get id => solicitud.id;
   String? get clientName => solicitud.nombreCliente;

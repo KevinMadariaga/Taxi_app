@@ -1,7 +1,7 @@
 name: taxi_app
 description: "Aplicación móvil de servicio de taxi con geolocalización en tiempo real."
 publish_to: 'none'
-version: 1.0.1+20
+version: 1.0.2+2
 
 environment:
   sdk: ^3.10.7
@@ -36,6 +36,7 @@ dependencies:
   flutter_facebook_auth: ^7.1.5
   firebase_crashlytics: ^5.0.7
   firebase_analytics: ^12.1.2
+  firebase_remote_config: ^6.1.0
   awesome_snackbar_content: ^0.1.8
   animated_snack_bar: ^0.4.0
   flutter_native_splash: ^2.4.0
@@ -44,6 +45,8 @@ dependencies:
   flutter_background_service: ^5.1.0
   connectivity_plus: ^7.0.0
   sign_in_with_apple: ^7.0.1
+  package_info_plus: ^8.3.1
+  new_version_plus: ^0.1.0
     
 
 dev_dependencies:
@@ -70,8 +73,8 @@ flutter_icons:
 flutter_native_splash:
   color: "#081B33"
   color_dark: "#081B33"
-  image: assets/img/icono_flash.png
-  image_dark: assets/img/icono_flash.png
+  image: assets/img/foreground_car.png
+  image_dark: assets/img/foreground_car.png
   android: true
   ios: true
   web: false
@@ -81,5 +84,5 @@ flutter_native_splash:
   android_12:
     color: "#081B33"
     color_dark: "#081B33"
-    image: assets/img/icono_flash.png
+    image: assets/img/foreground_car.png
     icon_background_color: "#081B33"

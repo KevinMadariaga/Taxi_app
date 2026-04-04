@@ -35,6 +35,8 @@ class PerfilViewModel extends ChangeNotifier {
 
   String _censurarTelefono(String telefono) {
     if (telefono == 'Sin número' || telefono.length < 4) return telefono;
-    return telefono.substring(0, 2) + '****' + telefono.substring(telefono.length - 2);
+    return telefono.substring(0, 2) +
+        '****' +
+        telefono.substring(telefono.length - 2);
   }
 }

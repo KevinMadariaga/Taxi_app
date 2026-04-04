@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/app_tamano.dart';
 
-
 class AppTheme {
   static ThemeData get lightTheme => ThemeData(
     useMaterial3: true,

@@ -53,11 +53,11 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
       setState(() {
         userData = snapshot.data();
       });
-      // Preparar cache de imagen: usar imagen local si existe, sino descargarla
+      // Preparar caché de imagen: usar imagen local si existe, sino descargarla
       try {
         final fotoUrl = userData?['foto']?.toString();
         await _loadCachedImageForUid(uid, fotoUrl);
-        // cargar cache de foto del vehículo (si aplica)
+        // cargar caché de foto del vehículo (si aplica)
         final vehUrl = userData?['fotoVehiculo']?.toString();
         await _loadCachedVehicleImageForUid(uid, vehUrl);
       } catch (_) {}
@@ -76,7 +76,7 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
         .collection('usuarios')
         .doc(uid)
         .set(nuevosDatos, SetOptions(merge: true));
-    // Guardar nombre en cache si se actualizó
+    // Guardar nombre en caché si se actualizó
     try {
       final n = nuevosDatos['nombre']?.toString();
       if (n != null && n.trim().isNotEmpty) {
@@ -294,7 +294,7 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
         } catch (_) {}
       }
 
-      // Actualizar cache local con la nueva imagen
+      // Actualizar caché local con la nueva imagen
       try {
         await _downloadAndSaveImage(downloadUrl, uid);
       } catch (_) {}
@@ -385,7 +385,7 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
         } catch (_) {}
       }
 
-      // Borrar/actualizar cache local para foto del vehículo si corresponde
+      // Borrar/actualizar caché local para foto del vehículo si corresponde
       if (fieldName == 'fotoVehiculo') {
         try {
           await _deleteCachedVehicleFile(uid);
@@ -471,7 +471,7 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
             await _guardarCambios(datos);
             final uid = _auth.currentUser?.uid;
             if (uid != null) {
-              // Eliminar imagen de perfil anterior del cache local si hay nueva URL
+              // Eliminar imagen de perfil anterior del caché local si hay nueva URL
               final fotoUrl = datos['foto'] as String?;
               if (fotoUrl != null && fotoUrl.isNotEmpty) {
                 final cacheFile = await _cacheFileForUid(uid);
@@ -483,7 +483,7 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
                 }
                 await _downloadAndSaveImage(fotoUrl, uid);
               }
-              // Eliminar imagen del vehículo anterior del cache local si hay nueva URL
+              // Eliminar imagen del vehículo anterior del caché local si hay nueva URL
               final vehUrl = datos['fotoVehiculo'] as String?;
               if (vehUrl != null && vehUrl.isNotEmpty) {
                 final cacheFile = await _vehicleCacheFileForUid(uid);
@@ -610,7 +610,9 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
 
     return Scaffold(
       appBar: AppBar(
-        automaticallyImplyLeading: widget.tipoUsuario == 'cliente' ? false : true,
+        automaticallyImplyLeading: widget.tipoUsuario == 'cliente'
+            ? false
+            : true,
         title: const Text('Perfil', style: TextStyle(fontSize: appBarFontSize)),
         systemOverlayStyle: SystemUiOverlayStyle.dark,
       ),
@@ -629,109 +631,113 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                    SizedBox(height: ResponsiveHelper.hp(context, 0.5)),
-                    Center(
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          CircleAvatar(
-                            radius: avatarRadius,
-                            backgroundColor: Colors.grey.shade200,
-                            backgroundImage:
-                                _cachedImageFile != null &&
-                                    _cachedImageFile!.existsSync()
-                                ? FileImage(_cachedImageFile!) as ImageProvider
-                                : (userData != null &&
-                                      userData!['foto'] != null &&
-                                      (userData!['foto'] as String).isNotEmpty)
-                                ? NetworkImage(userData!['foto'] as String)
-                                : null,
-                            child:
-                                (_cachedImageFile == null ||
-                                        !(_cachedImageFile?.existsSync() ??
-                                            false)) &&
-                                    (userData == null ||
-                                        userData!['foto'] == null ||
-                                        (userData!['foto'] as String).isEmpty)
-                                ? Icon(
-                                    Icons.person,
-                                    size: avatarIconSize,
-                                    color: Colors.white,
-                                  )
-                                : null,
-                          ),
-                          if (_isUploading)
-                            Positioned(
-                              bottom: -6,
-                              child: SizedBox(
-                                width: avatarRadius * 1.8,
-                                child: LinearProgressIndicator(
-                                  value: _uploadProgress,
+                        SizedBox(height: ResponsiveHelper.hp(context, 0.5)),
+                        Center(
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              CircleAvatar(
+                                radius: avatarRadius,
+                                backgroundColor: Colors.grey.shade200,
+                                backgroundImage:
+                                    _cachedImageFile != null &&
+                                        _cachedImageFile!.existsSync()
+                                    ? FileImage(_cachedImageFile!)
+                                          as ImageProvider
+                                    : (userData != null &&
+                                          userData!['foto'] != null &&
+                                          (userData!['foto'] as String)
+                                              .isNotEmpty)
+                                    ? NetworkImage(userData!['foto'] as String)
+                                    : null,
+                                child:
+                                    (_cachedImageFile == null ||
+                                            !(_cachedImageFile?.existsSync() ??
+                                                false)) &&
+                                        (userData == null ||
+                                            userData!['foto'] == null ||
+                                            (userData!['foto'] as String)
+                                                .isEmpty)
+                                    ? Icon(
+                                        Icons.person,
+                                        size: avatarIconSize,
+                                        color: Colors.white,
+                                      )
+                                    : null,
+                              ),
+                              if (_isUploading)
+                                Positioned(
+                                  bottom: -6,
+                                  child: SizedBox(
+                                    width: avatarRadius * 1.8,
+                                    child: LinearProgressIndicator(
+                                      value: _uploadProgress,
+                                    ),
+                                  ),
                                 ),
+                            ],
+                          ),
+                        ),
+                        SizedBox(height: ResponsiveHelper.hp(context, 2)),
+                        Center(
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              maxWidth: ResponsiveHelper.wp(context, 80),
+                            ),
+                            child: Text(
+                              nombre.toUpperCase(),
+                              textAlign: TextAlign.center,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: computedNameFontSize,
+                                fontWeight: FontWeight.bold,
+                                color: AppColores.textPrimary,
                               ),
                             ),
-                        ],
-                      ),
-                    ),
-                    SizedBox(height: ResponsiveHelper.hp(context, 2)),
-                    Center(
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(
-                          maxWidth: ResponsiveHelper.wp(context, 80),
-                        ),
-                        child: Text(
-                          nombre.toUpperCase(),
-                          textAlign: TextAlign.center,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: computedNameFontSize,
-                            fontWeight: FontWeight.bold,
-                            color: AppColores.textPrimary,
                           ),
                         ),
-                      ),
+                        SizedBox(height: ResponsiveHelper.hp(context, 1.2)),
+                        if (widget.tipoUsuario == 'conductor') ...[
+                          _buildVehiclePhotoCard(),
+                          SizedBox(height: ResponsiveHelper.hp(context, 0.4)),
+                        ],
+                        if (correo.isNotEmpty &&
+                            correo != 'Sin correo registrado') ...[
+                          _buildInfoCard(Icons.email, 'Correo', correo),
+                          SizedBox(height: ResponsiveHelper.hp(context, 0.4)),
+                        ],
+                        _buildInfoCard(Icons.phone, 'Teléfono', telefono),
+                        SizedBox(height: ResponsiveHelper.hp(context, 1.4)),
+                        // NOTE: Buttons moved to bottom fixed area
+                        // SizedBox(height: ResponsiveHelper.hp(context, 1)),
+                        // OutlinedButton.icon(
+                        //   onPressed: () {
+                        //     Navigator.of(context).push(
+                        //       MaterialPageRoute(
+                        //         builder: (_) => const CambiarContrasenaScreen(),
+                        //       ),
+                        //     );
+                        //   },
+                        //   icon: const Icon(
+                        //     Icons.lock_outline,
+                        //     size: buttonIconSize,
+                        //   ),
+                        //   label: const Text(
+                        //     'Cambiar contraseña',
+                        //     style: TextStyle(fontSize: buttonFontSize),
+                        //   ),
+                        //   style: OutlinedButton.styleFrom(
+                        //     foregroundColor: AppColores.textPrimary,
+                        //     side: const BorderSide(color: AppColores.borderSubtle),
+                        //     padding: EdgeInsets.symmetric(
+                        //       vertical: ResponsiveHelper.hp(context, 1.5),
+                        //       horizontal: ResponsiveHelper.wp(context, 2),
+                        //     ),
+                        //   ),
+                        // ),
+                      ],
                     ),
-                    SizedBox(height: ResponsiveHelper.hp(context, 1.2)),
-                    if (widget.tipoUsuario == 'conductor') ...[
-                      _buildVehiclePhotoCard(),
-                      SizedBox(height: ResponsiveHelper.hp(context, 0.4)),
-                    ],
-                    if (correo.isNotEmpty && correo != 'Sin correo registrado') ...[
-                      _buildInfoCard(Icons.email, 'Correo', correo),
-                      SizedBox(height: ResponsiveHelper.hp(context, 0.4)),
-                    ],
-                    _buildInfoCard(Icons.phone, 'Teléfono', telefono),
-                    SizedBox(height: ResponsiveHelper.hp(context, 1.4)),
-                    // NOTE: Buttons moved to bottom fixed area
-                    // SizedBox(height: ResponsiveHelper.hp(context, 1)),
-                    // OutlinedButton.icon(
-                    //   onPressed: () {
-                    //     Navigator.of(context).push(
-                    //       MaterialPageRoute(
-                    //         builder: (_) => const CambiarContrasenaScreen(),
-                    //       ),
-                    //     );
-                    //   },
-                    //   icon: const Icon(
-                    //     Icons.lock_outline,
-                    //     size: buttonIconSize,
-                    //   ),
-                    //   label: const Text(
-                    //     'Cambiar contraseña',
-                    //     style: TextStyle(fontSize: buttonFontSize),
-                    //   ),
-                    //   style: OutlinedButton.styleFrom(
-                    //     foregroundColor: AppColores.textPrimary,
-                    //     side: const BorderSide(color: AppColores.borderSubtle),
-                    //     padding: EdgeInsets.symmetric(
-                    //       vertical: ResponsiveHelper.hp(context, 1.5),
-                    //       horizontal: ResponsiveHelper.wp(context, 2),
-                    //     ),
-                    //   ),
-                    // ),
-                  ],
-                      ),
                   ),
 
                   // Bottom fixed action area
@@ -776,7 +782,8 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
                               onPressed: () {
                                 Navigator.of(context).push(
                                   MaterialPageRoute(
-                                    builder: (_) => const ConfiguracionAplicacionView(),
+                                    builder: (_) =>
+                                        const ConfiguracionAplicacionView(),
                                   ),
                                 );
                               },
@@ -784,7 +791,9 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
                               label: const Text('Configuración'),
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: AppColores.textPrimary,
-                                side: const BorderSide(color: AppColores.borderSubtle),
+                                side: const BorderSide(
+                                  color: AppColores.borderSubtle,
+                                ),
                                 minimumSize: const Size.fromHeight(48),
                                 padding: EdgeInsets.symmetric(
                                   vertical: ResponsiveHelper.hp(context, 1.2),

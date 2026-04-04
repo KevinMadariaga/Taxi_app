@@ -84,7 +84,11 @@ class TripRouteMathService {
 
     var best = double.infinity;
     for (var i = 1; i < polyline.length; i++) {
-      final next = _distancePointToSegmentMeters(point, polyline[i - 1], polyline[i]);
+      final next = _distancePointToSegmentMeters(
+        point,
+        polyline[i - 1],
+        polyline[i],
+      );
       if (next < best) best = next;
     }
     return best;
@@ -133,7 +137,8 @@ class TripRouteMathService {
     final dLng = _degToRad(b.longitude - a.longitude);
 
     final y = math.sin(dLng) * math.cos(lat2);
-    final x = math.cos(lat1) * math.sin(lat2) -
+    final x =
+        math.cos(lat1) * math.sin(lat2) -
         math.sin(lat1) * math.cos(lat2) * math.cos(dLng);
     final bearingRad = math.atan2(y, x);
     var bearingDeg = bearingRad * (180.0 / math.pi);

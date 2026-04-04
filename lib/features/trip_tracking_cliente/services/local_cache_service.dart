@@ -30,11 +30,7 @@ class PendingConductorLocation {
   final int timestampMs;
 
   Map<String, dynamic> toMap() {
-    return {
-      'lat': lat,
-      'lng': lng,
-      'timestampMs': timestampMs,
-    };
+    return {'lat': lat, 'lng': lng, 'timestampMs': timestampMs};
   }
 
   static PendingConductorLocation fromMap(Map<String, dynamic> map) {
@@ -51,7 +47,8 @@ class LocalCacheService {
   static const _solicitudPrefix = 'trip_cache_solicitud_';
   static const _routePrefix = 'trip_cache_route_';
   static const _messagesPrefix = 'trip_cache_messages_';
-  static const _pendingConductorLocationsPrefix = 'trip_cache_pending_locations_';
+  static const _pendingConductorLocationsPrefix =
+      'trip_cache_pending_locations_';
 
   Future<void> saveSolicitud(SolicitudModel solicitud) async {
     final prefs = await SharedPreferences.getInstance();

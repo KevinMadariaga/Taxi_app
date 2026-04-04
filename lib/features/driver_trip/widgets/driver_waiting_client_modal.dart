@@ -60,7 +60,7 @@ class DriverWaitingClientModal extends StatelessWidget {
             Text(
               canStartTrip
                   ? 'Cliente confirmado. Ya puedes iniciar la ruta.'
-                  : 'Esperando confirmacion del cliente (estado en camino).',
+                  : 'Esperando confirmación del cliente (estado en camino).',
               textAlign: TextAlign.center,
               style: const TextStyle(
                 fontSize: 13,

@@ -239,6 +239,7 @@ class TrackingService {
     String? solicitudId,
     double distanceFilter = 15.0,
     int timeInterval = 10,
+
     /// Optional callback invoked on every new Position received by the GPS stream.
     /// Use this to update UI markers without waiting for Firestore roundtrips.
     Function(Position)? onLocationUpdate,
@@ -251,7 +252,9 @@ class TrackingService {
     if (skipPermissionRequest) {
       try {
         initial = await Geolocator.getCurrentPosition(
-          locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+          ),
         );
       } catch (e) {
         initial = null;

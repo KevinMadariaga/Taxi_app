@@ -7,10 +7,7 @@ enum AuthNextDestination {
 }
 
 class PhoneCodeResultModel {
-  const PhoneCodeResultModel({
-    required this.verificationId,
-    this.resendToken,
-  });
+  const PhoneCodeResultModel({required this.verificationId, this.resendToken});
 
   final String verificationId;
   final int? resendToken;

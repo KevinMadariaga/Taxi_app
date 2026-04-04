@@ -207,6 +207,8 @@ class SolicitudEstadoController {
     _disposed = true;
     _stopCountdown();
     _remainingSeconds.dispose();
-    try { waitModalVisible.dispose(); } catch (_) {}
+    try {
+      waitModalVisible.dispose();
+    } catch (_) {}
   }
 }

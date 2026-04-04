@@ -2,19 +2,20 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'dart:ui' show Color;
 
-
 /// Servicio centralizado para notificaciones locales.
 /// Implementado como singleton para compartir la misma instancia del plugin.
 class NotificacionesServicio {
   // Singleton
   static NotificacionesServicio? _instance;
-  static NotificacionesServicio get instance => _instance ??= NotificacionesServicio._();
-  
+  static NotificacionesServicio get instance =>
+      _instance ??= NotificacionesServicio._();
+
   // Constructor privado
   NotificacionesServicio._();
 
   // Plugin compartido
-  final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
+  final FlutterLocalNotificationsPlugin _plugin =
+      FlutterLocalNotificationsPlugin();
   bool _initialized = false;
 
   // IDs de notificaciones por tipo
@@ -25,10 +26,10 @@ class NotificacionesServicio {
   // Canales de notificación
   static const String _chatChannelId = 'taxi_chat_channel';
   static const String _chatChannelName = 'Mensajes de Chat';
-  
+
   static const String _tripChannelId = 'taxi_trip_channel';
   static const String _tripChannelName = 'Notificaciones de Viaje';
-  
+
   static const String _systemChannelId = 'taxi_system_channel';
   static const String _systemChannelName = 'Notificaciones del Sistema';
 
@@ -60,12 +61,9 @@ class NotificacionesServicio {
     // correcta con UNUserNotificationCenter sin conflictos).
     final bool? iosGranted = await _plugin
         .resolvePlatformSpecificImplementation<
-            IOSFlutterLocalNotificationsPlugin>()
-        ?.requestPermissions(
-          alert: true,
-          badge: true,
-          sound: true,
-        );
+          IOSFlutterLocalNotificationsPlugin
+        >()
+        ?.requestPermissions(alert: true, badge: true, sound: true);
 
     if (iosGranted != null) {
       debugPrint(
@@ -186,12 +184,7 @@ class NotificacionesServicio {
       iOS: iosDetails,
     );
 
-    await _plugin.show(
-      _tripNotificationId,
-      title,
-      body,
-      notificationDetails,
-    );
+    await _plugin.show(_tripNotificationId, title, body, notificationDetails);
   }
 
   /// Notificación de cancelación de solicitud

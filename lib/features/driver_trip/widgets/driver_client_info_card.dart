@@ -227,11 +227,15 @@ class _DriverClientInfoCardState extends State<DriverClientInfoCard>
                             clipBehavior: Clip.none,
                             children: [
                               Container(
-                                padding: const EdgeInsets.symmetric(vertical: 10),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 10,
+                                ),
                                 decoration: BoxDecoration(
                                   color: Colors.transparent,
                                   borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(color: Colors.grey.shade300),
+                                  border: Border.all(
+                                    color: Colors.grey.shade300,
+                                  ),
                                 ),
                                 child: const Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
@@ -257,7 +261,9 @@ class _DriverClientInfoCardState extends State<DriverClientInfoCard>
                                 Positioned(
                                   top: -6,
                                   right: -4,
-                                  child: _UnreadBadge(count: widget.unreadCount),
+                                  child: _UnreadBadge(
+                                    count: widget.unreadCount,
+                                  ),
                                 ),
                             ],
                           ),
@@ -306,7 +312,9 @@ class _DriverClientInfoCardState extends State<DriverClientInfoCard>
                   width: double.infinity,
                   child: ElevatedButton.icon(
                     onPressed:
-                        (widget.isSendingArrival || widget.isArrivalReported || !widget.arrivalButtonEnabled)
+                        (widget.isSendingArrival ||
+                            widget.isArrivalReported ||
+                            !widget.arrivalButtonEnabled)
                         ? null
                         : widget.onReportArrival,
                     style: ElevatedButton.styleFrom(
@@ -343,7 +351,8 @@ class _DriverClientInfoCardState extends State<DriverClientInfoCard>
                           ? (widget.primaryButtonSuccessText ?? 'Enviado')
                           : (widget.isSendingArrival
                                 ? 'Enviando...'
-                                : (widget.primaryButtonText ?? 'Ya llegué al punto')),
+                                : (widget.primaryButtonText ??
+                                      'Ya llegué al punto')),
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,

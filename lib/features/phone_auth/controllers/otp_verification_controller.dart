@@ -22,11 +22,14 @@ class OtpVerificationController extends ChangeNotifier {
     AuthService? authService,
   }) : _verificationId = verificationId,
        _resendToken = resendToken,
-         _clientAuthRepository = clientAuthRepository ?? ClientAuthRepositoryImpl(),
-         _userDataService = userDataService ?? UserDataService(),
-         _verifyClientPhoneOtpUseCase =
+       _clientAuthRepository =
+           clientAuthRepository ?? ClientAuthRepositoryImpl(),
+       _userDataService = userDataService ?? UserDataService(),
+       _verifyClientPhoneOtpUseCase =
            verifyClientPhoneOtpUseCase ??
-           VerifyClientPhoneOtpUseCase(clientAuthRepository ?? ClientAuthRepositoryImpl()),
+           VerifyClientPhoneOtpUseCase(
+             clientAuthRepository ?? ClientAuthRepositoryImpl(),
+           ),
        _authService = authService ?? AuthService();
 
   final ClientAuthRepository _clientAuthRepository;
@@ -85,7 +88,8 @@ class OtpVerificationController extends ChangeNotifier {
     if (_lockUntil != null && DateTime.now().isBefore(_lockUntil!)) {
       final remaining = _lockUntil!.difference(DateTime.now()).inSeconds;
       throw StateError(
-          'Has alcanzado el numero maximo de intentos. Intenta nuevamente en ${remaining}s.');
+        'Has alcanzado el numero maximo de intentos. Intenta nuevamente en ${remaining}s.',
+      );
     }
 
     _loading = true;

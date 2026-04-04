@@ -1,6 +1,6 @@
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
-class AppTamano{
+class AppTamano {
   // Padding & margins
   static double paddingXS = 8.w;
   static double paddingSM = 12.w;

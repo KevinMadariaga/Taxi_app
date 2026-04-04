@@ -5,17 +5,17 @@ import 'package:taxi_app/data/models/registro_cliente_model.dart';
 import 'package:crypto/crypto.dart';
 import 'dart:convert';
 
-
 class RegistroClienteViewModel extends ChangeNotifier {
-    // Método simple de encriptación (hash) usando SHA-256
-    String _encryptPassword(String password) {
-      // Usar la librería crypto para hash SHA-256
-      // Requiere agregar 'crypto' en pubspec.yaml
+  // Método simple de encriptación (hash) usando SHA-256
+  String _encryptPassword(String password) {
+    // Usar la librería crypto para hash SHA-256
+    // Requiere agregar 'crypto' en pubspec.yaml
 
-      final bytes = utf8.encode(password);
-      final digest = sha256.convert(bytes);
-      return digest.toString();
-    }
+    final bytes = utf8.encode(password);
+    final digest = sha256.convert(bytes);
+    return digest.toString();
+  }
+
   bool loading = false;
 
   Future<String?> register(RegistroClienteModel model) async {

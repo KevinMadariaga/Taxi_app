@@ -65,89 +65,94 @@ class _DriverChatScreenState extends State<DriverChatScreen> {
           },
           child: Scaffold(
             appBar: AppBar(
-            title: const Text('Chat en tiempo real'),
-            centerTitle: true,
-            backgroundColor: AppColores.background,
-            foregroundColor: AppColores.textPrimary,
-          ),
-          body: Column(
-            children: [
-              Expanded(
-                child: ListView.builder(
-                  controller: _scrollController,
-                  itemCount: messages.length,
-                  itemBuilder: (context, index) {
-                    final msg = messages[index];
-                    final mine = msg.senderId == controller.currentDriverId;
+              title: const Text('Chat en tiempo real'),
+              centerTitle: true,
+              backgroundColor: AppColores.background,
+              foregroundColor: AppColores.textPrimary,
+            ),
+            body: Column(
+              children: [
+                Expanded(
+                  child: ListView.builder(
+                    controller: _scrollController,
+                    itemCount: messages.length,
+                    itemBuilder: (context, index) {
+                      final msg = messages[index];
+                      final mine = msg.senderId == controller.currentDriverId;
 
-                    return Align(
-                      alignment: mine
-                          ? Alignment.centerRight
-                          : Alignment.centerLeft,
-                      child: Container(
-                        margin: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 5,
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 9,
-                        ),
-                        decoration: BoxDecoration(
-                          color: mine ? AppColores.primary : AppColores.grey200,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          msg.text,
-                          style: const TextStyle(color: AppColores.textPrimary),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-              SafeArea(
-                top: false,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _textController,
-                          focusNode: _focusNode,
-                          textInputAction: TextInputAction.send,
-                          onSubmitted: (_) => _send(),
-                          decoration: InputDecoration(
-                            hintText: 'Escribe un mensaje...',
-                            hintStyle: const TextStyle(
-                              color: AppColores.textSecondary,
-                            ),
-                            filled: true,
-                            fillColor: AppColores.grey100,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide.none,
+                      return Align(
+                        alignment: mine
+                            ? Alignment.centerRight
+                            : Alignment.centerLeft,
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 5,
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 9,
+                          ),
+                          decoration: BoxDecoration(
+                            color: mine
+                                ? AppColores.primary
+                                : AppColores.grey200,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            msg.text,
+                            style: const TextStyle(
+                              color: AppColores.textPrimary,
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      IconButton(
-                        onPressed: _send,
-                        style: IconButton.styleFrom(
-                          backgroundColor: AppColores.buttonPrimary,
-                          foregroundColor: AppColores.textWhite,
-                        ),
-                        icon: const Icon(Icons.send),
-                      ),
-                    ],
+                      );
+                    },
                   ),
                 ),
-              ),
-            ],
+                SafeArea(
+                  top: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _textController,
+                            focusNode: _focusNode,
+                            textInputAction: TextInputAction.send,
+                            onSubmitted: (_) => _send(),
+                            decoration: InputDecoration(
+                              hintText: 'Escribe un mensaje...',
+                              hintStyle: const TextStyle(
+                                color: AppColores.textSecondary,
+                              ),
+                              filled: true,
+                              fillColor: AppColores.grey100,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide.none,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          onPressed: _send,
+                          style: IconButton.styleFrom(
+                            backgroundColor: AppColores.buttonPrimary,
+                            foregroundColor: AppColores.textWhite,
+                          ),
+                          icon: const Icon(Icons.send),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ));
+        );
       },
     );
   }

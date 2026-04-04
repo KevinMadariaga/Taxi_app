@@ -3,6 +3,7 @@ import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/routes/app_routes.dart';
 import 'package:taxi_app/screens/eliminar_cuenta_screen.dart';
 import 'package:taxi_app/core/services/services.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 class ConfiguracionAplicacionView extends StatefulWidget {
   const ConfiguracionAplicacionView({super.key});
@@ -14,11 +15,29 @@ class ConfiguracionAplicacionView extends StatefulWidget {
 
 class _ConfiguracionAplicacionViewState
     extends State<ConfiguracionAplicacionView> {
-  static const String _appVersion = '1.0.1+14';
+  String _appVersion = '...';
 
   String _apariencia = 'Sistema';
   bool _isLoggingOut = false;
   bool _isDeletingAccount = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAppVersion();
+  }
+
+  Future<void> _loadAppVersion() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      if (!mounted) return;
+      setState(() {
+        _appVersion = '${info.version}+${info.buildNumber}';
+      });
+    } catch (_) {
+      // Ignore; keep placeholder
+    }
+  }
 
   Future<void> _seleccionarApariencia() async {
     final selected = await showModalBottomSheet<String>(
@@ -176,7 +195,7 @@ class _ConfiguracionAplicacionViewState
           ListTile(
             leading: const Icon(Icons.info_outline),
             title: const Text('Versión de la aplicación'),
-            subtitle: const Text(_appVersion),
+            subtitle: Text(_appVersion),
           ),
           const Divider(height: 24),
           ListTile(

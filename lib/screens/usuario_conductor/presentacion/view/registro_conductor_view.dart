@@ -44,7 +44,10 @@ class IntroCompletarRegistroView extends StatelessWidget {
                 onPressed: () {
                   Navigator.pushReplacement(
                     context,
-                    MaterialPageRoute(builder: (_) => const PaginaPerfilUsuario(tipoUsuario: 'conductor')),
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          const PaginaPerfilUsuario(tipoUsuario: 'conductor'),
+                    ),
                   );
                 },
                 child: const Text('Continuar'),
@@ -55,7 +58,9 @@ class IntroCompletarRegistroView extends StatelessWidget {
                   // Omitir: mostrar loader y luego la pantalla principal
                   Navigator.pushReplacement(
                     context,
-                    MaterialPageRoute(builder: (_) => const BienvenidoCargandoView()),
+                    MaterialPageRoute(
+                      builder: (_) => const BienvenidoCargandoView(),
+                    ),
                   );
                 },
                 child: const Text('Omitir y continuar'),
@@ -128,14 +133,23 @@ class _RegistroConductorViewState extends State<RegistroConductorView> {
                       child: CircleAvatar(
                         radius: 65,
                         backgroundColor: Colors.grey.shade200,
-                        backgroundImage: img != null ? FileImage(File(img.path)) : null,
+                        backgroundImage: img != null
+                            ? FileImage(File(img.path))
+                            : null,
                         child: img == null
                             ? Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: const [
-                                  Icon(Icons.camera_alt, size: 32, color: Colors.black54),
+                                  Icon(
+                                    Icons.camera_alt,
+                                    size: 32,
+                                    color: Colors.black54,
+                                  ),
                                   SizedBox(height: 6),
-                                  Text('Agregar foto', style: TextStyle(fontSize: 12)),
+                                  Text(
+                                    'Agregar foto',
+                                    style: TextStyle(fontSize: 12),
+                                  ),
                                 ],
                               )
                             : null,
@@ -294,38 +308,41 @@ class _RegistroConductorViewState extends State<RegistroConductorView> {
                     return CustomButton(
                       text: loading ? 'Registrando...' : 'Registrar',
                       onPressed: loading
-                            ? null
-                            : () async {
-                                final BuildContext ctx = context;
+                          ? null
+                          : () async {
+                              final BuildContext ctx = context;
 
-                                final ok = await vm.register();
+                              final ok = await vm.register();
 
-                                if (ok) {
-                                  if (!mounted) return; // guard State.context uses
+                              if (ok) {
+                                if (!mounted)
+                                  return; // guard State.context uses
 
-                                  if (!ctx.mounted) return; // guard captured BuildContext
+                                if (!ctx.mounted)
+                                  return; // guard captured BuildContext
 
-                                  // Mostrar overlay dinámico de registro completo (reusable)
-                                  await SuccessOverlay.show(
-                                    ctx,
-                                    message: 'Registro completo',
-                                  );
+                                // Mostrar overlay dinámico de registro completo (reusable)
+                                await SuccessOverlay.show(
+                                  ctx,
+                                  message: 'Registro completo',
+                                );
 
-                                  if (!ctx.mounted) return;
+                                if (!ctx.mounted) return;
 
-                                  // Navegar a pantalla introductoria para completar registro (foto perfil + foto vehículo)
-                                  if (!ctx.mounted) return;
-                                  Navigator.pushReplacement(
-                                    ctx,
-                                    MaterialPageRoute(
-                                      builder: (c) => const IntroCompletarRegistroView(),
-                                    ),
-                                  );
-                                } else if (vm.error.value != null) {
-                                  if (!mounted) return;
-                                  _showDialog('Error', vm.error.value!);
-                                }
-                              },
+                                // Navegar a pantalla introductoria para completar registro (foto perfil + foto vehículo)
+                                if (!ctx.mounted) return;
+                                Navigator.pushReplacement(
+                                  ctx,
+                                  MaterialPageRoute(
+                                    builder: (c) =>
+                                        const IntroCompletarRegistroView(),
+                                  ),
+                                );
+                              } else if (vm.error.value != null) {
+                                if (!mounted) return;
+                                _showDialog('Error', vm.error.value!);
+                              }
+                            },
                       // Remove fixed width so button becomes responsive
                       height: 50,
                       fontSize: 16,
@@ -374,7 +391,10 @@ class _BienvenidoCargandoViewState extends State<BienvenidoCargandoView> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: const [
-              Text('Bienvenido', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+              Text(
+                'Bienvenido',
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              ),
               SizedBox(height: 12),
               Text('Cargando mapa...', style: TextStyle(fontSize: 16)),
               SizedBox(height: 20),

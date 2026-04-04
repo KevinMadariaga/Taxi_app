@@ -26,7 +26,10 @@ class DriverRouteService {
 
     final h =
         math.sin(dLat / 2) * math.sin(dLat / 2) +
-        math.cos(lat1) * math.cos(lat2) * math.sin(dLng / 2) * math.sin(dLng / 2);
+        math.cos(lat1) *
+            math.cos(lat2) *
+            math.sin(dLng / 2) *
+            math.sin(dLng / 2);
     final c = 2 * math.atan2(math.sqrt(h), math.sqrt(1 - h));
     return earthRadius * c;
   }
@@ -57,7 +60,10 @@ class DriverRouteService {
   }
 
   LatLng midpoint(LatLng a, LatLng b) {
-    return LatLng((a.latitude + b.latitude) / 2, (a.longitude + b.longitude) / 2);
+    return LatLng(
+      (a.latitude + b.latitude) / 2,
+      (a.longitude + b.longitude) / 2,
+    );
   }
 
   Future<List<LatLng>> fetchRoutePolyline({
@@ -84,7 +90,7 @@ class DriverRouteService {
         _lastRequestAt = now;
         return points;
       }
-      
+
       // Fallback manual a OSRM si el adapter no retorna puntos
       final uri = Uri.parse(
         '$_osrmBaseUrl/route/v1/driving/'
@@ -107,7 +113,12 @@ class DriverRouteService {
       final pts = coordinates
           .whereType<List<dynamic>>()
           .where((item) => item.length >= 2)
-          .map((item) => LatLng((item[1] as num).toDouble(), (item[0] as num).toDouble()))
+          .map(
+            (item) => LatLng(
+              (item[1] as num).toDouble(),
+              (item[0] as num).toDouble(),
+            ),
+          )
           .toList(growable: false);
 
       if (pts.isEmpty) return [from, to];

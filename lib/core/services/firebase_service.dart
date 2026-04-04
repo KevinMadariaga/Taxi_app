@@ -109,7 +109,9 @@ class FirebaseService {
   }) async {
     try {
       try {
-        debugPrint('[FirebaseService] actualizarUbicacionConductorEnSolicitud -> solicitud:$solicitudId lat:${position.latitude} lng:${position.longitude}');
+        debugPrint(
+          '[FirebaseService] actualizarUbicacionConductorEnSolicitud -> solicitud:$solicitudId lat:${position.latitude} lng:${position.longitude}',
+        );
       } catch (_) {}
       await _firestore.collection('solicitudes').doc(solicitudId).update({
         'conductor.lat': position.latitude,

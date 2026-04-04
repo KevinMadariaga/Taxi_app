@@ -56,7 +56,9 @@ class _NotificacionesViewState extends State<NotificacionesView> {
     if (!granted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Permiso no concedido. Revisa la configuracion del sistema.'),
+          content: Text(
+            'Permiso no concedido. Revisa la configuracion del sistema.',
+          ),
         ),
       );
     }
@@ -65,7 +67,9 @@ class _NotificacionesViewState extends State<NotificacionesView> {
   Future<void> _sendTestNotification() async {
     if (!_hasPermission) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Primero concede permiso de notificaciones.')),
+        const SnackBar(
+          content: Text('Primero concede permiso de notificaciones.'),
+        ),
       );
       return;
     }
@@ -97,13 +101,15 @@ class _NotificacionesViewState extends State<NotificacionesView> {
               children: [
                 ListTile(
                   leading: Icon(
-                    _hasPermission ? Icons.check_circle_outline : Icons.warning_amber,
-                    color: _hasPermission ? AppColores.success : AppColores.warning,
+                    _hasPermission
+                        ? Icons.check_circle_outline
+                        : Icons.warning_amber,
+                    color: _hasPermission
+                        ? AppColores.success
+                        : AppColores.warning,
                   ),
                   title: const Text('Permiso del sistema'),
-                  subtitle: Text(
-                    _hasPermission ? 'Concedido' : 'No concedido',
-                  ),
+                  subtitle: Text(_hasPermission ? 'Concedido' : 'No concedido'),
                   trailing: TextButton(
                     onPressed: _requestPermission,
                     child: const Text('Activar'),

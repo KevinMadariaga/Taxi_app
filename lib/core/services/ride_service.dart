@@ -1,8 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class RideService {
-
-  Future<void> actualizarEstadoSolicitud(String solicitudId, String estado) async {
+  Future<void> actualizarEstadoSolicitud(
+    String solicitudId,
+    String estado,
+  ) async {
     final normalized = estado
         .toLowerCase()
         .trim()

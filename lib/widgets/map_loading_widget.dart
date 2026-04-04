@@ -4,10 +4,7 @@ import 'package:taxi_app/core/app_colores.dart';
 class MapLoadingWidget extends StatelessWidget {
   final String message;
 
-  const MapLoadingWidget({
-    super.key,
-    this.message = 'Cargando mapa...',
-  });
+  const MapLoadingWidget({super.key, this.message = 'Cargando mapa...'});
 
   @override
   Widget build(BuildContext context) {

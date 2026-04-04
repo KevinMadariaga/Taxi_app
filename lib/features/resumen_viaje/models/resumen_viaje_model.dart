@@ -61,13 +61,13 @@ class ResumenViajeModel {
     );
 
     final fechaViaje = _toDateTime(
-      data['fechaViaje'] ??
-          data['fecha de terminacion']
+      data['fechaViaje'] ?? data['fecha de terminacion'],
     );
 
     final calificacion = _toNullableDouble(data['calificacion']);
-    final comentarioCalificacion =
-        (data['comentarioCalificacion'] ?? '').toString().trim();
+    final comentarioCalificacion = (data['comentarioCalificacion'] ?? '')
+        .toString()
+        .trim();
 
     return ResumenViajeModel(
       solicitudId: solicitudId,
@@ -86,7 +86,10 @@ class ResumenViajeModel {
     return null;
   }
 
-  static String _firstString(List<dynamic> candidates, {required String fallback}) {
+  static String _firstString(
+    List<dynamic> candidates, {
+    required String fallback,
+  }) {
     for (final item in candidates) {
       final text = item?.toString().trim();
       if (text != null && text.isNotEmpty) return text;

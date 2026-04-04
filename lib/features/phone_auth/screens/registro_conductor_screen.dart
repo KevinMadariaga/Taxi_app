@@ -316,7 +316,7 @@ class _RegistroConductorScreenState extends State<RegistroConductorScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               const Text(
-                                'Contrasena',
+                                'Contraseña',
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w700,
@@ -336,7 +336,7 @@ class _RegistroConductorScreenState extends State<RegistroConductorScreen> {
                           ),
                         ),
                         IconButton(
-                          tooltip: 'Copiar contrasena',
+                          tooltip: 'Copiar contraseña',
                           onPressed: () async {
                             await Clipboard.setData(
                               ClipboardData(text: password),
@@ -344,7 +344,7 @@ class _RegistroConductorScreenState extends State<RegistroConductorScreen> {
                             if (ctx.mounted) {
                               ScaffoldMessenger.of(ctx).showSnackBar(
                                 const SnackBar(
-                                  content: Text('Contrasena copiada'),
+                                  content: Text('Contraseña copiada'),
                                 ),
                               );
                             }

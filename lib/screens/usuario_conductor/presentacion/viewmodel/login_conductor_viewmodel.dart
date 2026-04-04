@@ -98,14 +98,14 @@ class LoginConductorViewModel {
       final data = doc.data();
       final estado = (data['estado'] ?? 'activo').toString().toLowerCase();
       if (estado != 'activo') {
-        error.value = 'Tu cuenta esta inactiva. Contacta al administrador.';
+        error.value = 'Tu cuenta está inactiva. Contacta al administrador.';
         conductor.value = null;
         return false;
       }
 
       final storedPass = (data['passwordLogin'] ?? '').toString();
       if (storedPass.isNotEmpty && storedPass != pass) {
-        error.value = 'Credenciales invalidas';
+        error.value = 'Credenciales inválidas';
         conductor.value = null;
         return false;
       }
@@ -125,7 +125,7 @@ class LoginConductorViewModel {
             password: pass,
           );
           if (created.user == null) {
-            error.value = 'No se pudo iniciar sesion del conductor.';
+            error.value = 'No se pudo iniciar sesión del conductor.';
             return false;
           }
         } else {
@@ -135,7 +135,7 @@ class LoginConductorViewModel {
 
       final authUid = _auth.currentUser?.uid;
       if (authUid == null || authUid.isEmpty) {
-        error.value = 'No se pudo validar la sesion del conductor.';
+        error.value = 'No se pudo validar la sesión del conductor.';
         return false;
       }
 

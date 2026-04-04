@@ -5,9 +5,12 @@ import 'package:taxi_app/core/services/chat_firestore_datasource.dart';
 import '../models/mensaje_model.dart';
 
 class ChatService {
-  ChatService({FirebaseFirestore? firestore, ChatFirestoreDatasource? datasource})
-      : _firestoreOverride = firestore,
-        _datasource = datasource ?? ChatFirestoreDatasource(firestore: firestore);
+  ChatService({
+    FirebaseFirestore? firestore,
+    ChatFirestoreDatasource? datasource,
+  }) : _firestoreOverride = firestore,
+       _datasource =
+           datasource ?? ChatFirestoreDatasource(firestore: firestore);
 
   final FirebaseFirestore? _firestoreOverride;
   final ChatFirestoreDatasource _datasource;

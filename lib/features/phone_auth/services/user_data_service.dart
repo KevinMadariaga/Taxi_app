@@ -155,7 +155,7 @@ class UserDataService {
       }
     }
 
-    throw Exception('No se pudieron generar credenciales unicas.');
+    throw Exception('No se pudieron generar credenciales únicas.');
   }
 
   String _emailBase(String nombre) {
@@ -266,10 +266,10 @@ class UserDataService {
     final pass = password.trim();
 
     if (email.isEmpty || !email.contains('@')) {
-      throw Exception('Correo invalido.');
+      throw Exception('Correo inválido.');
     }
     if (pass.length < 6) {
-      throw Exception('La contrasena debe tener al menos 6 caracteres.');
+      throw Exception('La contraseña debe tener al menos 6 caracteres.');
     }
 
     final oldDoc = await _firestore
@@ -333,7 +333,7 @@ class UserDataService {
         }
       } on FirebaseAuthException catch (e) {
         if (e.code == 'email-already-in-use') {
-          throw Exception('El correo ya esta en uso por otro usuario.');
+          throw Exception('El correo ya está en uso por otro usuario.');
         }
         rethrow;
       }

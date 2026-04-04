@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-
 /// Colores de la aplicación (paleta principal para la app de taxi)
 class AppColores {
   // Marca / primarios
@@ -10,14 +9,17 @@ class AppColores {
   // Superficies y fondos
   static const Color background = Color(0xFFF7F7F8);
   static const Color surface = Colores.blanco;
-  static const Color sheetBackground = surface; // fondos de sheets, tarjetas grandes
+  static const Color sheetBackground =
+      surface; // fondos de sheets, tarjetas grandes
   static const Color cardBackground = surface; // tarjetas y contenedores
 
   // Texto
   static const Color textPrimary = Colores.negro;
   static const Color textSecondary = Color(0xFF6B6B6B);
   static const Color textWhite = Colores.blanco;
-  static const Color textWhiteMuted = Color(0xB3FFFFFF); // blanco con opacidad ~70%
+  static const Color textWhiteMuted = Color(
+    0xB3FFFFFF,
+  ); // blanco con opacidad ~70%
 
   // Botones
   static const Color buttonPrimary = Colores.amarillo;
@@ -43,13 +45,18 @@ class AppColores {
   static const Color warning = Color(0xFFFFA000); // ámbar advertencia
 
   // Overlays / scrims
-  static const Color overlayDark = Color(0x73000000); // similar a Colors.black45
-  static const Color overlayLight = Color(0x42000000); // similar a Colors.black26
+  static const Color overlayDark = Color(
+    0x73000000,
+  ); // similar a Colors.black45
+  static const Color overlayLight = Color(
+    0x42000000,
+  ); // similar a Colors.black26
 
   // Bordes y sombras sutiles
-  static const Color borderSubtle = Color(0x1F000000); // equivalente a Colors.black12
+  static const Color borderSubtle = Color(
+    0x1F000000,
+  ); // equivalente a Colors.black12
 }
-
 
 /// Paleta base con nombres usados por `AppColores`
 class Colores {

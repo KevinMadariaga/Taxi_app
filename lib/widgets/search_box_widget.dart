@@ -4,7 +4,8 @@ import 'package:taxi_app/core/app_colores.dart';
 class SearchBoxWidget extends StatelessWidget {
   final double scale;
   final VoidCallback onTap;
-  const SearchBoxWidget({Key? key, required this.scale, required this.onTap}) : super(key: key);
+  const SearchBoxWidget({Key? key, required this.scale, required this.onTap})
+    : super(key: key);
 
   @override
   Widget build(BuildContext context) {

@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
- 
+
 /// Datos mínimos para rehidratar pantallas de ruta en reinicios.
 class RouteCacheData {
   final String solicitudId;
@@ -38,20 +38,20 @@ class RouteCacheData {
   });
 
   Map<String, dynamic> toMap() => {
-        'solicitudId': solicitudId,
-        'role': role,
-        'clientName': clientName,
-        'clientAddress': clientAddress,
-        'clientLat': clientLat,
-        'clientLng': clientLng,
-        'conductorId': conductorId,
-        'conductorName': conductorName,
-        'conductorPhone': conductorPhone,
-        'conductorPlate': conductorPlate,
-        'conductorPhotoUrl': conductorPhotoUrl,
-        'conductorVehiclePhotoUrl': conductorVehiclePhotoUrl,
-        'conductorRating': conductorRating,
-      };
+    'solicitudId': solicitudId,
+    'role': role,
+    'clientName': clientName,
+    'clientAddress': clientAddress,
+    'clientLat': clientLat,
+    'clientLng': clientLng,
+    'conductorId': conductorId,
+    'conductorName': conductorName,
+    'conductorPhone': conductorPhone,
+    'conductorPlate': conductorPlate,
+    'conductorPhotoUrl': conductorPhotoUrl,
+    'conductorVehiclePhotoUrl': conductorVehiclePhotoUrl,
+    'conductorRating': conductorRating,
+  };
 
   static RouteCacheData? fromMap(Map<String, dynamic>? m) {
     if (m == null) return null;

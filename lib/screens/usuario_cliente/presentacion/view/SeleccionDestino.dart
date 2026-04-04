@@ -164,14 +164,12 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
               // Asi la tarjeta "¿Adónde va?" muestra la ubicacion final elegida.
               destino: LocationModel(
                 position: destino,
-                title:
-                    (direccionDestino?.trim().isNotEmpty == true)
-                        ? direccionDestino!.trim()
-                        : tituloDestino,
-                subtitle:
-                    (direccionDestino?.trim().isNotEmpty == true)
-                        ? direccionDestino!.trim()
-                        : tituloDestino,
+                title: (direccionDestino?.trim().isNotEmpty == true)
+                    ? direccionDestino!.trim()
+                    : tituloDestino,
+                subtitle: (direccionDestino?.trim().isNotEmpty == true)
+                    ? direccionDestino!.trim()
+                    : tituloDestino,
               ),
             ),
           ),
@@ -261,10 +259,9 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
     await _abrirMapPreviewConDestino(
       destino: destinoAjustado.position,
       tituloDestino: tituloDestino,
-      direccionDestino:
-          destinoAjustado.direccion?.trim().isNotEmpty == true
-              ? destinoAjustado.direccion
-              : direccionDestino,
+      direccionDestino: destinoAjustado.direccion?.trim().isNotEmpty == true
+          ? destinoAjustado.direccion
+          : direccionDestino,
     );
   }
 
@@ -392,11 +389,7 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
     );
     if (resultado == null) return;
 
-    await _guardarUbicacionPersonalizada(
-      tipo,
-      resultado.position,
-      tipo,
-    );
+    await _guardarUbicacionPersonalizada(tipo, resultado.position, tipo);
     await _abrirMapPreviewConDestino(
       destino: resultado.position,
       tituloDestino: tipo,

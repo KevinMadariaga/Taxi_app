@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 class SocialIconButton extends StatelessWidget {
   final String asset;
   final VoidCallback onTap;
-  const SocialIconButton({required this.asset, required this.onTap, Key? key}) : super(key: key);
+  const SocialIconButton({required this.asset, required this.onTap, Key? key})
+    : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -18,9 +19,7 @@ class SocialIconButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           color: Colors.white,
         ),
-        child: Center(
-          child: Image.asset(asset, width: 32, height: 32),
-        ),
+        child: Center(child: Image.asset(asset, width: 32, height: 32)),
       ),
     );
   }

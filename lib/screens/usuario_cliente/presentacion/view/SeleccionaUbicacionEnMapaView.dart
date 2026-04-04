@@ -28,10 +28,7 @@ class SeleccionUbicacionResult {
   final LatLng position;
   final String? direccion;
 
-  const SeleccionUbicacionResult({
-    required this.position,
-    this.direccion,
-  });
+  const SeleccionUbicacionResult({required this.position, this.direccion});
 }
 
 class _SeleccionaUbicacionEnMapaViewState
@@ -159,9 +156,9 @@ class _SeleccionaUbicacionEnMapaViewState
   }
 
   void _onConfirmarUbicacion() {
-    Navigator.of(context).pop(
-      SeleccionUbicacionResult(position: _center, direccion: _direccion),
-    );
+    Navigator.of(
+      context,
+    ).pop(SeleccionUbicacionResult(position: _center, direccion: _direccion));
   }
 
   @override

@@ -13,29 +13,35 @@ class SolicitudRepository {
         .map((doc) => doc.data()?['estado'] as String?);
   }
 
-    /// Guarda la ubicación del conductor en la solicitud
-    Future<void> guardarUbicacionConductor(String solicitudId, double lat, double lng) async {
-      try {
-        debugPrint('[SolicitudRepository] guardarUbicacionConductor -> solicitud:$solicitudId lat:$lat lng:$lng');
-        final svc = TripTrackingFirebaseService();
-        final ts = DateTime.now().millisecondsSinceEpoch;
-        await svc.actualizarUbicacionConductorEnSolicitud(
-          solicitudId: solicitudId,
-          location: LatLng(lat, lng),
-          timestampMs: ts,
-          appendRouteHistory: true,
-        );
-      } catch (e) {
-        debugPrint('Error al guardar ubicación del conductor (servicio): $e');
-      }
+  /// Guarda la ubicación del conductor en la solicitud
+  Future<void> guardarUbicacionConductor(
+    String solicitudId,
+    double lat,
+    double lng,
+  ) async {
+    try {
+      debugPrint(
+        '[SolicitudRepository] guardarUbicacionConductor -> solicitud:$solicitudId lat:$lat lng:$lng',
+      );
+      final svc = TripTrackingFirebaseService();
+      final ts = DateTime.now().millisecondsSinceEpoch;
+      await svc.actualizarUbicacionConductorEnSolicitud(
+        solicitudId: solicitudId,
+        location: LatLng(lat, lng),
+        timestampMs: ts,
+        appendRouteHistory: true,
+      );
+    } catch (e) {
+      debugPrint('Error al guardar ubicación del conductor (servicio): $e');
     }
-    
+  }
+
   Future<Map<String, dynamic>?> getCliente(String solicitudId) async {
     try {
       final doc = await FirebaseFirestore.instance
-        .collection('solicitudes')
-        .doc(solicitudId)
-        .get();
+          .collection('solicitudes')
+          .doc(solicitudId)
+          .get();
       if (!doc.exists) return null;
       final data = doc.data();
       if (data == null) return null;
@@ -53,9 +59,9 @@ class SolicitudRepository {
   Future<Map<String, dynamic>?> getConductor(String solicitudId) async {
     try {
       final doc = await FirebaseFirestore.instance
-        .collection('solicitudes')
-        .doc(solicitudId)
-        .get();
+          .collection('solicitudes')
+          .doc(solicitudId)
+          .get();
       if (!doc.exists) return null;
       final data = doc.data();
       if (data == null) return null;
@@ -70,12 +76,14 @@ class SolicitudRepository {
     }
   }
 
-  Future<Map<String, dynamic>?> getConductorUbicacion(String solicitudId) async {
+  Future<Map<String, dynamic>?> getConductorUbicacion(
+    String solicitudId,
+  ) async {
     try {
       final doc = await FirebaseFirestore.instance
-        .collection('solicitudes')
-        .doc(solicitudId)
-        .get();
+          .collection('solicitudes')
+          .doc(solicitudId)
+          .get();
       if (!doc.exists) return null;
       final data = doc.data();
       if (data == null) return null;
@@ -96,9 +104,9 @@ class SolicitudRepository {
   Future<Map<String, dynamic>?> getClienteUbicacion(String solicitudId) async {
     try {
       final doc = await FirebaseFirestore.instance
-        .collection('solicitudes')
-        .doc(solicitudId)
-        .get();
+          .collection('solicitudes')
+          .doc(solicitudId)
+          .get();
       if (!doc.exists) return null;
       final data = doc.data();
       if (data == null) return null;

@@ -12,7 +12,6 @@ import 'package:taxi_app/widgets/floating_loader.dart';
 import 'package:animated_snack_bar/animated_snack_bar.dart';
 import 'package:image_picker/image_picker.dart';
 
-
 class RegistroClienteView extends StatefulWidget {
   const RegistroClienteView({super.key});
 
@@ -72,7 +71,10 @@ class _RegistroClienteViewState extends State<RegistroClienteView> {
     }
 
     // Validar que el correo no esté registrado
-    final firestore = Provider.of<RegistroClienteViewModel>(context, listen: false);
+    final firestore = Provider.of<RegistroClienteViewModel>(
+      context,
+      listen: false,
+    );
     final email = _emailController.text.trim();
     final emailExists = await FirebaseFirestore.instance
         .collection('cliente')
@@ -129,7 +131,6 @@ class _RegistroClienteViewState extends State<RegistroClienteView> {
     }
   }
 
-
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
@@ -148,7 +149,10 @@ class _RegistroClienteViewState extends State<RegistroClienteView> {
         borderRadius: BorderRadius.circular(8),
         borderSide: BorderSide(color: AppColores.buttonPrimary, width: 2),
       ),
-      contentPadding: EdgeInsets.symmetric(vertical: width * 0.018, horizontal: width * 0.03),
+      contentPadding: EdgeInsets.symmetric(
+        vertical: width * 0.018,
+        horizontal: width * 0.03,
+      ),
       fillColor: Colors.white,
       filled: true,
     );
@@ -177,7 +181,10 @@ class _RegistroClienteViewState extends State<RegistroClienteView> {
                             height: width * 0.24,
                             child: ClipOval(
                               child: _profileImage != null
-                                  ? Image.file(_profileImage!, fit: BoxFit.cover)
+                                  ? Image.file(
+                                      _profileImage!,
+                                      fit: BoxFit.cover,
+                                    )
                                   : Container(
                                       color: Colors.grey.shade200,
                                       child: Center(
@@ -212,7 +219,10 @@ class _RegistroClienteViewState extends State<RegistroClienteView> {
                                   color: AppColores.buttonPrimary,
                                   borderRadius: BorderRadius.circular(8),
                                 ),
-                                child: Icon(Icons.camera_alt, color: AppColores.textPrimary),
+                                child: Icon(
+                                  Icons.camera_alt,
+                                  color: AppColores.textPrimary,
+                                ),
                               ),
                             ),
                           ),
@@ -223,7 +233,10 @@ class _RegistroClienteViewState extends State<RegistroClienteView> {
 
                     TextFormField(
                       controller: _nombreController,
-                      style: TextStyle(fontSize: fontSize, color: AppColores.textPrimary),
+                      style: TextStyle(
+                        fontSize: fontSize,
+                        color: AppColores.textPrimary,
+                      ),
                       decoration: inputDecoration.copyWith(
                         labelText: 'Nombre',
                         prefixIcon: const Icon(Icons.person),
@@ -235,7 +248,10 @@ class _RegistroClienteViewState extends State<RegistroClienteView> {
                     SizedBox(height: height * 0.02),
                     TextFormField(
                       controller: _apellidoController,
-                      style: TextStyle(fontSize: fontSize, color: AppColores.textPrimary),
+                      style: TextStyle(
+                        fontSize: fontSize,
+                        color: AppColores.textPrimary,
+                      ),
                       decoration: inputDecoration.copyWith(
                         labelText: 'Apellido',
                         prefixIcon: const Icon(Icons.person_outline),
@@ -249,7 +265,10 @@ class _RegistroClienteViewState extends State<RegistroClienteView> {
                     TextFormField(
                       controller: _telefonoController,
                       keyboardType: TextInputType.phone,
-                      style: TextStyle(fontSize: fontSize, color: AppColores.textPrimary),
+                      style: TextStyle(
+                        fontSize: fontSize,
+                        color: AppColores.textPrimary,
+                      ),
                       decoration: inputDecoration.copyWith(
                         labelText: 'Número de Teléfono',
                         prefixIcon: const Icon(Icons.phone),
@@ -269,7 +288,10 @@ class _RegistroClienteViewState extends State<RegistroClienteView> {
                     TextFormField(
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
-                      style: TextStyle(fontSize: fontSize, color: AppColores.textPrimary),
+                      style: TextStyle(
+                        fontSize: fontSize,
+                        color: AppColores.textPrimary,
+                      ),
                       decoration: inputDecoration.copyWith(
                         labelText: 'Correo Electrónico',
                         prefixIcon: const Icon(Icons.email),
@@ -289,7 +311,10 @@ class _RegistroClienteViewState extends State<RegistroClienteView> {
                     TextFormField(
                       controller: _passwordController,
                       obscureText: !_isPasswordVisible,
-                      style: TextStyle(fontSize: fontSize, color: AppColores.textPrimary),
+                      style: TextStyle(
+                        fontSize: fontSize,
+                        color: AppColores.textPrimary,
+                      ),
                       decoration: inputDecoration.copyWith(
                         labelText: 'Contraseña',
                         prefixIcon: const Icon(Icons.lock),
@@ -319,7 +344,10 @@ class _RegistroClienteViewState extends State<RegistroClienteView> {
                     TextFormField(
                       controller: _confirmPasswordController,
                       obscureText: !_isConfirmPasswordVisible,
-                      style: TextStyle(fontSize: fontSize, color: AppColores.textPrimary),
+                      style: TextStyle(
+                        fontSize: fontSize,
+                        color: AppColores.textPrimary,
+                      ),
                       decoration: inputDecoration.copyWith(
                         labelText: 'Confirmar Contraseña',
                         prefixIcon: const Icon(Icons.lock_outline),
@@ -361,15 +389,22 @@ class _RegistroClienteViewState extends State<RegistroClienteView> {
                     SizedBox(height: height * 0.03),
                     Row(
                       children: [
-                        Expanded(child: Divider(color: Colors.grey, thickness: 1)),
+                        Expanded(
+                          child: Divider(color: Colors.grey, thickness: 1),
+                        ),
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 12.0),
                           child: Text(
                             'O regístrate con',
-                            style: TextStyle(color: Colors.grey, fontSize: fontSize),
+                            style: TextStyle(
+                              color: Colors.grey,
+                              fontSize: fontSize,
+                            ),
                           ),
                         ),
-                        Expanded(child: Divider(color: Colors.grey, thickness: 1)),
+                        Expanded(
+                          child: Divider(color: Colors.grey, thickness: 1),
+                        ),
                       ],
                     ),
                     SizedBox(height: height * 0.02),
@@ -382,7 +417,10 @@ class _RegistroClienteViewState extends State<RegistroClienteView> {
                             // Por ejemplo: vm.registerWithGoogle(context);
                           },
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 18,
+                              vertical: 10,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(8),
@@ -398,7 +436,11 @@ class _RegistroClienteViewState extends State<RegistroClienteView> {
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Image.asset('assets/img/icon_google.png', width: 28, height: 28),
+                                Image.asset(
+                                  'assets/img/icon_google.png',
+                                  width: 28,
+                                  height: 28,
+                                ),
                               ],
                             ),
                           ),
@@ -410,7 +452,10 @@ class _RegistroClienteViewState extends State<RegistroClienteView> {
                             // Por ejemplo: vm.registerWithApple(context);
                           },
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 18,
+                              vertical: 10,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(8),
@@ -426,7 +471,11 @@ class _RegistroClienteViewState extends State<RegistroClienteView> {
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.apple, size: 28, color: Colors.black),
+                                Icon(
+                                  Icons.apple,
+                                  size: 28,
+                                  color: Colors.black,
+                                ),
                               ],
                             ),
                           ),
