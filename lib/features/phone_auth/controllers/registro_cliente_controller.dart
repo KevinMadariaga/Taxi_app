@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:taxi_app/core/services/image_cropper_service.dart';
 
 import '../services/storage_service.dart';
 import '../services/user_data_service.dart';
@@ -12,15 +13,19 @@ class RegistroClienteController extends ChangeNotifier {
     required this.telefono,
     StorageService? storageService,
     UserDataService? userDataService,
+    ImageCropperService? imageCropperService,
     ImagePicker? imagePicker,
   }) : _storageService = storageService ?? StorageService(),
        _userDataService = userDataService ?? UserDataService(),
+       _imageCropperService =
+           imageCropperService ?? const ImageCropperService(),
        _imagePicker = imagePicker ?? ImagePicker();
 
   final String uid;
   final String telefono;
   final StorageService _storageService;
   final UserDataService _userDataService;
+  final ImageCropperService _imageCropperService;
   final ImagePicker _imagePicker;
 
   XFile? _profileImage;
@@ -37,7 +42,12 @@ class RegistroClienteController extends ChangeNotifier {
     );
     if (picked == null) return;
 
-    _profileImage = picked;
+    final cropped = await _imageCropperService.cropProfileImage(
+      sourcePath: picked.path,
+    );
+    if (cropped == null) return;
+
+    _profileImage = XFile(cropped.path);
     notifyListeners();
   }
 

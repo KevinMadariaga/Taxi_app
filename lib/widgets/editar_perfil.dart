@@ -11,6 +11,7 @@ import 'package:taxi_app/components/boton.dart';
 import 'dart:ui' as ui;
 
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/services/image_cropper_service.dart';
 
 class EditarPerfilScreen extends StatefulWidget {
   final TextEditingController nombreController;
@@ -68,6 +69,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
   File? _vehicleImage;
   bool _isUploading = false;
   final ImagePicker _picker = ImagePicker();
+  final ImageCropperService _imageCropperService = const ImageCropperService();
 
   @override
   void initState() {
@@ -84,7 +86,15 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
         maxWidth: 1200,
       );
       if (picked == null) return;
-      final pickedFile = File(picked.path);
+
+      final cropped = isVehicle
+          ? await _imageCropperService.cropVehicleImage(sourcePath: picked.path)
+          : await _imageCropperService.cropProfileImage(
+              sourcePath: picked.path,
+            );
+      if (cropped == null) return;
+
+      final pickedFile = cropped;
       final compressed = await _compressFile(pickedFile, maxBytes: 100 * 1024);
       final fileSize = await compressed.length();
       if (fileSize > 100 * 1024) {

@@ -175,6 +175,15 @@ class _RegistroAdministradorScreenState
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(error)));
+      // Re-open the registration screen so the user can correct data
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => RegistroAdministradorScreen(
+            uid: widget.uid,
+            telefono: widget.telefono,
+          ),
+        ),
+      );
       return;
     }
 

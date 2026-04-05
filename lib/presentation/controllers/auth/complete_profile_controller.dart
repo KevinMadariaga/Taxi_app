@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:taxi_app/core/validators/name_validator.dart';
 import 'package:taxi_app/core/validators/phone_validator.dart';
+import 'package:taxi_app/core/services/image_cropper_service.dart';
 import 'package:taxi_app/domain/repositories/client_auth_repository.dart';
 import 'package:taxi_app/data/repositories/client_auth/client_auth_repository_impl.dart';
 import 'package:taxi_app/domain/entities/client_user_entity.dart';
@@ -17,6 +18,7 @@ class CompleteProfileController extends ChangeNotifier {
     GetClientUserUseCase? getClientUserUseCase,
     CompleteClientProfileUseCase? completeClientProfileUseCase,
     ClientAuthRepository? clientAuthRepository,
+    ImageCropperService? imageCropperService,
     ImagePicker? imagePicker,
     AuthService? authService,
   }) : _getClientUserUseCase =
@@ -29,12 +31,15 @@ class CompleteProfileController extends ChangeNotifier {
            CompleteClientProfileUseCase(
              clientAuthRepository ?? ClientAuthRepositoryImpl(),
            ),
+       _imageCropperService =
+           imageCropperService ?? const ImageCropperService(),
        _imagePicker = imagePicker ?? ImagePicker(),
        _authService = authService ?? AuthService();
 
   final String uid;
   final GetClientUserUseCase _getClientUserUseCase;
   final CompleteClientProfileUseCase _completeClientProfileUseCase;
+  final ImageCropperService _imageCropperService;
   final ImagePicker _imagePicker;
   final AuthService _authService;
 
@@ -74,7 +79,13 @@ class CompleteProfileController extends ChangeNotifier {
     );
 
     if (picked == null) return;
-    _selectedImage = picked;
+
+    final cropped = await _imageCropperService.cropProfileImage(
+      sourcePath: picked.path,
+    );
+    if (cropped == null) return;
+
+    _selectedImage = XFile(cropped.path);
     notifyListeners();
   }
 
@@ -95,6 +106,11 @@ class CompleteProfileController extends ChangeNotifier {
       fieldName: 'Apellido',
     );
     if (apellidoError != null) return apellidoError;
+
+    // Require a profile image before completing the profile
+    if (_selectedImage == null) {
+      return 'Selecciona una foto de perfil.';
+    }
 
     var telefonoNormalizado = _normalizeToTenDigits(telefono);
     if (telefonoNormalizado.isEmpty) {

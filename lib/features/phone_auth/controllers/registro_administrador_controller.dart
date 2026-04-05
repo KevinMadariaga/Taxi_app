@@ -2,6 +2,9 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:taxi_app/core/services/image_cropper_service.dart';
+
+import 'package:firebase_auth/firebase_auth.dart';
 
 import '../services/storage_service.dart';
 import '../services/user_data_service.dart';
@@ -12,15 +15,19 @@ class RegistroAdministradorController extends ChangeNotifier {
     required this.telefono,
     StorageService? storageService,
     UserDataService? userDataService,
+    ImageCropperService? imageCropperService,
     ImagePicker? imagePicker,
   }) : _storageService = storageService ?? StorageService(),
        _userDataService = userDataService ?? UserDataService(),
+       _imageCropperService =
+           imageCropperService ?? const ImageCropperService(),
        _imagePicker = imagePicker ?? ImagePicker();
 
   final String uid;
   final String telefono;
   final StorageService _storageService;
   final UserDataService _userDataService;
+  final ImageCropperService _imageCropperService;
   final ImagePicker _imagePicker;
 
   XFile? _profileImage;
@@ -37,7 +44,12 @@ class RegistroAdministradorController extends ChangeNotifier {
     );
     if (picked == null) return;
 
-    _profileImage = picked;
+    final cropped = await _imageCropperService.cropProfileImage(
+      sourcePath: picked.path,
+    );
+    if (cropped == null) return;
+
+    _profileImage = XFile(cropped.path);
     notifyListeners();
   }
 
@@ -74,12 +86,15 @@ class RegistroAdministradorController extends ChangeNotifier {
             'administradores/$uid/profile_${DateTime.now().millisecondsSinceEpoch}.webp',
       );
 
+      final currentEmail = FirebaseAuth.instance.currentUser?.email;
+
       await _userDataService.guardarAdministrador(
         uid: uid,
         nombre: nombre,
         telefono: phoneCandidate,
         foto: profileUrl,
         gremio: gremio,
+        correo: currentEmail,
       );
       return null;
     } catch (_) {

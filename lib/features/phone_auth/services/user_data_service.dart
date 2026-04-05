@@ -97,8 +97,9 @@ class UserDataService {
     required String telefono,
     required String foto,
     required String gremio,
+    String? correo,
   }) async {
-    await _firestore.collection('administradores').doc(uid).set({
+    final data = <String, dynamic>{
       'uid': uid,
       'nombre': nombre.trim(),
       'telefono': telefono.trim(),
@@ -106,7 +107,16 @@ class UserDataService {
       'gremio': gremio.trim(),
       'rol': 'administrador',
       'fechaRegistro': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    };
+
+    if (correo != null && correo.trim().isNotEmpty) {
+      data['email'] = correo.trim().toLowerCase();
+    }
+
+    await _firestore.collection('administradores').doc(uid).set(
+      data,
+      SetOptions(merge: true),
+    );
   }
 
   Stream<AdminModel?> streamAdministrador(String uid) {
