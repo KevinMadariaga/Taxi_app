@@ -22,10 +22,11 @@ class _SplashViewState extends State<SplashView>
   late final AnimationController _controller;
   late final Animation<double> _logoFade;
   late final Animation<double> _logoScale;
-  late final Animation<Offset> _carSlide;
+  // car slide animation removed (unused)
   late final SplashViewModel _viewModel;
   late final UpdateService _updateService;
   late final AppRemoteConfigService _remoteConfigService;
+  bool _hasNavigated = false;
 
   @override
   void initState() {
@@ -48,16 +49,7 @@ class _SplashViewState extends State<SplashView>
       ),
     );
 
-    _carSlide =
-        Tween<Offset>(
-          begin: const Offset(-1.25, 0),
-          end: const Offset(1.25, 0),
-        ).animate(
-          CurvedAnimation(
-            parent: _controller,
-            curve: const Interval(0.2, 1.0, curve: Curves.easeInOut),
-          ),
-        );
+    // previously had a car slide animation here; omitted because unused
 
     _viewModel = context.read<SplashViewModel>();
     _viewModel.addListener(_handleNavigation);
@@ -70,6 +62,11 @@ class _SplashViewState extends State<SplashView>
     );
 
     _startAppFlow();
+    // Fallback: ensure we navigate after 2 seconds even if other checks take time.
+    Future.delayed(const Duration(seconds: 2), () async {
+      if (!mounted || _hasNavigated) return;
+      await _navigateFromSessionState();
+    });
   }
 
   @override
@@ -122,6 +119,7 @@ class _SplashViewState extends State<SplashView>
   }
 
   Future<void> _navigateFromSessionState() async {
+    if (_hasNavigated) return;
     final next = await AuthService().determineInitialScreen();
     if (!mounted) return;
 

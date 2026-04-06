@@ -1,3 +1,0 @@
-// Agrega el logo de Google en assets/img/google_logo.png para el botón de Google Sign-In.
-// Puedes descargar un logo oficial de Google y colocarlo en esa ruta.
-// Ejemplo: https://developers.google.com/identity/images/g-logo.png
