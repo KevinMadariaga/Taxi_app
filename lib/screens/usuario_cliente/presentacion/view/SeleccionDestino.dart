@@ -32,7 +32,10 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
   String _navigationMessage = 'Preparando vista...';
   final Map<String, String> _direccionPrecargadaCache = <String, String>{};
 
-  LatLng get _origenActual => widget.currentLocation ?? const LatLng(0, 0);
+  LatLng? _origenSeleccionado;
+
+  LatLng get _origenActual =>
+      _origenSeleccionado ?? widget.currentLocation ?? const LatLng(0, 0);
 
   String _keyFromLatLng(LatLng point) {
     return '${point.latitude.toStringAsFixed(5)},${point.longitude.toStringAsFixed(5)}';
@@ -1499,6 +1502,19 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
                 controller: _origenController,
                 focusNode: _origenFocus,
                 readOnly: true,
+                onTap: () async {
+                  final resultado = await _abrirSeleccionUbicacionEnMapa(
+                    titulo: 'Selecciona origen',
+                    ubicacionInicial: widget.currentLocation ?? _origenSeleccionado,
+                  );
+                  if (resultado == null) return;
+                  setState(() {
+                    _origenSeleccionado = resultado.position;
+                    _origenController.text = (resultado.direccion?.trim().isNotEmpty == true)
+                        ? resultado.direccion! 
+                        : '${resultado.position.latitude.toStringAsFixed(6)}, ${resultado.position.longitude.toStringAsFixed(6)}';
+                  });
+                },
                 style: TextStyle(fontSize: textFieldFontSize),
                 decoration: InputDecoration(
                   hintText: 'Selecciona o ajusta moviendo el mapa',
@@ -1734,40 +1750,57 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
     required String label,
     required Future<void> Function() onTap,
   }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Row(
-        children: [
-          Icon(icon, color: Colors.amber, size: 28),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 16,
-              color: Colors.black87,
-              fontWeight: FontWeight.w500,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4.0),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0),
+            decoration: BoxDecoration(
+              color: AppColores.primary.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColores.primary.withOpacity(0.2)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, color: AppColores.primary, size: 16),
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: Colors.black87,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
             ),
           ),
-          Icon(Icons.chevron_right, color: Colors.grey[400], size: 20),
-        ],
+        ),
       ),
     );
   }
 
   Widget _buildQuickAccessSection() {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      mainAxisAlignment: MainAxisAlignment.start,
       children: [
         _buildQuickAccessItem(
           icon: Icons.home,
           label: 'Casa',
           onTap: () => _manejarTapUbicacionFrecuente('Casa'),
         ),
+        const SizedBox(width: 6),
         _buildQuickAccessItem(
           icon: Icons.work,
           label: 'Trabajo',
           onTap: () => _manejarTapUbicacionFrecuente('Trabajo'),
         ),
+        const SizedBox(width: 6),
         _buildQuickAccessItem(
           icon: Icons.star,
           label: 'Favoritos',

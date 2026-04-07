@@ -179,13 +179,13 @@ class _ConfiguracionAplicacionViewState
       backgroundColor: AppColores.background,
       body: ListView(
         children: [
-          ListTile(
-            leading: const Icon(Icons.palette_outlined),
-            title: const Text('Apariencia'),
-            subtitle: Text('Actual: $_apariencia'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: _seleccionarApariencia,
-          ),
+          // ListTile(
+          //   leading: const Icon(Icons.palette_outlined),
+          //   title: const Text('Apariencia'),
+          //   subtitle: Text('Actual: $_apariencia'),
+          //   trailing: const Icon(Icons.chevron_right),
+          //   onTap: _seleccionarApariencia,
+          // ),
           ListTile(
             leading: const Icon(Icons.gavel_outlined),
             title: const Text('Documentos legales'),

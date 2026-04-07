@@ -418,7 +418,7 @@ class _InicioClienteViewState extends State<InicioClienteView>
                                     ),
                                     SizedBox(height: 6 * scale),
                                     _buildLocationLabel(scale),
-                                    SizedBox(height: 6 * scale),
+                                    SizedBox(height: 4 * scale),
                                     SizedBox(
                                       height: compactMapHeight,
                                       child: _buildMap(),
@@ -475,10 +475,10 @@ class _InicioClienteViewState extends State<InicioClienteView>
           border: Border.all(color: AppColores.buttonPrimary, width: 2),
           boxShadow: [],
         ),
-        padding: EdgeInsets.symmetric(
-          vertical: 14 * scale,
-          horizontal: 16 * scale,
-        ),
+            padding: EdgeInsets.symmetric(
+              vertical: 16 * scale,
+              horizontal: 24.0,
+            ),
         child: Row(
           children: [
             const Icon(Icons.search, color: AppColores.buttonPrimary),
@@ -489,10 +489,11 @@ class _InicioClienteViewState extends State<InicioClienteView>
                 style: TextStyle(
                   color: AppColores.primary,
                   fontSize: 15 * scale,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ),
-            const Icon(Icons.chevron_right, color: AppColores.buttonPrimary),
+            //const Icon(Icons.chevron_right, color: AppColores.buttonPrimary),
           ],
         ),
       ),
@@ -615,7 +616,7 @@ class _InicioClienteViewState extends State<InicioClienteView>
 
   Widget _buildLocationLabel(double scale) {
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: 5.0 * scale),
+      padding: EdgeInsets.symmetric(horizontal: 17.0 * scale),
       child: Text(
         'Estás aquí',
         style: TextStyle(
@@ -629,12 +630,8 @@ class _InicioClienteViewState extends State<InicioClienteView>
 
   Widget _buildMap() {
     return Container(
+      padding: const EdgeInsets.all(12),
       width: double.infinity,
-      decoration: BoxDecoration(
-        color: AppColores.cardBackground,
-        borderRadius: BorderRadius.circular(2),
-        border: Border.all(color: AppColores.borderSubtle, width: 1.0),
-      ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(2),
         child: Stack(
@@ -659,14 +656,23 @@ class _InicioClienteViewState extends State<InicioClienteView>
             // (overlay removed) map will now occupy full area
             Positioned(
               right: 8,
-              bottom: 8,
+              bottom: 5,
               child: Material(
                 color: Colors.transparent,
-                child: FloatingActionButton.small(
-                  heroTag: 'center_marker_btn',
-                  backgroundColor: AppColores.surface,
-                  onPressed: _centerOnMarker,
-                  child: Icon(Icons.my_location, color: AppColores.primary),
+                child: Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: AppColores.surface,
+                    shape: BoxShape.circle,
+                  ),
+                  child: IconButton(
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    iconSize: 21,
+                    onPressed: _centerOnMarker,
+                    icon: Icon(Icons.my_location, color: AppColores.primary),
+                  ),
                 ),
               ),
             ),
@@ -812,11 +818,6 @@ class _InicioClienteViewState extends State<InicioClienteView>
     );
   }
 
-  Future<void> _navigateToPerfil() async {
-    // Open profile inside the same scaffold by switching index
-    if (!mounted) return;
-    setState(() => _selectedIndex = 2);
-  }
 
   Future<void> _navigateToDestinoSeleccion() async {
     if (_isPreparingNavigation) return;
@@ -865,47 +866,6 @@ class _InicioClienteViewState extends State<InicioClienteView>
     setState(() => _selectedIndex = index);
   }
 
-  Future<void> _showMoreOptionsSheet() async {
-    await showModalBottomSheet<void>(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: Icon(Icons.security),
-                title: Text('Seguridad'),
-                onTap: () async {
-                  Navigator.of(ctx).pop();
-                  await InicioClienteNavigation.irASeguridad(context);
-                },
-              ),
-              ListTile(
-                leading: Icon(Icons.help_outline),
-                title: Text('Ayuda'),
-                onTap: () async {
-                  Navigator.of(ctx).pop();
-                  await InicioClienteNavigation.irAAyuda(context);
-                },
-              ),
-              ListTile(
-                leading: Icon(Icons.support_agent),
-                title: Text('Soporte'),
-                onTap: () async {
-                  Navigator.of(ctx).pop();
-                  await InicioClienteNavigation.irASoporte(context);
-                },
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
 
   Widget _buildSaludoYNombre(double scale) {
     final rawName = vm.clientName.trim();
