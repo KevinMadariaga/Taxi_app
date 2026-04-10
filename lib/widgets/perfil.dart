@@ -9,6 +9,7 @@ import 'package:firebase_storage/firebase_storage.dart' as firebase_storage;
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'dart:ui' as ui;
+import 'dart:math' as math;
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/helper/responsive_helper.dart';
 import 'package:taxi_app/helper/session_helper.dart';
@@ -476,6 +477,9 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
               if (fotoUrl != null && fotoUrl.isNotEmpty) {
                 final cacheFile = await _cacheFileForUid(uid);
                 if (cacheFile.existsSync()) {
+                  if (mounted) {
+                    setState(() => _cachedImageFile = null);
+                  }
                   try {
                     await FileImage(cacheFile).evict();
                   } catch (_) {}
@@ -488,6 +492,9 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
               if (vehUrl != null && vehUrl.isNotEmpty) {
                 final cacheFile = await _vehicleCacheFileForUid(uid);
                 if (cacheFile.existsSync()) {
+                  if (mounted) {
+                    setState(() => _cachedVehicleFile = null);
+                  }
                   try {
                     await FileImage(cacheFile).evict();
                   } catch (_) {}
@@ -594,26 +601,35 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
     final telefono = (userData?['telefono'] ?? 'Sin teléfono registrado')
         .toString();
 
-    // Tamaños base estándar
-    const double appBarFontSize = 20.0;
-    const double baseNameFontSize = 22.0;
-    const double avatarRadius = 50.0;
-    const double avatarIconSize = 45.0;
+    // Responsive sizes based on screen dimensions and safe clamps
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
 
-    // Ajuste simple de tamaño para nombres muy largos
-    double computedNameFontSize = baseNameFontSize;
+    final double appBarFontSize = (screenWidth * 0.05).clamp(18.0, 22.0) as double;
+    double computedNameFontSize = (screenWidth * 0.06).clamp(18.0, 26.0) as double;
+    double avatarRadius = (screenWidth * 0.14).clamp(36.0, 70.0) as double;
+    final double avatarIconSize = (avatarRadius * 0.9).clamp(28.0, 56.0) as double;
+
+    // Adjust name font size for very long names
     if (nombre.length > 18 && nombre.length <= 26) {
-      computedNameFontSize = 20.0;
+      computedNameFontSize = math.max(18.0, computedNameFontSize * 0.9);
     } else if (nombre.length > 26) {
-      computedNameFontSize = 18.0;
+      computedNameFontSize = math.max(16.0, computedNameFontSize * 0.8);
     }
+
+    // Ensure scroll area leaves room for bottom system inset (navigation bar)
+    final bottomInset = MediaQuery.of(context).viewPadding.bottom;
+    final scrollBottomPadding = math.max(
+      ResponsiveHelper.hp(context, 18),
+      bottomInset + ResponsiveHelper.hp(context, 6),
+    );
 
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: widget.tipoUsuario == 'cliente'
             ? false
             : true,
-        title: const Text('Perfil', style: TextStyle(fontSize: appBarFontSize)),
+        title: Text('Perfil', style: TextStyle(fontSize: appBarFontSize)),
         systemOverlayStyle: SystemUiOverlayStyle.dark,
       ),
       body: userData == null
@@ -626,7 +642,7 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
                       left: ResponsiveHelper.wp(context, 4),
                       right: ResponsiveHelper.wp(context, 4),
                       top: ResponsiveHelper.hp(context, 0.5),
-                      bottom: ResponsiveHelper.hp(context, 18),
+                      bottom: scrollBottomPadding,
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,

@@ -1756,25 +1756,26 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0),
+            padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 8.0),
             decoration: BoxDecoration(
-              color: AppColores.primary.withOpacity(0.08),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColores.primary.withOpacity(0.2)),
+              color: AppColores.primary.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColores.primary.withOpacity(0.25)),
+
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(icon, color: AppColores.primary, size: 16),
-                const SizedBox(width: 6),
+                Icon(icon, color: AppColores.primary, size: 18),
+                const SizedBox(width: 8),
                 Text(
                   label,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: Colors.black87,
+                  style: TextStyle(
+                    color: AppColores.textPrimary,
                     fontWeight: FontWeight.w700,
+                    fontSize: 14,
                   ),
                 ),
               ],
@@ -1782,6 +1783,7 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
           ),
         ),
       ),
+    
     );
   }
 
