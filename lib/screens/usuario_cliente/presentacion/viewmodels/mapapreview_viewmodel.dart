@@ -9,6 +9,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:taxi_app/core/constants/solicitud_estado.dart';
 import 'package:taxi_app/helper/map_helper.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/location_model.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/model/vehicle_type.dart';
 import 'package:taxi_app/core/services/map_service_adapter.dart';
 
 /// ViewModel unificado para:
@@ -83,7 +84,10 @@ class MapapreviewViewModel extends ChangeNotifier {
   /// Comentario adicional del cliente para el conductor.
   String comentario = '';
 
-  /// Valor del servicio dependiendo de la hora.
+  /// Tipo de vehículo seleccionado por el cliente.
+  VehicleType tipoVehiculo = VehicleType.carro;
+
+  /// Valor del servicio dependiendo de la hora y el tipo de vehículo.
   late String valorServicio;
 
   /// Polilíneas que representan la ruta.
@@ -190,12 +194,33 @@ class MapapreviewViewModel extends ChangeNotifier {
     return double.tryParse(digits) ?? 0;
   }
 
-  /// Calcula el valor del servicio según la hora
+  void setValorServicio(String value) {
+    final digits = value.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.isEmpty) return;
+
+    final normalized = int.tryParse(digits)?.toString();
+    if (normalized == null || normalized.isEmpty) return;
+    if (valorServicio == normalized) return;
+
+    valorServicio = normalized;
+    notifyListeners();
+  }
+
+  /// Calcula el valor del servicio según la hora y el tipo de vehículo.
   void _calcularValorServicio() {
-    final horaActual = DateTime.now();
-    valorServicio = (horaActual.hour >= 18 || horaActual.hour < 6)
-        ? '12000'
-        : '10000';
+    final hora = DateTime.now().hour;
+    final esNoche = hora >= 18 || hora < 6;
+    valorServicio = esNoche
+        ? tipoVehiculo.basePriceNoche.toString()
+        : tipoVehiculo.basePriceDia.toString();
+  }
+
+  /// Cambia el tipo de vehículo y recalcula el valor base del servicio.
+  void setTipoVehiculo(VehicleType tipo) {
+    if (tipoVehiculo == tipo) return;
+    tipoVehiculo = tipo;
+    _calcularValorServicio();
+    notifyListeners();
   }
 
   Future<void> init() async {
@@ -503,6 +528,27 @@ class MapapreviewViewModel extends ChangeNotifier {
       final comentarioSanitizado = comentario.trim();
       final valorServicioNumerico = _parseValorServicio();
 
+      // Verificar si ya existe una solicitud activa para este cliente.
+      try {
+        final existing = await FirebaseFirestore.instance
+            .collection('solicitudes')
+            .where('cliente.id', isEqualTo: clienteId)
+            .where('estado', whereIn: [
+              SolicitudEstado.buscando,
+              'pending',
+              'pendiente',
+              'asignado',
+              'en espera',
+              'en camino',
+              'en ruta',
+            ])
+            .limit(1)
+            .get();
+        if (existing.docs.isNotEmpty) {
+          return existing.docs.first.id;
+        }
+      } catch (_) {}
+
       final solicitud = <String, dynamic>{
         'cliente': {
           'id': clienteId,
@@ -528,11 +574,18 @@ class MapapreviewViewModel extends ChangeNotifier {
           'lng': destino.position.longitude,
         },
         'estado': SolicitudEstado.buscando,
+        'tipoVehiculo': tipoVehiculo.firestoreKey,
         'metodoPago': metodoPagoSanitizado,
         'comentario': comentarioSanitizado,
+        'valorServicioPropuesto': valorServicioNumerico,
+        'estadoContraoferta': 'sin_contraoferta',
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
-        'tarifa': {'total': valorServicioNumerico},
+        'tarifa': {
+          'total': valorServicioNumerico,
+          'propuestaCliente': valorServicioNumerico,
+        },
+        'contraoferta': {'estado': 'sin_contraoferta', 'valor': null},
       };
 
       final docRef = await FirebaseFirestore.instance

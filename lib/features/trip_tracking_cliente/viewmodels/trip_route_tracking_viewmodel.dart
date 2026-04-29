@@ -11,7 +11,7 @@ import 'package:taxi_app/core/services/route_cache_service.dart';
 import 'package:taxi_app/helper/session_helper.dart';
 import 'package:taxi_app/core/constants/solicitud_estado.dart';
 
-import '../services/firebase_service.dart';
+import '../services/trip_tracking_firestore_service.dart';
 import '../services/local_cache_service.dart';
 import '../services/map_service.dart' as tracking_map;
 import '../services/trip_route_math_service.dart';

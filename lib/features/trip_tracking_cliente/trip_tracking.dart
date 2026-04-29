@@ -3,7 +3,7 @@ export 'models/mensaje_model.dart';
 export 'models/solicitud_model.dart';
 export 'models/usuario_model.dart';
 export 'services/chat_service.dart';
-export 'services/firebase_service.dart';
+export 'services/trip_tracking_firestore_service.dart';
 export 'services/map_service.dart';
 export 'viewmodels/trip_tracking_viewmodel.dart';
 export 'views/trip_chat_screen.dart';

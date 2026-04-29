@@ -11,6 +11,7 @@ class PreviewSolicitudCard extends StatelessWidget {
   final VoidCallback onClose;
   final VoidCallback onCancel;
   final VoidCallback onAccept;
+  final VoidCallback onCounterOffer;
 
   const PreviewSolicitudCard({
     super.key,
@@ -20,6 +21,7 @@ class PreviewSolicitudCard extends StatelessWidget {
     required this.onClose,
     required this.onCancel,
     required this.onAccept,
+    required this.onCounterOffer,
   });
 
   @override
@@ -27,14 +29,16 @@ class PreviewSolicitudCard extends StatelessWidget {
     final preview = this.preview;
     final isLoading = this.isLoading;
     final photoUrl = this.clientPhotoUrl ?? preview.clientPhotoUrl;
-    final onCancel = this.onCancel;
     final onAccept = this.onAccept;
+    final onCounterOffer = this.onCounterOffer;
 
     final String cercania = (preview.distanciaKm != null)
         ? (preview.distanciaKm! <= 1.0 ? 'Cerca' : 'Lejos')
         : '—';
     final comentario = _normalizeComment(preview.comentarioCliente);
     final hasComentario = comentario != null;
+    final valorCliente = preview.valorServicio;
+    final valorContra = preview.valorContraoferta;
 
     return Padding(
       // Asegura que respetamos notch, barras de sistema y gestos
@@ -46,15 +50,21 @@ class PreviewSolicitudCard extends StatelessWidget {
               ? ResponsiveHelper.sp(context, 56)
               : ResponsiveHelper.sp(context, 70);
           final sectionGap = isCompact ? 1.2 : 2.0;
+          final buttonHeight = isCompact
+              ? ResponsiveHelper.hp(context, 4.7)
+              : ResponsiveHelper.hp(context, 5.0);
+          final buttonWidth = isCompact
+              ? constraints.maxWidth * 0.41
+              : constraints.maxWidth * 0.40;
 
           final media = MediaQuery.of(context);
           // Altura útil descontando las zonas seguras del sistema
           final usableHeight = media.size.height - media.padding.vertical;
 
           // Limitamos la altura para que en pantallas pequeñas no se corte
-          final maxHeight = constraints.maxHeight == double.infinity
-              ? usableHeight * 0.6
-              : constraints.maxHeight.clamp(0.0, usableHeight * 0.9);
+            final maxHeight = constraints.maxHeight == double.infinity
+              ? usableHeight * 0.95
+              : constraints.maxHeight.clamp(0.0, usableHeight * 0.95);
 
           return ConstrainedBox(
             constraints: BoxConstraints(
@@ -75,183 +85,144 @@ class PreviewSolicitudCard extends StatelessWidget {
                 right: isCompact ? 12 : 14,
                 bottom: isCompact ? 10 : 12,
               ),
-              child: SizedBox.expand(
-                child: Column(
-                  mainAxisSize: MainAxisSize.max,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.local_taxi,
-                              color: AppColores.textSecondary,
-                              size: ResponsiveHelper.sp(context, 20),
-                            ),
-                            SizedBox(width: ResponsiveHelper.wp(context, 2.5)),
-                            Text(
-                              'Solicitud seleccionada',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: ResponsiveHelper.sp(
-                                  context,
-                                  isCompact ? 15 : 17,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        GestureDetector(
-                          onTap: onClose,
-                          child: Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: BoxDecoration(
-                              color: AppColores.grey200,
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              Icons.close,
-                              color: AppColores.textSecondary,
-                              size: ResponsiveHelper.sp(context, 16),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: ResponsiveHelper.hp(context, sectionGap)),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
                             children: [
+                              Icon(
+                                Icons.local_taxi,
+                                color: AppColores.textSecondary,
+                                size: ResponsiveHelper.sp(context, 20),
+                              ),
                               SizedBox(
-                                width: avatarSize,
-                                height: avatarSize,
-                                child: CircleAvatar(
-                                  radius: avatarSize / 2,
-                                  backgroundColor: AppColores.grey400,
-                                  backgroundImage:
-                                      photoUrl != null && photoUrl.isNotEmpty
-                                      ? NetworkImage(photoUrl)
-                                      : null,
-                                  child: (photoUrl == null || photoUrl.isEmpty)
-                                      ? Icon(
-                                          Icons.person,
-                                          color: AppColores.textWhite,
-                                          size: ResponsiveHelper.sp(
-                                            context,
-                                            isCompact ? 22 : 25,
-                                          ),
-                                        )
-                                      : null,
-                                ),
-                              ),
-                              SizedBox(width: ResponsiveHelper.wp(context, 2)),
-                              Expanded(
-                                child: Text(
-                                  (preview.clientName ?? 'Cliente')
-                                      .toUpperCase(),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: ResponsiveHelper.sp(
-                                      context,
-                                      isCompact ? 14 : 15,
-                                    ),
-                                    color: AppColores.textPrimary,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Padding(
-                          padding: EdgeInsets.only(
-                            left: ResponsiveHelper.wp(context, 2),
-                          ),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text(
-                                'Distancia',
-                                style: TextStyle(
-                                  fontSize: ResponsiveHelper.sp(context, 14),
-                                  color: AppColores.textSecondary,
-                                ),
+                                width: ResponsiveHelper.wp(context, 2.5),
                               ),
                               Text(
-                                cercania,
+                                'Solicitud seleccionada',
                                 style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColores.textPrimary,
+                                  fontWeight: FontWeight.w700,
                                   fontSize: ResponsiveHelper.sp(
                                     context,
-                                    isCompact ? 15 : 16,
+                                    isCompact ? 15 : 17,
                                   ),
                                 ),
                               ),
                             ],
                           ),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: ResponsiveHelper.hp(context, sectionGap)),
-                    if (isCompact)
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _InfoBlock(
-                            label: 'Recoger en:',
-                            child: Text(
-                              _pickupText(preview),
-                              style: TextStyle(
-                                fontSize: ResponsiveHelper.sp(context, 13),
-                                color: AppColores.textPrimary,
+                          GestureDetector(
+                            onTap: onClose,
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: AppColores.grey200,
+                                shape: BoxShape.circle,
                               ),
-                              maxLines: 3,
-                              overflow: TextOverflow.ellipsis,
+                              child: Icon(
+                                Icons.close,
+                                color: AppColores.textSecondary,
+                                size: ResponsiveHelper.sp(context, 16),
+                              ),
                             ),
                           ),
-                          SizedBox(height: ResponsiveHelper.hp(context, 0.9)),
-                          _InfoBlock(
-                            label: 'Pagará con:',
+                        ],
+                      ),
+                      SizedBox(
+                        height: ResponsiveHelper.hp(context, sectionGap),
+                      ),
+                      Row(
+                        children: [
+                          Expanded(
                             child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
-                                Icon(
-                                  _paymentIcon(preview.paymentMethod),
-                                  color: AppColores.primary,
-                                  size: ResponsiveHelper.sp(context, 16),
+                                SizedBox(
+                                  width: avatarSize,
+                                  height: avatarSize,
+                                  child: CircleAvatar(
+                                    radius: avatarSize / 2,
+                                    backgroundColor: AppColores.grey400,
+                                    backgroundImage:
+                                        photoUrl != null && photoUrl.isNotEmpty
+                                        ? NetworkImage(photoUrl)
+                                        : null,
+                                    child:
+                                        (photoUrl == null || photoUrl.isEmpty)
+                                        ? Icon(
+                                            Icons.person,
+                                            color: AppColores.textWhite,
+                                            size: ResponsiveHelper.sp(
+                                              context,
+                                              isCompact ? 22 : 25,
+                                            ),
+                                          )
+                                        : null,
+                                  ),
                                 ),
-                                const SizedBox(width: 6),
+                                SizedBox(
+                                  width: ResponsiveHelper.wp(context, 2),
+                                ),
                                 Expanded(
                                   child: Text(
-                                    _formatMetodoPreview(preview.paymentMethod),
+                                    (preview.clientName ?? 'Cliente')
+                                        .toUpperCase(),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
                                     style: TextStyle(
+                                      fontWeight: FontWeight.w800,
                                       fontSize: ResponsiveHelper.sp(
                                         context,
-                                        14,
+                                        isCompact ? 14 : 15,
                                       ),
                                       color: AppColores.textPrimary,
                                     ),
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Padding(
+                            padding: EdgeInsets.only(
+                              left: ResponsiveHelper.wp(context, 2),
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  'Distancia',
+                                  style: TextStyle(
+                                    fontSize: ResponsiveHelper.sp(context, 14),
+                                    color: AppColores.textSecondary,
+                                  ),
+                                ),
+                                Text(
+                                  cercania,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColores.textPrimary,
+                                    fontSize: ResponsiveHelper.sp(
+                                      context,
+                                      isCompact ? 15 : 16,
+                                    ),
                                   ),
                                 ),
                               ],
                             ),
                           ),
                         ],
-                      )
-                    else
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: _InfoBlock(
+                      ),
+                      SizedBox(
+                        height: ResponsiveHelper.hp(context, sectionGap),
+                      ),
+                      if (isCompact)
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _InfoBlock(
                               label: 'Recoger en:',
                               child: Text(
                                 _pickupText(preview),
@@ -263,14 +234,10 @@ class PreviewSolicitudCard extends StatelessWidget {
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
-                          ),
-                          SizedBox(width: ResponsiveHelper.wp(context, 4)),
-                          Expanded(
-                            child: _InfoBlock(
+                            SizedBox(height: ResponsiveHelper.hp(context, 0.9)),
+                            _InfoBlock(
                               label: 'Pagará con:',
-                              alignEnd: true,
                               child: Row(
-                                mainAxisAlignment: MainAxisAlignment.end,
                                 children: [
                                   Icon(
                                     _paymentIcon(preview.paymentMethod),
@@ -278,12 +245,11 @@ class PreviewSolicitudCard extends StatelessWidget {
                                     size: ResponsiveHelper.sp(context, 16),
                                   ),
                                   const SizedBox(width: 6),
-                                  Flexible(
+                                  Expanded(
                                     child: Text(
                                       _formatMetodoPreview(
                                         preview.paymentMethod,
                                       ),
-                                      textAlign: TextAlign.right,
                                       style: TextStyle(
                                         fontSize: ResponsiveHelper.sp(
                                           context,
@@ -298,107 +264,248 @@ class PreviewSolicitudCard extends StatelessWidget {
                                 ],
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                    SizedBox(height: ResponsiveHelper.hp(context, sectionGap)),
-                    if (hasComentario) ...[
-                      SizedBox(height: ResponsiveHelper.hp(context, 1.2)),
-                      Container(
-                        width: double.infinity,
-                        padding: EdgeInsets.symmetric(
-                          horizontal: ResponsiveHelper.wp(context, 2.5),
-                          vertical: ResponsiveHelper.hp(context, 0.9),
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColores.background,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: AppColores.borderSubtle),
-                        ),
-                        child: Row(
+                          ],
+                        )
+                      else
+                        Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Icon(
-                              Icons.chat_bubble_outline,
-                              size: ResponsiveHelper.sp(context, 15),
-                              color: AppColores.textSecondary,
-                            ),
-                            SizedBox(width: ResponsiveHelper.wp(context, 2)),
                             Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Comentario del cliente',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: ResponsiveHelper.sp(
-                                        context,
-                                        12,
-                                      ),
-                                      color: AppColores.textPrimary,
+                              child: _InfoBlock(
+                                label: 'Recoger en:',
+                                child: Text(
+                                  _pickupText(preview),
+                                  style: TextStyle(
+                                    fontSize: ResponsiveHelper.sp(context, 13),
+                                    color: AppColores.textPrimary,
+                                  ),
+                                  maxLines: 3,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ),
+                            SizedBox(width: ResponsiveHelper.wp(context, 4)),
+                            Expanded(
+                              child: _InfoBlock(
+                                label: 'Pagará con:',
+                                alignEnd: true,
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.end,
+                                  children: [
+                                    Icon(
+                                      _paymentIcon(preview.paymentMethod),
+                                      color: AppColores.primary,
+                                      size: ResponsiveHelper.sp(context, 16),
                                     ),
-                                  ),
-                                  SizedBox(
-                                    height: ResponsiveHelper.hp(context, 0.2),
-                                  ),
-                                  Text(
-                                    comentario,
-                                    maxLines: isCompact ? 3 : 4,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: ResponsiveHelper.sp(
-                                        context,
-                                        12.5,
+                                    const SizedBox(width: 6),
+                                    Flexible(
+                                      child: Text(
+                                        _formatMetodoPreview(
+                                          preview.paymentMethod,
+                                        ),
+                                        textAlign: TextAlign.right,
+                                        style: TextStyle(
+                                          fontSize: ResponsiveHelper.sp(
+                                            context,
+                                            14,
+                                          ),
+                                          color: AppColores.textPrimary,
+                                        ),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
-                                      color: AppColores.textSecondary,
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
                           ],
                         ),
+                      SizedBox(
+                        height: ResponsiveHelper.hp(context, sectionGap),
                       ),
-                      SizedBox(height: ResponsiveHelper.hp(context, 1.8)),
-                    ] else ...[
-                      SizedBox(height: ResponsiveHelper.hp(context, 0.1)),
-                    ],
-                    const Spacer(),
-
-                    Wrap(
-                      spacing: ResponsiveHelper.wp(context, 3),
-                      runSpacing: ResponsiveHelper.hp(context, 0.8),
-                      alignment: WrapAlignment.center,
-                      children: [
-                        CustomButton(
-                          text: 'Cancelar',
-                          color: AppColores.surface,
-                          textColor: AppColores.buttonPrimary,
-                          borderColor: AppColores.buttonPrimary,
-                          onPressed: isLoading ? null : onCancel,
-                          width: isCompact
-                              ? constraints.maxWidth * 0.42
-                              : ResponsiveHelper.wp(context, 36),
-                          height: ResponsiveHelper.hp(context, 5.0),
-                          fontSize: ResponsiveHelper.sp(context, 14),
+                      if (hasComentario) ...[
+                        SizedBox(height: ResponsiveHelper.hp(context, 1.2)),
+                        Container(
+                          width: double.infinity,
+                          padding: EdgeInsets.symmetric(
+                            horizontal: ResponsiveHelper.wp(context, 2.5),
+                            vertical: ResponsiveHelper.hp(context, 0.9),
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColores.background,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: AppColores.borderSubtle),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(
+                                Icons.chat_bubble_outline,
+                                size: ResponsiveHelper.sp(context, 15),
+                                color: AppColores.textSecondary,
+                              ),
+                              SizedBox(width: ResponsiveHelper.wp(context, 2)),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Comentario del cliente',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: ResponsiveHelper.sp(
+                                          context,
+                                          12,
+                                        ),
+                                        color: AppColores.textPrimary,
+                                      ),
+                                    ),
+                                    SizedBox(
+                                      height: ResponsiveHelper.hp(context, 0.2),
+                                    ),
+                                    Text(
+                                      comentario,
+                                      maxLines: isCompact ? 3 : 4,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: ResponsiveHelper.sp(
+                                          context,
+                                          12.5,
+                                        ),
+                                        color: AppColores.textSecondary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                        CustomButton(
-                          text: 'Aceptar',
-                          color: AppColores.buttonPrimary,
-                          textColor: AppColores.textWhite,
-                          isLoading: isLoading,
-                          onPressed: isLoading ? null : onAccept,
-                          width: isCompact
-                              ? constraints.maxWidth * 0.42
-                              : ResponsiveHelper.wp(context, 36),
-                          height: ResponsiveHelper.hp(context, 5.0),
-                          fontSize: ResponsiveHelper.sp(context, 14),
-                        ),
+                        SizedBox(height: ResponsiveHelper.hp(context, 1.8)),
+                      ] else ...[
+                        SizedBox(height: ResponsiveHelper.hp(context, 0.1)),
                       ],
-                    ),
-                  ],
-                ),
+                      if (valorCliente != null) ...[
+                        Container(
+                          width: double.infinity,
+                          padding: EdgeInsets.symmetric(
+                            horizontal: ResponsiveHelper.wp(context, 2.5),
+                            vertical: ResponsiveHelper.hp(context, 0.9),
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColores.background,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: AppColores.borderSubtle),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Oferta del cliente',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: ResponsiveHelper.sp(
+                                              context,
+                                              14,
+                                            ),
+                                            color: AppColores.textPrimary,
+                                          ),
+                                        ),
+                                        if (valorContra != null) ...[
+                                          SizedBox(
+                                            height: ResponsiveHelper.hp(
+                                              context,
+                                              0.35,
+                                            ),
+                                          ),
+                                          Text(
+                                            'Contraoferta hecha',
+                                            style: TextStyle(
+                                              fontSize: ResponsiveHelper.sp(
+                                                context,
+                                                12,
+                                              ),
+                                              color: AppColores.textSecondary,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                          SizedBox(
+                                            height: ResponsiveHelper.hp(
+                                              context,
+                                              0.15,
+                                            ),
+                                          ),
+                                          Text(
+                                            '\$${_formatCurrency(valorContra)}',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: ResponsiveHelper.sp(
+                                                context,
+                                                13,
+                                              ),
+                                              color: AppColores.textPrimary,
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                  Text(
+                                    '\$${_formatCurrency(valorCliente)}',
+                                    textAlign: TextAlign.right,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: ResponsiveHelper.sp(
+                                        context,
+                                        16,
+                                      ),
+                                      color: AppColores.textPrimary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        SizedBox(height: ResponsiveHelper.hp(context, 0.6)),
+                      ],
+                      Wrap(
+                        spacing: ResponsiveHelper.wp(context, 2.3),
+                        runSpacing: ResponsiveHelper.hp(context, 0.4),
+                        alignment: WrapAlignment.center,
+                        children: [
+                          CustomButton(
+                            text: 'Ofertar',
+                            color: AppColores.surface,
+                            textColor: AppColores.buttonPrimary,
+                            borderColor: AppColores.buttonPrimary,
+                            isLoading: isLoading,
+                            onPressed: isLoading ? null : onCounterOffer,
+                            width: buttonWidth,
+                            height: buttonHeight,
+                            fontSize: ResponsiveHelper.sp(context, 14),
+                          ),
+                          CustomButton(
+                            text: 'Aceptar',
+                            color: AppColores.buttonPrimary,
+                            textColor: AppColores.textWhite,
+                            onPressed: isLoading ? null : onAccept,
+                            width: buttonWidth,
+                            height: buttonHeight,
+                            fontSize: ResponsiveHelper.sp(context, 14),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: ResponsiveHelper.hp(context, 0.2)),
+                ],
               ),
             ),
           );
@@ -432,6 +539,19 @@ class PreviewSolicitudCard extends StatelessWidget {
     final lat = preview.solicitud.ubicacionInicial.latitude.toStringAsFixed(5);
     final lng = preview.solicitud.ubicacionInicial.longitude.toStringAsFixed(5);
     return '$lat, $lng';
+  }
+
+  static String _formatCurrency(num value) {
+    final asInt = value.round().toString();
+    final buf = StringBuffer();
+    for (int i = 0; i < asInt.length; i++) {
+      final reverseIndex = asInt.length - i;
+      buf.write(asInt[i]);
+      if (reverseIndex > 1 && reverseIndex % 3 == 1) {
+        buf.write('.');
+      }
+    }
+    return buf.toString();
   }
 
   static String? _normalizeComment(String? raw) {

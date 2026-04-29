@@ -1,12 +1,12 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/app_tamano.dart';
-import 'package:taxi_app/theme/app_theme.dart';
+import 'package:taxi_app/core/theme/app_theme.dart';
 
 void main() {
   group('Theme', () {
-    test('AppTheme puede instanciarse', () {
-      final theme = AppTheme();
+    test('AppThemeConfig puede instanciarse', () {
+      final theme = AppThemeConfig();
       expect(theme, isNotNull);
     });
     test('AppColores puede instanciarse', () {

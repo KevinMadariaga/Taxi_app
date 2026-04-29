@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:math' as Math;
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
@@ -12,7 +11,7 @@ import 'package:taxi_app/helper/session_helper.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/resumen_conductor_view.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/RutaDestinoViewModel.dart';
 import 'package:taxi_app/core/services/background_tracking_service.dart';
-import 'package:taxi_app/features/trip_tracking_cliente/services/firebase_service.dart';
+import 'package:taxi_app/features/trip_tracking_cliente/services/trip_tracking_firestore_service.dart';
 import 'package:taxi_app/widgets/MapaGoogle.dart';
 import 'package:taxi_app/widgets/intermediate_transition_view.dart';
 import 'package:taxi_app/core/app_colores.dart';
@@ -231,40 +230,6 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
     }
   }
 
-  // Verifica en modo debug que la ubicacion fue persistida correctamente.
-  Future<void> _verifyUbicacionPersistida(LatLng loc) async {
-    if (!kDebugMode) return;
-    try {
-      final doc = await FirebaseFirestore.instance
-          .collection('solicitudes')
-          .doc(widget.idSolicitud)
-          .get();
-      final data = doc.data();
-      final storedLat = (data?['conductor']?['ubicacion']?['lat']);
-      final storedLng = (data?['conductor']?['ubicacion']?['lng']);
-      debugPrint(
-        '[VERIFY] Solicitud ${widget.idSolicitud} storedLat=$storedLat storedLng=$storedLng expectedLat=${loc.latitude} expectedLng=${loc.longitude}',
-      );
-      if (storedLat == null || storedLng == null) {
-        debugPrint('[VERIFY][ERROR] ubicacion no encontrada en documento');
-        return;
-      }
-      final double lat = (storedLat as num).toDouble();
-      final double lng = (storedLng as num).toDouble();
-      final latDiff = (lat - loc.latitude).abs();
-      final lngDiff = (lng - loc.longitude).abs();
-      if (latDiff > 0.0005 || lngDiff > 0.0005) {
-        debugPrint(
-          '[VERIFY][WARN] Diferencia significativa entre escrito y leído (latDiff=$latDiff, lngDiff=$lngDiff)',
-        );
-      } else {
-        debugPrint('[VERIFY][OK] Ubicación persistida correctamente');
-      }
-    } catch (e) {
-      debugPrint('[VERIFY][ERROR] Error leyendo doc para verificación: $e');
-    }
-  }
-
   Future<void> _detenerTrackingBackground() async {
     if (!_backgroundServiceRunning && !_backgroundServiceStarting) return;
     try {
@@ -281,6 +246,7 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
   }
 
   Future<void> _obtenerUbicacionConductor() async {
+    final vm = Provider.of<RutaDestinoViewModel>(context, listen: false);
     setState(() {
       _loadingUbicacion = true;
     });
@@ -309,7 +275,7 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
         debugPrint(
           '[LOG] Ubicación guardada en Firestore (servicio): lat=${nuevaUbicacion.latitude}, lng=${nuevaUbicacion.longitude}',
         );
-        await _verifyUbicacionPersistida(nuevaUbicacion);
+        await vm.verificarUbicacionPersistida(widget.idSolicitud, nuevaUbicacion);
       } catch (e) {
         debugPrint('Error guardando ubicación (servicio): $e');
       }
@@ -321,7 +287,6 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
       _escucharMovimientoConductor();
 
       // Obtener polyline de Google Directions API
-      final vm = Provider.of<RutaDestinoViewModel>(context, listen: false);
       if (_ubicacionConductor != null &&
           vm.latDestino != null &&
           vm.lngDestino != null) {
@@ -357,6 +322,7 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
   }
 
   void _escucharMovimientoConductor() {
+    final vm = Provider.of<RutaDestinoViewModel>(context, listen: false);
     _positionStream =
         Geolocator.getPositionStream(
           locationSettings: const LocationSettings(
@@ -393,13 +359,12 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
             debugPrint(
               '[LOG] Ubicación guardada en base de datos (servicio): lat=${nuevaUbicacion.latitude}, lng=${nuevaUbicacion.longitude}, ts=$timestampMs',
             );
-            await _verifyUbicacionPersistida(nuevaUbicacion);
+            await vm.verificarUbicacionPersistida(widget.idSolicitud, nuevaUbicacion);
           } catch (e) {
             debugPrint('Error guardando ubicación obtenida (servicio): $e');
           }
 
           // Ajusta la cámara para mostrar perspectiva 3D
-          final vm = Provider.of<RutaDestinoViewModel>(context, listen: false);
           vm.currentDriverLocation = nuevaUbicacion;
           final persp = vm.getCameraPerspective();
           if (persp != null && _mapController != null && mounted) {
@@ -436,6 +401,8 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
   }) async {
     if (_completionFlowInProgress || !mounted) return;
 
+    final vm = Provider.of<RutaDestinoViewModel>(context, listen: false);
+
     setState(() {
       _completionFlowInProgress = true;
       _terminarViajePressed = true;
@@ -446,19 +413,9 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
       try {
         await _detenerTrackingBackground();
       } catch (_) {}
-
       if (actualizarEstadoSolicitud) {
-        final fechaHoraFinalizacion = DateTime.now();
-        await FirebaseFirestore.instance
-            .collection('solicitudes')
-            .doc(widget.idSolicitud)
-            .update({
-              'estado': 'completado',
-              'fecha de terminacion': fechaHoraFinalizacion,
-            });
+        await vm.marcarCompletado(widget.idSolicitud);
       }
-
-      final vm = Provider.of<RutaDestinoViewModel>(context, listen: false);
       await vm.finalizarSolicitud(widget.idSolicitud);
 
       if (!mounted) return;

@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../models/resumen_viaje_model.dart';
-import '../services/firebase_service.dart';
+import '../services/resumen_viaje_firestore_service.dart';
 
 enum TipoUsuarioResumen { cliente, conductor }
 

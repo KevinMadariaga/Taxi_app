@@ -1,10 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:geocoding/geocoding.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/historial_conductor_viewmodel.dart';
 import 'historial_detalle_conductor.dart';
 
 class HistorialConductor extends StatefulWidget {
@@ -15,17 +13,18 @@ class HistorialConductor extends StatefulWidget {
 }
 
 class HistorialConductorState extends State<HistorialConductor> {
-  // Nota: este estado ya no usa filtros; mostramos solo la lista de solicitudes.
+  final _vm = HistorialConductorViewModel();
+
   double? _lastSyncedAverageRating;
   int? _lastSyncedRatingsCount;
   bool _isSyncingConductorRating = false;
 
   void _scheduleConductorRatingSync({
-    required String conductorId,
     required double averageRating,
     required int ratingsCount,
   }) {
-    if (conductorId.isEmpty) return;
+    final uid = _vm.conductorId;
+    if (uid.isEmpty) return;
     if (_isSyncingConductorRating) return;
 
     final avgRounded = double.parse(averageRating.toStringAsFixed(2));
@@ -36,150 +35,45 @@ class HistorialConductorState extends State<HistorialConductor> {
 
     _isSyncingConductorRating = true;
     unawaited(
-      _syncConductorRating(
-        conductorId: conductorId,
-        averageRating: avgRounded,
-        ratingsCount: ratingsCount,
-      ),
+      _vm
+          .sincronizarCalificacion(
+            uid: uid,
+            averageRating: avgRounded,
+            ratingsCount: ratingsCount,
+          )
+          .then((_) {
+            _lastSyncedAverageRating = avgRounded;
+            _lastSyncedRatingsCount = ratingsCount;
+          })
+          .catchError((_) {})
+          .whenComplete(() => _isSyncingConductorRating = false),
     );
   }
 
-  Future<void> _syncConductorRating({
-    required String conductorId,
-    required double averageRating,
-    required int ratingsCount,
-  }) async {
-    try {
-      await FirebaseFirestore.instance
-          .collection('conductor')
-          .doc(conductorId)
-          .set({
-            'calificacionPromedio': averageRating,
-            'totalCalificaciones': ratingsCount,
-            'ultimaActualizacionCalificacion': FieldValue.serverTimestamp(),
-          }, SetOptions(merge: true));
-
-      _lastSyncedAverageRating = averageRating;
-      _lastSyncedRatingsCount = ratingsCount;
-    } catch (_) {
-    } finally {
-      _isSyncingConductorRating = false;
-    }
-  }
-
-  bool _isCompletedStatus(Map<String, dynamic> data) {
-    final estado = (data['estado'] ?? data['status'] ?? '')
-        .toString()
-        .toLowerCase();
-    return estado == 'completado' || estado.contains('complet');
-  }
-
-  double _extractServiceValue(Map<String, dynamic> data) {
-    final tarifa = data['tarifa'];
-    if (tarifa is Map && tarifa['total'] != null) {
-      final total = tarifa['total'];
-      if (total is num) return total.toDouble();
-      return double.tryParse(total.toString()) ?? 0.0;
-    }
-
-    final valor = data['valor'];
-    if (valor is num) return valor.toDouble();
-    return double.tryParse(valor?.toString() ?? '') ?? 0.0;
-  }
-
-  double _extractRatingScore(Map<String, dynamic> data) {
-    final raw = data['calificacion'] ?? data['calificacion_cliente'];
-    if (raw is Map) {
-      final score = raw['score'] ?? raw['puntaje'] ?? raw['valor'];
-      if (score is num) return score.toDouble();
-      return double.tryParse(score?.toString() ?? '') ?? 0.0;
-    }
-    if (raw is num) return raw.toDouble();
-    return double.tryParse(raw?.toString() ?? '') ?? 0.0;
-  }
-
-  String _formatMoney(double value) {
-    final rounded = value.round();
-    final raw = rounded.toString();
-    return raw.replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => '.');
-  }
-
-  String formatoFechaHora(Timestamp timestamp) {
-    final fecha = timestamp.toDate().toUtc().subtract(const Duration(hours: 5));
-    return "${fecha.day.toString().padLeft(2, '0')}/"
-        "${fecha.month.toString().padLeft(2, '0')}/"
-        "${fecha.year} ${fecha.hour.toString().padLeft(2, '0')}:"
-        "${fecha.minute.toString().padLeft(2, '0')}";
-  }
-
-  Future<String> obtenerDireccion(dynamic ubicacion) async {
-    if (ubicacion is GeoPoint) {
-      try {
-        final placemarks = await placemarkFromCoordinates(
-          ubicacion.latitude,
-          ubicacion.longitude,
-        );
-        final p = placemarks.first;
-        return "${p.street ?? ''}, ${p.locality ?? ''}";
-      } catch (_) {
-        return "Dirección no disponible";
-      }
-    } else if (ubicacion is Map) {
-      // Puede venir como { 'title': 'Lugar', 'lat': x, 'lng': y }
-      if (ubicacion['title'] != null &&
-          (ubicacion['title'] as String).isNotEmpty) {
-        return ubicacion['title'].toString();
-      }
-      final latObj = ubicacion['lat'];
-      final lngObj = ubicacion['lng'];
-      if (latObj != null && lngObj != null) {
-        final lat = (latObj is num)
-            ? latObj.toDouble()
-            : double.tryParse(latObj.toString());
-        final lng = (lngObj is num)
-            ? lngObj.toDouble()
-            : double.tryParse(lngObj.toString());
-        if (lat != null && lng != null) {
-          try {
-            final placemarks = await placemarkFromCoordinates(lat, lng);
-            final p = placemarks.first;
-            return "${p.street ?? ''}, ${p.locality ?? ''}";
-          } catch (_) {
-            return "Dirección no disponible";
-          }
-        }
-      }
-      return "Destino desconocido";
-    } else if (ubicacion is String) {
-      return ubicacion;
-    } else {
-      return "Origen desconocido";
-    }
-  }
-
-  void mostrarDetalle(BuildContext context, Map<String, dynamic> data) async {
+  void _mostrarDetalle(BuildContext context, Map<String, dynamic> data) async {
     final screenWidth = MediaQuery.of(context).size.width;
     final fontSize = screenWidth * 0.04;
 
     final destinoRaw = data['destino'] ?? 'Destino no disponible';
-    final destino = await obtenerDireccion(destinoRaw);
-    final calificacionScore = _extractRatingScore(data).clamp(0, 5);
+    final destino = await _vm.obtenerDireccion(destinoRaw);
+    if (!context.mounted) return;
+
+    final calificacionScore = _vm.extraerCalificacion(data).clamp(0, 5);
     final estrellasLlenas = calificacionScore.floor();
     final tieneMedia = (calificacionScore - estrellasLlenas) >= 0.5;
 
-    // Extraer nombre del cliente del objeto cliente
     String cliente = 'Cliente';
     final clienteObj = data['cliente'];
     if (clienteObj is Map) {
-      cliente = (clienteObj['name'] ?? clienteObj['nombre'] ?? cliente)
-          .toString();
+      cliente =
+          (clienteObj['name'] ?? clienteObj['nombre'] ?? cliente).toString();
     }
 
-    final precio = _extractServiceValue(data);
-
-    final metodoPago = (data['metodoPago'] ?? data['metodo_pago'] ?? 'efectivo')
-        .toString()
-        .toUpperCase();
+    final precio = _vm.extraerValorServicio(data);
+    final metodoPago =
+        (data['metodoPago'] ?? data['metodo_pago'] ?? 'efectivo')
+            .toString()
+            .toUpperCase();
 
     showDialog(
       context: context,
@@ -200,7 +94,7 @@ class HistorialConductorState extends State<HistorialConductor> {
                   children: [
                     const SizedBox(height: 8),
                     Text(
-                      "DETALLE DEL VIAJE",
+                      'DETALLE DEL VIAJE',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: fontSize + 4,
@@ -231,8 +125,6 @@ class HistorialConductorState extends State<HistorialConductor> {
                       ],
                     ),
                     const SizedBox(height: 20),
-
-                    // Cliente centrado
                     Column(
                       children: [
                         const CircleAvatar(
@@ -258,10 +150,8 @@ class HistorialConductorState extends State<HistorialConductor> {
                       ],
                     ),
                     const SizedBox(height: 12),
-
-                    // Calificación con estrellas
                     Text(
-                      "Calificación del viaje",
+                      'Calificación del viaje',
                       style: TextStyle(
                         fontSize: fontSize,
                         fontWeight: FontWeight.bold,
@@ -273,7 +163,8 @@ class HistorialConductorState extends State<HistorialConductor> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: List.generate(5, (index) {
                         final esStar = index < estrellasLlenas;
-                        final esMedia = index == estrellasLlenas && tieneMedia;
+                        final esMedia =
+                            index == estrellasLlenas && tieneMedia;
                         return Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 4),
                           child: Icon(
@@ -301,10 +192,9 @@ class HistorialConductorState extends State<HistorialConductor> {
                         color: AppColores.textSecondary,
                       ),
                     ),
-
                     const SizedBox(height: 24),
                     Text(
-                      "VALOR DEL SERVICIO",
+                      'VALOR DEL SERVICIO',
                       style: TextStyle(
                         fontSize: fontSize,
                         fontWeight: FontWeight.w600,
@@ -314,7 +204,7 @@ class HistorialConductorState extends State<HistorialConductor> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      "\$ ${_formatMoney(precio)}",
+                      '\$ ${_vm.formatearDinero(precio)}',
                       style: TextStyle(
                         fontSize: fontSize + 6,
                         fontWeight: FontWeight.bold,
@@ -322,8 +212,6 @@ class HistorialConductorState extends State<HistorialConductor> {
                       ),
                     ),
                     const SizedBox(height: 12),
-
-                    // Método de pago
                     Text(
                       metodoPago,
                       style: TextStyle(
@@ -335,8 +223,6 @@ class HistorialConductorState extends State<HistorialConductor> {
                   ],
                 ),
               ),
-
-              // Cerrar (icono arriba derecha)
               Positioned(
                 top: 4,
                 right: 4,
@@ -356,11 +242,11 @@ class HistorialConductorState extends State<HistorialConductor> {
 
   @override
   Widget build(BuildContext context) {
-    final String conductorId = FirebaseAuth.instance.currentUser?.uid ?? "";
+    final conductorId = _vm.conductorId;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Historial de Viajes"),
+        title: const Text('Historial de Viajes'),
         backgroundColor: Colors.amber,
       ),
       floatingActionButton: FloatingActionButton.extended(
@@ -376,46 +262,22 @@ class HistorialConductorState extends State<HistorialConductor> {
           );
         },
       ),
-      body: FutureBuilder<QuerySnapshot>(
-        future: FirebaseFirestore.instance
-            .collection('solicitudes')
-            .where('conductor.id', isEqualTo: conductorId)
-            .get(),
+      body: FutureBuilder<List<Map<String, dynamic>>>(
+        future: _vm.cargarHistorial(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            return Center(child: Text("Error: ${snapshot.error}"));
+            return Center(child: Text('Error: ${snapshot.error}'));
           }
 
-          // Filtrar solo solicitudes con estado 'completado'
-          var allViajes = (snapshot.data?.docs ?? []).where((doc) {
-            final data = doc.data() as Map<String, dynamic>;
-            return _isCompletedStatus(data);
-          }).toList();
-
-          // Ordenar manualmente por fecha de finalización (completedAt o fecha de terminacion)
-          allViajes.sort((a, b) {
-            final aData = a.data() as Map<String, dynamic>;
-            final bData = b.data() as Map<String, dynamic>;
-            final aTime =
-                (aData['completedAt'] ?? aData['fecha de terminacion'])
-                    as Timestamp?;
-            final bTime =
-                (bData['completedAt'] ?? bData['fecha de terminacion'])
-                    as Timestamp?;
-            if (aTime == null && bTime == null) return 0;
-            if (aTime == null) return 1;
-            if (bTime == null) return -1;
-            return bTime.compareTo(aTime); // Descendente
-          });
+          final allViajes = snapshot.data ?? [];
 
           double scoreTotal = 0.0;
           int ratedCount = 0;
           for (final viaje in allViajes) {
-            final viajeData = viaje.data() as Map<String, dynamic>;
-            final score = _extractRatingScore(viajeData).clamp(0, 5).toDouble();
+            final score = _vm.extraerCalificacion(viaje).clamp(0, 5).toDouble();
             if (score > 0) {
               scoreTotal += score;
               ratedCount++;
@@ -426,33 +288,31 @@ class HistorialConductorState extends State<HistorialConductor> {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!mounted) return;
             _scheduleConductorRatingSync(
-              conductorId: conductorId,
               averageRating: promedio,
               ratingsCount: ratedCount,
             );
           });
 
           if (allViajes.isEmpty) {
-            return const Center(child: Text("No hay viajes registrados."));
+            return const Center(child: Text('No hay viajes registrados.'));
           }
 
-          // Solo mostramos la lista completa de solicitudes (sin tarjeta de resumen ni filtros)
           return ListView.builder(
             padding: const EdgeInsets.symmetric(vertical: 8),
             itemCount: allViajes.length,
             itemBuilder: (context, index) {
-              final data = allViajes[index].data() as Map<String, dynamic>;
+              final data = allViajes[index];
               final destinoRaw = data['destino'];
-              final destinoFuture = obtenerDireccion(destinoRaw);
-              final horaFin =
-                  (data['completedAt'] ?? data['fecha de terminacion'])
-                      as Timestamp?;
-              final valorServicio = _extractServiceValue(data);
-              final calificacion = _extractRatingScore(data).clamp(0, 5);
-              // final duracion = data['duracion minutos']?.toString() ?? '-';
+              final destinoFuture = _vm.obtenerDireccion(destinoRaw);
+              final horaFinStr = _vm.formatarHoraFin(data);
+              final valorServicio = _vm.extraerValorServicio(data);
+              final calificacion = _vm.extraerCalificacion(data).clamp(0, 5);
 
               return Card(
-                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                margin: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
                 child: Row(
                   children: [
                     Expanded(
@@ -469,12 +329,12 @@ class HistorialConductorState extends State<HistorialConductor> {
                               return const Text('Cargando...');
                             }
                             final text =
-                                (snapshot.data ??
+                                snapshot.data ??
                                 (destinoRaw is Map
                                     ? (destinoRaw['title']?.toString() ??
                                           destinoRaw['address']?.toString() ??
                                           'Destino')
-                                    : (destinoRaw?.toString() ?? 'Destino')));
+                                    : (destinoRaw?.toString() ?? 'Destino'));
                             return Text(
                               text.toUpperCase(),
                               style: const TextStyle(
@@ -486,11 +346,10 @@ class HistorialConductorState extends State<HistorialConductor> {
                         subtitle: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            if (horaFin != null)
-                              Text("${formatoFechaHora(horaFin)}"),
+                            if (horaFinStr != null) Text(horaFinStr),
                           ],
                         ),
-                        onTap: () => mostrarDetalle(context, data),
+                        onTap: () => _mostrarDetalle(context, data),
                       ),
                     ),
                     Padding(
@@ -508,7 +367,7 @@ class HistorialConductorState extends State<HistorialConductor> {
                                 color: Colors.green,
                               ),
                               Text(
-                                _formatMoney(valorServicio),
+                                _vm.formatearDinero(valorServicio),
                                 style: const TextStyle(
                                   fontWeight: FontWeight.w700,
                                   fontSize: 15,

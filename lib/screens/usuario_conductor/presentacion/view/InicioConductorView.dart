@@ -1,8 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show FilteringTextInputFormatter;
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/navigation/inicio_conductor_navigation.dart';
@@ -198,8 +197,8 @@ class _InicioConductorState extends State<InicioConductor>
 
   double get _previewHeight {
     final screenHeight = MediaQuery.of(context).size.height;
-    final proposedHeight = screenHeight * 0.44;
-    return proposedHeight.clamp(220.0, screenHeight * 0.45).toDouble();
+    final proposedHeight = screenHeight * 0.54;
+    return proposedHeight.clamp(270.0, screenHeight * 0.62).toDouble();
   }
 
   bool _hasPreviewComment(PreviewSolicitud preview) {
@@ -216,12 +215,18 @@ class _InicioConductorState extends State<InicioConductor>
 
   double _previewHeightFor(PreviewSolicitud preview) {
     final screenHeight = MediaQuery.of(context).size.height;
+    final hasContraoferta = preview.valorContraoferta != null;
     if (_hasPreviewComment(preview)) {
       return _previewHeight;
     }
 
-    final proposedHeight = screenHeight * 0.35;
-    return proposedHeight.clamp(196.0, screenHeight * 0.38).toDouble();
+    if (hasContraoferta) {
+      final proposedHeight = screenHeight * 0.58;
+      return proposedHeight.clamp(290.0, screenHeight * 0.66).toDouble();
+    }
+
+    final proposedHeight = screenHeight * 0.46;
+    return proposedHeight.clamp(230.0, screenHeight * 0.54).toDouble();
   }
 
   // Centrar la cámara en la perspectiva del conductor hacia el cliente al seleccionar una solicitud
@@ -1107,6 +1112,10 @@ class _InicioConductorState extends State<InicioConductor>
                                   }
                                 }
                               },
+                              onCounterOffer: () async {
+                                if (_navigatingToRuta) return;
+                                await _abrirContraofertaModal(vm, preview);
+                              },
                             ),
                           );
                         },
@@ -1230,24 +1239,7 @@ class _InicioConductorState extends State<InicioConductor>
         // Puede ocurrir antes de que exista contexto del provider (según ciclo de vida)
       }
 
-      // Guardar la ubicación del conductor en Firestore para la colección conductores_conectados
-      try {
-        final uid = FirebaseAuth.instance.currentUser?.uid;
-        if (uid != null) {
-          await FirebaseFirestore.instance
-              .collection('conductores_conectados')
-              .doc(uid)
-              .set({
-                'ubicacion': {
-                  'lat': currentLocation.latitude,
-                  'lng': currentLocation.longitude,
-                },
-                'updatedAt': FieldValue.serverTimestamp(),
-              }, SetOptions(merge: true));
-        }
-      } catch (_) {
-        // ignore write errors
-      }
+      await vm?.guardarUbicacionConectado(currentLocation);
 
       // Centrar en el mapa si tenemos ubicación válida.
       // Esto garantiza que cuando pase la pantalla de carga de ubicación,
@@ -1434,6 +1426,107 @@ class _InicioConductorState extends State<InicioConductor>
                 },
               ),
             ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _abrirContraofertaModal(
+    InicioConductorViewmodel vm,
+    PreviewSolicitud preview,
+  ) async {
+    final valorBase = (preview.valorServicio ?? 0).round();
+    final initial = valorBase > 0 ? valorBase.toString() : '11000';
+    final controller = TextEditingController(text: initial);
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        final media = MediaQuery.of(ctx);
+        final keyboardInset = media.viewInsets.bottom;
+        final bottomGap = keyboardInset > 0
+            ? keyboardInset + 12
+            : media.viewPadding.bottom + 12;
+
+        return Padding(
+          padding: EdgeInsets.fromLTRB(12, 16, 12, bottomGap),
+          child: Material(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            clipBehavior: Clip.antiAlias,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Enviar contraoferta',
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Oferta actual del cliente: \$$valorBase',
+                    style: const TextStyle(color: Colors.black54),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: controller,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    decoration: const InputDecoration(
+                      prefixText: '\$ ',
+                      hintText: 'Ej: 11000',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        final digits = controller.text.replaceAll(
+                          RegExp(r'[^0-9]'),
+                          '',
+                        );
+                        if (digits.isEmpty) return;
+                        final valor = double.tryParse(digits);
+                        if (valor == null || valor <= 0) return;
+
+                        try {
+                          await vm.enviarContraoferta(
+                            solicitudId: preview.solicitud.id,
+                            nuevoValor: valor,
+                          );
+                          if (!mounted) return;
+                          Navigator.of(ctx).pop();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Contraoferta enviada. Esperando respuesta del cliente.',
+                              ),
+                            ),
+                          );
+                        } catch (e) {
+                          if (!mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'No se pudo enviar la contraoferta: $e',
+                              ),
+                            ),
+                          );
+                        }
+                      },
+                      child: const Text('Enviar contraoferta'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         );
       },

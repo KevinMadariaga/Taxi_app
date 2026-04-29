@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:taxi_app/core/constants/solicitud_estado.dart';
 import 'package:taxi_app/core/services/services.dart';
 
-import '../services/firebase_service.dart';
+import '../services/trip_tracking_firestore_service.dart';
 import '../widgets/waiting_driver_modal.dart';
 
 class SolicitudEstadoController {

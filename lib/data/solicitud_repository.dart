@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:taxi_app/features/trip_tracking_cliente/services/firebase_service.dart';
+import 'package:taxi_app/features/trip_tracking_cliente/services/trip_tracking_firestore_service.dart';
 
 class SolicitudRepository {
   /// Devuelve un stream en tiempo real del estado de la solicitud

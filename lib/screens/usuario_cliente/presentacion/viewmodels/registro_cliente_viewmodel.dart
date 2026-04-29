@@ -6,7 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
-import '../registro_cliente_model.dart';
+import 'package:taxi_app/data/models/registro_cliente_model.dart';
 
 class RegistroClienteViewModel extends ChangeNotifier {
   bool _loading = false;
@@ -14,6 +14,15 @@ class RegistroClienteViewModel extends ChangeNotifier {
   static const int _maxBytes = 100 * 1024;
 
   bool get loading => _loading;
+
+  Future<bool> emailExiste(String email) async {
+    final snap = await FirebaseFirestore.instance
+        .collection('cliente')
+        .where('correo', isEqualTo: email.trim())
+        .limit(1)
+        .get();
+    return snap.docs.isNotEmpty;
+  }
 
   Future<Uint8List> _compressWebPUnder100Kb(File file) async {
     final original = await file.readAsBytes();

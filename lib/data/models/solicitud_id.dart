@@ -12,7 +12,11 @@ class SolicitudItem {
   String? direccion; // origin title/address
   String? origenTitle;
   String? destinoTitle;
+  double? valorServicio;
+  double? valorContraoferta;
+  String? estadoContraoferta;
   double? distanciaKm;
+  String? tipoVehiculo;
 
   SolicitudItem({
     required this.id,
@@ -26,7 +30,11 @@ class SolicitudItem {
     this.direccion,
     this.origenTitle,
     this.destinoTitle,
+    this.valorServicio,
+    this.valorContraoferta,
+    this.estadoContraoferta,
     this.distanciaKm,
+    this.tipoVehiculo,
   });
 
   factory SolicitudItem.fromMap(String id, Map<String, dynamic> map) {
@@ -34,6 +42,8 @@ class SolicitudItem {
     final clienteUbicacion = _asMap(cliente?['ubicacion']);
     final origen = _asMap(map['origen']);
     final destino = _asMap(map['destino']);
+    final tarifa = _asMap(map['tarifa']);
+    final contraoferta = _asMap(map['contraoferta']);
 
     String? clienteId = _firstText([
       cliente?['id'],
@@ -117,6 +127,16 @@ class SolicitudItem {
 
     final direccion = origenTitle;
 
+    final valorServicio =
+        _toDouble(tarifa?['total']) ??
+        _toDouble(map['valorServicioPropuesto']) ??
+        _toDouble(map['valor']);
+    final valorContraoferta = _toDouble(contraoferta?['valor']);
+    final estadoContraoferta = _firstText([
+      contraoferta?['estado'],
+      map['estadoContraoferta'],
+    ]);
+
     return SolicitudItem(
       id: id,
       clienteId: clienteId,
@@ -129,9 +149,13 @@ class SolicitudItem {
       direccion: direccion,
       origenTitle: origenTitle,
       destinoTitle: destinoTitle,
+      valorServicio: valorServicio,
+      valorContraoferta: valorContraoferta,
+      estadoContraoferta: estadoContraoferta,
       distanciaKm: (map['distanciaKm'] is num)
           ? (map['distanciaKm'] as num).toDouble()
           : null,
+      tipoVehiculo: map['tipoVehiculo']?.toString(),
     );
   }
 

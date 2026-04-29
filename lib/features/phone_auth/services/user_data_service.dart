@@ -253,6 +253,7 @@ class UserDataService {
     required String fotoConductor,
     required String fotoVehiculo,
     required String adminId,
+    required String tipoVehiculo,
     String? correo,
     String? passwordLogin,
   }) async {
@@ -269,6 +270,7 @@ class UserDataService {
       'fotoConductor': FieldValue.delete(),
       'fotoVehiculo': fotoVehiculo,
       'adminId': adminId,
+      'tipoVehiculo': tipoVehiculo,
       'estado': 'activo',
       'fechaRegistro': FieldValue.serverTimestamp(),
       if (correo != null && correo.trim().isNotEmpty) 'correo': correo.trim(),

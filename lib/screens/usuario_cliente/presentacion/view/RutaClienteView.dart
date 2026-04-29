@@ -1,13 +1,9 @@
 import 'dart:async';
 import 'dart:math' as Math;
 
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:taxi_app/features/trip_tracking_cliente/viewmodels/trip_route_tracking_viewmodel.dart';
-import 'package:taxi_app/features/trip_tracking_cliente/views/trip_route_tracking_screen.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/InicioClienteView.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/ResumenClienteView.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -925,10 +921,8 @@ class _EnCaminoCountdownSheetState extends State<_EnCaminoCountdownSheet> {
     });
 
     try {
-      await FirebaseFirestore.instance
-          .collection('solicitudes')
-          .doc(widget.idSolicitud)
-          .update({'estado': 'en camino'});
+      final vm = Provider.of<Rutaclienteviewmodel>(context, listen: false);
+      await vm.marcarEnCamino(widget.idSolicitud);
 
       if (!mounted) return;
       Navigator.of(context).pop(_EnCaminoModalResult.continuar);
@@ -1310,12 +1304,8 @@ class CancelButton extends StatelessWidget {
           builder: (_) => const LoaderSolicitudCancelada(),
         );
         await Future.delayed(const Duration(seconds: 2));
-        // Eliminar la solicitud de Firestore
         try {
-          await FirebaseFirestore.instance
-              .collection('solicitudes')
-              .doc(solicitudId)
-              .delete();
+          await vm.eliminarSolicitud(solicitudId);
         } catch (e) {
           debugPrint('Error eliminando solicitud cancelada: $e');
         }

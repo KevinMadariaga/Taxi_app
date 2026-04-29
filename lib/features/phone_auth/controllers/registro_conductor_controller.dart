@@ -31,12 +31,20 @@ class RegistroConductorController extends ChangeNotifier {
   bool _saving = false;
   String? _generatedEmail;
   String? _generatedPassword;
+  String _tipoVehiculo = 'carro';
 
   XFile? get fotoConductor => _fotoConductor;
   XFile? get fotoVehiculo => _fotoVehiculo;
   bool get saving => _saving;
   String? get generatedEmail => _generatedEmail;
   String? get generatedPassword => _generatedPassword;
+  String get tipoVehiculo => _tipoVehiculo;
+
+  void setTipoVehiculo(String tipo) {
+    if (_tipoVehiculo == tipo) return;
+    _tipoVehiculo = tipo;
+    notifyListeners();
+  }
 
   Future<void> pickFotoConductor() async {
     final picked = await _imagePicker.pickImage(
@@ -127,6 +135,7 @@ class RegistroConductorController extends ChangeNotifier {
         fotoConductor: fotoConductorUrl,
         fotoVehiculo: fotoVehiculoUrl,
         adminId: adminId,
+        tipoVehiculo: _tipoVehiculo,
         correo: credentials.email,
         passwordLogin: credentials.password,
       );

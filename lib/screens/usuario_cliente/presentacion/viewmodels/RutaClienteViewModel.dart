@@ -1,7 +1,9 @@
+import 'dart:async';
+import 'dart:math' as math;
+
 import 'package:taxi_app/core/services/map_service_adapter.dart';
 import 'package:taxi_app/core/services/services.dart';
 import 'package:taxi_app/data/solicitud_repository.dart';
-import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -408,5 +410,37 @@ class Rutaclienteviewmodel extends ChangeNotifier {
       platformChannelSpecifics,
     );
     debugPrint('[Notificacion] show() ejecutado');
+  }
+
+  Future<void> marcarEnCamino(String solicitudId) async {
+    await FirebaseFirestore.instance
+        .collection('solicitudes')
+        .doc(solicitudId)
+        .update({'estado': 'en camino'});
+  }
+
+  Future<void> eliminarSolicitud(String solicitudId) async {
+    await FirebaseFirestore.instance
+        .collection('solicitudes')
+        .doc(solicitudId)
+        .delete();
+  }
+
+  double calcularDistanciaHaversine(
+    double lat1,
+    double lon1,
+    double lat2,
+    double lon2,
+  ) {
+    const R = 6371000.0;
+    final dLat = (lat2 - lat1) * math.pi / 180;
+    final dLon = (lon2 - lon1) * math.pi / 180;
+    final a =
+        math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(lat1 * math.pi / 180) *
+            math.cos(lat2 * math.pi / 180) *
+            math.sin(dLon / 2) *
+            math.sin(dLon / 2);
+    return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
   }
 }

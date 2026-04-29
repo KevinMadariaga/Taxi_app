@@ -84,6 +84,33 @@ class _RegistroConductorScreenState extends State<RegistroConductorScreen> {
                               ),
                             ),
                             const SizedBox(height: 12),
+                            // Selector tipo de vehículo
+                            const Text(
+                              'Tipo de vehículo',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                _TipoVehiculoBtn(
+                                  label: 'Carro',
+                                  icon: Icons.directions_car,
+                                  selected: vm.tipoVehiculo == 'carro',
+                                  onTap: () => vm.setTipoVehiculo('carro'),
+                                ),
+                                const SizedBox(width: 10),
+                                _TipoVehiculoBtn(
+                                  label: 'Moto',
+                                  icon: Icons.two_wheeler,
+                                  selected: vm.tipoVehiculo == 'moto',
+                                  onTap: () => vm.setTipoVehiculo('moto'),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
                             ImagePickerTile(
                               title: 'Foto del conductor',
                               image: vm.fotoConductor,
@@ -209,7 +236,7 @@ class _RegistroConductorScreenState extends State<RegistroConductorScreen> {
                       vertical: 8,
                     ),
                     decoration: BoxDecoration(
-                      color: AppColores.primary.withOpacity(0.14),
+                      color: AppColores.primary.withValues(alpha: 0.14),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: const Row(
@@ -377,5 +404,64 @@ class _RegistroConductorScreenState extends State<RegistroConductorScreen> {
     }
 
     Navigator.of(context).pop(true);
+  }
+}
+
+class _TipoVehiculoBtn extends StatelessWidget {
+  const _TipoVehiculoBtn({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: selected
+                ? AppColores.primary.withValues(alpha: 0.12)
+                : Colors.grey[100],
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: selected ? AppColores.primary : Colors.black12,
+              width: selected ? 2 : 1,
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 26,
+                color: selected ? AppColores.textPrimary : Colors.black45,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight:
+                      selected ? FontWeight.w700 : FontWeight.w500,
+                  color: selected
+                      ? AppColores.textPrimary
+                      : Colors.black45,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

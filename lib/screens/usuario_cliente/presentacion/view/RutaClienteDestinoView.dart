@@ -12,7 +12,7 @@ import 'package:taxi_app/widgets/MapaGoogle.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/utils/marker_icon_helper.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:taxi_app/features/trip_tracking_cliente/services/firebase_service.dart';
+import 'package:taxi_app/features/trip_tracking_cliente/services/trip_tracking_firestore_service.dart';
 import 'package:taxi_app/features/trip_tracking_cliente/widgets/user_trip_info_card.dart';
 
 class RutaClienteDestino extends StatelessWidget {
@@ -759,6 +759,7 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
     LatLng? conductor,
     LatLng? destino,
   ) async {
+    if (!mounted) return;
     final controller = _mapController;
     if (controller == null || conductor == null || destino == null) return;
 
@@ -867,6 +868,7 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
+    if (!mounted) return;
     if (state == AppLifecycleState.resumed) {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
       SystemChrome.setSystemUIOverlayStyle(_rutaClienteDestinoOverlayStyle);

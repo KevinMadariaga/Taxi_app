@@ -1,11 +1,10 @@
 import 'dart:io';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/InicioClienteView.dart';
-import '../../../../data/models/viewmodels/registro_cliente_viewmodel.dart';
+import '../viewmodels/registro_cliente_viewmodel.dart';
 import '../../../../data/models/registro_cliente_model.dart';
 import 'package:taxi_app/components/boton.dart';
 import 'package:taxi_app/widgets/floating_loader.dart';
@@ -70,17 +69,9 @@ class _RegistroClienteViewState extends State<RegistroClienteView> {
       return;
     }
 
-    // Validar que el correo no esté registrado
-    final firestore = Provider.of<RegistroClienteViewModel>(
-      context,
-      listen: false,
-    );
+    final vm = Provider.of<RegistroClienteViewModel>(context, listen: false);
     final email = _emailController.text.trim();
-    final emailExists = await FirebaseFirestore.instance
-        .collection('cliente')
-        .where('correo', isEqualTo: email)
-        .get();
-    if (emailExists.docs.isNotEmpty) {
+    if (await vm.emailExiste(email)) {
       AnimatedSnackBar.material(
         'El correo ya está registrado',
         type: AnimatedSnackBarType.error,
@@ -97,7 +88,7 @@ class _RegistroClienteViewState extends State<RegistroClienteView> {
       password: _passwordController.text,
     );
     try {
-      final error = await firestore.register(model, _profileImage);
+      final error = await vm.register(model, _profileImage);
       if (!mounted) return;
       if (error != null) {
         AnimatedSnackBar.material(

@@ -13,5 +13,8 @@ class PreviewSolicitud {
   String? get clientPhotoUrl => solicitud.clienteFoto;
   String? get paymentMethod => solicitud.metodoPago;
   String? get comentarioCliente => solicitud.comentarioCliente;
+  double? get valorServicio => solicitud.valorServicio;
+  double? get valorContraoferta => solicitud.valorContraoferta;
+  String? get estadoContraoferta => solicitud.estadoContraoferta;
   double? get distanciaKm => solicitud.distanciaKm;
 }

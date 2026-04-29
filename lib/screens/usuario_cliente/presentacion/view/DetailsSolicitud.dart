@@ -6,6 +6,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:taxi_app/helper/responsive_helper.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/location_model.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/model/vehicle_type.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/buscar_destino_view.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/buscando_taxi_view.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/mapapreview_viewmodel.dart';
@@ -221,8 +222,7 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
     try {
       // Reload assets and viewmodel state to ensure map and data refresh correctly
       _loadDestIcon();
-      final initResult = _vm.init();
-      if (initResult is Future) await initResult;
+      await _vm.init();
       await _resolverDireccionOrigen();
       // Ensure camera/perspective is reapplied on next frame
       WidgetsBinding.instance.addPostFrameCallback((_) => _applyPerspective());
@@ -446,7 +446,9 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
           ? 'Buscando ubicación actual...'
           : (_origenDireccionActual ?? vm.origen.title ?? 'Ubicación'),
       icon: Icons.location_on_outlined,
-      iconBorderColor: Colores.amarillo,
+      iconColor: Colors.blue,
+      iconBorderColor: Colores.azul,
+      cardBorderColor: Colors.blue,
       cardBorderRadius: ResponsiveHelper.wp(context, 4),
     );
   }
@@ -530,7 +532,9 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
         header: '¿Adónde va?',
         value: vm.destino.title ?? vm.destino.subtitle ?? 'Destino',
         icon: Icons.place,
-        iconBorderColor: Colors.black12,
+        iconColor: Colors.red,
+        iconBorderColor: Colors.red,
+        cardBorderColor: Colors.red,
         cardBorderRadius: ResponsiveHelper.wp(context, 3),
       ),
     );
@@ -541,14 +545,16 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
     required String header,
     required String value,
     required IconData icon,
+    required Color iconColor,
     required Color iconBorderColor,
+    required Color cardBorderColor,
     required double cardBorderRadius,
   }) {
     return Container(
       padding: EdgeInsets.all(ResponsiveHelper.wp(context, 2)),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(cardBorderRadius),
-        border: Border.all(color: Colores.amarillo, width: 1.5),
+        border: Border.all(color: cardBorderColor, width: 1.5),
         color: AppColores.surface,
       ),
       child: Row(
@@ -562,7 +568,7 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
               ),
               border: Border.all(color: iconBorderColor),
             ),
-            child: Icon(icon, color: Colors.black54),
+            child: Icon(icon, color: iconColor),
           ),
           SizedBox(width: ResponsiveHelper.wp(context, 3)),
           Expanded(
@@ -573,7 +579,7 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
                   header,
                   style: TextStyle(
                     fontSize: ResponsiveHelper.sp(context, 12),
-                    color: AppColores.textSecondary,
+                    color: AppColores.textPrimary,
                   ),
                 ),
                 SizedBox(height: ResponsiveHelper.hp(context, 0.5)),
@@ -663,25 +669,466 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
   }
 
   Widget _buildServiceValue(BuildContext context, MapapreviewViewModel vm) {
-    return Container(
-      padding: EdgeInsets.symmetric(
-        vertical: ResponsiveHelper.hp(context, 2),
-        horizontal: ResponsiveHelper.wp(context, 3),
-      ),
-      decoration: BoxDecoration(
-        color: Colors.grey[100],
-        borderRadius: BorderRadius.circular(ResponsiveHelper.wp(context, 2)),
-        border: Border.all(color: Colors.black12),
-      ),
-      child: Text(
-        'Valor del servicio: ${vm.valorServicio}',
-        style: TextStyle(
-          fontSize: ResponsiveHelper.sp(context, 16),
-          fontWeight: FontWeight.w700,
-          color: AppColores.textPrimary,
+    final vehicleIcon = vm.tipoVehiculo == VehicleType.moto
+        ? Icons.two_wheeler
+        : Icons.directions_car;
+
+    return Row(
+      children: [
+        // Cuadro valor del servicio
+        Expanded(
+          child: GestureDetector(
+            onTap: () => _abrirModalValorServicio(context, vm),
+            child: Container(
+              padding: EdgeInsets.all(ResponsiveHelper.wp(context, 2)),
+              decoration: BoxDecoration(
+                borderRadius:
+                    BorderRadius.circular(ResponsiveHelper.wp(context, 4)),
+                border: Border.all(color: Colors.green, width: 1.5),
+                color: AppColores.surface,
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding:
+                        EdgeInsets.all(ResponsiveHelper.wp(context, 2)),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(
+                        ResponsiveHelper.wp(context, 5),
+                      ),
+                      border: Border.all(color: Colors.green),
+                    ),
+                    child: const Icon(
+                      Icons.attach_money,
+                      color: Colors.green,
+                    ),
+                  ),
+                  SizedBox(width: ResponsiveHelper.wp(context, 3)),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Valor del servicio',
+                          style: TextStyle(
+                            fontSize: ResponsiveHelper.sp(context, 12),
+                            color: AppColores.textPrimary,
+                          ),
+                        ),
+                        SizedBox(height: ResponsiveHelper.hp(context, 0.5)),
+                        Text(
+                          '\$${_formatCurrencyFromRaw(vm.valorServicio)}',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: ResponsiveHelper.sp(context, 14),
+                            color: AppColores.textPrimary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
-      ),
+        SizedBox(width: ResponsiveHelper.wp(context, 2.5)),
+        // Cuadro selector de vehículo
+        Expanded(
+          child: GestureDetector(
+            onTap: () => _abrirModalTipoVehiculo(context, vm),
+            child: Container(
+              padding: EdgeInsets.all(ResponsiveHelper.wp(context, 2)),
+              decoration: BoxDecoration(
+                borderRadius:
+                    BorderRadius.circular(ResponsiveHelper.wp(context, 4)),
+                border: Border.all(color: Colores.amarillo, width: 1.5),
+                color: AppColores.surface,
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding:
+                        EdgeInsets.all(ResponsiveHelper.wp(context, 2)),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(
+                        ResponsiveHelper.wp(context, 5),
+                      ),
+                      border: Border.all(color: Colors.black),
+                    ),
+                    child: Icon(vehicleIcon, color: Colors.black),
+                  ),
+                  SizedBox(width: ResponsiveHelper.wp(context, 3)),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Vehículo',
+                          style: TextStyle(
+                            fontSize: ResponsiveHelper.sp(context, 12),
+                            color: AppColores.textPrimary,
+                          ),
+                        ),
+                        SizedBox(height: ResponsiveHelper.hp(context, 0.5)),
+                        Text(
+                          vm.tipoVehiculo.label,
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: ResponsiveHelper.sp(context, 14),
+                            color: AppColores.textPrimary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
     );
+  }
+
+  Future<void> _abrirModalTipoVehiculo(
+    BuildContext context,
+    MapapreviewViewModel vm,
+  ) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        VehicleType selected = vm.tipoVehiculo;
+        return StatefulBuilder(
+          builder: (ctx, setSheet) {
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                12,
+                0,
+                12,
+                MediaQuery.of(ctx).viewPadding.bottom + 12,
+              ),
+              child: Material(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                clipBehavior: Clip.antiAlias,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 4,
+                        margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(
+                          color: Colors.black12,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                      const Text(
+                        'Tipo de vehículo',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 18,
+                          color: Colors.black,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'El precio varía según el vehículo',
+                        style: TextStyle(color: Colors.black, fontSize: 13),
+                      ),
+                      const SizedBox(height: 20),
+                      Row(
+                        children: VehicleType.values.map((tipo) {
+                          final isSelected = selected == tipo;
+                          final vehicleIcon = tipo == VehicleType.moto
+                              ? Icons.two_wheeler
+                              : Icons.directions_car;
+                          return Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                              ),
+                              child: GestureDetector(
+                                onTap: () {
+                                  setSheet(() => selected = tipo);
+                                  vm.setTipoVehiculo(tipo);
+                                  Future.delayed(
+                                    const Duration(milliseconds: 160),
+                                    () {
+                                      if (ctx.mounted) {
+                                        Navigator.of(ctx).pop();
+                                      }
+                                    },
+                                  );
+                                },
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 180),
+                                  curve: Curves.easeOutCubic,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 18,
+                                    horizontal: 10,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: isSelected
+                                        ? Colores.amarillo.withValues(alpha: 0.14)
+                                        : Colors.grey[50],
+                                    borderRadius: BorderRadius.circular(14),
+                                    border: Border.all(
+                                      color: isSelected
+                                          ? Colores.amarillo
+                                          : Colors.black12,
+                                      width: isSelected ? 2 : 1,
+                                    ),
+                                    boxShadow: isSelected
+                                        ? [
+                                            BoxShadow(
+                                              color: Colores.amarillo
+                                                  .withValues(alpha: 0.3),
+                                              blurRadius: 10,
+                                              offset: const Offset(0, 3),
+                                            ),
+                                          ]
+                                        : [],
+                                  ),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      AnimatedScale(
+                                        scale: isSelected ? 1.1 : 1.0,
+                                        duration:
+                                            const Duration(milliseconds: 180),
+                                        child: Icon(
+                                          vehicleIcon,
+                                          size: 44,
+                                          color: isSelected
+                                              ? Colors.black87
+                                              : Colors.black45,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 10),
+                                      Text(
+                                        tipo.label,
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 16,
+                                          color: Colors.black,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Desde \$${_formatCurrency(tipo.basePriceDia)}',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.black,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 10),
+                                      AnimatedOpacity(
+                                        opacity: isSelected ? 1.0 : 0.0,
+                                        duration:
+                                            const Duration(milliseconds: 180),
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 4,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Colores.amarillo,
+                                            borderRadius: BorderRadius.circular(
+                                              20,
+                                            ),
+                                          ),
+                                          child: const Text(
+                                            'Seleccionado',
+                                            style: TextStyle(
+                                              color: Colors.black,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 4),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  String _formatCurrency(num value) {
+    final asInt = value.round().toString();
+    final buf = StringBuffer();
+    for (int i = 0; i < asInt.length; i++) {
+      final reverseIndex = asInt.length - i;
+      buf.write(asInt[i]);
+      if (reverseIndex > 1 && reverseIndex % 3 == 1) {
+        buf.write('.');
+      }
+    }
+    return buf.toString();
+  }
+
+  String _formatCurrencyFromRaw(String raw) {
+    final digits = raw.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.isEmpty) return '0';
+    final parsed = int.tryParse(digits) ?? 0;
+    return _formatCurrency(parsed);
+  }
+
+  Future<void> _abrirModalValorServicio(
+    BuildContext context,
+    MapapreviewViewModel vm,
+  ) async {
+    final initialDigits = vm.valorServicio.replaceAll(RegExp(r'[^0-9]'), '');
+    String formatInput(String raw) {
+      final digits = raw.replaceAll(RegExp(r'[^0-9]'), '');
+      if (digits.isEmpty) return '';
+      final parsed = int.tryParse(digits) ?? 0;
+      return _formatCurrency(parsed);
+    }
+
+    final controller = TextEditingController(
+      text: formatInput(initialDigits),
+    )
+      ..selection = TextSelection(
+        baseOffset: 0,
+        extentOffset: formatInput(initialDigits).length,
+      );
+    final focusNode = FocusNode();
+    bool isFormatting = false;
+
+    void guardar(BuildContext ctx) {
+      final digits = controller.text.replaceAll(RegExp(r'[^0-9]'), '');
+      if (digits.isNotEmpty) vm.setValorServicio(digits);
+      Navigator.of(ctx).pop();
+    }
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, _) {
+            final bottomInset = MediaQuery.of(ctx).viewInsets.bottom;
+            final safePad = MediaQuery.of(ctx).viewPadding.bottom;
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                12,
+                16,
+                12,
+                bottomInset > 0 ? bottomInset + 8 : safePad + 12,
+              ),
+              child: Material(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                clipBehavior: Clip.antiAlias,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        '¿Cuánto ofreces por el servicio?',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 18,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: controller,
+                        focusNode: focusNode,
+                        autofocus: true,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: false,
+                          signed: false,
+                        ),
+                        textInputAction: TextInputAction.done,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                        ],
+                        onChanged: (value) {
+                          if (isFormatting) return;
+                          final formatted = formatInput(value);
+                          if (formatted == value) return;
+                          isFormatting = true;
+                          controller.value = TextEditingValue(
+                            text: formatted,
+                            selection: TextSelection.collapsed(
+                              offset: formatted.length,
+                            ),
+                          );
+                          isFormatting = false;
+                        },
+                        onSubmitted: (_) => guardar(ctx),
+                        decoration: InputDecoration(
+                          prefixText: '\$ ',
+                          hintText: 'Ej: ${vm.tipoVehiculo.basePriceDia}',
+                          border: const OutlineInputBorder(),
+                          focusedBorder: OutlineInputBorder(
+                            borderSide: BorderSide(
+                              color: Colores.amarillo,
+                              width: 2,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colores.amarillo,
+                            foregroundColor: Colors.black,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          onPressed: () => guardar(ctx),
+                          child: const Text(
+                            'Guardar',
+                            style: TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    controller.dispose();
+    focusNode.dispose();
   }
 
   Future<void> _abrirModalComentarios(

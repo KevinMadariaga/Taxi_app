@@ -9,7 +9,7 @@ import 'package:taxi_app/core/services/services.dart';
 import '../models/mensaje_model.dart';
 import '../models/solicitud_model.dart';
 import '../services/chat_service.dart';
-import '../services/firebase_service.dart';
+import '../services/trip_tracking_firestore_service.dart';
 import '../services/local_cache_service.dart';
 import '../services/map_service.dart';
 

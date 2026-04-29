@@ -54,6 +54,7 @@ class InicioConductorViewmodel extends ChangeNotifier {
   String? nameFromDb;
   String? plate;
   String? vehiclePhotoUrl;
+  String? tipoVehiculoConductor;
 
   String? get vehiclePlate => plate;
   String? get vehiclePhoto => vehiclePhotoUrl;
@@ -126,6 +127,10 @@ class InicioConductorViewmodel extends ChangeNotifier {
             final data = snap.data();
             nameFromDb = data?['nombre']?.toString();
             plate = data?['placa']?.toString();
+            final tipo = data?['tipoVehiculo']?.toString().trim().toLowerCase();
+            if (tipo != null && tipo.isNotEmpty) {
+              tipoVehiculoConductor = tipo;
+            }
             // Preferir la foto almacenada en Firestore si existe
             final fotoFromDb =
                 data?['fotoUrl'] ?? data?['foto'] ?? data?['photoUrl'];
@@ -385,6 +390,18 @@ class InicioConductorViewmodel extends ChangeNotifier {
     final lng = item.ubicacionInicial.longitude;
     if (lat == 0 && lng == 0) return null;
 
+    // Filtrar por tipo de vehículo: solo mostrar solicitudes que coincidan
+    // con el tipo del conductor. Si el conductor no tiene tipo registrado,
+    // muestra todas para compatibilidad con perfiles anteriores.
+    final conductorTipo = tipoVehiculoConductor;
+    final solicitudTipo = item.tipoVehiculo?.toLowerCase().trim();
+    if (conductorTipo != null &&
+        solicitudTipo != null &&
+        solicitudTipo.isNotEmpty &&
+        conductorTipo != solicitudTipo) {
+      return null;
+    }
+
     return item;
   }
 
@@ -449,6 +466,11 @@ class InicioConductorViewmodel extends ChangeNotifier {
           final docPlate = data['placa']?.toString().trim();
           if (docPlate != null && docPlate.isNotEmpty) {
             plate = docPlate;
+          }
+
+          final docTipo = data['tipoVehiculo']?.toString().trim().toLowerCase();
+          if (docTipo != null && docTipo.isNotEmpty) {
+            tipoVehiculoConductor = docTipo;
           }
 
           final p = data['foto'] ?? data['fotoUrl'] ?? data['photoUrl'];
@@ -663,19 +685,75 @@ class InicioConductorViewmodel extends ChangeNotifier {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) throw Exception('No user logged in');
 
+    final conductorPayload = _buildConductorPayload(uid);
+
     await _firestore.collection('solicitudes').doc(solicitudId).update({
       'estado': 'asignado',
-      'conductor': {
-        'id': uid,
-        'nombre': displayName,
-        if (photoUrl != null) 'foto': photoUrl,
-        'placa': vehiclePlate ?? '',
-        if (currentLocation != null) 'lat': currentLocation!.latitude,
-        if (currentLocation != null) 'lng': currentLocation!.longitude,
-        if (vehiclePhotoUrl != null) 'fotoVehiculo': vehiclePhotoUrl,
+      'conductor': conductorPayload,
+      'estadoContraoferta': 'sin_contraoferta',
+      'contraoferta': {
+        'estado': 'sin_contraoferta',
+        'updatedAt': FieldValue.serverTimestamp(),
       },
       'fecha de aceptacion conductor': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
     });
+  }
+
+  Future<void> enviarContraoferta({
+    required String solicitudId,
+    required double nuevoValor,
+  }) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) throw Exception('No user logged in');
+
+    final conductorPayload = _buildConductorPayload(uid);
+    final ref = _firestore.collection('solicitudes').doc(solicitudId);
+
+    await _firestore.runTransaction((tx) async {
+      final snap = await tx.get(ref);
+      if (!snap.exists) {
+        throw StateError('La solicitud ya no existe.');
+      }
+
+      final data = snap.data() ?? <String, dynamic>{};
+      final estado = (data['estado'] ?? data['status'])
+          ?.toString()
+          .toLowerCase();
+      if (estado == 'asignado' || estado == 'cancelado') {
+        throw StateError('La solicitud ya no permite contraoferta.');
+      }
+
+      final ofertaEntry = {
+        'estado': 'pendiente_cliente',
+        'valor': nuevoValor,
+        'conductor': conductorPayload,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
+      tx.set(ref, {
+        'estado': 'buscando',
+        'estadoContraoferta': 'pendiente_cliente',
+        'updatedAt': FieldValue.serverTimestamp(),
+        // Legacy: un solo campo para compatibilidad
+        'contraoferta': ofertaEntry,
+        // Nuevo: mapa por conductor para ofertas múltiples simultáneas
+        'contraofertas': {uid: ofertaEntry},
+      }, SetOptions(merge: true));
+    });
+  }
+
+  Map<String, dynamic> _buildConductorPayload(String uid) {
+    return {
+      'id': uid,
+      'nombre': displayName,
+      if (photoUrl != null) 'foto': photoUrl,
+      'placa': vehiclePlate ?? '',
+      if (currentLocation != null) 'lat': currentLocation!.latitude,
+      if (currentLocation != null) 'lng': currentLocation!.longitude,
+      if (vehiclePhotoUrl != null) 'fotoVehiculo': vehiclePhotoUrl,
+    };
   }
 
   Future<void> listenPreviewSolicitudStatus({
@@ -847,5 +925,17 @@ class InicioConductorViewmodel extends ChangeNotifier {
   void setDisplayName(String name) {
     displayName = name;
     _safeNotify();
+  }
+
+  /// Guarda la ubicación del conductor en conductores_conectados.
+  Future<void> guardarUbicacionConectado(LatLng location) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      await _firestore.collection('conductores_conectados').doc(uid).set({
+        'ubicacion': {'lat': location.latitude, 'lng': location.longitude},
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (_) {}
   }
 }

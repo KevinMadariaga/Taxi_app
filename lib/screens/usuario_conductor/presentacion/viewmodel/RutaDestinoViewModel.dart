@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
@@ -167,6 +168,49 @@ class RutaDestinoViewModel extends ChangeNotifier {
             }
           }
         });
+  }
+
+  Future<void> verificarUbicacionPersistida(
+    String solicitudId,
+    LatLng loc,
+  ) async {
+    if (!kDebugMode) return;
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('solicitudes')
+          .doc(solicitudId)
+          .get();
+      final data = doc.data();
+      final storedLat = data?['conductor']?['ubicacion']?['lat'];
+      final storedLng = data?['conductor']?['ubicacion']?['lng'];
+      debugPrint(
+        '[VERIFY] Solicitud $solicitudId storedLat=$storedLat storedLng=$storedLng expectedLat=${loc.latitude} expectedLng=${loc.longitude}',
+      );
+      if (storedLat == null || storedLng == null) {
+        debugPrint('[VERIFY][ERROR] ubicacion no encontrada en documento');
+        return;
+      }
+      final lat = (storedLat as num).toDouble();
+      final lng = (storedLng as num).toDouble();
+      final latDiff = (lat - loc.latitude).abs();
+      final lngDiff = (lng - loc.longitude).abs();
+      if (latDiff > 0.0005 || lngDiff > 0.0005) {
+        debugPrint(
+          '[VERIFY][WARN] Diferencia significativa (latDiff=$latDiff, lngDiff=$lngDiff)',
+        );
+      } else {
+        debugPrint('[VERIFY][OK] Ubicación persistida correctamente');
+      }
+    } catch (e) {
+      debugPrint('[VERIFY][ERROR] Error leyendo doc: $e');
+    }
+  }
+
+  Future<void> marcarCompletado(String solicitudId) async {
+    await FirebaseFirestore.instance.collection('solicitudes').doc(solicitudId).update({
+      'estado': 'completado',
+      'fecha de terminacion': DateTime.now(),
+    });
   }
 
   Future<void> finalizarSolicitud(String solicitudId) async {

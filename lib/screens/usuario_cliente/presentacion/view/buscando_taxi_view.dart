@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:ui' as ui;
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 
@@ -14,7 +13,8 @@ import 'package:taxi_app/helper/responsive_helper.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/features/trip_tracking_cliente/views/trip_tracking_screen.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/home_cliente_view.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/buscando_taxi_viewmodel.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/buscando_taxi_viewmodel.dart'
+    show BuscandoTaxiViewModel, ContraofertaItem;
 import 'package:taxi_app/widgets/intermediate_transition_view.dart';
 
 class BuscandoTaxiView extends StatefulWidget {
@@ -56,13 +56,20 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
   final Set<String> _visibleConectadosIds = {};
   Set<Circle> _sonarCircles = {};
   Set<Circle> _clientCircles = {};
-  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _conductoresSub;
-  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
-  _conductoresConectadosSub;
+  StreamSubscription<Map<String, LatLng>>? _conductoresSub;
+  StreamSubscription<Map<String, LatLng>>? _conductoresConectadosSub;
+  final Map<String, bool> _respondingOffer = {};
 
   @override
   void initState() {
     super.initState();
+    _vm = BuscandoTaxiViewModel();
+    _vm.addListener(_onVmChanged);
+    _vm.iniciarEscucha(
+      solicitudId: widget.solicitudId,
+      onAsignada: _onSolicitudAsignada,
+    );
+
     _initializeSonarMap();
 
     _startSearchTimer();
@@ -76,18 +83,381 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
       vsync: this,
       duration: const Duration(milliseconds: 900),
     )..repeat();
-
-    _vm = BuscandoTaxiViewModel();
-    _vm.addListener(_onVmChanged);
-    _vm.iniciarEscucha(
-      solicitudId: widget.solicitudId,
-      onAsignada: _onSolicitudAsignada,
-    );
   }
 
   void _onVmChanged() {
     if (!mounted) return;
     setState(() {});
+    _updateTaxiMarkers();
+    _updateVisibleConectadosMarkers();
+  }
+
+  String _formatCurrency(num value) {
+    final asInt = value.round().toString();
+    final buf = StringBuffer();
+    for (int i = 0; i < asInt.length; i++) {
+      final reverseIndex = asInt.length - i;
+      buf.write(asInt[i]);
+      if (reverseIndex > 1 && reverseIndex % 3 == 1) {
+        buf.write('.');
+      }
+    }
+    return buf.toString();
+  }
+
+  Future<void> _abrirModalEditarValor() async {
+    String _formatInput(String raw) {
+      final digits = raw.replaceAll(RegExp(r'[^0-9]'), '');
+      if (digits.isEmpty) return '';
+      final parsed = int.tryParse(digits) ?? 0;
+      return _formatCurrency(parsed);
+    }
+
+    final initialDigits = _vm.valorServicioActual > 0
+        ? _vm.valorServicioActual.round().toString()
+        : '10000';
+    final initialFormatted = _formatInput(initialDigits);
+    final controller = TextEditingController(text: initialFormatted)
+      ..selection = TextSelection(
+        baseOffset: 0,
+        extentOffset: initialFormatted.length,
+      );
+    bool isFormatting = false;
+
+    List<int> _buildSuggestions() {
+      final current = int.tryParse(initialDigits) ?? 5000;
+      final base = current < 5000 ? 5000 : current;
+      return <int>[base + 500, base + 1000, base + 1500, base + 2000];
+    }
+
+    void _applySuggestion(int value) {
+      final formatted = _formatCurrency(value);
+      controller.value = TextEditingValue(
+        text: formatted,
+        selection: TextSelection.collapsed(offset: formatted.length),
+      );
+    }
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        final media = MediaQuery.of(ctx);
+        final keyboardInset = media.viewInsets.bottom;
+        final bottomGap = keyboardInset > 0
+            ? keyboardInset + 12
+            : media.viewPadding.bottom + 12;
+
+        return Padding(
+          padding: EdgeInsets.fromLTRB(12, 16, 12, bottomGap),
+          child: Material(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            clipBehavior: Clip.antiAlias,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Actualizar valor del servicio',
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: controller,
+                    keyboardType: TextInputType.number,
+                    onChanged: (value) {
+                      if (isFormatting) return;
+                      final formatted = _formatInput(value);
+                      if (formatted == value) return;
+                      isFormatting = true;
+                      controller.value = TextEditingValue(
+                        text: formatted,
+                        selection: TextSelection.collapsed(
+                          offset: formatted.length,
+                        ),
+                      );
+                      isFormatting = false;
+                    },
+                    decoration: const InputDecoration(
+                      prefixText: '\$ ',
+                      hintText: 'Ej: 11.000',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: _buildSuggestions().map((value) {
+                      return ActionChip(
+                        label: Text(
+                          '\$${_formatCurrency(value)}',
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 3,
+                        ),
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        onPressed: () => _applySuggestion(value),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _vm.isUpdatingValor
+                          ? null
+                          : () async {
+                              final digits = controller.text.replaceAll(
+                                RegExp(r'[^0-9]'),
+                                '',
+                              );
+                              if (digits.isEmpty) return;
+                              final next = double.tryParse(digits);
+                              if (next == null || next <= 0) return;
+
+                              final ok = await _vm.actualizarValorServicio(
+                                next,
+                              );
+                              if (!mounted) return;
+                              if (ok) {
+                                Navigator.of(ctx).pop();
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Valor actualizado, seguimos buscando conductor.',
+                                    ),
+                                  ),
+                                );
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'No se pudo actualizar el valor.',
+                                    ),
+                                  ),
+                                );
+                              }
+                            },
+                      child: _vm.isUpdatingValor
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text('Guardar nuevo valor'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+    controller.dispose();
+  }
+
+  Future<void> _aceptarOferta(String conductorId) async {
+    if (_respondingOffer[conductorId] == true) return;
+    setState(() => _respondingOffer[conductorId] = true);
+    final ok = await _vm.aceptarContraofertaDeConductor(conductorId);
+    if (!mounted) return;
+    setState(() => _respondingOffer.remove(conductorId));
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudo aceptar la oferta.')),
+      );
+    }
+  }
+
+  Future<void> _rechazarOferta(String conductorId) async {
+    if (_respondingOffer[conductorId] == true) return;
+    setState(() => _respondingOffer[conductorId] = true);
+    final ok = await _vm.rechazarContraofertaDeConductor(conductorId);
+    if (!mounted) return;
+    setState(() => _respondingOffer.remove(conductorId));
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudo rechazar la oferta.')),
+      );
+    }
+  }
+
+  Widget _buildSonarMapWithOfertasOverlay(BuildContext context, bool isTablet) {
+    final ofertas = _vm.contraofertas;
+    if (ofertas.isEmpty) return _buildSonarMap(context);
+
+    final resp = ResponsiveHelper.getResponsiveData(context);
+    final device = resp.deviceType;
+    double pct;
+    if (device == DeviceType.mobile) {
+      pct = 45.0;
+    } else if (device == DeviceType.tablet) {
+      pct = 35.0;
+    } else {
+      pct = 30.0;
+    }
+    final mapHeight = ResponsiveHelper.hp(context, pct).clamp(160.0, 700.0);
+
+    return Stack(
+      children: [
+        _buildSonarMap(context),
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: ClipRRect(
+            borderRadius: const BorderRadius.only(
+              bottomLeft: Radius.circular(16),
+              bottomRight: Radius.circular(16),
+            ),
+            child: Container(
+              constraints: BoxConstraints(maxHeight: mapHeight * 0.65),
+              color: Colors.black.withValues(alpha: 0.78),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 4,
+                          height: 16,
+                          decoration: BoxDecoration(
+                            color: AppColores.buttonPrimary,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Ofertas de conductores (${ofertas.length})',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: isTablet ? 15 : 12,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    ...ofertas.map((o) => _buildOfertaCard(o, isTablet)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildOfertaCard(ContraofertaItem oferta, bool isTablet) {
+    final isResponding = _respondingOffer[oferta.conductorId] == true ||
+        _vm.isRespondingCounteroffer;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColores.buttonPrimary, width: 1.5),
+        boxShadow: const [
+          BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0, 2)),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Row(
+          children: [
+            // Avatar del conductor
+            CircleAvatar(
+              radius: isTablet ? 26 : 22,
+              backgroundColor: Colors.grey[200],
+              backgroundImage: oferta.conductorFoto != null &&
+                      oferta.conductorFoto!.isNotEmpty
+                  ? NetworkImage(oferta.conductorFoto!)
+                  : null,
+              child: oferta.conductorFoto == null ||
+                      oferta.conductorFoto!.isEmpty
+                  ? Icon(Icons.person,
+                      size: isTablet ? 28 : 24, color: Colors.grey)
+                  : null,
+            ),
+            const SizedBox(width: 12),
+            // Nombre y placa
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    oferta.conductorNombre,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: isTablet ? 15 : 13,
+                      color: const Color(0xFF121826),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (oferta.placa != null && oferta.placa!.isNotEmpty)
+                    Text(
+                      oferta.placa!,
+                      style: TextStyle(
+                        fontSize: isTablet ? 13 : 11,
+                        color: Colors.black54,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            // Precio y botones
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  '\$${_formatCurrency(oferta.valor)}',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: isTablet ? 18 : 16,
+                    color: const Color(0xFF121826),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _OfertaButton(
+                      label: 'Rechazar',
+                      color: Colors.grey[200]!,
+                      textColor: Colors.black54,
+                      isLoading: isResponding,
+                      onTap: () => _rechazarOferta(oferta.conductorId),
+                    ),
+                    const SizedBox(width: 8),
+                    _OfertaButton(
+                      label: 'Aceptar',
+                      color: AppColores.buttonPrimary,
+                      textColor: Colors.black,
+                      isLoading: isResponding,
+                      onTap: () => _aceptarOferta(oferta.conductorId),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _onSolicitudAsignada(String solicitudId) async {
@@ -265,42 +635,22 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
 
   void _subscribeConductores() {
     _conductoresSub?.cancel();
-    _conductoresSub = FirebaseFirestore.instance
-        .collection('usuarios')
-        .where('tipoUsuario', isEqualTo: 'conductor')
-        .where('disponible', isEqualTo: true)
-        .snapshots()
-        .listen(
-          (snapshot) {
-            final positions = <String, LatLng>{};
-            for (final doc in snapshot.docs) {
-              final data = doc.data();
-              final ubicacion = data['ubicacion'];
-              if (ubicacion is! Map) continue;
-              final lat = ubicacion['lat'] ?? ubicacion['latitude'];
-              final lng = ubicacion['lng'] ?? ubicacion['longitude'];
-              if (lat == null || lng == null) continue;
-              positions[doc.id] = LatLng(
-                (lat as num).toDouble(),
-                (lng as num).toDouble(),
-              );
-            }
-
-            if (!mounted) return;
-            _latestConductoresPositions
-              ..clear()
-              ..addAll(positions);
-            _updateTaxiMarkers();
-          },
-          onError: (_) {
-            // ignore
-          },
-        );
+    _conductoresSub = _vm.streamConductoresDisponibles().listen(
+      (positions) {
+        if (!mounted) return;
+        _latestConductoresPositions
+          ..clear()
+          ..addAll(positions);
+        _updateTaxiMarkers();
+      },
+      onError: (_) {},
+    );
   }
 
   void _updateTaxiMarkers() {
     if (!mounted) return;
-    if (_taxiIcon == null) {
+    final isMoto = _vm.isMotoSolicitud;
+    if (!isMoto && _taxiIcon == null) {
       setState(() {
         _taxiMarkers = {};
       });
@@ -313,8 +663,14 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
       return Marker(
         markerId: MarkerId('taxi_$id'),
         position: pos,
-        icon: _taxiIcon!,
-        infoWindow: const InfoWindow(title: 'Taxi cercano'),
+        icon: isMoto
+            ? BitmapDescriptor.defaultMarkerWithHue(
+                BitmapDescriptor.hueOrange,
+              )
+            : _taxiIcon!,
+        infoWindow: InfoWindow(
+          title: isMoto ? 'Moto cercana' : 'Taxi cercano',
+        ),
       );
     }).toSet();
 
@@ -325,41 +681,22 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
 
   void _subscribeConductoresConectados() {
     _conductoresConectadosSub?.cancel();
-    _conductoresConectadosSub = FirebaseFirestore.instance
-        .collection('conductores_conectados')
-        .snapshots()
-        .listen(
-          (snapshot) {
-            // Store all connected drivers positions and then filter by sonar radius
-            final positions = <String, LatLng>{};
-            for (final doc in snapshot.docs) {
-              final data = doc.data();
-              final ubicacion = data['ubicacion'];
-              if (ubicacion is! Map) continue;
-              final lat = ubicacion['lat'] ?? ubicacion['latitude'];
-              final lng = ubicacion['lng'] ?? ubicacion['longitude'];
-              if (lat == null || lng == null) continue;
-              positions[doc.id] = LatLng(
-                (lat as num).toDouble(),
-                (lng as num).toDouble(),
-              );
-            }
-
-            if (!mounted) return;
-            _allConectadosPositions
-              ..clear()
-              ..addAll(positions);
-            _updateVisibleConectadosMarkers();
-            setState(() {});
-          },
-          onError: (_) {
-            // ignore
-          },
-        );
+    _conductoresConectadosSub = _vm.streamConductoresConectados().listen(
+      (positions) {
+        if (!mounted) return;
+        _allConectadosPositions
+          ..clear()
+          ..addAll(positions);
+        _updateVisibleConectadosMarkers();
+        setState(() {});
+      },
+      onError: (_) {},
+    );
   }
 
   void _updateVisibleConectadosMarkers() {
     final center = _clientLocation ?? _defaultCenter;
+    final isMoto = _vm.isMotoSolicitud;
     final visible = <Marker>{};
     final newVisibleIds = <String>{};
     for (final entry in _allConectadosPositions.entries) {
@@ -380,12 +717,20 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
               markerId: MarkerId('conectado_$id'),
               position: pos,
               icon:
-                  _bigTaxiIcon ??
-                  _smallTaxiIcon ??
-                  BitmapDescriptor.defaultMarkerWithHue(
-                    BitmapDescriptor.hueYellow,
-                  ),
-              infoWindow: const InfoWindow(title: 'Conductor conectado'),
+                  isMoto
+                      ? BitmapDescriptor.defaultMarkerWithHue(
+                          BitmapDescriptor.hueOrange,
+                        )
+                      : (_bigTaxiIcon ??
+                          _smallTaxiIcon ??
+                          BitmapDescriptor.defaultMarkerWithHue(
+                            BitmapDescriptor.hueYellow,
+                          )),
+              infoWindow: InfoWindow(
+                title: isMoto
+                    ? 'Conductor de moto conectado'
+                    : 'Conductor conectado',
+              ),
             ),
           );
 
@@ -400,11 +745,19 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
                 markerId: MarkerId('conectado_$id'),
                 position: pos,
                 icon:
-                    _smallTaxiIcon ??
-                    BitmapDescriptor.defaultMarkerWithHue(
-                      BitmapDescriptor.hueYellow,
-                    ),
-                infoWindow: const InfoWindow(title: 'Conductor conectado'),
+                    isMoto
+                        ? BitmapDescriptor.defaultMarkerWithHue(
+                            BitmapDescriptor.hueOrange,
+                          )
+                        : (_smallTaxiIcon ??
+                            BitmapDescriptor.defaultMarkerWithHue(
+                              BitmapDescriptor.hueYellow,
+                            )),
+                infoWindow: InfoWindow(
+                  title: isMoto
+                      ? 'Conductor de moto conectado'
+                      : 'Conductor conectado',
+                ),
               ),
             };
             setState(() {});
@@ -416,11 +769,19 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
               markerId: MarkerId('conectado_$id'),
               position: pos,
               icon:
-                  _smallTaxiIcon ??
-                  BitmapDescriptor.defaultMarkerWithHue(
-                    BitmapDescriptor.hueYellow,
-                  ),
-              infoWindow: const InfoWindow(title: 'Conductor conectado'),
+                  isMoto
+                      ? BitmapDescriptor.defaultMarkerWithHue(
+                          BitmapDescriptor.hueOrange,
+                        )
+                      : (_smallTaxiIcon ??
+                          BitmapDescriptor.defaultMarkerWithHue(
+                            BitmapDescriptor.hueYellow,
+                          )),
+              infoWindow: InfoWindow(
+                title: isMoto
+                    ? 'Conductor de moto conectado'
+                    : 'Conductor conectado',
+              ),
             ),
           );
         }
@@ -487,11 +848,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
     final screenW = media.size.width;
-    final bottomInset = media.viewPadding.bottom > 0
-        ? media.viewPadding.bottom
-        : media.padding.bottom;
     final isTablet = screenW >= 1000;
-    final bottomSpace = bottomInset + (isTablet ? 24.0 : 18.0);
     final _resp = ResponsiveHelper.getResponsiveData(context);
     final _scale = _resp.scale;
 
@@ -546,7 +903,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
                     ),
                   ),
                   SizedBox(height: (isTablet ? 35 : 25) * _scale),
-                  _buildSonarMap(context),
+                  _buildSonarMapWithOfertasOverlay(context, isTablet),
                   SizedBox(height: (isTablet ? 30 : 20) * _scale),
                   Text(
                     'Estamos rastreando conductores en tiempo real para asignarte el mas cercano.',
@@ -559,6 +916,42 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
                     ),
                   ),
                   SizedBox(height: (isTablet ? 15 : 10) * _scale),
+                  GestureDetector(
+                    onTap:
+                        _vm.isUpdatingValor ? null : _abrirModalEditarValor,
+                    child: Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: isTablet ? 16 : 12,
+                        vertical: isTablet ? 12 : 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.black12),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.edit,
+                            size: isTablet ? 18 : 16,
+                            color: Colors.black54,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Oferta actual: \$${_formatCurrency(_vm.valorServicioActual)}',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: isTablet ? 18 : 14,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF121826),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: (isTablet ? 12 : 10) * _scale),
                   Center(
                     child: Container(
                       padding: EdgeInsets.symmetric(
@@ -584,7 +977,6 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
                   _buildSearchingDots(isTablet),
                   SizedBox(height: (isTablet ? 18 : 14) * _scale),
                   SizedBox(
-                    // width: double.infinity,
                     child: ElevatedButton(
                       onPressed: _vm.isCancelling ? null : _cancelSolicitud,
                       style: ElevatedButton.styleFrom(
@@ -669,7 +1061,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
 
     double mapHeight = ResponsiveHelper.hp(context, pct);
     // clamp to sensible min/max to avoid extremely small/large maps
-    mapHeight = (mapHeight).clamp(160.0, 700.0) as double;
+    mapHeight = mapHeight.clamp(160.0, 700.0);
     return Column(
       children: [
         Container(
@@ -691,10 +1083,6 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
             borderRadius: BorderRadius.circular(16),
             child: Builder(
               builder: (ctx) {
-                final defaultIcon = BitmapDescriptor.defaultMarkerWithHue(
-                  widget.defaultMarkerHue,
-                );
-
                 // All Marker.icon are non-null, so just use the set directly
                 final combinedMarkers = <Marker>{
                   ..._taxiMarkers,
@@ -752,13 +1140,60 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
   double _getBottomPadding(BuildContext context) {
     final platform = Theme.of(context).platform;
     if (platform == TargetPlatform.android) {
-      // Detecta si hay barra de navegación usando MediaQuery
       final padding = MediaQuery.of(context).padding.bottom;
-      // Si hay barra de navegación (padding > 0), deja el padding, si no, pon 0
       return padding > 0 ? padding : 0;
     } else {
-      // En iOS, sin padding extra (SafeArea ya lo maneja)
       return 0;
     }
+  }
+}
+
+// ── Widget auxiliar para botones Aceptar/Rechazar ─────────────────────────
+
+class _OfertaButton extends StatelessWidget {
+  const _OfertaButton({
+    required this.label,
+    required this.color,
+    required this.textColor,
+    required this.isLoading,
+    required this.onTap,
+  });
+
+  final String label;
+  final Color color;
+  final Color textColor;
+  final bool isLoading;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: isLoading ? null : onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: isLoading ? Colors.grey[200] : color,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: isLoading
+            ? const SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.black54,
+                ),
+              )
+            : Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: textColor,
+                ),
+              ),
+      ),
+    );
   }
 }
