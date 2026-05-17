@@ -195,40 +195,6 @@ class _InicioConductorState extends State<InicioConductor>
     } catch (_) {}
   }
 
-  double get _previewHeight {
-    final screenHeight = MediaQuery.of(context).size.height;
-    final proposedHeight = screenHeight * 0.54;
-    return proposedHeight.clamp(270.0, screenHeight * 0.62).toDouble();
-  }
-
-  bool _hasPreviewComment(PreviewSolicitud preview) {
-    final raw = preview.comentarioCliente?.trim();
-    if (raw == null || raw.isEmpty) return false;
-    final lower = raw.toLowerCase();
-    return lower != 'null' &&
-        lower != 'sin comentario' &&
-        lower != 'ninguno' &&
-        lower != 'n/a' &&
-        lower != 'na' &&
-        raw != '-';
-  }
-
-  double _previewHeightFor(PreviewSolicitud preview) {
-    final screenHeight = MediaQuery.of(context).size.height;
-    final hasContraoferta = preview.valorContraoferta != null;
-    if (_hasPreviewComment(preview)) {
-      return _previewHeight;
-    }
-
-    if (hasContraoferta) {
-      final proposedHeight = screenHeight * 0.58;
-      return proposedHeight.clamp(290.0, screenHeight * 0.66).toDouble();
-    }
-
-    final proposedHeight = screenHeight * 0.46;
-    return proposedHeight.clamp(230.0, screenHeight * 0.54).toDouble();
-  }
-
   // Centrar la cámara en la perspectiva del conductor hacia el cliente al seleccionar una solicitud
   Future<void> _centerPreviewOnConductorToClient(
     InicioConductorViewmodel vm,
@@ -397,17 +363,13 @@ class _InicioConductorState extends State<InicioConductor>
           });
 
           final selectedPreview = vm.isConnected ? vm.selectedPreview : null;
-          final previewCardHeight = selectedPreview != null
-              ? _previewHeightFor(selectedPreview)
-              : _previewHeight;
+          final bool previewVisible = vm.isConnected && vm.selectedPreview != null;
 
-          // Suscribirse una sola vez a cambios del nombre guardado en caché
-          final bool _hasPreview = vm.isConnected && vm.selectedPreview != null;
-          return WillPopScope(
-            onWillPop: () async => false,
+          return PopScope(
+            canPop: false,
             child: Scaffold(
               backgroundColor: AppColores.background,
-              appBar: _hasPreview
+              appBar: previewVisible
                   ? null
                   : AppBar(
                       backgroundColor: AppColores.background,
@@ -642,10 +604,6 @@ class _InicioConductorState extends State<InicioConductor>
 
                         // Espacio entre la tarjeta de información del conductor y el mapa
                         const SizedBox(height: 12),
-
-                        // Mantener layout fijo: información arriba y mapa abajo.
-                        if (vm.isConnected && vm.selectedPreview != null)
-                          SizedBox(height: previewCardHeight),
 
                         // Mapa colocado justo bajo el contenedor de información y ocupa el espacio restante
                         Expanded(
@@ -1069,57 +1027,81 @@ class _InicioConductorState extends State<InicioConductor>
                           ),
                       ],
                     ),
-                    // Selected solicitud preview: in-flow so the map appears below it
-                    if (vm.isConnected && vm.selectedPreview != null)
-                      Builder(
-                        builder: (context) {
-                          final preview = selectedPreview!;
-                          final s = preview.solicitud;
-                          return Positioned(
-                            top: 10,
-                            left: 5,
-                            right: 5,
-                            height: previewCardHeight,
-                            child: PreviewSolicitudCard(
-                              preview: preview,
-                              clientPhotoUrl:
-                                  preview.solicitud.clienteFoto != null &&
-                                      preview.solicitud.clienteFoto!.isNotEmpty
+                    // Preview card deslizable desde el fondo (patrón Uber/Bolt)
+                    Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      child: AnimatedSlide(
+                        duration: const Duration(milliseconds: 280),
+                        curve: Curves.easeOutCubic,
+                        offset: previewVisible
+                            ? Offset.zero
+                            : const Offset(0, 1),
+                        child: AnimatedOpacity(
+                          duration: const Duration(milliseconds: 200),
+                          curve: Curves.easeOut,
+                          opacity: previewVisible ? 1.0 : 0.0,
+                          child: Builder(
+                            builder: (ctx) {
+                              final preview = selectedPreview;
+                              if (!previewVisible || preview == null) {
+                                return const SizedBox.shrink();
+                              }
+                              final foto =
+                                  preview.solicitud.clienteFoto?.isNotEmpty ==
+                                      true
                                   ? preview.solicitud.clienteFoto
-                                  : vm.fotoClientePorId(s.clienteId),
-                              isLoading: _navigatingToRuta,
-                              onClose: () async {
-                                if (_navigatingToRuta) return;
-                                await _closePreview(vm);
-                              },
-                              onCancel: () async {
-                                if (_navigatingToRuta) return;
-                                await _closePreview(vm);
-                              },
-                              onAccept: () async {
-                                try {
-                                  await vm.aceptarSolicitud(s.id);
-                                  await _navegarARutaConductor(vm, s.id);
-                                } catch (e) {
-                                  if (mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          'Error al aceptar servicio: $e',
+                                  : vm.fotoClientePorId(
+                                      preview.solicitud.clienteId,
+                                    );
+                              return PreviewSolicitudCard(
+                                preview: preview,
+                                clientPhotoUrl: foto,
+                                isLoading: _navigatingToRuta,
+                                onClose: () async {
+                                  if (!_navigatingToRuta) {
+                                    await _closePreview(vm);
+                                  }
+                                },
+                                onCancel: () async {
+                                  if (!_navigatingToRuta) {
+                                    await _closePreview(vm);
+                                  }
+                                },
+                                onAccept: () async {
+                                  final id = preview.solicitud.id;
+                                  final messenger =
+                                      ScaffoldMessenger.of(context);
+                                  try {
+                                    await vm.aceptarSolicitud(id);
+                                    await _navegarARutaConductor(vm, id);
+                                  } catch (e) {
+                                    if (mounted) {
+                                      messenger.showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            'Error al aceptar servicio: $e',
+                                          ),
                                         ),
-                                      ),
+                                      );
+                                    }
+                                  }
+                                },
+                                onCounterOffer: () async {
+                                  if (!_navigatingToRuta) {
+                                    await _abrirContraofertaModal(
+                                      vm,
+                                      preview,
                                     );
                                   }
-                                }
-                              },
-                              onCounterOffer: () async {
-                                if (_navigatingToRuta) return;
-                                await _abrirContraofertaModal(vm, preview);
-                              },
-                            ),
-                          );
-                        },
+                                },
+                              );
+                            },
+                          ),
+                        ),
                       ),
+                    ),
                   ],
                 ),
               ),

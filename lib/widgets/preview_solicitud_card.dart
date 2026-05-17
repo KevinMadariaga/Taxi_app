@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:taxi_app/components/boton.dart';
 import 'package:taxi_app/core/app_colores.dart';
-import 'package:taxi_app/helper/responsive_helper.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/preview_solicitud.dart';
 
 class PreviewSolicitudCard extends StatelessWidget {
@@ -26,490 +25,356 @@ class PreviewSolicitudCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final preview = this.preview;
-    final isLoading = this.isLoading;
-    final photoUrl = this.clientPhotoUrl ?? preview.clientPhotoUrl;
-    final onAccept = this.onAccept;
-    final onCounterOffer = this.onCounterOffer;
-
-    final String cercania = (preview.distanciaKm != null)
-        ? (preview.distanciaKm! <= 1.0 ? 'Cerca' : 'Lejos')
-        : '—';
+    final photoUrl = clientPhotoUrl ?? preview.clientPhotoUrl;
     final comentario = _normalizeComment(preview.comentarioCliente);
     final hasComentario = comentario != null;
     final valorCliente = preview.valorServicio;
     final valorContra = preview.valorContraoferta;
 
-    return Padding(
-      // Asegura que respetamos notch, barras de sistema y gestos
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final isCompact = constraints.maxWidth < 380;
-          final avatarSize = isCompact
-              ? ResponsiveHelper.sp(context, 56)
-              : ResponsiveHelper.sp(context, 70);
-          final sectionGap = isCompact ? 1.2 : 2.0;
-          final buttonHeight = isCompact
-              ? ResponsiveHelper.hp(context, 4.7)
-              : ResponsiveHelper.hp(context, 5.0);
-          final buttonWidth = isCompact
-              ? constraints.maxWidth * 0.41
-              : constraints.maxWidth * 0.40;
+    final km = preview.distanciaKm;
+    final String cercania;
+    final Color badgeColor;
+    final Color badgeTextColor;
+    if (km != null && km <= 1.0) {
+      cercania = 'Cerca';
+      badgeColor = AppColores.success.withValues(alpha: 0.12);
+      badgeTextColor = AppColores.success;
+    } else if (km != null) {
+      cercania = 'Lejos';
+      badgeColor = AppColores.warning.withValues(alpha: 0.12);
+      badgeTextColor = AppColores.warning;
+    } else {
+      cercania = '—';
+      badgeColor = AppColores.grey200;
+      badgeTextColor = AppColores.textSecondary;
+    }
 
-          final media = MediaQuery.of(context);
-          // Altura útil descontando las zonas seguras del sistema
-          final usableHeight = media.size.height - media.padding.vertical;
-
-          // Limitamos la altura para que en pantallas pequeñas no se corte
-            final maxHeight = constraints.maxHeight == double.infinity
-              ? usableHeight * 0.95
-              : constraints.maxHeight.clamp(0.0, usableHeight * 0.95);
-
-          return ConstrainedBox(
-            constraints: BoxConstraints(
-              maxHeight: maxHeight,
-              minWidth: constraints.maxWidth,
-            ),
-            child: Container(
-              decoration: BoxDecoration(
-                color: AppColores.cardBackground,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: AppColores.borderSubtle),
-              ),
-              // Menos padding lateral y superior para que la foto se vea más protagonista
-              padding: ResponsiveHelper.padding(
-                context,
-                top: isCompact ? 10 : 12,
-                left: isCompact ? 12 : 14,
-                right: isCompact ? 12 : 14,
-                bottom: isCompact ? 10 : 12,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColores.cardBackground,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 16,
+            offset: Offset(0, -4),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        bottom: true,
+        child: SingleChildScrollView(
+          physics: const ClampingScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const _DragHandle(),
+              // Header: ícono + título + cerrar
+              Row(
                 children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.local_taxi,
-                                color: AppColores.textSecondary,
-                                size: ResponsiveHelper.sp(context, 20),
-                              ),
-                              SizedBox(
-                                width: ResponsiveHelper.wp(context, 2.5),
-                              ),
-                              Text(
-                                'Solicitud seleccionada',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: ResponsiveHelper.sp(
-                                    context,
-                                    isCompact ? 15 : 17,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          GestureDetector(
-                            onTap: onClose,
-                            child: Container(
-                              padding: const EdgeInsets.all(4),
-                              decoration: BoxDecoration(
-                                color: AppColores.grey200,
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(
-                                Icons.close,
-                                color: AppColores.textSecondary,
-                                size: ResponsiveHelper.sp(context, 16),
-                              ),
-                            ),
-                          ),
-                        ],
+                  const Icon(
+                    Icons.local_taxi,
+                    color: AppColores.textSecondary,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 6),
+                  const Expanded(
+                    child: Text(
+                      'Solicitud seleccionada',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                        color: AppColores.textPrimary,
                       ),
-                      SizedBox(
-                        height: ResponsiveHelper.hp(context, sectionGap),
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: onClose,
+                    child: Container(
+                      padding: const EdgeInsets.all(5),
+                      decoration: const BoxDecoration(
+                        color: AppColores.grey200,
+                        shape: BoxShape.circle,
                       ),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                SizedBox(
-                                  width: avatarSize,
-                                  height: avatarSize,
-                                  child: CircleAvatar(
-                                    radius: avatarSize / 2,
-                                    backgroundColor: AppColores.grey400,
-                                    backgroundImage:
-                                        photoUrl != null && photoUrl.isNotEmpty
-                                        ? NetworkImage(photoUrl)
-                                        : null,
-                                    child:
-                                        (photoUrl == null || photoUrl.isEmpty)
-                                        ? Icon(
-                                            Icons.person,
-                                            color: AppColores.textWhite,
-                                            size: ResponsiveHelper.sp(
-                                              context,
-                                              isCompact ? 22 : 25,
-                                            ),
-                                          )
-                                        : null,
-                                  ),
-                                ),
-                                SizedBox(
-                                  width: ResponsiveHelper.wp(context, 2),
-                                ),
-                                Expanded(
-                                  child: Text(
-                                    (preview.clientName ?? 'Cliente')
-                                        .toUpperCase(),
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: ResponsiveHelper.sp(
-                                        context,
-                                        isCompact ? 14 : 15,
-                                      ),
-                                      color: AppColores.textPrimary,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Padding(
-                            padding: EdgeInsets.only(
-                              left: ResponsiveHelper.wp(context, 2),
-                            ),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Text(
-                                  'Distancia',
-                                  style: TextStyle(
-                                    fontSize: ResponsiveHelper.sp(context, 14),
-                                    color: AppColores.textSecondary,
-                                  ),
-                                ),
-                                Text(
-                                  cercania,
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: AppColores.textPrimary,
-                                    fontSize: ResponsiveHelper.sp(
-                                      context,
-                                      isCompact ? 15 : 16,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
+                      child: const Icon(
+                        Icons.close,
+                        color: AppColores.textSecondary,
+                        size: 16,
                       ),
-                      SizedBox(
-                        height: ResponsiveHelper.hp(context, sectionGap),
-                      ),
-                      if (isCompact)
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _InfoBlock(
-                              label: 'Recoger en:',
-                              child: Text(
-                                _pickupText(preview),
-                                style: TextStyle(
-                                  fontSize: ResponsiveHelper.sp(context, 13),
-                                  color: AppColores.textPrimary,
-                                ),
-                                maxLines: 3,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            SizedBox(height: ResponsiveHelper.hp(context, 0.9)),
-                            _InfoBlock(
-                              label: 'Pagará con:',
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    _paymentIcon(preview.paymentMethod),
-                                    color: AppColores.primary,
-                                    size: ResponsiveHelper.sp(context, 16),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Expanded(
-                                    child: Text(
-                                      _formatMetodoPreview(
-                                        preview.paymentMethod,
-                                      ),
-                                      style: TextStyle(
-                                        fontSize: ResponsiveHelper.sp(
-                                          context,
-                                          14,
-                                        ),
-                                        color: AppColores.textPrimary,
-                                      ),
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        )
-                      else
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: _InfoBlock(
-                                label: 'Recoger en:',
-                                child: Text(
-                                  _pickupText(preview),
-                                  style: TextStyle(
-                                    fontSize: ResponsiveHelper.sp(context, 13),
-                                    color: AppColores.textPrimary,
-                                  ),
-                                  maxLines: 3,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ),
-                            SizedBox(width: ResponsiveHelper.wp(context, 4)),
-                            Expanded(
-                              child: _InfoBlock(
-                                label: 'Pagará con:',
-                                alignEnd: true,
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.end,
-                                  children: [
-                                    Icon(
-                                      _paymentIcon(preview.paymentMethod),
-                                      color: AppColores.primary,
-                                      size: ResponsiveHelper.sp(context, 16),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Flexible(
-                                      child: Text(
-                                        _formatMetodoPreview(
-                                          preview.paymentMethod,
-                                        ),
-                                        textAlign: TextAlign.right,
-                                        style: TextStyle(
-                                          fontSize: ResponsiveHelper.sp(
-                                            context,
-                                            14,
-                                          ),
-                                          color: AppColores.textPrimary,
-                                        ),
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      SizedBox(
-                        height: ResponsiveHelper.hp(context, sectionGap),
-                      ),
-                      if (hasComentario) ...[
-                        SizedBox(height: ResponsiveHelper.hp(context, 1.2)),
-                        Container(
-                          width: double.infinity,
-                          padding: EdgeInsets.symmetric(
-                            horizontal: ResponsiveHelper.wp(context, 2.5),
-                            vertical: ResponsiveHelper.hp(context, 0.9),
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColores.background,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: AppColores.borderSubtle),
-                          ),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Icon(
-                                Icons.chat_bubble_outline,
-                                size: ResponsiveHelper.sp(context, 15),
-                                color: AppColores.textSecondary,
-                              ),
-                              SizedBox(width: ResponsiveHelper.wp(context, 2)),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Comentario del cliente',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: ResponsiveHelper.sp(
-                                          context,
-                                          12,
-                                        ),
-                                        color: AppColores.textPrimary,
-                                      ),
-                                    ),
-                                    SizedBox(
-                                      height: ResponsiveHelper.hp(context, 0.2),
-                                    ),
-                                    Text(
-                                      comentario,
-                                      maxLines: isCompact ? 3 : 4,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        fontSize: ResponsiveHelper.sp(
-                                          context,
-                                          12.5,
-                                        ),
-                                        color: AppColores.textSecondary,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        SizedBox(height: ResponsiveHelper.hp(context, 1.8)),
-                      ] else ...[
-                        SizedBox(height: ResponsiveHelper.hp(context, 0.1)),
-                      ],
-                      if (valorCliente != null) ...[
-                        Container(
-                          width: double.infinity,
-                          padding: EdgeInsets.symmetric(
-                            horizontal: ResponsiveHelper.wp(context, 2.5),
-                            vertical: ResponsiveHelper.hp(context, 0.9),
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColores.background,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: AppColores.borderSubtle),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          'Oferta del cliente',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w700,
-                                            fontSize: ResponsiveHelper.sp(
-                                              context,
-                                              14,
-                                            ),
-                                            color: AppColores.textPrimary,
-                                          ),
-                                        ),
-                                        if (valorContra != null) ...[
-                                          SizedBox(
-                                            height: ResponsiveHelper.hp(
-                                              context,
-                                              0.35,
-                                            ),
-                                          ),
-                                          Text(
-                                            'Contraoferta hecha',
-                                            style: TextStyle(
-                                              fontSize: ResponsiveHelper.sp(
-                                                context,
-                                                12,
-                                              ),
-                                              color: AppColores.textSecondary,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                          SizedBox(
-                                            height: ResponsiveHelper.hp(
-                                              context,
-                                              0.15,
-                                            ),
-                                          ),
-                                          Text(
-                                            '\$${_formatCurrency(valorContra)}',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.w700,
-                                              fontSize: ResponsiveHelper.sp(
-                                                context,
-                                                13,
-                                              ),
-                                              color: AppColores.textPrimary,
-                                            ),
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                  ),
-                                  Text(
-                                    '\$${_formatCurrency(valorCliente)}',
-                                    textAlign: TextAlign.right,
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: ResponsiveHelper.sp(
-                                        context,
-                                        16,
-                                      ),
-                                      color: AppColores.textPrimary,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                        SizedBox(height: ResponsiveHelper.hp(context, 0.6)),
-                      ],
-                      Wrap(
-                        spacing: ResponsiveHelper.wp(context, 2.3),
-                        runSpacing: ResponsiveHelper.hp(context, 0.4),
-                        alignment: WrapAlignment.center,
-                        children: [
-                          CustomButton(
-                            text: 'Ofertar',
-                            color: AppColores.surface,
-                            textColor: AppColores.buttonPrimary,
-                            borderColor: AppColores.buttonPrimary,
-                            isLoading: isLoading,
-                            onPressed: isLoading ? null : onCounterOffer,
-                            width: buttonWidth,
-                            height: buttonHeight,
-                            fontSize: ResponsiveHelper.sp(context, 14),
-                          ),
-                          CustomButton(
-                            text: 'Aceptar',
-                            color: AppColores.buttonPrimary,
-                            textColor: AppColores.textWhite,
-                            onPressed: isLoading ? null : onAccept,
-                            width: buttonWidth,
-                            height: buttonHeight,
-                            fontSize: ResponsiveHelper.sp(context, 14),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: ResponsiveHelper.hp(context, 0.2)),
+                    ),
+                  ),
                 ],
               ),
-            ),
-          );
-        },
+              const SizedBox(height: 14),
+              // Sección cliente: avatar + nombre + badge de distancia
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 28,
+                    backgroundColor: AppColores.grey400,
+                    backgroundImage: photoUrl != null && photoUrl.isNotEmpty
+                        ? NetworkImage(photoUrl)
+                        : null,
+                    child: photoUrl == null || photoUrl.isEmpty
+                        ? const Icon(
+                            Icons.person,
+                            color: AppColores.textWhite,
+                            size: 28,
+                          )
+                        : null,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          (preview.clientName ?? 'Cliente').toUpperCase(),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 15,
+                            color: AppColores.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: badgeColor,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            cercania,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: badgeTextColor,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              const Divider(color: AppColores.borderSubtle, height: 1),
+              const SizedBox(height: 14),
+              // Fila de info: origen | divider | pago
+              IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: _InfoColumn(
+                        label: 'Recoger en',
+                        child: Text(
+                          _pickupText(preview),
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: AppColores.textPrimary,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const VerticalDivider(
+                      color: AppColores.borderSubtle,
+                      width: 24,
+                      thickness: 1,
+                    ),
+                    Expanded(
+                      child: _InfoColumn(
+                        label: 'Pagará con',
+                        alignEnd: true,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            Icon(
+                              _paymentIcon(preview.paymentMethod),
+                              color: AppColores.primary,
+                              size: 15,
+                            ),
+                            const SizedBox(width: 4),
+                            Flexible(
+                              child: Text(
+                                _formatMetodoPreview(preview.paymentMethod),
+                                textAlign: TextAlign.right,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: AppColores.textPrimary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Comentario del cliente
+              if (hasComentario) ...[
+                const SizedBox(height: 10),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColores.background,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppColores.borderSubtle),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(
+                        Icons.chat_bubble_outline,
+                        size: 15,
+                        color: AppColores.textSecondary,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Comentario del cliente',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 12,
+                                color: AppColores.textPrimary,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              comentario,
+                              maxLines: 3,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 12.5,
+                                color: AppColores.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              // Bloque de precio
+              if (valorCliente != null) ...[
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColores.background,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppColores.borderSubtle),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Oferta del cliente',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                                color: AppColores.textPrimary,
+                              ),
+                            ),
+                            if (valorContra != null) ...[
+                              const SizedBox(height: 2),
+                              const Text(
+                                'Contraoferta hecha',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: AppColores.textSecondary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              Text(
+                                '\$${_formatCurrency(valorContra)}',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13,
+                                  color: AppColores.textPrimary,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      Text(
+                        '\$${_formatCurrency(valorCliente)}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 22,
+                          color: AppColores.textPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              const SizedBox(height: 14),
+              // Botones de acción
+              Row(
+                children: [
+                  Expanded(
+                    child: CustomButton(
+                      text: 'Ofertar',
+                      color: AppColores.surface,
+                      textColor: AppColores.buttonPrimary,
+                      borderColor: AppColores.buttonPrimary,
+                      isLoading: isLoading,
+                      onPressed: isLoading ? null : onCounterOffer,
+                      width: double.infinity,
+                      height: 48,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: CustomButton(
+                      text: 'Aceptar',
+                      color: AppColores.buttonPrimary,
+                      textColor: AppColores.textWhite,
+                      isLoading: isLoading,
+                      onPressed: isLoading ? null : onAccept,
+                      width: double.infinity,
+                      height: 48,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -570,8 +435,29 @@ class PreviewSolicitudCard extends StatelessWidget {
   }
 }
 
-class _InfoBlock extends StatelessWidget {
-  const _InfoBlock({
+class _DragHandle extends StatelessWidget {
+  const _DragHandle();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 10, bottom: 8),
+      child: Center(
+        child: Container(
+          width: 40,
+          height: 4,
+          decoration: BoxDecoration(
+            color: AppColores.grey300,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _InfoColumn extends StatelessWidget {
+  const _InfoColumn({
     required this.label,
     required this.child,
     this.alignEnd = false,
@@ -584,20 +470,19 @@ class _InfoBlock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
-      crossAxisAlignment: alignEnd
-          ? CrossAxisAlignment.end
-          : CrossAxisAlignment.start,
+      crossAxisAlignment:
+          alignEnd ? CrossAxisAlignment.end : CrossAxisAlignment.start,
       children: [
         Text(
           label,
           textAlign: alignEnd ? TextAlign.right : TextAlign.left,
-          style: TextStyle(
-            fontSize: ResponsiveHelper.sp(context, 13),
-            color: AppColores.textPrimary,
-            fontWeight: FontWeight.bold,
+          style: const TextStyle(
+            fontSize: 12,
+            color: AppColores.textSecondary,
+            fontWeight: FontWeight.w600,
           ),
         ),
-        SizedBox(height: ResponsiveHelper.hp(context, 0.2)),
+        const SizedBox(height: 3),
         child,
       ],
     );

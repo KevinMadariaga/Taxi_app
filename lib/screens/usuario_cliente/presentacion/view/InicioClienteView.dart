@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'dart:math' as math;
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:taxi_app/helper/permisos_helper.dart';
@@ -25,31 +24,21 @@ class InicioClienteView extends StatefulWidget {
 
 class _InicioClienteViewState extends State<InicioClienteView>
     with WidgetsBindingObserver {
-  // --- Variables ---
   late InicioClienteViewModel vm;
   late VoidCallback _vmListener;
   GoogleMapController? _mapController;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   int _selectedIndex = 1;
   final PageController _carouselController = PageController(
-    viewportFraction: 0.98,
+    viewportFraction: 0.92,
   );
-  int _carouselPage = 0;
   bool _isPreparingNavigation = false;
   bool _gpsPromptShown = false;
   bool _isRequestingPermissions = false;
   bool _isGpsDialogOpen = false;
 
-  // Configuración visual
-  final double _cardScale = 1.0;
-  final double _cardPadding = 12.0;
-  final double _titleFontScale = 1.0;
-  final Color yellow = AppColores.primary;
-  final Color _carouselNavButtonColor = AppColores.cardBackground.withOpacity(
-    0.85,
-  );
+  // ── Ciclo de vida ────────────────────────────────────────────────────────
 
-  // --- Ciclo de vida ---
   @override
   void initState() {
     super.initState();
@@ -63,21 +52,35 @@ class _InicioClienteViewState extends State<InicioClienteView>
     });
   }
 
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _carouselController.dispose();
+    vm.removeListener(_vmListener);
+    vm.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) _handleAppResumed();
+  }
+
+  // ── Lógica de ubicación / GPS ────────────────────────────────────────────
+
   Future<void> _bootstrapClienteLocationFlow() async {
     if (widget.authUid != null && widget.authUid!.isNotEmpty) {
       await vm.hydrateFromUid(widget.authUid!);
     }
-
     final ready = await _ensureLocationServiceAndPermission();
     if (!ready) return;
-
     await _loadCurrentLocation();
   }
 
   Future<bool> _ensureLocationServiceAndPermission() async {
     if (!mounted) return false;
     if (_isRequestingPermissions) return false;
-
     _isRequestingPermissions = true;
     try {
       bool serviceEnabled = await PermissionsHelper.isLocationServiceEnabled();
@@ -88,96 +91,117 @@ class _InicioClienteViewState extends State<InicioClienteView>
           _showGpsSnackBar('GPS no está activo. Actívelo para continuar.');
           return false;
         }
-
         await Geolocator.openLocationSettings();
         await Future.delayed(const Duration(milliseconds: 800));
         serviceEnabled = await PermissionsHelper.isLocationServiceEnabled();
       }
-
       if (!serviceEnabled) {
         _gpsPromptShown = true;
         _showGpsSnackBar('GPS no está activo. Actívelo para continuar.');
         return false;
       }
-
       _gpsPromptShown = false;
       final hasPermission = await PermissionsHelper.hasLocationPermission();
       if (!hasPermission) {
         final shouldRequest = await _showRequestLocationPermissionDialog();
         if (!shouldRequest) return false;
-
         final granted = await PermissionsHelper.requestLocationPermission();
         if (!granted && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Permiso de ubicación no concedido.')),
+            const SnackBar(
+              content: Text('Permiso de ubicación no concedido.'),
+            ),
           );
         }
         if (!granted) return false;
       }
-
       return true;
     } finally {
       _isRequestingPermissions = false;
     }
   }
 
+  Future<void> _handleAppResumed() async {
+    if (!mounted) return;
+    if (_isGpsDialogOpen && Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+      _isGpsDialogOpen = false;
+    }
+    bool serviceEnabled = await PermissionsHelper.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      if (_gpsPromptShown) {
+        _showGpsRetrySnackBar();
+        return;
+      }
+      final shouldOpenSettings = await _showGpsDisabledDialog();
+      if (!shouldOpenSettings) {
+        _gpsPromptShown = true;
+        _showGpsSnackBar('GPS no está activo. Actívelo para continuar.');
+        return;
+      }
+      await Geolocator.openLocationSettings();
+      await Future.delayed(const Duration(milliseconds: 800));
+      serviceEnabled = await PermissionsHelper.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        _gpsPromptShown = true;
+        _showGpsSnackBar('GPS no está activo. Actívelo para continuar.');
+        return;
+      }
+    }
+    _gpsPromptShown = false;
+    await _ensureLocationServiceAndPermission();
+    await _loadCurrentLocation();
+  }
+
   Future<bool> _showGpsDisabledDialog() async {
     if (!mounted) return false;
-
     _isGpsDialogOpen = true;
     final result = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) {
-        return AlertDialog(
-          title: const Text('GPS desactivado'),
-          content: const Text(
-            'El GPS está desactivado. Por favor actívelo para que la app pueda obtener su ubicación.',
+      builder: (ctx) => AlertDialog(
+        title: const Text('GPS desactivado'),
+        content: const Text(
+          'El GPS está desactivado. Por favor actívelo para que la app pueda obtener su ubicación.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancelar'),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
-              child: const Text('Cancelar'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(true),
-              child: const Text('Activar'),
-            ),
-          ],
-        );
-      },
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Activar'),
+          ),
+        ],
+      ),
     );
-
     _isGpsDialogOpen = false;
     return result == true;
   }
 
   Future<bool> _showRequestLocationPermissionDialog() async {
     if (!mounted) return false;
-
     final result = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) {
-        return AlertDialog(
-          title: const Text('Permiso de ubicación'),
-          content: const Text(
-            'Necesitamos permiso de ubicación para mostrar su posición en el mapa. Por favor permita el permiso.',
+      builder: (ctx) => AlertDialog(
+        title: const Text('Permiso de ubicación'),
+        content: const Text(
+          'Necesitamos permiso de ubicación para mostrar su posición en el mapa. Por favor permita el permiso.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancelar'),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
-              child: const Text('Cancelar'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(true),
-              child: const Text('Permitir'),
-            ),
-          ],
-        );
-      },
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Permitir'),
+          ),
+        ],
+      ),
     );
-
     return result == true;
   }
 
@@ -195,96 +219,130 @@ class _InicioClienteViewState extends State<InicioClienteView>
         content: const Text('GPS sigue desactivado.'),
         action: SnackBarAction(
           label: 'Reintentar',
-          onPressed: () {
-            _handleAppResumed();
-          },
+          onPressed: _handleAppResumed,
         ),
         behavior: SnackBarBehavior.floating,
       ),
     );
   }
 
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _carouselController.dispose();
-    vm.removeListener(_vmListener);
-    vm.dispose();
-    super.dispose();
-  }
+  // ── Acciones ─────────────────────────────────────────────────────────────
 
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    super.didChangeAppLifecycleState(state);
-
-    if (state == AppLifecycleState.resumed) {
-      _handleAppResumed();
-    }
-  }
-
-  Future<void> _handleAppResumed() async {
+  Future<void> _loadCurrentLocation() async {
+    await vm.cargarUbicacionActual();
     if (!mounted) return;
-
-    if (_isGpsDialogOpen && Navigator.of(context).canPop()) {
-      Navigator.of(context).pop();
-      _isGpsDialogOpen = false;
+    if (vm.currentLocation != null && _mapController != null) {
+      await _mapController!.animateCamera(
+        CameraUpdate.newLatLngZoom(vm.currentLocation!, 16),
+      );
     }
-
-    bool serviceEnabled = await PermissionsHelper.isLocationServiceEnabled();
-
-    if (!serviceEnabled) {
-      if (_gpsPromptShown) {
-        _showGpsRetrySnackBar();
-        return;
-      }
-
-      final shouldOpenSettings = await _showGpsDisabledDialog();
-      if (!shouldOpenSettings) {
-        _gpsPromptShown = true;
-        _showGpsSnackBar('GPS no está activo. Actívelo para continuar.');
-        return;
-      }
-
-      await Geolocator.openLocationSettings();
-      await Future.delayed(const Duration(milliseconds: 800));
-      serviceEnabled = await PermissionsHelper.isLocationServiceEnabled();
-
-      if (!serviceEnabled) {
-        _gpsPromptShown = true;
-        _showGpsSnackBar('GPS no está activo. Actívelo para continuar.');
-        return;
-      }
-    }
-
-    _gpsPromptShown = false;
-    await _ensureLocationServiceAndPermission();
-    await _loadCurrentLocation();
   }
 
-  // --- Métodos de UI ---
+  Future<void> _onFavoriteSelected(UbicacionResultado fav) async {
+    if (fav.location == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ubicación no disponible')),
+      );
+      return;
+    }
+    final origenPos = vm.currentLocation ?? fav.location!;
+    final origenDireccion = await vm.obtenerDireccionDesdeCoordenadas(
+      origenPos,
+    );
+    final origenModel = LocationModel(
+      position: origenPos,
+      title: origenDireccion,
+      subtitle: origenDireccion,
+    );
+    final destinoModel = LocationModel(
+      position: fav.location!,
+      title: fav.nombre.isNotEmpty ? fav.nombre : fav.direccion,
+      subtitle: fav.direccion,
+    );
+    if (!mounted) return;
+    try {
+      FocusScope.of(context).unfocus();
+    } catch (_) {}
+    await InicioClienteNavigation.irAMapaPreview(
+      context,
+      origenModel,
+      destinoModel,
+    );
+  }
+
+  Future<void> _navigateToDestinoSeleccion() async {
+    if (_isPreparingNavigation) return;
+    try {
+      FocusScope.of(context).unfocus();
+    } catch (_) {}
+    if (mounted) setState(() => _isPreparingNavigation = true);
+    try {
+      String? origenDireccionInicial;
+      final currentLocation = vm.currentLocation;
+      if (currentLocation != null) {
+        final resolved = await vm.obtenerDireccionDesdeCoordenadas(
+          currentLocation,
+        );
+        final cleaned = resolved.trim();
+        if (cleaned.isNotEmpty) origenDireccionInicial = cleaned;
+      }
+      if (!mounted) return;
+      await InicioClienteNavigation.irADestinoSeleccion(
+        context,
+        vm.currentLocation,
+        origenDireccionInicial: origenDireccionInicial,
+      );
+    } finally {
+      if (mounted) setState(() => _isPreparingNavigation = false);
+    }
+  }
+
+  Future<void> _onBottomNavTap(int index) async {
+    try {
+      FocusScope.of(context).unfocus();
+    } catch (_) {}
+    if (!mounted) return;
+    setState(() => _selectedIndex = index);
+  }
+
+  Future<void> _centerOnMarker() async {
+    if (!mounted) return;
+    if (vm.currentLocation == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ubicación no disponible')),
+      );
+      return;
+    }
+    if (_mapController != null) {
+      try {
+        await _mapController!.animateCamera(
+          CameraUpdate.newLatLngZoom(vm.currentLocation!, 16),
+        );
+      } catch (_) {}
+    }
+  }
+
+  // ── Build ─────────────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
-    final double screenH = size.height;
     final double screenW = size.width;
-    // Breakpoints para tablets grandes
-    final bool isTablet = screenW >= 1000;
-    final double scale = isTablet ? 1.25 : (screenW / 375).clamp(0.9, 1.15);
-    final bool isSmallScreen = screenH < 700;
-    final double baseCarouselHeight =
-        screenH * (isSmallScreen ? 0.22 : (isTablet ? 0.32 : 0.26));
-    final double carouselHeight = isTablet
-        ? baseCarouselHeight.clamp(220.0, 340.0)
-        : baseCarouselHeight.clamp(140.0, 220.0);
-    // Ajustar estilo de la barra de estado según pestaña activa
+    final bool isTablet = screenW >= 600;
+
     final SystemUiOverlayStyle overlayStyle = _selectedIndex == 0
         ? SystemUiOverlayStyle.light.copyWith(statusBarColor: Colors.amber)
         : SystemUiOverlayStyle.dark.copyWith(statusBarColor: Colors.white);
     SystemChrome.setSystemUIOverlayStyle(overlayStyle);
 
-    // Se elimina el mapa y sus espacios
-    return WillPopScope(
-      onWillPop: () async => false,
+    final double hPad = isTablet ? 32.0 : 16.0;
+    final double carouselHeight =
+        (size.height * (isTablet ? 0.30 : 0.29)).clamp(160.0, 240.0);
+    final double mapHeight =
+        (size.height * (isTablet ? 0.26 : 0.24)).clamp(145.0, 205.0);
+
+    return PopScope(
+      canPop: false,
       child: Scaffold(
         extendBodyBehindAppBar: true,
         key: _scaffoldKey,
@@ -302,7 +360,6 @@ class _InicioClienteViewState extends State<InicioClienteView>
                     await InicioClienteNavigation.irASeguridad(context);
                   },
                 ),
-
                 ListTile(
                   leading: const Icon(Icons.help_outline),
                   title: const Text('Ayuda'),
@@ -331,15 +388,12 @@ class _InicioClienteViewState extends State<InicioClienteView>
             ),
           ),
         ),
-        // AppBar eliminado
         body: Stack(
           children: [
-            // top status bar color area
             Container(
               height: MediaQuery.of(context).padding.top,
               color: _selectedIndex == 0 ? Colors.amber : Colors.white,
             ),
-
             SafeArea(
               child: Stack(
                 children: [
@@ -349,94 +403,54 @@ class _InicioClienteViewState extends State<InicioClienteView>
                       // 0 - Historial
                       const HistorialCliente(),
 
-                      // 1 - Home content (original padding/layout)
-                      Padding(
-                        padding: EdgeInsets.fromLTRB(
-                          isTablet ? 48.0 : 16.0 * scale,
-                          isTablet ? 32.0 : 12.0 * scale,
-                          isTablet ? 48.0 : 16.0 * scale,
-                          isTablet ? 32.0 : 18.0 * scale,
-                        ),
-                        child: LayoutBuilder(
-                          builder: (context, constraints) {
-                            final compactThreshold = isTablet ? 720.0 : 540.0;
-                            final useScrollableLayout =
-                                constraints.maxHeight < compactThreshold;
-
-                            if (!useScrollableLayout) {
-                              return Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                      // 1 - Home
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Bloque superior: header + search + favoritos
+                          Padding(
+                            padding: EdgeInsets.fromLTRB(hPad, 45, hPad, 0),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _buildHeader(isTablet),
+                                const SizedBox(height: 12),
+                                _buildSearchBox(isTablet),
+                                const SizedBox(height: 16),
+                                _buildFavoritos(isTablet),
+                              ],
+                            ),
+                          ),
+                          // Bloque inferior: carousel + mapa anclados al fondo
+                          Expanded(
+                            child: Padding(
+                              padding:
+                                  EdgeInsets.fromLTRB(hPad, 20, hPad, 10),
+                              child: Column(
+                                crossAxisAlignment:
+                                    CrossAxisAlignment.stretch,
                                 children: [
-                                  _buildSaludoYNombre(scale),
-                                  SizedBox(height: isTablet ? 20 : 14 * scale),
-                                  _buildSubtitle(scale),
-                                  SizedBox(height: isTablet ? 22 : 18 * scale),
-                                  _buildSearchBox(scale),
-                                  SizedBox(height: isTablet ? 4 : 1 * scale),
-                                  _buildFavoritos(scale),
                                   SizedBox(
                                     height: carouselHeight,
                                     child: _buildCarousel(),
                                   ),
-                                  SizedBox(height: isTablet ? 6 : 2 * scale),
-                                  _buildLocationLabel(scale),
-                                  SizedBox(height: isTablet ? 8 : 8 * scale),
-                                  Expanded(child: _buildMap()),
-                                  SizedBox(height: isTablet ? 8 : 10 * scale),
+                                  const SizedBox(height: 35),
+                                  SizedBox(
+                                    height: mapHeight,
+                                    child: _buildMap(),
+                                  ),
                                 ],
-                              );
-                            }
-
-                            final compactCarouselHeight =
-                                (carouselHeight * 0.82)
-                                    .clamp(120.0, 180.0)
-                                    .toDouble();
-                            final compactMapHeight =
-                                (constraints.maxHeight * 0.34)
-                                    .clamp(140.0, 220.0)
-                                    .toDouble();
-
-                            return SingleChildScrollView(
-                              keyboardDismissBehavior:
-                                  ScrollViewKeyboardDismissBehavior.onDrag,
-                              child: ConstrainedBox(
-                                constraints: BoxConstraints(
-                                  minHeight: constraints.maxHeight,
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    _buildSaludoYNombre(scale),
-                                    SizedBox(height: 10 * scale),
-                                    _buildSubtitle(scale),
-                                    SizedBox(height: 10 * scale),
-                                    _buildSearchBox(scale),
-                                    _buildFavoritos(scale),
-                                    SizedBox(
-                                      height: compactCarouselHeight,
-                                      child: _buildCarousel(),
-                                    ),
-                                    SizedBox(height: 6 * scale),
-                                    _buildLocationLabel(scale),
-                                    SizedBox(height: 4 * scale),
-                                    SizedBox(
-                                      height: compactMapHeight,
-                                      child: _buildMap(),
-                                    ),
-                                    SizedBox(height: 8 * scale),
-                                  ],
-                                ),
                               ),
-                            );
-                          },
-                        ),
+                            ),
+                          ),
+                        ],
                       ),
 
                       // 2 - Perfil
                       const PaginaPerfilUsuario(tipoUsuario: 'cliente'),
                     ],
                   ),
-
                   if (vm.isLoadingLocation) _buildLoader(),
                   if (_isPreparingNavigation) _buildNavigationLoader(),
                 ],
@@ -449,136 +463,224 @@ class _InicioClienteViewState extends State<InicioClienteView>
     );
   }
 
-  // --- Métodos de UI auxiliares ---
-  Widget _buildSubtitle(double scale) {
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: 15.0 * scale),
-      child: Text(
-        'Viaje seguro a su destino',
-        style: TextStyle(
-          color: AppColores.textPrimary,
-          fontSize: 18 * scale,
-          fontWeight: FontWeight.bold,
+  // ── Secciones visuales ────────────────────────────────────────────────────
+
+  Widget _buildHeader(bool isTablet) {
+    final rawName = vm.clientName.trim();
+    String firstName = rawName;
+    if (rawName.isNotEmpty) {
+      final parts = rawName.split(RegExp(r'\s+'));
+      if (parts.isNotEmpty) firstName = parts.first;
+    }
+    final formattedName = firstName.isNotEmpty
+        ? firstName[0].toUpperCase() + firstName.substring(1).toLowerCase()
+        : '';
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Hola${formattedName.isNotEmpty ? ", $formattedName" : ""}',
+                style: TextStyle(
+                  fontSize: isTablet ? 27 : 25,
+                  fontWeight: FontWeight.w800,
+                  color: AppColores.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '¿A dónde vas hoy?',
+                style: TextStyle(
+                  fontSize: isTablet ? 16 : 15,
+                  fontWeight: FontWeight.w500,
+                  color: AppColores.textSecondary,
+                ),
+              ),
+            ],
+          ),
         ),
-      ),
+        GestureDetector(
+          onTap: () => _scaffoldKey.currentState?.openEndDrawer(),
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: const BoxDecoration(
+              color: AppColores.grey100,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.menu_rounded,
+              size: 22,
+              color: AppColores.textPrimary,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
-  Widget _buildSearchBox(double scale) {
+  Widget _buildSearchBox(bool isTablet) {
     return GestureDetector(
       onTap: () => _navigateToDestinoSeleccion(),
       child: Container(
-        margin: EdgeInsets.only(bottom: 18 * scale),
         decoration: BoxDecoration(
           color: AppColores.surface,
-          borderRadius: BorderRadius.circular(30),
-          border: Border.all(color: AppColores.buttonPrimary, width: 2),
-          boxShadow: [],
-        ),
-            padding: EdgeInsets.symmetric(
-              vertical: 16 * scale,
-              horizontal: 24.0,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColores.borderSubtle),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.07),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
             ),
+          ],
+        ),
+        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
         child: Row(
           children: [
-            const Icon(Icons.search, color: AppColores.buttonPrimary),
-            SizedBox(width: 12 * scale),
+            CircleAvatar(
+              radius: 14,
+              backgroundColor: AppColores.primary.withValues(alpha: 0.15),
+              child: const Icon(
+                Icons.my_location_rounded,
+                size: 14,
+                color: AppColores.primary,
+              ),
+            ),
+            const SizedBox(width: 12),
             Expanded(
               child: Text(
-                '¿A dónde vamos?',
+                '¿A dónde quieres ir?',
                 style: TextStyle(
-                  color: AppColores.primary,
-                  fontSize: 15 * scale,
-                  fontWeight: FontWeight.w700,
+                  color: AppColores.textSecondary,
+                  fontSize: isTablet ? 18 : 17,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ),
-            //const Icon(Icons.chevron_right, color: AppColores.buttonPrimary),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColores.primary,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(
+                Icons.arrow_forward_rounded,
+                size: 18,
+                color: AppColores.textPrimary,
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildFavoritos(double scale) {
+  Widget _buildFavoritos(bool isTablet) {
     final favs = vm.favoritos;
     final hasFavorites = favs.isNotEmpty;
 
-    return Padding(
-      padding: EdgeInsets.only(left: 12.0 * scale, right: 10.0 * scale),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            hasFavorites
-                ? 'Favoritos'
-                : 'Sugerencias: agrega tu ubicación favorita',
-            style: TextStyle(
-              color: AppColores.textSecondary,
-              fontSize: 13 * scale,
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          hasFavorites
+              ? 'Ubicaciones favoritas'
+              : 'Sugerencias: agrega tu ubicación favorita',
+          style: TextStyle(
+            color: AppColores.textSecondary,
+            fontSize: isTablet ? 13 : 12,
+            fontWeight: FontWeight.w500,
           ),
-          SizedBox(height: 6 * scale),
-          if (vm.isLoadingFavoritos)
-            const LinearProgressIndicator(minHeight: 2),
-          if (vm.isLoadingFavoritos) SizedBox(height: 6 * scale),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: hasFavorites
-                  ? favs.map((f) => _buildFavoritoItem(f, scale)).toList()
-                  : ['Casa', 'Trabajo', 'Otros']
-                        .map((label) => _buildSugerenciaItem(label, scale))
-                        .toList(),
-            ),
-          ),
-          SizedBox(height: 10 * scale),
+        ),
+        const SizedBox(height: 8),
+        if (vm.isLoadingFavoritos) ...[
+          const LinearProgressIndicator(minHeight: 2),
+          const SizedBox(height: 8),
         ],
-      ),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: hasFavorites
+                ? favs.map((f) => _buildFavoritoItem(f)).toList()
+                : ['Casa', 'Trabajo', 'Otros']
+                      .map((label) => _buildSugerenciaItem(label))
+                      .toList(),
+          ),
+        ),
+        const SizedBox(height: 4),
+      ],
     );
   }
 
-  Widget _buildFavoritoItem(UbicacionResultado f, double scale) {
+  Widget _buildFavoritoItem(UbicacionResultado f) {
+    final label = f.nombre.isNotEmpty ? f.nombre : f.direccion;
+    final icon = label.trim().toLowerCase() == 'casa'
+        ? Icons.home_rounded
+        : Icons.star_rounded;
+
     return Padding(
-      padding: EdgeInsets.only(right: 8.0 * scale),
+      padding: const EdgeInsets.only(right: 8),
       child: GestureDetector(
         onTap: () => _onFavoriteSelected(f),
         child: Container(
-          padding: EdgeInsets.symmetric(
-            horizontal: 12 * scale,
-            vertical: 6 * scale,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
-            color: AppColores.grey200,
-            borderRadius: BorderRadius.circular(16),
+            color: AppColores.surface,
+            borderRadius: BorderRadius.circular(20),
             border: Border.all(color: AppColores.borderSubtle),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 4,
+              ),
+            ],
           ),
-          child: Text(
-            f.nombre.isNotEmpty ? f.nombre : f.direccion,
-            style: TextStyle(
-              color: AppColores.textPrimary,
-              fontSize: 13 * scale,
-              fontWeight: FontWeight.w700,
-            ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 15, color: AppColores.primary),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: AppColores.textPrimary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _buildSugerenciaItem(String label, double scale) {
+  Widget _buildSugerenciaItem(String label) {
+    final IconData icon;
+    switch (label) {
+      case 'Casa':
+        icon = Icons.home_rounded;
+        break;
+      case 'Trabajo':
+        icon = Icons.work_rounded;
+        break;
+      default:
+        icon = Icons.explore_rounded;
+    }
+
     return Padding(
-      padding: EdgeInsets.only(right: 8.0 * scale),
+      padding: const EdgeInsets.only(right: 8),
       child: GestureDetector(
         onTap: () async {
           if (label == 'Casa') {
             final casa = vm.favoritos
-                .where((f) {
-                  return f.nombre.trim().toLowerCase() == 'casa';
-                })
+                .where((f) => f.nombre.trim().toLowerCase() == 'casa')
                 .cast<UbicacionResultado?>()
                 .firstWhere((f) => f != null, orElse: () => null);
-
             if (casa != null && casa.location != null) {
               await InicioClienteNavigation.irAMapaPreviewFavoritoCasa(
                 context,
@@ -588,52 +690,158 @@ class _InicioClienteViewState extends State<InicioClienteView>
               return;
             }
           }
-          // Si no es 'Casa' o no existe, navega a selección normal
           _navigateToDestinoSeleccion();
         },
         child: Container(
-          padding: EdgeInsets.symmetric(
-            horizontal: 12 * scale,
-            vertical: 6 * scale,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
-            color: AppColores.grey200,
-            borderRadius: BorderRadius.circular(16),
+            color: AppColores.surface,
+            borderRadius: BorderRadius.circular(20),
             border: Border.all(color: AppColores.borderSubtle),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 4,
+              ),
+            ],
           ),
-          child: Text(
-            label,
-            style: TextStyle(
-              color: AppColores.textPrimary,
-              fontSize: 13 * scale,
-              fontWeight: FontWeight.w700,
-            ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 15, color: AppColores.primary),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: AppColores.textPrimary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _buildLocationLabel(double scale) {
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: 17.0 * scale),
-      child: Text(
-        'Estás aquí',
-        style: TextStyle(
-          fontSize: 20 * scale,
-          fontWeight: FontWeight.w800,
-          color: AppColores.textPrimary,
+  Widget _buildCarousel() {
+    final items = [
+      {
+        'title': '¿Quieres promocionar\ntu negocio?',
+        'subtitle': 'Comunícate con nosotros',
+        'icon': Icons.campaign_rounded,
+      },
+    ];
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Expanded(
+          child: Stack(
+            children: [
+              PageView.builder(
+                controller: _carouselController,
+                itemCount: items.length,
+                itemBuilder: (context, index) {
+                  final item = items[index];
+                  return Card(
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    clipBehavior: Clip.hardEdge,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        // Fondo degradado
+                        Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                AppColores.primary.withValues(alpha: 0.85),
+                                AppColores.primary,
+                              ],
+                            ),
+                          ),
+                        ),
+                        // Círculo decorativo top-right
+                        Positioned(
+                          right: -20,
+                          top: -20,
+                          child: Container(
+                            width: 110,
+                            height: 110,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.white.withValues(alpha: 0.12),
+                            ),
+                          ),
+                        ),
+                        // Contenido
+                        Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(
+                                item['icon'] as IconData,
+                                size: 30,
+                                color: AppColores.textPrimary.withValues(
+                                  alpha: 0.85,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                item['title'].toString(),
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColores.textPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                item['subtitle'].toString(),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: AppColores.textPrimary.withValues(
+                                    alpha: 0.7,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
         ),
-      ),
+      ],
     );
   }
 
   Widget _buildMap() {
     return Container(
-      padding: const EdgeInsets.all(12),
-      width: double.infinity,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(2),
+        borderRadius: BorderRadius.circular(18),
         child: Stack(
           children: [
             AppGoogleMap(
@@ -653,16 +861,56 @@ class _InicioClienteViewState extends State<InicioClienteView>
                 }
               },
             ),
-            // (overlay removed) map will now occupy full area
+            // Label "Estás aquí"
+            Positioned(
+              top: 10,
+              left: 10,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.92),
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.08),
+                      blurRadius: 4,
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.location_on,
+                      size: 12,
+                      color: AppColores.primary,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Estás aquí',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppColores.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            // Botón centrar mapa
             Positioned(
               right: 8,
-              bottom: 5,
+              bottom: 8,
               child: Material(
                 color: Colors.transparent,
                 child: Container(
                   width: 32,
                   height: 32,
-                  decoration: BoxDecoration(
+                  decoration: const BoxDecoration(
                     color: AppColores.surface,
                     shape: BoxShape.circle,
                   ),
@@ -671,7 +919,10 @@ class _InicioClienteViewState extends State<InicioClienteView>
                     constraints: const BoxConstraints(),
                     iconSize: 21,
                     onPressed: _centerOnMarker,
-                    icon: Icon(Icons.my_location, color: AppColores.primary),
+                    icon: const Icon(
+                      Icons.my_location,
+                      color: AppColores.primary,
+                    ),
                   ),
                 ),
               ),
@@ -682,32 +933,57 @@ class _InicioClienteViewState extends State<InicioClienteView>
     );
   }
 
-  Future<void> _centerOnMarker() async {
-    if (!mounted) return;
-    if (vm.currentLocation == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Ubicación no disponible')));
-      return;
-    }
-
-    if (_mapController != null) {
-      try {
-        await _mapController!.animateCamera(
-          CameraUpdate.newLatLngZoom(vm.currentLocation!, 16),
-        );
-      } catch (_) {}
-    }
+  Widget _buildBottomNavigationBar() {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColores.surface,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 12,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: BottomNavigationBar(
+        backgroundColor: AppColores.surface,
+        elevation: 0,
+        type: BottomNavigationBarType.fixed,
+        selectedItemColor: AppColores.primary,
+        unselectedItemColor: AppColores.textSecondary,
+        currentIndex: _selectedIndex,
+        onTap: _onBottomNavTap,
+        selectedLabelStyle: const TextStyle(
+          fontWeight: FontWeight.w700,
+          fontSize: 11,
+        ),
+        unselectedLabelStyle: const TextStyle(fontSize: 11),
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.history),
+            label: 'Historial',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.map_outlined),
+            label: 'Mapa',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person_outline),
+            label: 'Perfil',
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildLoader() {
     return Positioned.fill(
       child: Container(
         color: AppColores.overlayDark,
-        child: Center(
+        child: const Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            children: const [
+            children: [
               CircularProgressIndicator(),
               SizedBox(height: 12),
               Text(
@@ -739,449 +1015,6 @@ class _InicioClienteViewState extends State<InicioClienteView>
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildBottomNavigationBar() {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColores.surface,
-        border: Border(top: BorderSide(color: AppColores.grey300, width: 1.0)),
-      ),
-      child: BottomNavigationBar(
-        backgroundColor: AppColores.surface,
-        elevation: 0,
-        selectedItemColor: yellow,
-        unselectedItemColor: AppColores.textSecondary,
-        currentIndex: _selectedIndex,
-        onTap: _onBottomNavTap,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.history),
-            label: 'Historial',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.map_outlined),
-            label: 'Mapa',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person_outline),
-            label: 'Perfil',
-          ),
-        ],
-      ),
-    );
-  }
-
-  // --- Métodos de lógica ---
-  Future<void> _loadCurrentLocation() async {
-    await vm.cargarUbicacionActual();
-    if (!mounted) return;
-    if (vm.currentLocation != null) {
-      if (_mapController != null) {
-        await _mapController!.animateCamera(
-          CameraUpdate.newLatLngZoom(vm.currentLocation!, 16),
-        );
-      }
-    }
-  }
-
-  Future<void> _onFavoriteSelected(UbicacionResultado fav) async {
-    if (fav.location == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Ubicación no disponible')));
-      return;
-    }
-    final origenPos = vm.currentLocation ?? fav.location!;
-    String origenDireccion = await vm.obtenerDireccionDesdeCoordenadas(
-      origenPos,
-    );
-    final origenModel = LocationModel(
-      position: origenPos,
-      title: origenDireccion,
-      subtitle: origenDireccion,
-    );
-    final destinoModel = LocationModel(
-      position: fav.location!,
-      title: fav.nombre.isNotEmpty ? fav.nombre : fav.direccion,
-      subtitle: fav.direccion,
-    );
-    if (!mounted) return;
-    try {
-      FocusScope.of(context).unfocus();
-    } catch (_) {}
-    await InicioClienteNavigation.irAMapaPreview(
-      context,
-      origenModel,
-      destinoModel,
-    );
-  }
-
-
-  Future<void> _navigateToDestinoSeleccion() async {
-    if (_isPreparingNavigation) return;
-
-    try {
-      FocusScope.of(context).unfocus();
-    } catch (_) {}
-
-    if (mounted) {
-      setState(() => _isPreparingNavigation = true);
-    }
-
-    try {
-      String? origenDireccionInicial;
-      final currentLocation = vm.currentLocation;
-      if (currentLocation != null) {
-        final resolved = await vm.obtenerDireccionDesdeCoordenadas(
-          currentLocation,
-        );
-        final cleaned = resolved.trim();
-        if (cleaned.isNotEmpty) {
-          origenDireccionInicial = cleaned;
-        }
-      }
-
-      if (!mounted) return;
-
-      await InicioClienteNavigation.irADestinoSeleccion(
-        context,
-        vm.currentLocation,
-        origenDireccionInicial: origenDireccionInicial,
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isPreparingNavigation = false);
-      }
-    }
-  }
-
-  Future<void> _onBottomNavTap(int index) async {
-    // Close keyboard first if open, then switch tab
-    try {
-      FocusScope.of(context).unfocus();
-    } catch (_) {}
-    if (!mounted) return;
-    setState(() => _selectedIndex = index);
-  }
-
-
-  Widget _buildSaludoYNombre(double scale) {
-    final rawName = vm.clientName.trim();
-    String firstName = rawName;
-    if (rawName.isNotEmpty) {
-      final parts = rawName.split(RegExp(r"\s+"));
-      if (parts.isNotEmpty) {
-        firstName = parts.first;
-      }
-    }
-    // Formatear: primera letra mayúscula, resto minúscula
-    String formattedName = firstName.isNotEmpty
-        ? firstName[0].toUpperCase() + firstName.substring(1).toLowerCase()
-        : '';
-    final double fontSize = (26 * scale).clamp(20.0, 30.0);
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: 12.0 * scale),
-      child: Row(
-        children: [
-          Expanded(
-            child: Row(
-              children: [
-                Text(
-                  'Hola,',
-                  style: TextStyle(
-                    fontSize: fontSize,
-                    fontWeight: FontWeight.w800,
-                    color: AppColores.textPrimary,
-                  ),
-                ),
-                SizedBox(width: 2 * scale),
-                Expanded(
-                  child: Text(
-                    formattedName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: fontSize,
-                      fontWeight: FontWeight.w800,
-                      color: AppColores.textPrimary,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // Más opciones icon (tres líneas) colocado al lado del nombre
-          IconButton(
-            icon: const Icon(Icons.menu, color: Colors.black87),
-            onPressed: () async {
-              // Open end drawer (right side)
-              _scaffoldKey.currentState?.openEndDrawer();
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCarousel() {
-    final items = [
-      {
-        'title': 'Promociones',
-        'subtitle': 'Ahorra en tu próximo viaje',
-        'icon': Icons.local_offer,
-      },
-      {
-        'title': 'Seguridad',
-        'subtitle': 'Consejos para un viaje seguro',
-        'icon': Icons.shield,
-      },
-      {
-        'title': 'Servicios',
-        'subtitle': 'Tipos de viaje disponibles',
-        'icon': Icons.directions_car,
-      },
-      {
-        'title': 'Soporte',
-        'subtitle': 'Contacto y ayuda',
-        'icon': Icons.headset_mic,
-      },
-    ];
-    final double horizontalPaddingOuter = 16.0 * 2;
-    final double availableWidth =
-        MediaQuery.of(context).size.width - horizontalPaddingOuter;
-    final double viewportFraction = 0.92;
-    final double pageWidth = availableWidth * viewportFraction;
-    final double screenH = MediaQuery.of(context).size.height;
-    final double baseCardHeight = math.min(180.0, screenH * 0.50);
-    final double desiredCardHeight = (baseCardHeight * _cardScale).clamp(
-      100.0,
-      screenH * 0.6,
-    );
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final double indicatorsHeight = 20.0;
-        final double verticalSpacing = 8.0;
-        final bool hasBoundedHeight = constraints.maxHeight.isFinite;
-
-        final double availableTotalHeight = hasBoundedHeight
-            ? constraints.maxHeight
-            : (desiredCardHeight + indicatorsHeight + verticalSpacing);
-        final double minCardHeight = 84.0;
-        final double maxCardHeight = math.max(
-          minCardHeight,
-          availableTotalHeight - indicatorsHeight - verticalSpacing,
-        );
-        final double cardHeight = desiredCardHeight
-            .clamp(minCardHeight, maxCardHeight)
-            .toDouble();
-        final double totalHeight =
-            cardHeight + indicatorsHeight + verticalSpacing;
-
-        return SizedBox(
-          height: totalHeight,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox(
-                height: cardHeight,
-                child: Stack(
-                  children: [
-                    PageView.builder(
-                      controller: _carouselController,
-                      itemCount: items.length,
-                      onPageChanged: (idx) =>
-                          setState(() => _carouselPage = idx),
-                      itemBuilder: (context, index) {
-                        final item = items[index];
-                        final double titleFont =
-                            (cardHeight * 0.12 * _titleFontScale)
-                                .clamp(12.0, 36.0)
-                                .toDouble();
-                        final double subtitleFont =
-                            (cardHeight * 0.08 * _titleFontScale)
-                                .clamp(10.0, 20.0)
-                                .toDouble();
-                        return Center(
-                          child: SizedBox(
-                            width: pageWidth,
-                            height: cardHeight,
-                            child: Card(
-                              elevation: 4,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              clipBehavior: Clip.hardEdge,
-                              child: Stack(
-                                fit: StackFit.expand,
-                                children: [
-                                  Container(color: AppColores.grey300),
-                                  Container(
-                                    decoration: const BoxDecoration(
-                                      gradient: LinearGradient(
-                                        begin: Alignment.bottomCenter,
-                                        end: Alignment.topCenter,
-                                        colors: [
-                                          AppColores.overlayLight,
-                                          Colors.transparent,
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                  Padding(
-                                    padding: EdgeInsets.symmetric(
-                                      horizontal: _cardPadding,
-                                      vertical: _cardPadding,
-                                    ),
-                                    child: Center(
-                                      child: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Text(
-                                            (item['title'] ?? 'Promo')
-                                                .toString(),
-                                            textAlign: TextAlign.center,
-                                            style: TextStyle(
-                                              fontSize: titleFont,
-                                              fontWeight: FontWeight.w700,
-                                              color: AppColores.textWhite,
-                                              shadows: const [
-                                                Shadow(
-                                                  color: AppColores.overlayDark,
-                                                  offset: Offset(0, 1),
-                                                  blurRadius: 4,
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          const SizedBox(height: 8),
-                                          Text(
-                                            (item['subtitle'] ?? '').toString(),
-                                            textAlign: TextAlign.center,
-                                            style: TextStyle(
-                                              fontSize: subtitleFont,
-                                              color: AppColores.textWhiteMuted,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                    if (items.length > 1)
-                      Positioned(
-                        left: 6,
-                        top: 0,
-                        bottom: 0,
-                        child: Center(
-                          child: GestureDetector(
-                            onTap: () {
-                              final prev = (_carouselPage - 1) < 0
-                                  ? (items.length - 1)
-                                  : (_carouselPage - 1);
-                              _carouselController.animateToPage(
-                                prev,
-                                duration: const Duration(milliseconds: 300),
-                                curve: Curves.easeInOut,
-                              );
-                              setState(() => _carouselPage = prev);
-                            },
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: _carouselNavButtonColor,
-                                shape: BoxShape.circle,
-                                boxShadow: const [
-                                  BoxShadow(
-                                    color: AppColores.borderSubtle,
-                                    blurRadius: 6,
-                                  ),
-                                ],
-                              ),
-                              child: const Padding(
-                                padding: EdgeInsets.all(6.0),
-                                child: Icon(
-                                  Icons.chevron_left,
-                                  size: 28,
-                                  color: AppColores.textPrimary,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    if (items.length > 1)
-                      Positioned(
-                        right: 6,
-                        top: 0,
-                        bottom: 0,
-                        child: Center(
-                          child: GestureDetector(
-                            onTap: () {
-                              final next = (_carouselPage + 1) % items.length;
-                              _carouselController.animateToPage(
-                                next,
-                                duration: const Duration(milliseconds: 300),
-                                curve: Curves.easeInOut,
-                              );
-                              setState(() => _carouselPage = next);
-                            },
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: _carouselNavButtonColor,
-                                shape: BoxShape.circle,
-                                boxShadow: const [
-                                  BoxShadow(
-                                    color: AppColores.borderSubtle,
-                                    blurRadius: 6,
-                                  ),
-                                ],
-                              ),
-                              child: const Padding(
-                                padding: EdgeInsets.all(6.0),
-                                child: Icon(
-                                  Icons.chevron_right,
-                                  size: 28,
-                                  color: AppColores.textPrimary,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(items.length, (i) {
-                  final active = i == _carouselPage;
-                  return AnimatedContainer(
-                    duration: const Duration(milliseconds: 250),
-                    margin: const EdgeInsets.symmetric(horizontal: 4),
-                    width: active ? 14 : 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: active
-                          ? AppColores.textPrimary
-                          : AppColores.overlayLight,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  );
-                }),
-              ),
-            ],
-          ),
-        );
-      },
     );
   }
 }
