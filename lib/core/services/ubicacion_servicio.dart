@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:taxi_app/helper/permisos_helper.dart';
+import 'package:taxi_app/core/helpers/permisos_helper.dart';
 
 class UbicacionService {
   UbicacionService._internal();

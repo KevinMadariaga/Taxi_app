@@ -211,7 +211,7 @@ class _EliminarCuentaScreenState extends State<EliminarCuentaScreen> {
           if (_isDeleting)
             Positioned.fill(
               child: Container(
-                color: Colors.black.withOpacity(0.35),
+                color: Colors.black.withValues(alpha: 0.35),
                 child: const Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,

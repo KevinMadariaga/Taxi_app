@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
-import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/historial_conductor_viewmodel.dart';
+import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodels/historial_conductor_viewmodel.dart';
 import 'historial_detalle_conductor.dart';
 
 class HistorialConductor extends StatefulWidget {

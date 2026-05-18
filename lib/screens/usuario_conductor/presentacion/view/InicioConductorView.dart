@@ -5,13 +5,12 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/navigation/inicio_conductor_navigation.dart';
-import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/preview_solicitud.dart';
-import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/InicioConductorViewModel.dart';
-import 'package:flutter/foundation.dart';
+import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodels/preview_solicitud.dart';
+import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodels/InicioConductorViewModel.dart';
 import 'package:provider/provider.dart';
 import 'package:taxi_app/core/services/services.dart';
 import 'package:taxi_app/widgets/google_maps_widget.dart';
-import 'package:taxi_app/helper/permisos_helper.dart';
+import 'package:taxi_app/core/helpers/permisos_helper.dart';
 import 'package:taxi_app/widgets/preview_solicitud_card.dart';
 import 'package:taxi_app/widgets/solicitud_card.dart';
 
@@ -27,8 +26,6 @@ class _InicioConductorState extends State<InicioConductor>
   GoogleMapController? _mapController;
   int _selectedIndex = 1;
   bool _hasCentered = false;
-  String? _lastFittedPreviewId;
-  bool _hasCenteredForPreview = false;
   bool _navigatingToRuta = false;
   bool _gpsPromptShown = false;
   bool _isGpsDialogOpen = false;
@@ -180,21 +177,6 @@ class _InicioConductorState extends State<InicioConductor>
     }
   }
 
-  Future<void> _applyPerspectiveForPreview(
-    PreviewSolicitud preview,
-    InicioConductorViewmodel vm,
-  ) async {
-    if (_mapController == null) return;
-    final persp = vm.getCameraPerspectiveForPreview();
-    if (persp == null) return;
-    try {
-      await _mapController!.animateCamera(
-        CameraUpdate.newCameraPosition(persp),
-      );
-      _hasCenteredForPreview = true;
-    } catch (_) {}
-  }
-
   // Centrar la cámara en la perspectiva del conductor hacia el cliente al seleccionar una solicitud
   Future<void> _centerPreviewOnConductorToClient(
     InicioConductorViewmodel vm,
@@ -341,24 +323,6 @@ class _InicioConductorState extends State<InicioConductor>
                 _mapController!,
                 zoom: vm.currentLocation != null ? 16.0 : 14.5,
               );
-            }
-          });
-          // If a preview is selected, attempt to fit bounds including polylines and markers.
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            final preview = vm.selectedPreview;
-            if (preview != null) {
-              final id = preview.solicitud.id;
-              if (_lastFittedPreviewId != id) {
-                _lastFittedPreviewId = id;
-                _hasCenteredForPreview = false;
-                _applyPerspectiveForPreview(preview, vm);
-              } else if (!_hasCenteredForPreview &&
-                  vm.routePolylines.isNotEmpty) {
-                _applyPerspectiveForPreview(preview, vm);
-              }
-            } else {
-              _lastFittedPreviewId = null;
-              _hasCenteredForPreview = false;
             }
           });
 
@@ -718,10 +682,10 @@ class _InicioConductorState extends State<InicioConductor>
                                                     strokeWidth: 2,
                                                     strokeColor: AppColores
                                                         .primary
-                                                        .withOpacity(0.7),
+                                                        .withValues(alpha: 0.7),
                                                     fillColor: AppColores
                                                         .primary
-                                                        .withOpacity(0.06),
+                                                        .withValues(alpha: 0.06),
                                                   ),
                                                 }
                                               : const <Circle>{},
@@ -774,7 +738,7 @@ class _InicioConductorState extends State<InicioConductor>
                                   if (vm.isLoadingPreviewRoute)
                                     Positioned.fill(
                                       child: Container(
-                                        color: Colors.white.withOpacity(0.6),
+                                        color: Colors.white.withValues(alpha: 0.6),
                                         child: const Center(
                                           child: Column(
                                             mainAxisSize: MainAxisSize.min,
@@ -883,73 +847,44 @@ class _InicioConductorState extends State<InicioConductor>
                                                             child: SolicitudCard(
                                                               solicitud: s,
                                                               expanded: false,
-                                                              onTap: (preview) async {
-                                                                final s = preview
-                                                                    .solicitud;
-                                                                vm.selectPreview(
-                                                                  preview,
-                                                                );
+                                                              onTap: (preview) {
+                                                                final s = preview.solicitud;
+                                                                // selectPreview llama internamente a preloadClientePhoto
+                                                                vm.selectPreview(preview);
+
+                                                                // Iniciar listener sin bloquear la animación de la card
                                                                 unawaited(
-                                                                  vm.preloadClientePhoto(
-                                                                    s.clienteId,
+                                                                  vm.listenPreviewSolicitudStatus(
+                                                                    solicitudId: s.id,
+                                                                    onCanceladoOrRemoved: () async {
+                                                                      if (!mounted) return;
+                                                                      await _closePreview(vm);
+                                                                    },
+                                                                    onAsignado: () async {
+                                                                      await _navegarARutaConductor(vm, s.id);
+                                                                    },
                                                                   ),
                                                                 );
 
-                                                                await vm.listenPreviewSolicitudStatus(
-                                                                  solicitudId:
-                                                                      s.id,
-                                                                  onCanceladoOrRemoved:
-                                                                      () async {
-                                                                        if (!mounted) {
-                                                                          return;
-                                                                        }
-                                                                        await _closePreview(
-                                                                          vm,
-                                                                        );
-                                                                      },
-                                                                  onAsignado:
-                                                                      () async {
-                                                                        await _navegarARutaConductor(
-                                                                          vm,
-                                                                          s.id,
-                                                                        );
-                                                                      },
-                                                                );
-
-                                                                if (vm.currentLocation !=
-                                                                    null) {
-                                                                  final driver =
-                                                                      vm.currentLocation!;
+                                                                // Animar cámara sin await para no bloquear la UI
+                                                                if (vm.currentLocation != null) {
+                                                                  final driver = vm.currentLocation!;
                                                                   final client = LatLng(
-                                                                    s
-                                                                        .ubicacionInicial
-                                                                        .latitude,
-                                                                    s
-                                                                        .ubicacionInicial
-                                                                        .longitude,
+                                                                    s.ubicacionInicial.latitude,
+                                                                    s.ubicacionInicial.longitude,
                                                                   );
-                                                                  await _centerPreviewOnConductorToClient(
-                                                                    vm,
-                                                                    preview,
-                                                                  );
-                                                                  // Try to fetch a routed polyline (OSRM) for mejor trazabilidad
-                                                                  vm.fetchRouteOSRM(
-                                                                    s.id,
-                                                                    driver,
-                                                                    client,
-                                                                  );
+                                                                  unawaited(_centerPreviewOnConductorToClient(vm, preview));
+                                                                  vm.fetchRouteOSRM(s.id, driver, client);
                                                                 } else {
-                                                                  await _mapController?.animateCamera(
-                                                                    CameraUpdate.newLatLngZoom(
-                                                                      LatLng(
-                                                                        s
-                                                                            .ubicacionInicial
-                                                                            .latitude,
-                                                                        s
-                                                                            .ubicacionInicial
-                                                                            .longitude,
+                                                                  unawaited(
+                                                                    _mapController?.animateCamera(
+                                                                      CameraUpdate.newLatLngZoom(
+                                                                        LatLng(
+                                                                          s.ubicacionInicial.latitude,
+                                                                          s.ubicacionInicial.longitude,
+                                                                        ),
+                                                                        16,
                                                                       ),
-                                                                      16,
                                                                     ),
                                                                   );
                                                                 }

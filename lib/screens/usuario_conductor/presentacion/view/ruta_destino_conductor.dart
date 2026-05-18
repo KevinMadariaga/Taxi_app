@@ -7,9 +7,9 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:taxi_app/core/app_colores.dart';
-import 'package:taxi_app/helper/responsive_helper.dart';
+import 'package:taxi_app/core/helpers/responsive_helper.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/resumen_conductor_view.dart';
-import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/ruta_conductor_viewmodel.dart';
+import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodels/ruta_conductor_viewmodel.dart';
 import 'package:taxi_app/core/services/firebase_service.dart';
 import 'package:taxi_app/core/services/tracking_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -685,8 +685,8 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView>
       etaText = null;
     }
 
-    return WillPopScope(
-      onWillPop: () async => false,
+    return PopScope(
+      canPop: false,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Ruta al destino'),
@@ -734,7 +734,7 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView>
                             vertical: ResponsiveHelper.hp(context, 0.6),
                           ),
                           decoration: BoxDecoration(
-                            color: AppColores.cardBackground.withOpacity(0.95),
+                            color: AppColores.cardBackground.withValues(alpha: 0.95),
                             borderRadius: BorderRadius.circular(24),
                             boxShadow: [
                               BoxShadow(
@@ -777,7 +777,7 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView>
                             vertical: ResponsiveHelper.hp(context, 0.6),
                           ),
                           decoration: BoxDecoration(
-                            color: AppColores.cardBackground.withOpacity(0.95),
+                            color: AppColores.cardBackground.withValues(alpha: 0.95),
                             borderRadius: BorderRadius.circular(24),
                             boxShadow: [
                               BoxShadow(
@@ -924,7 +924,7 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView>
                             style: OutlinedButton.styleFrom(
                               foregroundColor: AppColores.primary,
                               side: BorderSide(
-                                color: AppColores.primary.withOpacity(0.8),
+                                color: AppColores.primary.withValues(alpha: 0.8),
                                 width: 1.2,
                               ),
                               padding: EdgeInsets.symmetric(
@@ -1175,8 +1175,8 @@ class _RutaDestinoConductorViewState extends State<RutaDestinoConductorView>
       context: context,
       barrierDismissible: false,
       builder: (ctx) {
-        return WillPopScope(
-          onWillPop: () async => false,
+        return PopScope(
+          canPop: false,
           child: Dialog(
             backgroundColor: Colors.transparent,
             child: Column(

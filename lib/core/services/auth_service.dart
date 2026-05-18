@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:taxi_app/helper/session_helper.dart';
+import 'package:taxi_app/core/helpers/session_helper.dart';
 import 'package:taxi_app/screens/home_screen.dart';
 import 'package:taxi_app/features/trip_tracking_cliente/views/trip_tracking_screen.dart';
 import 'package:taxi_app/presentation/screens/auth/complete_profile_page.dart';

@@ -4,7 +4,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/services/services.dart';
 import 'package:taxi_app/features/phone_auth/screens/admin_ingreso_screen.dart';
-import 'package:taxi_app/features/phone_auth/screens/auth_phone_screen.dart';
 import 'package:taxi_app/features/phone_auth/controllers/phone_auth_controller.dart';
 import 'package:awesome_snackbar_content/awesome_snackbar_content.dart';
 

@@ -5,8 +5,6 @@ import 'package:taxi_app/domain/models/auth_flow_result.dart';
 import 'package:taxi_app/domain/usecases/client_auth/sign_in_google_client_usecase.dart';
 import 'package:taxi_app/domain/usecases/client_auth/sign_in_apple_client_usecase.dart';
 import 'package:taxi_app/core/services/services.dart';
-import 'package:taxi_app/core/services/apple_sign_in_service.dart';
-import 'package:taxi_app/domain/entities/client_user_entity.dart';
 
 class HomeAuthController extends ChangeNotifier {
   HomeAuthController({

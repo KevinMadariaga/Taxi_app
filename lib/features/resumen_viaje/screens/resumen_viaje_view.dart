@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import 'package:taxi_app/components/boton.dart';
+import 'package:taxi_app/widgets/boton.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/InicioClienteView.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioConductorView.dart';
 import 'package:taxi_app/core/services/services.dart';
-import 'package:taxi_app/helper/session_helper.dart';
+import 'package:taxi_app/core/helpers/session_helper.dart';
 
 import '../controllers/resumen_viaje_controller.dart';
 import '../models/resumen_viaje_model.dart';
@@ -152,11 +152,9 @@ class _ResumenViajeBodyState extends State<_ResumenViajeBody> {
                 ? 44.0
                 : 20.0;
 
-            return WillPopScope(
-              onWillPop: () async {
-                FocusScope.of(context).unfocus();
-                await Future.delayed(const Duration(milliseconds: 150));
-                return true;
+            return PopScope(
+              onPopInvokedWithResult: (didPop, _) {
+                if (didPop) FocusScope.of(context).unfocus();
               },
               child: Scaffold(
                 resizeToAvoidBottomInset: true,

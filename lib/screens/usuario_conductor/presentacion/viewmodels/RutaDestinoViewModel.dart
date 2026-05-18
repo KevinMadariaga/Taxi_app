@@ -8,7 +8,7 @@ import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
-import 'package:taxi_app/helper/session_helper.dart';
+import 'package:taxi_app/core/helpers/session_helper.dart';
 import 'dart:math' as math;
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/chat_message.dart';
 import 'package:taxi_app/core/services/chat_service_adapter.dart';

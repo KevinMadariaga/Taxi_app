@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -69,7 +68,7 @@ class MarkerIconHelper {
       );
       if (byteData == null) return null;
 
-      return BitmapDescriptor.fromBytes(byteData.buffer.asUint8List());
+      return BitmapDescriptor.bytes(byteData.buffer.asUint8List());
     } catch (_) {
       return null;
     }
@@ -188,6 +187,6 @@ class MarkerIconHelper {
     );
     if (byteData == null) return null;
 
-    return BitmapDescriptor.fromBytes(byteData.buffer.asUint8List());
+    return BitmapDescriptor.bytes(byteData.buffer.asUint8List());
   }
 }

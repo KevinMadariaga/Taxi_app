@@ -8,6 +8,5 @@ export 'services/map_service.dart';
 export 'viewmodels/trip_tracking_viewmodel.dart';
 export 'views/trip_chat_screen.dart';
 export 'views/trip_tracking_screen.dart';
-export 'widgets/trip_status_overlay.dart';
 export 'widgets/user_trip_info_card.dart';
 export 'widgets/waiting_driver_modal.dart';

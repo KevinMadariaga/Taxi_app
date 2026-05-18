@@ -11,7 +11,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
-import 'package:taxi_app/helper/session_helper.dart';
+import 'package:taxi_app/core/helpers/session_helper.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/chat_message.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/RutaConductorView.dart';
 import 'package:taxi_app/core/services/chat_service_adapter.dart';
@@ -66,7 +66,6 @@ class Rutaclienteviewmodel extends ChangeNotifier {
     return _solicitudRepository.estadoSolicitudStream(solicitudId);
   }
 
-  final RideService _rideService = RideService();
   final SolicitudRepository _solicitudRepository = SolicitudRepository();
 
   /// Id del usuario actual (cliente)
@@ -160,14 +159,16 @@ class Rutaclienteviewmodel extends ChangeNotifier {
     if (_cancelHandled) return;
     _cancelHandled = true;
     try {
-      await _rideService.cancelarSolicitud(solicitudId);
       await FirebaseFirestore.instance
           .collection('solicitudes')
           .doc(solicitudId)
-          .update({'cancelledAt': FieldValue.serverTimestamp()});
+          .update({
+            'estado': 'cancelado',
+            'cancelledAt': FieldValue.serverTimestamp(),
+          });
     } catch (e) {
       debugPrint('Error al cancelar la solicitud: $e');
-      _cancelHandled = false; // Permitir reintento si falla
+      _cancelHandled = false;
     }
   }
 
@@ -187,7 +188,7 @@ class Rutaclienteviewmodel extends ChangeNotifier {
         'motivoCancelacion': 'Sin respuesta',
       }, SetOptions(merge: true));
 
-      await _rideService.cancelarSolicitud(solicitudId);
+      await docRef.update({'estado': 'cancelado'});
 
       await docRef.set({
         'motivoCancelacion': 'Sin respuesta',

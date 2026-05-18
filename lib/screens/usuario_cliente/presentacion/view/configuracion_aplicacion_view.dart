@@ -17,7 +17,6 @@ class _ConfiguracionAplicacionViewState
     extends State<ConfiguracionAplicacionView> {
   String _appVersion = '...';
 
-  String _apariencia = 'Sistema';
   bool _isLoggingOut = false;
   bool _isDeletingAccount = false;
 
@@ -37,44 +36,6 @@ class _ConfiguracionAplicacionViewState
     } catch (_) {
       // Ignore; keep placeholder
     }
-  }
-
-  Future<void> _seleccionarApariencia() async {
-    final selected = await showModalBottomSheet<String>(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        final opciones = ['Sistema', 'Claro', 'Oscuro'];
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (final opcion in opciones)
-                ListTile(
-                  leading: Icon(
-                    _apariencia == opcion
-                        ? Icons.radio_button_checked
-                        : Icons.radio_button_off,
-                    color: _apariencia == opcion
-                        ? AppColores.buttonPrimary
-                        : AppColores.textSecondary,
-                  ),
-                  title: Text(opcion),
-                  onTap: () => Navigator.of(ctx).pop(opcion),
-                ),
-            ],
-          ),
-        );
-      },
-    );
-
-    if (!mounted || selected == null || selected == _apariencia) return;
-    setState(() => _apariencia = selected);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Apariencia seleccionada: $selected')),
-    );
   }
 
   Future<void> _abrirDocumentosLegales() async {

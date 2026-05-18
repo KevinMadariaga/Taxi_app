@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:taxi_app/components/boton.dart';
+import 'package:taxi_app/widgets/boton.dart';
 import 'package:taxi_app/core/app_colores.dart';
-import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/preview_solicitud.dart';
+import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodels/preview_solicitud.dart';
 
 class PreviewSolicitudCard extends StatelessWidget {
   final PreviewSolicitud preview;

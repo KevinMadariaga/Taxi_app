@@ -8,7 +8,7 @@ import 'package:taxi_app/screens/usuario_conductor/presentacion/view/RutaDestino
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:taxi_app/core/app_colores.dart';
-import 'package:taxi_app/helper/session_helper.dart';
+import 'package:taxi_app/core/helpers/session_helper.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioConductorView.dart';
 import 'package:taxi_app/core/services/services.dart';
 
@@ -255,8 +255,8 @@ class _DriverTripScreenState extends State<DriverTripScreen>
               statusBarIconBrightness: Brightness.dark,
               statusBarBrightness: Brightness.light,
             ),
-            child: WillPopScope(
-              onWillPop: () async => false,
+            child: PopScope(
+              canPop: false,
               child: Scaffold(
                 body: Builder(
                   builder: (ctx) {
@@ -350,7 +350,7 @@ class _DriverTripScreenState extends State<DriverTripScreen>
                         if (controller.isLoading || controller.isRouteLoading)
                           Positioned.fill(
                             child: Container(
-                              color: Colors.white.withOpacity(0.6),
+                              color: Colors.white.withValues(alpha: 0.6),
                               child: Center(
                                 child: Column(
                                   mainAxisSize: MainAxisSize.min,

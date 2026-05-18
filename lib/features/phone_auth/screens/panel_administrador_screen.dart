@@ -40,7 +40,7 @@ class PanelAdministradorScreen extends StatelessWidget {
                       return Container(
                         margin: const EdgeInsets.fromLTRB(16, 10, 16, 12),
                         decoration: BoxDecoration(
-                          color: AppColores.primary.withOpacity(0.22),
+                          color: AppColores.primary.withValues(alpha: 0.22),
                           border: Border.all(
                             color: AppColores.primary,
                             width: 1.2,

@@ -343,7 +343,7 @@ class _HomeViewState extends State<HomeView> {
                 if (isBusy)
                   Positioned.fill(
                     child: ColoredBox(
-                      color: AppColores.background.withOpacity(0.75),
+                      color: AppColores.background.withValues(alpha: 0.75),
                       child: const Center(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,

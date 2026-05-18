@@ -11,8 +11,8 @@ import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'dart:ui' as ui;
 import 'dart:math' as math;
 import 'package:taxi_app/core/app_colores.dart';
-import 'package:taxi_app/helper/responsive_helper.dart';
-import 'package:taxi_app/helper/session_helper.dart';
+import 'package:taxi_app/core/helpers/responsive_helper.dart';
+import 'package:taxi_app/core/helpers/session_helper.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/configuracion_aplicacion_view.dart';
 import 'package:taxi_app/widgets/editar_perfil.dart';
 
@@ -603,12 +603,11 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
 
     // Responsive sizes based on screen dimensions and safe clamps
     final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
 
-    final double appBarFontSize = (screenWidth * 0.05).clamp(18.0, 22.0) as double;
-    double computedNameFontSize = (screenWidth * 0.06).clamp(18.0, 26.0) as double;
-    double avatarRadius = (screenWidth * 0.14).clamp(36.0, 70.0) as double;
-    final double avatarIconSize = (avatarRadius * 0.9).clamp(28.0, 56.0) as double;
+    final double appBarFontSize = (screenWidth * 0.05).clamp(18.0, 22.0);
+    double computedNameFontSize = (screenWidth * 0.06).clamp(18.0, 26.0);
+    double avatarRadius = (screenWidth * 0.14).clamp(36.0, 70.0);
+    final double avatarIconSize = (avatarRadius * 0.9).clamp(28.0, 56.0);
 
     // Adjust name font size for very long names
     if (nombre.length > 18 && nombre.length <= 26) {
@@ -769,7 +768,7 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
                         color: AppColores.background,
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.04),
+                            color: Colors.black.withValues(alpha: 0.04),
                             blurRadius: 8,
                             offset: const Offset(0, -2),
                           ),

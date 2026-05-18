@@ -16,7 +16,7 @@ Future<void> navigateWithIntermediateLoader({
     PageRouteBuilder(
       transitionDuration: const Duration(milliseconds: 220),
       reverseTransitionDuration: const Duration(milliseconds: 180),
-      pageBuilder: (_, __, ___) => IntermediateTransitionView(
+      pageBuilder: (_, _, _) => IntermediateTransitionView(
         nextBuilder: nextBuilder,
         delay: delay,
         title: title,
@@ -24,7 +24,7 @@ Future<void> navigateWithIntermediateLoader({
         icon: icon,
         clearStackOnNext: clearStackOnNext,
       ),
-      transitionsBuilder: (_, animation, __, child) {
+      transitionsBuilder: (_, animation, _, child) {
         return FadeTransition(opacity: animation, child: child);
       },
     ),
@@ -94,7 +94,7 @@ class _IntermediateTransitionViewState extends State<IntermediateTransitionView>
   Widget _animatedDot(int index) {
     return AnimatedBuilder(
       animation: _dotsController,
-      builder: (_, __) {
+      builder: (_, _) {
         final phase = (_dotsController.value + (index * 0.2)) % 1.0;
         final active = phase < 0.5;
         final opacity = active ? 1.0 : 0.35;

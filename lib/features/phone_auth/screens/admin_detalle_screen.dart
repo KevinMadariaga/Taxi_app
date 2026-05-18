@@ -577,7 +577,7 @@ class _AdminDetalleScreenState extends State<AdminDetalleScreen> {
               if (_busy)
                 Positioned.fill(
                   child: Container(
-                    color: Colors.black.withOpacity(0.2),
+                    color: Colors.black.withValues(alpha: 0.2),
                     child: const Center(child: CircularProgressIndicator()),
                   ),
                 ),
@@ -623,7 +623,7 @@ class _EditableDetailRow extends StatelessWidget {
               width: 34,
               height: 34,
               decoration: BoxDecoration(
-                color: AppColores.primary.withOpacity(0.16),
+                color: AppColores.primary.withValues(alpha: 0.16),
                 shape: BoxShape.circle,
               ),
               child: Icon(icon, size: 18, color: AppColores.textPrimary),

@@ -162,9 +162,6 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
                 title: direccionOrigen,
                 subtitle: direccionOrigen,
               ),
-              // Si ya tenemos direccion resuelta del mapa ajustado,
-              // usarla como texto principal del destino.
-              // Asi la tarjeta "¿Adónde va?" muestra la ubicacion final elegida.
               destino: LocationModel(
                 position: destino,
                 title: (direccionDestino?.trim().isNotEmpty == true)
@@ -292,7 +289,6 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
     if (tipo == 'Favorito') {
-      // Mostrar desplegable de favoritos guardados y opción de agregar
       final snapshot = await FirebaseFirestore.instance
           .collection('usuarios')
           .doc(user.uid)
@@ -317,9 +313,9 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   'Favoritos guardados',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 18,
                   ),
@@ -363,7 +359,6 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
       );
       return;
     }
-    // Casa y Trabajo: lógica anterior
     if (tipo == 'Casa' || tipo == 'Trabajo') {
       final snapshot = await FirebaseFirestore.instance
           .collection('usuarios')
@@ -386,7 +381,6 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
         }
       }
     }
-    // Si no existe, seleccionar y guardar como antes
     final resultado = await _abrirSeleccionUbicacionEnMapa(
       titulo: 'Selecciona ubicación de $tipo',
     );
@@ -450,19 +444,18 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
         .collection('favoritos')
         .add(payload);
 
-    // Compatibilidad con consultas legacy y autocompletado existente.
     await FirebaseFirestore.instance.collection('ubicaciones').add(payload);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
           children: [
-            Icon(Icons.check_circle, color: Colors.greenAccent, size: 26),
-            SizedBox(width: 12),
+            const Icon(Icons.check_circle, color: Colors.greenAccent, size: 26),
+            const SizedBox(width: 12),
             Expanded(
               child: Text(
                 'Ubicación guardada como "${nombrePersonalizado ?? tipo}"',
-                style: TextStyle(
+                style: const TextStyle(
                   fontWeight: FontWeight.w600,
                   fontSize: 16,
                   color: AppColores.textPrimary,
@@ -798,7 +791,6 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
     if (origenInicial.isNotEmpty) {
       _origenController.text = origenInicial;
     } else if (widget.currentLocation != null) {
-      // Si no vino una dirección precargada, resolverla localmente.
       _setOrigenDesdeCoordenadas(widget.currentLocation!);
     }
   }
@@ -829,8 +821,7 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
               : '${coord.latitude.toStringAsFixed(6)}, ${coord.longitude.toStringAsFixed(6)}';
         });
       }
-    } catch (e) {
-      // Si falla reverse geocoding, mostrar coordenadas
+    } catch (_) {
       setState(() {
         _origenController.text =
             '${coord.latitude.toStringAsFixed(6)}, ${coord.longitude.toStringAsFixed(6)}';
@@ -848,12 +839,7 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
     super.dispose();
   }
 
-  /// Extrae un LatLng del texto pegado.
-  /// Primero busca pares lat,lng en el propio texto.
-  /// Si no encuentra, intenta resolver si hay un link (por ejemplo maps.app.goo.gl)
-  /// siguiendo el redirect una vez y buscando coordenadas en el destino.
   Future<LatLng?> _extraerLatLngDesdeTexto(String text) async {
-    // 1) Buscar coordenadas directas en el texto
     final reg = RegExp(r'(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)');
     final matches = reg.allMatches(text).toList();
     if (matches.isNotEmpty) {
@@ -865,15 +851,12 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
       }
     }
 
-    // 2) Buscar coordenadas en Google Maps links con '@lat,lng'
     final urlMatch = RegExp(r'(https?://[^\s]+)').firstMatch(text);
     final rawUrl = (urlMatch?.group(1) ?? text).trim();
     if (rawUrl.isNotEmpty && rawUrl.contains('google.com/maps')) {
-      // Buscar el patrón @lat,lng en el link
       final atReg = RegExp(r'@(-?\d+\.\d+),(-?\d+\.\d+)(?:,|z)');
       final atMatches = atReg.allMatches(rawUrl).toList();
       if (atMatches.isNotEmpty) {
-        // Si es un link de /place/, tomar la primera ocurrencia
         if (rawUrl.contains('/place/')) {
           final m = atMatches[0];
           final lat = double.tryParse(m.group(1) ?? '');
@@ -881,18 +864,14 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
           if (lat != null && lng != null) {
             return LatLng(lat, lng);
           }
-        }
-        // Si es un link de /dir/, tomar la segunda ocurrencia si existe
-        else if (rawUrl.contains('/dir/')) {
+        } else if (rawUrl.contains('/dir/')) {
           final m = atMatches.length > 1 ? atMatches[1] : atMatches[0];
           final lat = double.tryParse(m.group(1) ?? '');
           final lng = double.tryParse(m.group(2) ?? '');
           if (lat != null && lng != null) {
             return LatLng(lat, lng);
           }
-        }
-        // Si no se puede identificar, tomar la primera
-        else {
+        } else {
           final m = atMatches[0];
           final lat = double.tryParse(m.group(1) ?? '');
           final lng = double.tryParse(m.group(2) ?? '');
@@ -903,25 +882,23 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
       }
     }
 
-    // 2) Si no hay coords directas, intentar con un URL (short link de Google Maps, etc.)
     try {
-      final urlMatch = RegExp(r'(https?://[^\s]+)').firstMatch(text);
-      final rawUrl = (urlMatch?.group(1) ?? text).trim();
-      if (rawUrl.isEmpty) return null;
+      final urlMatch2 = RegExp(r'(https?://[^\s]+)').firstMatch(text);
+      final rawUrl2 = (urlMatch2?.group(1) ?? text).trim();
+      if (rawUrl2.isEmpty) return null;
 
       Uri uri;
       try {
-        uri = Uri.parse(rawUrl);
+        uri = Uri.parse(rawUrl2);
       } catch (_) {
         return null;
       }
       if (!uri.hasScheme) {
-        uri = Uri.parse('https://$rawUrl');
+        uri = Uri.parse('https://$rawUrl2');
       }
 
       final client = http.Client();
       try {
-        // Si es un short link de Google Maps, seguir el redirect
         bool isShortGoogleMaps = uri.host.contains('maps.app.goo.gl');
         String target = '';
         if (isShortGoogleMaps) {
@@ -934,19 +911,15 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
           final resp = await client
               .send(req)
               .timeout(const Duration(seconds: 6));
-          // El header Location debe contener el link largo
           target = resp.headers['location'] ?? '';
           if (target.isEmpty) {
-            // Si no hay redirect explícito, intentar con el cuerpo como fallback
             target = await resp.stream.bytesToString();
           }
         } else {
-          // Si no es short link, usar el propio URL
           target = uri.toString();
         }
         if (target.isEmpty) return null;
 
-        // Buscar coordenadas en el link largo o en el contenido
         final targetMatches = reg.allMatches(target).toList();
         if (targetMatches.isNotEmpty) {
           final selected = targetMatches.length >= 2
@@ -959,7 +932,6 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
           }
         }
 
-        // Si no se encontró en el link, intentar obtener el HTML y buscar coordenadas
         if (isShortGoogleMaps && target.isNotEmpty) {
           try {
             final resp2 = await client
@@ -992,11 +964,8 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
     try {
       final data = await Clipboard.getData(Clipboard.kTextPlain);
       String text = data?.text?.trim() ?? '';
-      // Si el texto está cortado, intenta buscar el primer link completo
       final urlMatch = RegExp(r'https?://[^\s]+').firstMatch(text);
       if (urlMatch != null) {
-        // Si el texto termina justo después del link, probablemente está completo
-        // Si hay más texto después, intenta tomar solo el link
         text = urlMatch.group(0)!;
       }
       if (text.isEmpty) {
@@ -1007,7 +976,6 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
         return;
       }
 
-      // Si es un shortlink de maps.app.goo.gl, seguir el redirect para obtener el link largo
       String linkParaExtraer = text;
       if (text.contains('maps.app.goo.gl')) {
         try {
@@ -1027,28 +995,7 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
         } catch (_) {}
       }
 
-      // Mostrar lat/lng y el link largo si se puede extraer
-      final coords = _extraerLatLng(linkParaExtraer);
-      if (coords != null) {
-        await showDialog(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: const Text('Coordenadas encontradas'),
-            content: Text(
-              'Latitud: ${coords['latitud']},\nLongitud: ${coords['longitud']}\n\nLink completo:\n$linkParaExtraer',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(),
-                child: const Text('OK'),
-              ),
-            ],
-          ),
-        );
-      }
-
-      // Intentar extraer coordenadas desde el texto o resolviendo el link
-      final destinoLatLng = await _extraerLatLngDesdeTexto(text);
+      final destinoLatLng = await _extraerLatLngDesdeTexto(linkParaExtraer);
       if (destinoLatLng == null) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1060,7 +1007,7 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
         );
         return;
       }
-      // Usar una etiqueta genérica basada en el texto compartido
+
       setState(() {
         _destinoController.text = 'Ubicación compartida';
         _sugerencias = [];
@@ -1173,7 +1120,6 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
     if (etiqueta.isEmpty) return;
 
     try {
-      // Obtener una dirección legible para guardar junto con el nombre
       String direccion = '';
       try {
         final placemarks = await placemarkFromCoordinates(
@@ -1191,7 +1137,6 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
         }
       } catch (_) {}
 
-      // Fallback: usar coordenadas si no se pudo obtener dirección
       if (direccion.isEmpty) {
         direccion =
             '${loc.latitude.toStringAsFixed(6)}, ${loc.longitude.toStringAsFixed(6)}';
@@ -1218,7 +1163,7 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Ubicación guardada como "$etiqueta"')),
       );
-    } catch (e) {
+    } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No se pudo guardar la ubicación')),
@@ -1234,12 +1179,9 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
 
   Future<void> _cerrarTecladoAntesDeNavegar() async {
     if (!mounted) return;
-
     final focused = FocusManager.instance.primaryFocus;
     final keyboardVisible = MediaQuery.of(context).viewInsets.bottom > 0;
-
     focused?.unfocus();
-    // Fuerza el cierre del teclado y espera solo un frame si estaba visible.
     await SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
     if (keyboardVisible) {
       await WidgetsBinding.instance.endOfFrame;
@@ -1270,9 +1212,7 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
 
     final navigator = Navigator.of(context);
     final popped = await navigator.maybePop();
-    if (popped) {
-      return;
-    }
+    if (popped) return;
 
     _irAInicioCliente();
   }
@@ -1412,7 +1352,8 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
                             children: [
                               ...favoritos.map((doc) {
                                 final data = doc.data();
-                                final geopoint = data['ubicacion'] as GeoPoint?;
+                                final geopoint =
+                                    data['ubicacion'] as GeoPoint?;
                                 final nombre =
                                     (data['nombre'] ?? 'Favorito') as String;
                                 if (geopoint == null) return const SizedBox();
@@ -1431,8 +1372,8 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
                                         geopoint.longitude,
                                       ),
                                       tituloDestino: nombre,
-                                      direccionDestino: data['direccion']
-                                          ?.toString(),
+                                      direccionDestino:
+                                          data['direccion']?.toString(),
                                     );
                                   },
                                 );
@@ -1480,267 +1421,188 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
     );
   }
 
-  Widget _buildOrigenSection({
-    required double labelFontSize,
-    required double textFieldFontSize,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12.0),
-          child: Text(
-            'Origen',
-            style: TextStyle(fontSize: labelFontSize, color: Colors.black54),
-          ),
-        ),
-        const SizedBox(height: 6),
-        Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: _origenController,
-                focusNode: _origenFocus,
-                readOnly: true,
-                onTap: () async {
-                  final resultado = await _abrirSeleccionUbicacionEnMapa(
-                    titulo: 'Selecciona origen',
-                    ubicacionInicial: widget.currentLocation ?? _origenSeleccionado,
-                  );
-                  if (resultado == null) return;
-                  setState(() {
-                    _origenSeleccionado = resultado.position;
-                    _origenController.text = (resultado.direccion?.trim().isNotEmpty == true)
-                        ? resultado.direccion! 
-                        : '${resultado.position.latitude.toStringAsFixed(6)}, ${resultado.position.longitude.toStringAsFixed(6)}';
-                  });
-                },
-                style: TextStyle(fontSize: textFieldFontSize),
-                decoration: InputDecoration(
-                  hintText: 'Selecciona o ajusta moviendo el mapa',
-                  hintStyle: TextStyle(fontSize: textFieldFontSize * 0.95),
-                  filled: true,
-                  fillColor: Colors.grey[50],
-                  prefixIcon: const Icon(Icons.place, color: Colors.black54),
-                  suffixIcon: IconButton(
-                    icon: const Icon(Icons.star_border, color: Colors.amber),
-                    tooltip: 'Guardar ubicación',
-                    onPressed: _guardarUbicacionActualComoFavorita,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(
-                      color: AppColores.buttonPrimary,
-                      width: 2,
-                    ),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(
-                      color: AppColores.buttonPrimary,
-                      width: 2,
-                    ),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(
-                      color: AppColores.buttonPrimary,
-                      width: 2.5,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
+  // ── Tap origen extraído ───────────────────────────────────────────────────
+
+  Future<void> _tapOrigen() async {
+    final resultado = await _abrirSeleccionUbicacionEnMapa(
+      titulo: 'Selecciona origen',
+      ubicacionInicial: widget.currentLocation ?? _origenSeleccionado,
     );
+    if (resultado == null) return;
+    setState(() {
+      _origenSeleccionado = resultado.position;
+      _origenController.text =
+          (resultado.direccion?.trim().isNotEmpty == true)
+          ? resultado.direccion!
+          : '${resultado.position.latitude.toStringAsFixed(6)}, ${resultado.position.longitude.toStringAsFixed(6)}';
+    });
   }
 
-  Widget _buildDestinoSection({
-    required double labelFontSize,
-    required double textFieldFontSize,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12.0),
-          child: Text(
-            'Destino',
-            style: TextStyle(fontSize: labelFontSize, color: Colors.black54),
-          ),
-        ),
-        const SizedBox(height: 6),
-        Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: _destinoController,
-                focusNode: _destinoFocus,
-                autofocus: false,
-                style: TextStyle(fontSize: textFieldFontSize),
-                decoration: InputDecoration(
-                  hintText: 'Seleccione un destino',
-                  hintStyle: TextStyle(fontSize: textFieldFontSize * 0.95),
-                  filled: true,
-                  fillColor: Colors.grey[50],
-                  prefixIcon: const Icon(Icons.place, color: Colors.black54),
-                  suffixIcon: _destinoFocus.hasFocus
-                      ? IconButton(
-                          tooltip: 'Borrar',
-                          icon: const Icon(Icons.clear, color: Colors.black54),
-                          onPressed: () {
-                            _destinoController.clear();
-                            setState(() {
-                              _sugerencias = [];
-                            });
-                          },
-                        )
-                      : null,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(
-                      color: AppColores.buttonPrimary,
-                      width: 2,
-                    ),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(
-                      color: AppColores.buttonPrimary,
-                      width: 2,
-                    ),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(
-                      color: AppColores.buttonPrimary,
-                      width: 2.5,
-                    ),
-                  ),
-                ),
-                onChanged: _onDestinoChanged,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
+  // ── UI builders ───────────────────────────────────────────────────────────
 
-  Widget _buildSugerenciaTile(UbicacionResultado sugerencia) {
-    return InkWell(
-      onTap: () => _abrirPreviewDesdeSugerencia(sugerencia),
-      child: Card(
-        margin: EdgeInsets.symmetric(
-          vertical: 4,
-          horizontal: MediaQuery.of(context).size.width * 0.02,
+  PreferredSizeWidget _buildAppBar() {
+    return AppBar(
+      backgroundColor: AppColores.surface,
+      elevation: 0,
+      centerTitle: true,
+      leading: IconButton(
+        icon: const Icon(
+          Icons.arrow_back_ios_new_rounded,
+          size: 20,
+          color: AppColores.textPrimary,
         ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(
-            MediaQuery.of(context).size.width * 0.025,
-          ),
-          side: BorderSide(color: Colors.amber.shade200, width: 1.0),
+        onPressed: _manejarBackConFlecha,
+      ),
+      title: const Text(
+        '¿A dónde vamos?',
+        style: TextStyle(
+          fontSize: 17,
+          fontWeight: FontWeight.w700,
+          color: AppColores.textPrimary,
         ),
-        elevation: 1.5,
-        child: Container(
-          constraints: BoxConstraints(
-            minHeight: MediaQuery.of(context).size.width * 0.11,
-          ),
-          padding: EdgeInsets.symmetric(
-            vertical: MediaQuery.of(context).size.width * 0.015,
-            horizontal: MediaQuery.of(context).size.width * 0.03,
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.location_on_outlined,
-                color: Colors.black54,
-                size: MediaQuery.of(context).size.width * 0.055,
-              ),
-              SizedBox(width: MediaQuery.of(context).size.width * 0.02),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      sugerencia.nombre.isNotEmpty
-                          ? sugerencia.nombre
-                          : sugerencia.direccion,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: MediaQuery.of(context).size.width * 0.036,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    if (sugerencia.direccion.isNotEmpty &&
-                        sugerencia.direccion != sugerencia.nombre)
-                      Padding(
-                        padding: EdgeInsets.only(
-                          top: MediaQuery.of(context).size.width * 0.005,
-                        ),
-                        child: Text(
-                          sugerencia.direccion,
-                          style: TextStyle(
-                            fontSize: MediaQuery.of(context).size.width * 0.031,
-                            color: Colors.black54,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
+      ),
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(1),
+        child: Container(height: 1, color: AppColores.borderSubtle),
       ),
     );
   }
 
-  Widget _buildSugerenciasSection() {
-    return Expanded(
-      child: ListView.builder(
-        padding: EdgeInsets.zero,
-        itemCount: _sugerencias.length + 2,
-        itemBuilder: (context, index) {
-          if (index < _sugerencias.length) {
-            return _buildSugerenciaTile(_sugerencias[index]);
-          }
-
-          if (index == _sugerencias.length) {
-            return const Divider(thickness: 1, color: Colors.grey);
-          }
-
-          final bottomPadding = MediaQuery.of(context).viewInsets.bottom;
-          return Padding(
-            padding: EdgeInsets.fromLTRB(
-              16.0,
-              8.0,
-              16.0,
-              bottomPadding > 0 ? bottomPadding : 16.0,
-            ),
-            child: Row(
+  Widget _buildSearchCard(double hPad, double textFieldFontSize) {
+    return Container(
+      margin: EdgeInsets.fromLTRB(hPad, 12, hPad, 0),
+      decoration: BoxDecoration(
+        color: AppColores.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColores.borderSubtle),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.07),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        child: Column(
+          children: [
+            // Fila origen
+            Row(
               children: [
-                const Icon(Icons.gps_fixed, color: Colors.black87),
-                const SizedBox(width: 8),
-                TextButton(
-                  onPressed: _usarUbicacionDesdeTextoCompartido,
-                  child: const Text(
-                    'Pegar ubicación',
-                    style: TextStyle(fontSize: 16, color: Colors.black87),
+                Container(
+                  width: 10,
+                  height: 10,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppColores.primary,
                   ),
                 ),
-                const Spacer(),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextField(
+                    controller: _origenController,
+                    focusNode: _origenFocus,
+                    readOnly: true,
+                    onTap: _tapOrigen,
+                    style: TextStyle(
+                      fontSize: textFieldFontSize,
+                      color: AppColores.textPrimary,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Selecciona tu origen',
+                      hintStyle: TextStyle(
+                        fontSize: textFieldFontSize * 0.9,
+                        color: AppColores.textSecondary,
+                      ),
+                      border: InputBorder.none,
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                      suffixIcon: IconButton(
+                        icon: const Icon(
+                          Icons.star_border_rounded,
+                          size: 20,
+                          color: AppColores.primary,
+                        ),
+                        tooltip: 'Guardar ubicación',
+                        onPressed: _guardarUbicacionActualComoFavorita,
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
-          );
-        },
+            // Conector visual entre origen y destino
+            Padding(
+              padding: const EdgeInsets.only(left: 4),
+              child: Row(
+                children: [
+                  Container(
+                    width: 2,
+                    height: 20,
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    color: AppColores.grey300,
+                  ),
+                  const Expanded(
+                    child: Divider(height: 1, color: AppColores.borderSubtle),
+                  ),
+                ],
+              ),
+            ),
+            // Fila destino
+            Row(
+              children: [
+                Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: AppColores.textSecondary,
+                      width: 2,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextField(
+                    controller: _destinoController,
+                    focusNode: _destinoFocus,
+                    autofocus: false,
+                    style: TextStyle(
+                      fontSize: textFieldFontSize,
+                      color: AppColores.textPrimary,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Selecciona un destino',
+                      hintStyle: TextStyle(
+                        fontSize: textFieldFontSize * 0.9,
+                        color: AppColores.textSecondary,
+                      ),
+                      border: InputBorder.none,
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                      suffixIcon: _destinoFocus.hasFocus
+                          ? IconButton(
+                              icon: const Icon(
+                                Icons.close_rounded,
+                                size: 18,
+                                color: AppColores.textSecondary,
+                              ),
+                              onPressed: () {
+                                _destinoController.clear();
+                                setState(() => _sugerencias = []);
+                              },
+                            )
+                          : null,
+                    ),
+                    onChanged: _onDestinoChanged,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1750,78 +1612,197 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
     required String label,
     required Future<void> Function() onTap,
   }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4.0),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 8.0),
-            decoration: BoxDecoration(
-              color: AppColores.primary.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColores.primary.withOpacity(0.25)),
-
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppColores.surface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColores.borderSubtle),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 4,
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, color: AppColores.primary, size: 18),
-                const SizedBox(width: 8),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: AppColores.textPrimary,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14,
-                  ),
-                ),
-              ],
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 15, color: AppColores.primary),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: const TextStyle(
+                color: AppColores.textPrimary,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
             ),
-          ),
+          ],
         ),
       ),
-    
     );
   }
 
   Widget _buildQuickAccessSection() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.start,
-      children: [
-        _buildQuickAccessItem(
-          icon: Icons.home,
-          label: 'Casa',
-          onTap: () => _manejarTapUbicacionFrecuente('Casa'),
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          _buildQuickAccessItem(
+            icon: Icons.home_rounded,
+            label: 'Casa',
+            onTap: () => _manejarTapUbicacionFrecuente('Casa'),
+          ),
+          const SizedBox(width: 8),
+          _buildQuickAccessItem(
+            icon: Icons.work_rounded,
+            label: 'Trabajo',
+            onTap: () => _manejarTapUbicacionFrecuente('Trabajo'),
+          ),
+          const SizedBox(width: 8),
+          _buildQuickAccessItem(
+            icon: Icons.star_rounded,
+            label: 'Favoritos',
+            onTap: _mostrarFavoritosGuardadosBottomSheet,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSugerenciaTile(UbicacionResultado sugerencia) {
+    final nombre = sugerencia.nombre.isNotEmpty
+        ? sugerencia.nombre
+        : sugerencia.direccion;
+    final direccion = sugerencia.direccion;
+    final showDireccion =
+        direccion.isNotEmpty && direccion != sugerencia.nombre;
+
+    return InkWell(
+      onTap: () => _abrirPreviewDesdeSugerencia(sugerencia),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: const BoxDecoration(
+                color: AppColores.grey100,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.location_on_outlined,
+                color: AppColores.textSecondary,
+                size: 18,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    nombre,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      color: AppColores.textPrimary,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (showDireccion) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      direccion,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColores.textSecondary,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(
+              Icons.chevron_right,
+              size: 18,
+              color: AppColores.textSecondary,
+            ),
+          ],
         ),
-        const SizedBox(width: 6),
-        _buildQuickAccessItem(
-          icon: Icons.work,
-          label: 'Trabajo',
-          onTap: () => _manejarTapUbicacionFrecuente('Trabajo'),
+      ),
+    );
+  }
+
+  Widget _buildSugerenciasSection() {
+    return ListView.separated(
+      padding: EdgeInsets.zero,
+      itemCount: _sugerencias.length,
+      separatorBuilder: (_, _) => const Divider(
+        height: 1,
+        indent: 64,
+        color: AppColores.borderSubtle,
+      ),
+      itemBuilder: (_, i) => _buildSugerenciaTile(_sugerencias[i]),
+    );
+  }
+
+  Widget _buildPegarUbicacionRow(double hPad) {
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: hPad),
+      child: GestureDetector(
+        onTap: _usarUbicacionDesdeTextoCompartido,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+          decoration: BoxDecoration(
+            color: AppColores.surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColores.borderSubtle),
+          ),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.content_paste_rounded,
+                size: 18,
+                color: AppColores.textSecondary,
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
+                  'Pegar ubicación desde el portapapeles',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: AppColores.textPrimary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
-        const SizedBox(width: 6),
-        _buildQuickAccessItem(
-          icon: Icons.star,
-          label: 'Favoritos',
-          onTap: _mostrarFavoritosGuardadosBottomSheet,
-        ),
-      ],
+      ),
     );
   }
 
   Widget _buildNavigationOverlay() {
     return Positioned.fill(
       child: Container(
-        color: Colors.black45,
+        color: AppColores.overlayDark,
         child: Center(
           child: Container(
             margin: const EdgeInsets.symmetric(horizontal: 28),
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: AppColores.surface,
               borderRadius: BorderRadius.circular(16),
             ),
             child: Row(
@@ -1830,14 +1811,19 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
                 const SizedBox(
                   width: 20,
                   height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2.2),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.2,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      AppColores.primary,
+                    ),
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Flexible(
                   child: Text(
                     _navigationMessage,
                     style: const TextStyle(
-                      color: Colors.black87,
+                      color: AppColores.textPrimary,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -1854,103 +1840,34 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
     final double screenW = size.width;
-    final bool isTablet = screenW >= 1000;
-    // Fuente responsiva para TextField
-    final double textFieldFontSize = (screenW / 390 * 16).clamp(14, 22);
-    final double labelFontSize = (screenW / 390 * 12).clamp(11, 16);
-    return WillPopScope(
-      onWillPop: _manejarBackConGestoOSistema,
+    final bool isTablet = screenW >= 600;
+    final double hPad = isTablet ? 32.0 : 16.0;
+    final double textFieldFontSize = (screenW / 390 * 16).clamp(14.0, 20.0);
+
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (_, _) => _manejarBackConGestoOSistema(),
       child: Scaffold(
-        backgroundColor: Colors.white,
-        appBar: AppBar(
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.black87),
-            onPressed: () async {
-              await _manejarBackConFlecha();
-            },
-          ),
-          title: const Text(
-            '¿A donde vamos?',
-            style: TextStyle(color: Colors.black87),
-          ),
-          backgroundColor: Colors.white,
-          foregroundColor: Colors.black87,
-          elevation: 0,
-          centerTitle: true,
-        ),
+        backgroundColor: AppColores.background,
+        appBar: _buildAppBar(),
         body: SafeArea(
           child: Stack(
             children: [
-              Center(
-                child: Container(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: isTablet ? 64.0 : 16.0,
-                    vertical: 16.0,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _buildOrigenSection(
-                        labelFontSize: labelFontSize,
-                        textFieldFontSize: textFieldFontSize,
-                      ),
-                      const SizedBox(height: 6),
-                      const SizedBox(height: 8),
-                      _buildDestinoSection(
-                        labelFontSize: labelFontSize,
-                        textFieldFontSize: textFieldFontSize,
-                      ),
-                      const SizedBox(height: 8),
-                      if (_sugerencias.isNotEmpty) _buildSugerenciasSection(),
-                      if (_sugerencias.isEmpty)
-                        SizedBox(height: screenW * 0.04),
-                      if (_sugerencias.isEmpty) _buildQuickAccessSection(),
-
-                      // SizedBox(height: 16),
-                      // Divider(thickness: 1, color: Colors.grey[300]),
-                      // const SizedBox(height: 8),
-                      // // Sección de acciones debajo del divider
-                      // Row(
-                      //   children: [
-                      //     Icon(Icons.add, color: Colors.black54),
-                      //     SizedBox(width: 8),
-                      //     Text('Agregar ubicación', style: TextStyle(fontSize: 16, color: Colors.black87)),
-                      //     Spacer(),
-                      //   ],
-                      // ),
-                      // SizedBox(height: 12),
-                      // Row(
-                      //   children: [
-                      //     Icon(Icons.edit, color: Colors.black54),
-                      //     SizedBox(width: 8),
-                      //     Text('Editar ubicación', style: TextStyle(fontSize: 16, color: Colors.black87)),
-                      //     Spacer(),
-                      //   ],
-                      // ),
-                      // SizedBox(height: 12),
-                      // Row(
-                      //   children: [
-                      //     Icon(Icons.notes, color: Colors.black54),
-                      //     SizedBox(width: 8),
-                      //     Text('Otros comentarios', style: TextStyle(fontSize: 16, color: Colors.black87)),
-                      //     Spacer(),
-                      //   ],
-                      // ),
-                      // SizedBox(height: 12),
-                      // Row(
-                      //   children: [
-                      //     Icon(Icons.gps_fixed, color: Colors.black87),
-                      //     SizedBox(width: 8),
-                      //     TextButton(
-                      //       onPressed: _usarUbicacionDesdeTextoCompartido,
-                      //       child: Text('Pegar ubicación', style: TextStyle(fontSize: 16, color: Colors.black87)),
-                      //     ),
-                      //     Spacer(),
-                      //   ],
-                      // ),
-                    ],
-                  ),
-                ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _buildSearchCard(hPad, textFieldFontSize),
+                  const SizedBox(height: 16),
+                  if (_sugerencias.isEmpty) ...[
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: hPad),
+                      child: _buildQuickAccessSection(),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildPegarUbicacionRow(hPad),
+                  ] else
+                    Expanded(child: _buildSugerenciasSection()),
+                ],
               ),
               if (_isPreparingNavigation) _buildNavigationOverlay(),
             ],
@@ -1961,17 +1878,6 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
   }
 }
 
-/// Extrae latitud y longitud de un link de Google Maps con @lat,lng
-Map<String, double>? _extraerLatLng(String url) {
-  final RegExp regex = RegExp(r'@([-0-9.]+),([-0-9.]+)');
-  final match = regex.firstMatch(url);
-  if (match != null) {
-    final double lat = double.parse(match.group(1)!);
-    final double lng = double.parse(match.group(2)!);
-    return {'latitud': lat, 'longitud': lng};
-  }
-  return null;
-}
 
 Future<List<UbicacionResultado>> _buscarUbicacionesHelper(String query) async {
   final user = FirebaseAuth.instance.currentUser;
@@ -1990,12 +1896,11 @@ Future<List<UbicacionResultado>> _buscarUbicacionesHelper(String query) async {
         final direccion = (data['direccion'] ?? '') as String;
         final ownerId = data['userId'] as String?;
 
-        // Si tiene ownerId, solo mostrar si pertenece al usuario actual
         if (ownerId != null && ownerId.isNotEmpty && ownerId != user.uid) {
           return false;
         }
 
-        final textoBusqueda = (nombre + ' ' + direccion).toLowerCase();
+        final textoBusqueda = '$nombre $direccion'.toLowerCase();
         return textoBusqueda.contains(normalizado);
       })
       .map((doc) {

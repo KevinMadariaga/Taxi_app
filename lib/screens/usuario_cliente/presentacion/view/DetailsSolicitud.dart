@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
-import 'package:taxi_app/helper/responsive_helper.dart';
+import 'package:taxi_app/core/helpers/responsive_helper.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/location_model.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/vehicle_type.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/buscar_destino_view.dart';
@@ -245,7 +245,7 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
         child: Scaffold(
           extendBodyBehindAppBar: false,
           appBar: AppBar(
-            backgroundColor: AppColores.surface.withOpacity(0.95),
+            backgroundColor: AppColores.surface.withValues(alpha: 0.95),
             elevation: 0,
             centerTitle: true,
             title: const Text(
@@ -369,7 +369,7 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
                       if (vm.isLoadingRoute)
                         Positioned.fill(
                           child: Container(
-                            color: Colors.white.withOpacity(0.6),
+                            color: Colors.white.withValues(alpha: 0.6),
                             child: const Center(
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,

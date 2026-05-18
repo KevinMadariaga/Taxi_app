@@ -13,7 +13,7 @@ class UniversalChatWidget extends StatefulWidget {
   final bool autoFocus;
 
   const UniversalChatWidget({
-    Key? key,
+    super.key,
     required this.solicitudId,
     this.chatTitle,
     this.backgroundColor,
@@ -21,7 +21,7 @@ class UniversalChatWidget extends StatefulWidget {
     this.otherMessageColor,
     this.sendButtonColor,
     this.autoFocus = false,
-  }) : super(key: key);
+  });
 
   @override
   State<UniversalChatWidget> createState() => _UniversalChatWidgetState();
@@ -227,7 +227,7 @@ class _UniversalChatWidgetState extends State<UniversalChatWidget> {
                                   borderRadius: BorderRadius.circular(22),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.black.withOpacity(0.07),
+                                      color: Colors.black.withValues(alpha: 0.07),
                                       blurRadius: 8,
                                       offset: const Offset(0, 2),
                                     ),

@@ -57,11 +57,9 @@ class _TripChatScreenState extends State<TripChatScreen> {
       builder: (context, vm, _) {
         final messages = vm.messages;
 
-        return WillPopScope(
-          onWillPop: () async {
-            FocusScope.of(context).unfocus();
-            await Future.delayed(const Duration(milliseconds: 150));
-            return true;
+        return PopScope(
+          onPopInvokedWithResult: (didPop, _) {
+            if (didPop) FocusScope.of(context).unfocus();
           },
           child: Scaffold(
             appBar: AppBar(

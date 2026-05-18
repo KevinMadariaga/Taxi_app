@@ -501,7 +501,7 @@ class _HistorialDetalleConductorState extends State<HistorialDetalleConductor> {
                                                       decoration: BoxDecoration(
                                                         color: AppColores
                                                             .primary
-                                                            .withOpacity(0.6),
+                                                            .withValues(alpha: 0.6),
                                                         borderRadius:
                                                             BorderRadius.circular(
                                                               0,

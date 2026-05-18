@@ -57,11 +57,9 @@ class _DriverChatScreenState extends State<DriverChatScreen> {
       builder: (context, controller, _) {
         final messages = controller.messages;
 
-        return WillPopScope(
-          onWillPop: () async {
-            FocusScope.of(context).unfocus();
-            await Future.delayed(const Duration(milliseconds: 150));
-            return true;
+        return PopScope(
+          onPopInvokedWithResult: (didPop, _) {
+            if (didPop) FocusScope.of(context).unfocus();
           },
           child: Scaffold(
             appBar: AppBar(

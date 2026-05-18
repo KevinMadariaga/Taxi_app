@@ -42,10 +42,6 @@ class _AyudaViewState extends State<AyudaView> {
     super.dispose();
   }
 
-  Future<bool> _onWillPop() async {
-    return true;
-  }
-
   Widget build(BuildContext context) {
     final filtered = _faqItems.where((item) {
       if (_query.trim().isEmpty) return true;
@@ -55,9 +51,7 @@ class _AyudaViewState extends State<AyudaView> {
       return q.contains(query) || a.contains(query);
     }).toList();
 
-    return WillPopScope(
-      onWillPop: _onWillPop,
-      child: Scaffold(
+    return Scaffold(
         resizeToAvoidBottomInset: true,
         appBar: AppBar(
           title: const Text('Ayuda'),
@@ -127,7 +121,6 @@ class _AyudaViewState extends State<AyudaView> {
             ),
           ],
         ),
-      ),
     );
   }
 }

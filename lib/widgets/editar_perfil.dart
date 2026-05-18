@@ -7,7 +7,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
-import 'package:taxi_app/components/boton.dart';
+import 'package:taxi_app/widgets/boton.dart';
 import 'dart:ui' as ui;
 
 import 'package:taxi_app/core/app_colores.dart';

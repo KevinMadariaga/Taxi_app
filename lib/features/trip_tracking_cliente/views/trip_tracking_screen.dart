@@ -7,7 +7,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/constants/solicitud_estado.dart';
-import 'package:taxi_app/helper/session_helper.dart';
+import 'package:taxi_app/core/helpers/session_helper.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/InicioClienteView.dart';
 import 'package:taxi_app/core/services/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -47,8 +47,7 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
   bool _initialCameraApplied = false;
   bool _cancelledNavigationDone = false;
   bool _rutaDestinoNavigationDone = false;
-  bool _assignmentNotificationShown = false;
-  static final Set<String> _globalAssignmentNotificationsShown = <String>{};
+
   String? _lastEstadoProcesado;
   String? _lastPersistedStatus;
 
@@ -146,8 +145,8 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
               statusBarIconBrightness: Brightness.dark,
               statusBarBrightness: Brightness.light,
             ),
-            child: WillPopScope(
-              onWillPop: () async => false,
+            child: PopScope(
+              canPop: false,
               child: Scaffold(
                 body: Builder(
                   builder: (ctx) {

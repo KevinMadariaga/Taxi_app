@@ -4,7 +4,7 @@ import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:taxi_app/helper/permisos_helper.dart';
+import 'package:taxi_app/core/helpers/permisos_helper.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:taxi_app/core/services/firebase_service.dart';
 

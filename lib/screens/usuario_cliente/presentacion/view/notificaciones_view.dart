@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:taxi_app/core/app_colores.dart';
-import 'package:taxi_app/helper/permisos_helper.dart';
+import 'package:taxi_app/core/helpers/permisos_helper.dart';
 import 'package:taxi_app/core/services/notificacion_servicio.dart';
 
 class NotificacionesView extends StatefulWidget {

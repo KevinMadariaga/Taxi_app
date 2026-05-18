@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:taxi_app/helper/session_helper.dart';
+import 'package:taxi_app/core/helpers/session_helper.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/RutaClienteDestinoViewModel.dart';
 import 'package:taxi_app/widgets/MapaGoogle.dart';
 
@@ -884,8 +884,8 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: () async => false,
+    return PopScope(
+      canPop: false,
       child: AnnotatedRegion<SystemUiOverlayStyle>(
         value: _rutaClienteDestinoOverlayStyle,
         child: Scaffold(

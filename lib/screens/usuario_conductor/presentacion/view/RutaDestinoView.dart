@@ -7,9 +7,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:taxi_app/helper/session_helper.dart';
+import 'package:taxi_app/core/helpers/session_helper.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/resumen_conductor_view.dart';
-import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/RutaDestinoViewModel.dart';
+import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodels/RutaDestinoViewModel.dart';
 import 'package:taxi_app/core/services/background_tracking_service.dart';
 import 'package:taxi_app/features/trip_tracking_cliente/services/trip_tracking_firestore_service.dart';
 import 'package:taxi_app/widgets/MapaGoogle.dart';
@@ -49,7 +49,7 @@ class RutaDestino extends StatelessWidget {
 class _RutaDestinoContent extends StatefulWidget {
   final String idSolicitud;
 
-  const _RutaDestinoContent({super.key, required this.idSolicitud});
+  const _RutaDestinoContent({required this.idSolicitud});
 
   @override
   State<_RutaDestinoContent> createState() => _RutaDestinoContentState();
@@ -628,7 +628,7 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [Colors.black.withOpacity(0.28), Colors.transparent],
+                  colors: [Colors.black.withValues(alpha: 0.28), Colors.transparent],
                 ),
               ),
             ),
@@ -637,7 +637,7 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
         if (_loadingUbicacion || vm.isLoadingRoute)
           Positioned.fill(
             child: Container(
-              color: Colors.white.withOpacity(0.6),
+              color: Colors.white.withValues(alpha: 0.6),
               child: Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -744,8 +744,8 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
     final vm = Provider.of<RutaDestinoViewModel>(context);
     final double? _metersToDestino = _distanceMetersToDestino();
 
-    return WillPopScope(
-      onWillPop: () async => false,
+    return PopScope(
+      canPop: false,
       child: AnnotatedRegion<SystemUiOverlayStyle>(
         value: _rutaDestinoOverlayStyle,
         child: Scaffold(

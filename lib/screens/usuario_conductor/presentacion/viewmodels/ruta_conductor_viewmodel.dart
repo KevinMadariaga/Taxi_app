@@ -2,12 +2,9 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:taxi_app/helper/permisos_helper.dart';
-import 'package:taxi_app/helper/session_helper.dart';
-import 'package:taxi_app/core/services/notificacion_servicio.dart';
-import 'package:taxi_app/core/services/firebase_service.dart';
+import 'package:taxi_app/core/helpers/permisos_helper.dart';
+import 'package:taxi_app/core/helpers/session_helper.dart';
 import 'package:taxi_app/core/services/services.dart';
-import 'package:taxi_app/core/services/tracking_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 

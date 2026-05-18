@@ -7,7 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:taxi_app/core/constants/solicitud_estado.dart';
-import 'package:taxi_app/helper/map_helper.dart';
+import 'package:taxi_app/core/helpers/map_helper.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/location_model.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/vehicle_type.dart';
 import 'package:taxi_app/core/services/map_service_adapter.dart';

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
-import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodel/comentarios_conductor_viewmodel.dart';
+import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodels/comentarios_conductor_viewmodel.dart';
 
 class ComentariosConductorView extends StatelessWidget {
   const ComentariosConductorView({super.key});
