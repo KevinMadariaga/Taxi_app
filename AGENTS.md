@@ -1,157 +1,257 @@
-# AGENTS.md — Taxi Ya
+# AGENTS.md
 
-## Descripción del proyecto
-
-**Taxi Ya** (`taxi_app`) es una aplicación móvil Flutter de transporte tipo taxi con geolocalización en tiempo real. Permite a clientes solicitar viajes, a conductores recibirlos y gestionarlos, y a administradores gestionar conductores dentro de un gremio. El backend es 100 % Firebase (Firestore, Auth, Storage, FCM, Crashlytics, Analytics, Remote Config, App Check).
-
-- Versión: `1.0.1+24`
-- SDK Flutter requerido: `^3.10.7`
-- Plataformas objetivo: Android e iOS (también compilable en web/linux/windows pero no es el foco)
+> Guía para Claude Code al trabajar en este repositorio.
+> Léelo completo antes de hacer cualquier cambio. Estas reglas tienen prioridad
+> sobre suposiciones por defecto.
 
 ---
 
-## Roles de usuario
+## 1. Qué es este proyecto
 
-| Rol | Descripción |
-|---|---|
-| **Cliente** | Se registra con Google, Apple u OTP teléfono. Solicita viajes, hace seguimiento en tiempo real y califica al conductor. |
-| **Conductor** | Se registra con correo/contraseña gestionado por un administrador. Recibe solicitudes, puede aceptarlas o ignorarlas, y comparte su ubicación en tiempo real. |
-| **Administrador** | Gestiona conductores de un gremio. Aprueba/rechaza registros de conductores. |
+Aplicación móvil de transporte (tipo ride-hailing) con dos roles:
+
+- **Cliente:** crea una solicitud de viaje, ve al conductor que la acepta acercándose
+  en el mapa en tiempo real, sigue el trayecto hacia su destino, chatea con el
+  conductor y consulta su información.
+- **Conductor:** encuentra solicitudes disponibles, ve la ubicación del cliente,
+  navega hasta el punto de recogida con Google Maps, lo recoge y lo lleva al destino
+  marcado de la forma más rápida. También chatea con el cliente y ve su información.
+
+El núcleo del producto es: **matching cliente–conductor, tracking de ubicación en
+tiempo real sobre el mapa, navegación, y chat entre ambas partes.**
+
+**Estado actual:** MVP a medias, sin usuarios reales todavía. El objetivo es pulirlo,
+endurecer la seguridad y **llevarlo a producción**. Trabajas sobre código que YA
+existe: respétalo y mejóralo, no lo reinventes sin necesidad.
 
 ---
 
-## Arquitectura
+## 2. Stack tecnológico
 
-El proyecto usa una **arquitectura híbrida MVVM** en transición progresiva hacia módulos por feature:
+- **Móvil:** Flutter + Dart (iOS y Android).
+- **Backend / base de datos:** Firebase (Firestore/Realtime Database, Auth,
+  Cloud Messaging para notificaciones).
+- **Mapas y ubicación:** Google Maps SDK, GPS del dispositivo, y APIs de Google
+  (Directions, Distance Matrix, Geocoding) para la trazabilidad de rutas en el mapa.
+
+**No cambies** la versión de Flutter ni las dependencias core (Firebase, Google Maps,
+Provider) sin avisar y justificarlo primero.
+
+---
+
+## 3. Arquitectura y estructura de carpetas
+
+El proyecto usa **Clean Architecture + MVVM con Provider** como gestor de estado.
+
+> ⚠️ Hoy hay carpetas en `lib/` que NO están bien ordenadas. Tienes permiso para
+> mover y reorganizar archivos hacia la estructura objetivo de abajo cuando toques
+> un área. Hazlo **por áreas/features, no todo de golpe**, y después de cada
+> reorganización corre `flutter analyze` y verifica que siga limpio (no rompas
+> imports).
+
+### Estructura objetivo (feature-first + capas)
 
 ```
-View → ViewModel/Controller → UseCase/Repository/Service → Firebase → notifyListeners → View
+lib/
+├── core/                  # Código transversal compartido
+│   ├── constantes/        # Constantes, claves de rutas, enums globales
+│   ├── errores/           # Manejo de errores y excepciones
+│   ├── servicios/         # Servicios base (Firebase, ubicación, mapas, notificaciones)
+│   ├── utilidades/        # Helpers, extensiones, formateadores
+│   └── tema/              # Colores, tipografía, tema de la app
+│
+├── caracteristicas/       # Una carpeta por feature
+│   ├── autenticacion/
+│   │   ├── datos/          # Capa de datos: modelos, fuentes (Firebase), repos impl.
+│   │   ├── dominio/        # Entidades, contratos de repositorio, casos de uso
+│   │   └── presentacion/   # Vistas (UI) + ViewModels (Provider/ChangeNotifier)
+│   ├── solicitud_viaje/
+│   ├── mapa_seguimiento/
+│   ├── chat/
+│   └── perfil/
+│
+└── main.dart
 ```
 
-### Capas activas
+### Reglas de las capas (Clean Architecture)
 
-- **`core/`** — Infraestructura transversal: constantes, tema, auth adapter, servicios (FCM, tracking, notificaciones, remote config, ubicación).
-- **`domain/`** — Entidades, contratos de repositorio (`ClientAuthRepository`, `AuthRepository`) y casos de uso.
-- **`data/`** — Implementaciones concretas de repositorios y datasources (Firebase).
-- **`presentation/`** — Pantallas nuevas: splash, login, complete profile. ViewModels con Provider.
-- **`features/`** — Módulos autocontenidos:
-  - `phone_auth/` — Auth por teléfono OTP, registro de conductor, registro de admin, panel de admin.
-  - `trip_tracking_cliente/` — Tracking del viaje desde el lado del cliente.
-  - `driver_trip/` — Viaje activo desde el lado del conductor.
-  - `resumen_viaje/` — Pantalla de resumen post-viaje con calificación.
-  - `client/` — Data legacy de cliente.
-- **`screens/`** — Flujos legacy aún productivos: `usuario_cliente/` y `usuario_conductor/`.
-- **`widgets/`** — Componentes UI reutilizables globales.
-- **`helper/`** — Firebase init, permisos, sesión, mapas.
-- **`routes/`** — `AppRoutes` con `onGenerateRoute`.
-
-### Gestión de estado
-
-`Provider` + `ChangeNotifier`. Los ViewModels son `ChangeNotifier`. Los usecases se proveen globalmente en `main.dart` mediante `MultiProvider`.
+- **`dominio`** no depende de nada externo (ni Flutter, ni Firebase). Solo lógica de
+  negocio pura: entidades, casos de uso y contratos (interfaces) de repositorio.
+- **`datos`** implementa los contratos de `dominio` y habla con Firebase / Google APIs.
+- **`presentacion`** contiene la UI y los **ViewModels** (`ChangeNotifier` expuestos
+  con Provider). La UI no llama a Firebase directamente: pasa por el ViewModel → caso
+  de uso → repositorio.
+- La dependencia siempre apunta hacia adentro: `presentacion → dominio ← datos`.
 
 ---
 
-## Flujo de la solicitud (estados)
-
-```
-buscando → asignado → en espera → en camino → en ruta → completado
-                                                       ↘ cancelado
-                                                       ↘ sin respuesta
-```
-
-Implementado en `lib/core/constants/solicitud_estado.dart`. La clase `SolicitudEstado` centraliza normalización y clasificación de estados (terminal vs. activo).
-
----
-
-## Colecciones Firestore principales
-
-| Colección | Descripción |
-|---|---|
-| `solicitudes` | Documentos de viaje. Campos clave: `estado`, `cliente{}`, `conductor{}`, `tarifa{}`, `destino{}`, `updatedAt`. |
-| `conductores` | Perfil del conductor: `nombre`, `placa`, `foto`, `fotoVehiculo`, `estado`, `adminId`. |
-| `usuarios` | Perfil del cliente: `nombre`, `apellido`, `telefono`, `fotoUrl`, `rol`, `isProfileComplete`. |
-| `administradores` | Perfil del admin: `nombre`, `telefono`, `foto`, `gremio`, `gremioFoto`. |
-
----
-
-## Autenticación
-
-- **Clientes**: Google Sign-In, Apple Sign-In, OTP por teléfono (Firebase Phone Auth).
-- **Conductores**: correo + contraseña (gestionado por admin, no auto-registro).
-- **Administradores**: flujo propio separado.
-
-Punto de entrada de auth: `lib/core/auth/app_auth_adapter.dart` implementa `ClientAuthRepository`.
-
----
-
-## Servicios clave
-
-| Servicio | Archivo | Propósito |
-|---|---|---|
-| `FcmService` | `core/services/fcm_service.dart` | Push notifications, token FCM en Firestore, handlers foreground/background/terminated. |
-| `TrackingService` | `core/services/tracking_service.dart` | Actualización GPS del conductor en Firestore. |
-| `BackgroundTrackingService` | `core/services/background_tracking_service.dart` | Tracking GPS en segundo plano (flutter_background_service). |
-| `NotificacionesServicio` | `core/services/notificacion_servicio.dart` | Notificaciones locales. |
-| `MapServiceAdapter` | `core/services/map_service_adapter.dart` | Cálculo de rutas y polilíneas (Google Maps). |
-| `RouteCacheService` | `core/services/route_cache_service.dart` | Caché local de rutas calculadas. |
-
----
-
-## Modelos principales
-
-- `ClientUserModel` — cliente (Firestore ↔ dominio).
-- `DriverModel` — conductor.
-- `AdminModel` — administrador.
-- `SolicitudModel` — documento de solicitud con `UsuarioModel` para cliente y conductor.
-- `ResumenViajeModel` — datos post-viaje (calificación, tarifa, fechas).
-
----
-
-## Comandos frecuentes
+## 4. Comandos
 
 ```bash
-# Instalar dependencias
-flutter pub get
-
-# Ejecutar en modo debug
-flutter run
-
-# QA de OTP telefónico con números ficticios (solo no-release)
-flutter run --dart-define=PHONE_AUTH_TEST_MODE=true
-
-# Tests
-flutter test
-
-# Build Android (Google Play)
-flutter build appbundle --release
-
-# Build iOS (App Store)
-flutter build ios --release
+flutter pub get        # Instalar dependencias
+flutter run            # Correr la app
+flutter analyze        # Análisis estático — DEBE quedar limpio antes de terminar
+dart format .          # Formatear el código
+flutter test           # Correr tests
 ```
 
----
-
-## Archivos de configuración sensibles (NO en git)
-
-- `lib/firebase_options.dart` — credenciales Firebase.
-- `android/key.properties` — firma release Android (basado en `key.properties.example`).
-- `android/local.properties` / `android/gradle.properties` — `MAPS_API_KEY`.
+**Antes de dar por terminado cualquier cambio**, corre como mínimo:
+`dart format .` → `flutter analyze` → `flutter test`. Los tres deben pasar sin errores.
 
 ---
 
-## Convenciones de código
+## 5. Convenciones de código
 
-- Arquitectura: MVVM. View no tiene lógica de negocio.
-- Estado: `ChangeNotifier` + `Provider`. No usar `setState` en pantallas complejas.
-- Nomenclatura: archivos en español (legacy) y en inglés (módulos nuevos). Clases en PascalCase.
-- Sin comentarios redundantes. Solo comentar el "por qué" si no es obvio.
-- Screenutil: diseño base `390×844`. Usar `.w`, `.h`, `.sp` para responsividad.
+- **Idioma: ESPAÑOL.** Nombres de variables, clases, métodos, archivos, carpetas,
+  campos de Firestore y comentarios van en español.
+  - Clases en `PascalCase`: `SolicitudViaje`, `RepositorioConductor`.
+  - Variables y métodos en `camelCase`: `crearSolicitud()`, `ubicacionActual`.
+  - Archivos en `snake_case`: `solicitud_viaje.dart`, `repositorio_conductor.dart`.
+  - Estados y valores del dominio en español: `buscando`, `asignado`, `en_ruta`.
+- Sigue el linter del proyecto (`analysis_options.yaml`). Si no existe uno con reglas
+  estrictas, créalo basándote en `flutter_lints` y avísame.
+- Evita la lógica de negocio dentro de los widgets: vive en casos de uso / ViewModels.
+- Comentarios solo donde aporten; el código en español ya debe leerse claro.
 
 ---
 
-## Riesgos técnicos activos (al momento del análisis: 2026-04-28)
+## 6. Tests — OBLIGATORIOS
 
-1. Arquitectura híbrida: flujos legacy en `screens/` conviven con módulos modernos en `features/`. Riesgo de duplicidad.
-2. Listeners de Firestore en algunas vistas (no en ViewModel). Refactorizar progresivamente.
-3. Normalización de estado de solicitud en múltiples puntos. `SolicitudEstado.normalize()` debe ser la fuente única.
-4. Claves sensibles potencialmente embebidas en código; moverlas a configuración externa.
+**Todo cambio nuevo (feature o fix) DEBE venir acompañado de sus tests.** No se
+considera terminado un cambio sin tests que pasen.
+
+- **Unitarios:** para casos de uso y lógica de negocio (cancelaciones, transiciones de
+  estado, cálculos de ruta/tarifa).
+- **De widget:** para la UI relevante del cambio.
+- **De integración:** para los flujos críticos — crear solicitud, matching, tracking
+  en el mapa, y chat.
+
+Como hoy NO hay tests, ve creando la base de testing a medida que tocas cada área.
+
+---
+
+## 7. Firebase, seguridad y secretos
+
+### 🔴 TAREA CRÍTICA PENDIENTE: no existen `firestore.rules`
+
+El proyecto **no tiene reglas de seguridad de Firestore escritas todavía**. Esto es
+**bloqueante para producción**: sin reglas, cualquiera podría leer ubicaciones en
+tiempo real, chats y datos personales de otros usuarios.
+
+- Antes de producción hay que escribir `firestore.rules` que garanticen, como mínimo:
+  - Un usuario solo lee/escribe sus propios datos.
+  - La ubicación de un viaje solo es legible por el cliente y el conductor de ESE viaje.
+  - Los mensajes de chat solo son accesibles para los dos participantes del viaje.
+- **NUNCA toques ni relajes las reglas de Firestore sin avisarme primero.**
+
+### Secretos y claves
+
+- **NUNCA** hagas commit de claves, secretos ni credenciales (API keys de Google Maps,
+  config de Firebase con datos sensibles, archivos de servicio).
+- Las API keys y configuración sensible deben ir por `--dart-define` / variables de
+  entorno y/o archivos ignorados en `.gitignore`, nunca hardcodeadas en el código.
+- Si encuentras un secreto commiteado, avísame de inmediato; no lo dejes pasar.
+
+---
+
+## 8. Reglas de negocio
+
+### Estados de la solicitud / viaje
+
+Flujo propuesto (CONFIRMAR — ver nota abajo):
+
+```
+buscando → asignado → en_camino → en_espera → en_ruta → completado
+                                                      ↘ cancelado
+```
+
+- `buscando` — solicitud creada, esperando que un conductor la acepte.
+- `asignado` — un conductor aceptó la solicitud.
+- `en_camino` — el conductor va en camino al punto de recogida.
+- `en_espera` — el conductor llegó y espera al cliente.
+- `en_ruta` — viaje en curso hacia el destino.
+- `completado` — viaje finalizado.
+- `cancelado` — solicitud cancelada.
+
+> ⚠️ **CONFIRMAR:** en la lista original que diste apareció **"en ruta" dos veces**.
+> Arriba propuse un orden lógico. Antes de codificar las transiciones de estado,
+> confirma la lista y el orden definitivos. No inventes transiciones sin confirmación.
+
+Una vez confirmados, las transiciones deben respetarse estrictamente: un estado no
+puede saltarse pasos (p. ej. no se pasa a `completado` sin haber estado `en_ruta`).
+
+### Compartir ubicación
+
+- La ubicación **solo se comparte cuando el estado de la solicitud es `asignado` o
+  `en_ruta`** (y los estados intermedios del viaje activo que se confirmen).
+- En cualquier otro estado, **NO se comparte ubicación**. Esto es una regla de
+  privacidad: no rastrees ni expongas la ubicación de un usuario fuera de un viaje activo.
+
+### Cancelaciones del cliente
+
+- El cliente puede cancelar hasta **5 solicitudes** creadas.
+- A la **6ª** se activa un **cooldown (timeout) de 5 minutos** durante el cual NO
+  puede crear nuevas solicitudes.
+- Implementa esto de forma robusta (el contador y el cooldown deben sobrevivir a
+  reinicios de la app; valídalo también del lado de Firestore, no solo en el cliente).
+
+---
+
+## 9. Reglas duras — NUNCA hagas esto
+
+- ❌ **Nunca** hagas commit de claves, secretos ni credenciales.
+- ❌ **Nunca** toques ni relajes las reglas de Firestore sin avisar primero.
+- ❌ **Nunca** borres datos de producción.
+- ❌ **Nunca** hagas push directo a `main`.
+- ❌ **No** añadas paquetes/dependencias pesadas sin justificarlo y consultarlo.
+- ❌ **No** cambies la versión de Flutter ni las dependencias core (Firebase, Google
+  Maps, Provider) sin avisar.
+- ❌ **No** des por terminado un cambio si `flutter analyze` o `flutter test` fallan.
+- ❌ **No** muevas archivos masivamente sin verificar después que `flutter analyze`
+  queda limpio.
+- ❌ **No** metas lógica de negocio dentro de los widgets.
+- ❌ **No** llames a Firebase/Google APIs directamente desde la capa de presentación.
+
+---
+
+## 10. Commits y ramas
+
+Aún no hay convención definida. Usa esta (todo en **español**):
+
+### Commits — Conventional Commits
+
+```
+feat: agregar cancelacion con cooldown de 5 minutos
+fix: corregir ubicacion que no se ocultaba al completar viaje
+refactor: reorganizar carpeta de chat segun clean architecture
+test: agregar tests del caso de uso crear solicitud
+docs: actualizar AGENTS.md
+```
+
+Tipos: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`.
+
+### Ramas
+
+```
+feature/descripcion-corta
+fix/descripcion-corta
+refactor/descripcion-corta
+```
+
+Nunca trabajes ni hagas push directo sobre `main`.
+
+---
+
+## 11. Checklist antes de producción (pendientes detectados)
+
+- [ ] Escribir `firestore.rules` (🔴 crítico — seguridad de datos y ubicación).
+- [ ] Confirmar y codificar la lista/orden definitivos de estados del viaje.
+- [ ] Reorganizar `lib/` a la estructura objetivo de la sección 3.
+- [ ] Crear la base de tests (unitarios, widget, integración) e ir cubriendo lo crítico.
+- [ ] Asegurar que ninguna clave/secreto esté en el repo; mover a `--dart-define`/env.
+- [ ] Validar la regla de cancelaciones (5 + cooldown) del lado servidor.
+- [ ] Definir `analysis_options.yaml` con reglas de lint estrictas.
+
+---
+
+_Si algo no está cubierto en este documento, pregunta antes de asumir._
