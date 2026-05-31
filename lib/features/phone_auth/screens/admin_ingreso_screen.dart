@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
-import 'package:taxi_app/data/repositories/client_auth/client_auth_repository_impl.dart';
-import 'package:taxi_app/domain/usecases/client_auth/sign_in_google_client_usecase.dart';
-import 'package:taxi_app/domain/usecases/client_auth/sign_in_apple_client_usecase.dart';
+import 'package:taxi_app/caracteristicas/autenticacion/datos/repositorios/client_auth_repository_impl.dart';
+import 'package:taxi_app/caracteristicas/autenticacion/dominio/casos_uso/sign_in_google_client_usecase.dart';
+import 'package:taxi_app/caracteristicas/autenticacion/dominio/casos_uso/sign_in_apple_client_usecase.dart';
 import 'registro_administrador_screen.dart';
 import 'package:taxi_app/core/services/auth_service.dart';
 import '../services/user_data_service.dart';

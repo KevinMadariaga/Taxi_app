@@ -36,6 +36,7 @@ class _InicioClienteViewState extends State<InicioClienteView>
   bool _gpsPromptShown = false;
   bool _isRequestingPermissions = false;
   bool _isGpsDialogOpen = false;
+  bool _mostrarUbicacionOk = false;
 
   // ── Ciclo de vida ────────────────────────────────────────────────────────
 
@@ -47,9 +48,20 @@ class _InicioClienteViewState extends State<InicioClienteView>
     _vmListener = () => setState(() {});
     vm.addListener(_vmListener);
     vm.init();
+    _applyOverlayStyle();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _bootstrapClienteLocationFlow();
     });
+  }
+
+  /// Aplica el estilo de la barra de estado según la pestaña activa.
+  /// Se invoca solo al iniciar y al cambiar de pestaña, no en cada rebuild.
+  void _applyOverlayStyle() {
+    SystemChrome.setSystemUIOverlayStyle(
+      _selectedIndex == 0
+          ? SystemUiOverlayStyle.light.copyWith(statusBarColor: Colors.amber)
+          : SystemUiOverlayStyle.dark.copyWith(statusBarColor: Colors.white),
+    );
   }
 
   @override
@@ -231,11 +243,24 @@ class _InicioClienteViewState extends State<InicioClienteView>
   Future<void> _loadCurrentLocation() async {
     await vm.cargarUbicacionActual();
     if (!mounted) return;
-    if (vm.currentLocation != null && _mapController != null) {
-      await _mapController!.animateCamera(
-        CameraUpdate.newLatLngZoom(vm.currentLocation!, 16),
-      );
+    if (vm.currentLocation != null) {
+      if (_mapController != null) {
+        await _mapController!.animateCamera(
+          CameraUpdate.newLatLngZoom(vm.currentLocation!, 16),
+        );
+      }
+      _mostrarBannerUbicacionEncontrada();
     }
+  }
+
+  /// Muestra un aviso profesional y breve de "Ubicación encontrada" que se
+  /// auto-oculta. No bloquea la interacción.
+  void _mostrarBannerUbicacionEncontrada() {
+    if (!mounted) return;
+    setState(() => _mostrarUbicacionOk = true);
+    Future.delayed(const Duration(milliseconds: 2400), () {
+      if (mounted) setState(() => _mostrarUbicacionOk = false);
+    });
   }
 
   Future<void> _onFavoriteSelected(UbicacionResultado fav) async {
@@ -303,6 +328,7 @@ class _InicioClienteViewState extends State<InicioClienteView>
     } catch (_) {}
     if (!mounted) return;
     setState(() => _selectedIndex = index);
+    _applyOverlayStyle();
   }
 
   Future<void> _centerOnMarker() async {
@@ -330,16 +356,19 @@ class _InicioClienteViewState extends State<InicioClienteView>
     final double screenW = size.width;
     final bool isTablet = screenW >= 600;
 
-    final SystemUiOverlayStyle overlayStyle = _selectedIndex == 0
-        ? SystemUiOverlayStyle.light.copyWith(statusBarColor: Colors.amber)
-        : SystemUiOverlayStyle.dark.copyWith(statusBarColor: Colors.white);
-    SystemChrome.setSystemUIOverlayStyle(overlayStyle);
+    // El estilo de la barra de estado NO se aplica en build (dispararía una
+    // llamada al canal de plataforma en cada notificación del VM → jank).
+    // Se aplica solo al cambiar de pestaña ([_applyOverlayStyle]).
 
-    final double hPad = isTablet ? 32.0 : 16.0;
+    // Responsive: en pantallas anchas (tablet) el padding lateral crece para
+    // centrar el contenido dentro de un ancho máximo legible, en vez de
+    // estirarlo de borde a borde.
+    const double anchoMaxContenido = 640.0;
+    final double hPad = screenW > anchoMaxContenido
+        ? (screenW - anchoMaxContenido) / 2
+        : (isTablet ? 32.0 : 16.0);
     final double carouselHeight =
         (size.height * (isTablet ? 0.30 : 0.29)).clamp(160.0, 240.0);
-    final double mapHeight =
-        (size.height * (isTablet ? 0.26 : 0.24)).clamp(145.0, 205.0);
 
     return PopScope(
       canPop: false,
@@ -422,11 +451,15 @@ class _InicioClienteViewState extends State<InicioClienteView>
                               ],
                             ),
                           ),
-                          // Bloque inferior: carousel + mapa anclados al fondo
+                          // Bloque inferior: carousel + mapa anclados al fondo.
+                          // El mapa usa Expanded para absorber el espacio
+                          // restante: cuando cargan los favoritos y el bloque
+                          // superior crece, el mapa se encoge en vez de
+                          // desbordarse (sin overflow ni "el mapa se sale").
                           Expanded(
                             child: Padding(
                               padding:
-                                  EdgeInsets.fromLTRB(hPad, 20, hPad, 10),
+                                  EdgeInsets.fromLTRB(hPad, 16, hPad, 12),
                               child: Column(
                                 crossAxisAlignment:
                                     CrossAxisAlignment.stretch,
@@ -435,11 +468,8 @@ class _InicioClienteViewState extends State<InicioClienteView>
                                     height: carouselHeight,
                                     child: _buildCarousel(),
                                   ),
-                                  const SizedBox(height: 35),
-                                  SizedBox(
-                                    height: mapHeight,
-                                    child: _buildMap(),
-                                  ),
+                                  const SizedBox(height: 18),
+                                  Expanded(child: _buildMap()),
                                 ],
                               ),
                             ),
@@ -453,6 +483,7 @@ class _InicioClienteViewState extends State<InicioClienteView>
                   ),
                   if (vm.isLoadingLocation) _buildLoader(),
                   if (_isPreparingNavigation) _buildNavigationLoader(),
+                  _UbicacionOkBanner(visible: _mostrarUbicacionOk),
                 ],
               ),
             ),
@@ -506,10 +537,18 @@ class _InicioClienteViewState extends State<InicioClienteView>
         GestureDetector(
           onTap: () => _scaffoldKey.currentState?.openEndDrawer(),
           child: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: const BoxDecoration(
-              color: AppColores.grey100,
-              shape: BoxShape.circle,
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: AppColores.surface,
+              borderRadius: BorderRadius.circular(13),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.06),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ],
             ),
             child: const Icon(
               Icons.menu_rounded,
@@ -528,49 +567,67 @@ class _InicioClienteViewState extends State<InicioClienteView>
       child: Container(
         decoration: BoxDecoration(
           color: AppColores.surface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColores.borderSubtle),
+          borderRadius: BorderRadius.circular(18),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.07),
-              blurRadius: 10,
-              offset: const Offset(0, 3),
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 16,
+              offset: const Offset(0, 5),
             ),
           ],
         ),
-        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
+        padding: const EdgeInsets.all(14),
         child: Row(
           children: [
-            CircleAvatar(
-              radius: 14,
-              backgroundColor: AppColores.primary.withValues(alpha: 0.15),
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                color: AppColores.primary.withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(13),
+              ),
               child: const Icon(
-                Icons.my_location_rounded,
-                size: 14,
+                Icons.search_rounded,
+                size: 24,
                 color: AppColores.primary,
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: Text(
-                '¿A dónde quieres ir?',
-                style: TextStyle(
-                  color: AppColores.textSecondary,
-                  fontSize: isTablet ? 18 : 17,
-                  fontWeight: FontWeight.w500,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '¿A dónde vamos?',
+                    style: TextStyle(
+                      color: AppColores.textPrimary,
+                      fontSize: isTablet ? 18 : 16.5,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Toca para elegir tu destino',
+                    style: TextStyle(
+                      color: AppColores.textSecondary,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
               ),
             ),
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 color: AppColores.primary,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(12),
               ),
               child: const Icon(
                 Icons.arrow_forward_rounded,
                 size: 18,
-                color: AppColores.textPrimary,
+                color: Colors.black,
               ),
             ),
           ],
@@ -844,22 +901,24 @@ class _InicioClienteViewState extends State<InicioClienteView>
         borderRadius: BorderRadius.circular(18),
         child: Stack(
           children: [
-            AppGoogleMap(
-              initialTarget:
-                  vm.currentLocation ?? const LatLng(8.2595534, -73.353469),
-              initialZoom: 14.5,
-              myLocationEnabled: true,
-              myLocationButtonEnabled: false,
-              compassEnabled: false,
-              markers: vm.conductoresMarkers,
-              onMapCreated: (controller) async {
-                _mapController = controller;
-                if (vm.currentLocation != null) {
-                  await controller.animateCamera(
-                    CameraUpdate.newLatLngZoom(vm.currentLocation!, 16),
-                  );
-                }
-              },
+            RepaintBoundary(
+              child: AppGoogleMap(
+                initialTarget:
+                    vm.currentLocation ?? const LatLng(8.2595534, -73.353469),
+                initialZoom: 14.5,
+                myLocationEnabled: true,
+                myLocationButtonEnabled: false,
+                compassEnabled: false,
+                markers: vm.conductoresMarkers,
+                onMapCreated: (controller) async {
+                  _mapController = controller;
+                  if (vm.currentLocation != null) {
+                    await controller.animateCamera(
+                      CameraUpdate.newLatLngZoom(vm.currentLocation!, 16),
+                    );
+                  }
+                },
+              ),
             ),
             // Label "Estás aquí"
             Positioned(
@@ -1012,6 +1071,82 @@ class _InicioClienteViewState extends State<InicioClienteView>
                 style: TextStyle(color: AppColores.textWhite, fontSize: 16),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Aviso "Ubicación encontrada" — píldora superior, animada y auto-ocultable
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _UbicacionOkBanner extends StatelessWidget {
+  const _UbicacionOkBanner({required this.visible});
+
+  final bool visible;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      top: 12,
+      left: 0,
+      right: 0,
+      child: IgnorePointer(
+        child: AnimatedSlide(
+          duration: const Duration(milliseconds: 340),
+          curve: Curves.easeOutCubic,
+          offset: visible ? Offset.zero : const Offset(0, -1.6),
+          child: AnimatedOpacity(
+            duration: const Duration(milliseconds: 260),
+            opacity: visible ? 1 : 0,
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColores.surface,
+                  borderRadius: BorderRadius.circular(30),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.12),
+                      blurRadius: 16,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 24,
+                      height: 24,
+                      decoration: BoxDecoration(
+                        color: AppColores.success.withValues(alpha: 0.15),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.check_rounded,
+                        size: 16,
+                        color: AppColores.success,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    const Text(
+                      'Ubicación encontrada',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13.5,
+                        color: AppColores.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
         ),
       ),

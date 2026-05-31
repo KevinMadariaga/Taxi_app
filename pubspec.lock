@@ -186,7 +186,7 @@ packages:
     source: hosted
     version: "0.3.5+2"
   crypto:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: crypto
       sha256: c8ea0233063ba03258fbcf2ca4d6dadfefe14f02fab57702265467a19f27fadf
@@ -265,30 +265,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.9.3+5"
-  firebase_analytics:
-    dependency: "direct main"
-    description:
-      name: firebase_analytics
-      sha256: "6993e54441e96b4de1dd85a159b236bbcd2c2487215c9d02b12c1685ddfded73"
-      url: "https://pub.dev"
-    source: hosted
-    version: "12.3.0"
-  firebase_analytics_platform_interface:
-    dependency: transitive
-    description:
-      name: firebase_analytics_platform_interface
-      sha256: ac2a17484daf380b2247b9874e675ff9e4ac611d839a10b91b7445f764756760
-      url: "https://pub.dev"
-    source: hosted
-    version: "5.1.1"
-  firebase_analytics_web:
-    dependency: transitive
-    description:
-      name: firebase_analytics_web
-      sha256: "167a3115e71501ba6706235f00e370072920ee8d26b44fbfb9dc8e63c98a8d9b"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.6.1+5"
   firebase_app_check:
     dependency: "direct main"
     description:
@@ -604,7 +580,7 @@ packages:
     source: sdk
     version: "0.0.0"
   flutter_native_splash:
-    dependency: "direct main"
+    dependency: "direct dev"
     description:
       name: flutter_native_splash
       sha256: "4fb9f4113350d3a80841ce05ebf1976a36de622af7d19aca0ca9a9911c7ff002"
@@ -619,14 +595,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.0.34"
-  flutter_polyline_points:
-    dependency: "direct main"
-    description:
-      name: flutter_polyline_points
-      sha256: c775fe59fbcf1f925d611c039555c7f58ed6d9411747b7a2915bbd9c5e730a51
-      url: "https://pub.dev"
-    source: hosted
-    version: "3.1.0"
   flutter_screenutil:
     dependency: "direct main"
     description:
@@ -635,14 +603,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "5.9.3"
-  flutter_spinkit:
-    dependency: "direct main"
-    description:
-      name: flutter_spinkit
-      sha256: "77850df57c00dc218bfe96071d576a8babec24cf58b2ed121c83cca4a2fdce7f"
-      url: "https://pub.dev"
-    source: hosted
-    version: "5.2.2"
   flutter_svg:
     dependency: transitive
     description:
@@ -1061,14 +1021,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.3.0"
-  lottie:
-    dependency: "direct main"
-    description:
-      name: lottie
-      sha256: "8b6359a7422167014aa73ce763fa133fb832065dcc0ac4d1dec1f603a5cef7d0"
-      url: "https://pub.dev"
-    source: hosted
-    version: "3.3.3"
   matcher:
     dependency: transitive
     description:

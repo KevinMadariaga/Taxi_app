@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
@@ -9,16 +11,16 @@ import 'package:taxi_app/core/helpers/permisos_helper.dart';
 import 'package:taxi_app/core/constants/app_constants.dart';
 import 'package:taxi_app/core/theme/app_theme.dart';
 import 'package:taxi_app/core/utils/app_dependencies.dart';
-import 'package:taxi_app/domain/usecases/client_auth/sign_in_google_client_usecase.dart';
-import 'package:taxi_app/domain/usecases/client_auth/sign_in_apple_client_usecase.dart';
-import 'package:taxi_app/domain/usecases/client_auth/send_client_phone_otp_usecase.dart';
-import 'package:taxi_app/domain/usecases/client_auth/verify_client_phone_otp_usecase.dart';
-import 'package:taxi_app/domain/usecases/client_auth/get_client_user_usecase.dart';
-import 'package:taxi_app/domain/usecases/client_auth/complete_client_profile_usecase.dart';
+import 'package:taxi_app/caracteristicas/autenticacion/dominio/casos_uso/sign_in_google_client_usecase.dart';
+import 'package:taxi_app/caracteristicas/autenticacion/dominio/casos_uso/sign_in_apple_client_usecase.dart';
+import 'package:taxi_app/caracteristicas/autenticacion/dominio/casos_uso/send_client_phone_otp_usecase.dart';
+import 'package:taxi_app/caracteristicas/autenticacion/dominio/casos_uso/verify_client_phone_otp_usecase.dart';
+import 'package:taxi_app/caracteristicas/autenticacion/dominio/casos_uso/get_client_user_usecase.dart';
+import 'package:taxi_app/caracteristicas/autenticacion/dominio/casos_uso/complete_client_profile_usecase.dart';
 import 'package:taxi_app/routes/app_routes.dart';
 import 'package:taxi_app/features/client/data/firebaseDB.dart';
-import 'package:taxi_app/core/auth/app_auth_adapter.dart';
-import 'package:taxi_app/domain/repositories/client_auth_repository.dart';
+import 'package:taxi_app/caracteristicas/autenticacion/datos/repositorios/app_auth_adapter.dart';
+import 'package:taxi_app/caracteristicas/autenticacion/dominio/repositorios/client_auth_repository.dart';
 import 'package:taxi_app/models/AuthModel.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/RutaClienteViewModel.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodels/RutaConductorViewModel.dart';
@@ -39,14 +41,11 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   SystemChrome.setSystemUIOverlayStyle(_globalSystemOverlayStyle);
-  await _initializeCoreServices();
 
-  final dependencies = AppDependencies.initialize();
-  runApp(MyApp(dependencies: dependencies));
-}
-
-/// Initializes Firebase, permissions, and notifications.
-Future<void> _initializeCoreServices() async {
+  // Solo lo imprescindible antes del primer frame: Firebase es requerido por
+  // los providers (AppAuthAdapter). Todo lo demás (permisos, notificaciones,
+  // tracking, FCM) se difiere para que el splash animado aparezca de inmediato
+  // y NUNCA quede una pantalla negra/blanca mientras se piden permisos.
   await FirebaseHelper.initializeFirebase();
 
   if (!kReleaseMode && AppConstants.phoneAuthTestMode) {
@@ -63,16 +62,36 @@ Future<void> _initializeCoreServices() async {
     }
   }
 
-  await PermissionsHelper.requestAllPermissions();
-  await NotificacionesServicio.instance.init();
-  await initializeLocationNotificationChannel();
-  await initializeTrackingNotificationChannel();
-  await initializeBackgroundService();
+  final dependencies = AppDependencies.initialize();
+  runApp(MyApp(dependencies: dependencies));
 
-  // Inicializar Firebase Cloud Messaging para push notifications en iOS background.
-  // Esto registra el token FCM del usuario en Firestore y configura los handlers
-  // de mensajes (foreground, background, terminated).
-  await FcmService.instance.init();
+  // Inicialización diferida en segundo plano: no bloquea el primer frame ni
+  // el splash. Los permisos se piden con el splash animado ya visible.
+  unawaited(_inicializarServiciosDiferidos());
+}
+
+/// Inicializa permisos, notificaciones, tracking y FCM después de mostrar la UI.
+/// Cada paso va protegido para que un fallo no detenga el resto.
+Future<void> _inicializarServiciosDiferidos() async {
+  try {
+    await PermissionsHelper.requestAllPermissions();
+  } catch (_) {}
+  try {
+    await NotificacionesServicio.instance.init();
+  } catch (_) {}
+  try {
+    await initializeLocationNotificationChannel();
+  } catch (_) {}
+  try {
+    await initializeTrackingNotificationChannel();
+  } catch (_) {}
+  try {
+    await initializeBackgroundService();
+  } catch (_) {}
+  // FCM al final: en iOS la espera del token APNs puede tardar varios segundos.
+  try {
+    await FcmService.instance.init();
+  } catch (_) {}
 }
 
 /// Root widget for the Taxi App.

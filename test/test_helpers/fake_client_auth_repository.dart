@@ -1,9 +1,9 @@
 import 'dart:io';
 
-import 'package:taxi_app/domain/entities/auth_identity_entity.dart';
-import 'package:taxi_app/domain/entities/client_user_entity.dart';
-import 'package:taxi_app/domain/models/phone_verification_result.dart';
-import 'package:taxi_app/domain/repositories/client_auth_repository.dart';
+import 'package:taxi_app/caracteristicas/autenticacion/dominio/entidades/auth_identity_entity.dart';
+import 'package:taxi_app/caracteristicas/autenticacion/dominio/entidades/client_user_entity.dart';
+import 'package:taxi_app/caracteristicas/autenticacion/dominio/modelos/phone_verification_result.dart';
+import 'package:taxi_app/caracteristicas/autenticacion/dominio/repositorios/client_auth_repository.dart';
 
 class FakeClientAuthRepository implements ClientAuthRepository {
   @override

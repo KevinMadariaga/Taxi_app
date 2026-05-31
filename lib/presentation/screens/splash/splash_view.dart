@@ -5,10 +5,15 @@ import 'package:taxi_app/core/constants/app_constants.dart';
 import 'package:taxi_app/presentation/viewmodels/splash/splash_viewmodel.dart';
 import 'package:taxi_app/presentation/widgets/update_available_dialog.dart';
 import 'package:taxi_app/routes/app_routes.dart';
-import 'package:taxi_app/screens/home_screen.dart';
+import 'package:taxi_app/caracteristicas/autenticacion/presentacion/vistas/home_screen.dart';
 import 'package:taxi_app/core/services/services.dart';
 
 const String _iOSAppStoreId = String.fromEnvironment('IOS_APP_STORE_ID');
+
+/// Fondo del splash: blanco, en sintonía con el splash nativo para que NO
+/// haya salto de color ni pantalla negra entre el arranque nativo y el primer
+/// frame de Flutter.
+const Color _fondoSplash = Colors.white;
 
 class SplashView extends StatefulWidget {
   const SplashView({super.key});
@@ -18,11 +23,13 @@ class SplashView extends StatefulWidget {
 }
 
 class _SplashViewState extends State<SplashView>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
+    with TickerProviderStateMixin {
+  late final AnimationController _entrada;
+  late final AnimationController _pulso;
   late final Animation<double> _logoFade;
   late final Animation<double> _logoScale;
-  // car slide animation removed (unused)
+  late final Animation<double> _textoFade;
+
   late final SplashViewModel _viewModel;
   late final UpdateService _updateService;
   late final AppRemoteConfigService _remoteConfigService;
@@ -32,24 +39,32 @@ class _SplashViewState extends State<SplashView>
   void initState() {
     super.initState();
 
-    _controller = AnimationController(
+    // Entrada (una sola vez): logo aparece con fade + escala, luego el texto.
+    _entrada = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2200),
-    )..repeat();
-
-    _logoFade = CurvedAnimation(
-      parent: _controller,
-      curve: const Interval(0.0, 0.35, curve: Curves.easeIn),
+      duration: const Duration(milliseconds: 900),
     );
-
-    _logoScale = Tween<double>(begin: 0.86, end: 1.0).animate(
+    _logoFade = CurvedAnimation(
+      parent: _entrada,
+      curve: const Interval(0.0, 0.55, curve: Curves.easeOut),
+    );
+    _logoScale = Tween<double>(begin: 0.82, end: 1.0).animate(
       CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.0, 0.4, curve: Curves.easeOutBack),
+        parent: _entrada,
+        curve: const Interval(0.0, 0.65, curve: Curves.easeOutBack),
       ),
     );
+    _textoFade = CurvedAnimation(
+      parent: _entrada,
+      curve: const Interval(0.45, 1.0, curve: Curves.easeIn),
+    );
+    _entrada.forward();
 
-    // previously had a car slide animation here; omitted because unused
+    // Pulso continuo y sutil del logo: comunica "cargando" sin peso.
+    _pulso = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    )..repeat(reverse: true);
 
     _viewModel = context.read<SplashViewModel>();
     _viewModel.addListener(_handleNavigation);
@@ -62,7 +77,7 @@ class _SplashViewState extends State<SplashView>
     );
 
     _startAppFlow();
-    // Fallback: ensure we navigate after 2 seconds even if other checks take time.
+    // Fallback: navegar tras 2 s aunque otras comprobaciones tarden.
     Future.delayed(const Duration(seconds: 2), () async {
       if (!mounted || _hasNavigated) return;
       await _navigateFromSessionState();
@@ -72,15 +87,14 @@ class _SplashViewState extends State<SplashView>
   @override
   void dispose() {
     _viewModel.removeListener(_handleNavigation);
-    _controller.dispose();
+    _entrada.dispose();
+    _pulso.dispose();
     super.dispose();
   }
 
   void _handleNavigation() {
     if (!_viewModel.navigateToLogin || !mounted) return;
-
     _viewModel.consumeNavigation();
-
     _navigateFromSessionState();
   }
 
@@ -93,7 +107,6 @@ class _SplashViewState extends State<SplashView>
   Future<bool> _validateAppUpdate() async {
     final result = await _updateService.checkForUpdate();
     if (!mounted) return false;
-
     if (!result.hasUpdate) return true;
 
     final action = await UpdateAvailableDialog.show(context, result);
@@ -120,6 +133,7 @@ class _SplashViewState extends State<SplashView>
 
   Future<void> _navigateFromSessionState() async {
     if (_hasNavigated) return;
+    _hasNavigated = true;
     final next = await AuthService().determineInitialScreen();
     if (!mounted) return;
 
@@ -135,54 +149,109 @@ class _SplashViewState extends State<SplashView>
 
   @override
   Widget build(BuildContext context) {
+    // Tamaño del logo proporcional a la pantalla (promedio), acotado para que
+    // no se vea ni muy pequeño ni desbordado en tablets.
+    final double logoSize =
+        (MediaQuery.of(context).size.width * 0.48).clamp(150.0, 210.0);
+
     return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
+      backgroundColor: _fondoSplash,
+      body: Stack(
+        children: [
+          // ── Logo + marca: centrados en el medio exacto de la pantalla ──
+          Center(
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Expanded(
-                  child: Center(
-                    child: FadeTransition(
-                      opacity: _logoFade,
-                      child: ScaleTransition(
-                        scale: _logoScale,
-                        child: SizedBox(
-                          width: 220,
-                          height: 220,
-                          child: Image.asset(
-                            'assets/img/foreground_car.png',
-                            fit: BoxFit.contain,
-                            errorBuilder: (context, error, stackTrace) =>
-                                const Icon(
-                                  Icons.local_taxi,
-                                  size: 120,
-                                  color: AppColores.primary,
-                                ),
+                FadeTransition(
+                  opacity: _logoFade,
+                  child: ScaleTransition(
+                    scale: _logoScale,
+                    child: ScaleTransition(
+                      scale: Tween<double>(begin: 0.97, end: 1.03).animate(
+                        CurvedAnimation(
+                          parent: _pulso,
+                          curve: Curves.easeInOut,
+                        ),
+                      ),
+                      child: SizedBox(
+                        width: logoSize,
+                        height: logoSize,
+                        child: Image.asset(
+                          'assets/img/foreground_car.png',
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, _, _) => Icon(
+                            Icons.local_taxi_rounded,
+                            size: logoSize * 0.62,
+                            color: AppColores.primary,
                           ),
                         ),
                       ),
                     ),
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 45.0),
-                  child: Text(
-                    AppConstants.splashMessage,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: AppColores.textPrimary,
-                    ),
+                const SizedBox(height: 24),
+                FadeTransition(
+                  opacity: _textoFade,
+                  child: Column(
+                    children: [
+                      const Text(
+                        'Taxi Ya',
+                        style: TextStyle(
+                          fontSize: 34,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.5,
+                          color: AppColores.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        AppConstants.splashMessage,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w500,
+                          color: AppColores.textSecondary,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
           ),
-        ),
+
+          // ── Indicador de carga anclado abajo ──────────────────────────
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: SafeArea(
+              top: false,
+              minimum: const EdgeInsets.only(bottom: 44),
+              child: Center(
+                child: FadeTransition(
+                  opacity: _textoFade,
+                  child: SizedBox(
+                    width: 130,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        minHeight: 3.5,
+                        backgroundColor: AppColores.primary.withValues(
+                          alpha: 0.18,
+                        ),
+                        valueColor: const AlwaysStoppedAnimation<Color>(
+                          AppColores.primary,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -21,6 +21,9 @@ class InicioClienteViewModel extends ChangeNotifier {
   LatLng? _currentLocation;
   bool _favoritosLoaded = false;
   bool _disposed = false;
+  // Último uid persistido en disco; evita reescrituras redundantes en cada
+  // emisión del authStateChanges (que dispara con el mismo uid al recargar).
+  String? _persistedUid;
 
   Set<Marker> _conductoresMarkers = <Marker>{};
   BitmapDescriptor? _taxiIcon;
@@ -54,7 +57,12 @@ class InicioClienteViewModel extends ChangeNotifier {
       if (user != null) {
         _clientId = user.uid;
         _clientName = await _obtenerNombreCliente(user);
-        await SessionHelper.saveSession('cliente', user.uid);
+        // Solo persistir en disco si el uid cambió (evita escrituras repetidas
+        // de los mismos valores en cada recarga / emisión del stream).
+        if (_persistedUid != user.uid) {
+          await SessionHelper.saveSession('cliente', user.uid);
+          _persistedUid = user.uid;
+        }
         await cargarFavoritosUnaVez();
         if (!_disposed) notifyListeners();
       } else {
@@ -230,22 +238,27 @@ class InicioClienteViewModel extends ChangeNotifier {
     } catch (e) {
       debugPrint('Error leyendo nombre de cliente: $e');
     }
+    // Cachear el nombre resuelto para que las recargas siguientes sean
+    // instantáneas (hydrateFromUid lo usa sin volver a consultar Firestore).
+    if (name != 'Cliente') {
+      try {
+        await SessionHelper.saveCachedName(name);
+      } catch (_) {}
+    }
     return name;
   }
 
+  /// Hidratación rápida al entrar a la pantalla: fija el uid recibido tras el
+  /// login y muestra el nombre en cache al instante. La lectura autoritativa
+  /// desde Firestore la hace el listener de auth ([_listenAuthChanges]), por lo
+  /// que aquí NO se consulta Firestore: evita una lectura duplicada en cada
+  /// recarga de la clase.
   Future<void> hydrateFromUid(String uid) async {
     _clientId = uid;
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('usuarios')
-          .doc(uid)
-          .get();
-      if (doc.exists) {
-        final data = doc.data() ?? <String, dynamic>{};
-        final nombre = (data['nombre'] ?? '').toString().trim();
-        if (nombre.isNotEmpty) {
-          _clientName = nombre;
-        }
+      final cached = await SessionHelper.getCachedName();
+      if (cached != null && cached.trim().isNotEmpty) {
+        _clientName = cached.trim();
       }
     } catch (_) {}
     if (!_disposed) notifyListeners();

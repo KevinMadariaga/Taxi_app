@@ -1,10 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:taxi_app/data/repositories/client_auth/client_auth_repository_impl.dart';
-import 'package:taxi_app/domain/models/auth_flow_result.dart';
-import 'package:taxi_app/domain/repositories/client_auth_repository.dart';
-import 'package:taxi_app/domain/usecases/client_auth/verify_client_phone_otp_usecase.dart';
+import 'package:taxi_app/caracteristicas/autenticacion/datos/repositorios/client_auth_repository_impl.dart';
+import 'package:taxi_app/caracteristicas/autenticacion/dominio/modelos/auth_flow_result.dart';
+import 'package:taxi_app/caracteristicas/autenticacion/dominio/repositorios/client_auth_repository.dart';
+import 'package:taxi_app/caracteristicas/autenticacion/dominio/casos_uso/verify_client_phone_otp_usecase.dart';
 import 'package:taxi_app/core/services/services.dart';
 
 import '../models/phone_code_result_model.dart';

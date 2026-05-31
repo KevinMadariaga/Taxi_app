@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:taxi_app/domain/repositories/client_auth_repository.dart';
-import 'package:taxi_app/domain/usecases/client_auth/verify_client_phone_otp_usecase.dart';
+import 'package:taxi_app/caracteristicas/autenticacion/dominio/repositorios/client_auth_repository.dart';
+import 'package:taxi_app/caracteristicas/autenticacion/dominio/casos_uso/verify_client_phone_otp_usecase.dart';
 import 'package:taxi_app/core/app_colores.dart';
-import 'package:taxi_app/presentation/screens/auth/complete_profile_page.dart';
+import 'package:taxi_app/caracteristicas/autenticacion/presentacion/vistas/complete_profile_page.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/home_cliente_view.dart';
 
 import '../controllers/otp_verification_controller.dart';

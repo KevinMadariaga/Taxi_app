@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:taxi_app/domain/usecases/client_auth/send_client_phone_otp_usecase.dart';
+import 'package:taxi_app/caracteristicas/autenticacion/dominio/casos_uso/send_client_phone_otp_usecase.dart';
 import 'package:taxi_app/core/app_colores.dart';
 
 import '../controllers/phone_auth_controller.dart';

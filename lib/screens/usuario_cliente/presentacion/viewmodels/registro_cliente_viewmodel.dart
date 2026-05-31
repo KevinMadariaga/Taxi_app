@@ -6,7 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
-import 'package:taxi_app/data/models/registro_cliente_model.dart';
+import 'package:taxi_app/caracteristicas/autenticacion/datos/modelos/registro_cliente_model.dart';
 
 class RegistroClienteViewModel extends ChangeNotifier {
   bool _loading = false;

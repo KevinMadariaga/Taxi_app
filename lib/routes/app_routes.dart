@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:taxi_app/core/utils/app_dependencies.dart';
 import 'package:taxi_app/presentation/screens/splash/splash_view.dart';
-import 'package:taxi_app/presentation/viewmodels/login/login_viewmodel.dart';
+import 'package:taxi_app/caracteristicas/autenticacion/presentacion/viewmodels/login_viewmodel.dart';
 import 'package:taxi_app/presentation/viewmodels/splash/splash_viewmodel.dart';
-import 'package:taxi_app/screens/home_screen.dart';
+import 'package:taxi_app/caracteristicas/autenticacion/presentacion/vistas/home_screen.dart';
 
 class AppRoutes {
   static const String splash = '/';

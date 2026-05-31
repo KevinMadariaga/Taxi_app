@@ -2,8 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:taxi_app/core/helpers/session_helper.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:taxi_app/domain/repositories/client_auth_repository.dart';
-import 'package:taxi_app/core/auth/simple_auth_repository.dart';
+import 'package:taxi_app/caracteristicas/autenticacion/dominio/repositorios/client_auth_repository.dart';
+import 'package:taxi_app/caracteristicas/autenticacion/datos/repositorios/simple_auth_repository.dart';
 
 /// ViewModel para gestionar la autenticación de usuario (login/logout, estado y errores).
 class AuthViewModel extends ChangeNotifier {

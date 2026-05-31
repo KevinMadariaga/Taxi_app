@@ -17,6 +17,8 @@
 
          This Theme is only used starting with V2 of Flutter's Android embedding. -->
     <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
-        <item name="android:windowBackground">?android:colorBackground</item>
+        <!-- Fondo navy que coincide con el SplashView: sin parpadeo al pasar
+             del splash nativo al primer frame de Flutter. -->
+        <item name="android:windowBackground">@color/splashFondo</item>
     </style>
 </resources>

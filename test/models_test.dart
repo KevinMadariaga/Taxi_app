@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:taxi_app/data/models/registro_cliente_model.dart';
+import 'package:taxi_app/caracteristicas/autenticacion/datos/modelos/registro_cliente_model.dart';
 import 'package:taxi_app/data/models/solicitud_id.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/registro_cliente_viewmodel.dart';
 import 'package:taxi_app/features/resumen_viaje/models/resumen_viaje_model.dart';

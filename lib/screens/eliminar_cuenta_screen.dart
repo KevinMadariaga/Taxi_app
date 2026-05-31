@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
-import 'package:taxi_app/screens/home_screen.dart';
+import 'package:taxi_app/caracteristicas/autenticacion/presentacion/vistas/home_screen.dart';
 import 'package:taxi_app/core/services/services.dart';
 
 class EliminarCuentaScreen extends StatefulWidget {

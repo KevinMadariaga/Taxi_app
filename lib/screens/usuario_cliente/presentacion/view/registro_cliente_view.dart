@@ -5,7 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/InicioClienteView.dart';
 import '../viewmodels/registro_cliente_viewmodel.dart';
-import '../../../../data/models/registro_cliente_model.dart';
+import 'package:taxi_app/caracteristicas/autenticacion/datos/modelos/registro_cliente_model.dart';
 import 'package:taxi_app/widgets/boton.dart';
 import 'package:taxi_app/widgets/floating_loader.dart';
 import 'package:animated_snack_bar/animated_snack_bar.dart';

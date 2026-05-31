@@ -3,13 +3,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:taxi_app/core/helpers/session_helper.dart';
-import 'package:taxi_app/screens/home_screen.dart';
+import 'package:taxi_app/caracteristicas/autenticacion/presentacion/vistas/home_screen.dart';
 import 'package:taxi_app/features/trip_tracking_cliente/views/trip_tracking_screen.dart';
-import 'package:taxi_app/presentation/screens/auth/complete_profile_page.dart';
+import 'package:taxi_app/caracteristicas/autenticacion/presentacion/vistas/complete_profile_page.dart';
 import 'package:taxi_app/features/phone_auth/screens/panel_administrador_screen.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/home_cliente_view.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/RutaClienteDestinoView.dart';
-import 'package:taxi_app/screens/usuario_conductor/presentacion/view/RutaConductorView.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/RutaDestinoView.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioConductorView.dart';
 import 'package:taxi_app/features/driver_trip/screens/driver_trip_screen.dart';
@@ -368,14 +367,14 @@ class AuthService {
               if (conductorInProgress) {
                 return RutaDestino(idSolicitud: solicitudId);
               }
-              return RutaConductor(idSolicitud: solicitudId);
+              return DriverTripScreen(tripId: solicitudId);
             }
             // Fallback: return the legacy conductor wrapper
-            return RutaConductor(idSolicitud: solicitudId);
+            return DriverTripScreen(tripId: solicitudId);
           }
         } catch (_) {}
 
-        return RutaConductor(idSolicitud: solicitudId);
+        return DriverTripScreen(tripId: solicitudId);
       }
 
       // Cliente: rol explícito, rol desconocido o coincide con el cliente

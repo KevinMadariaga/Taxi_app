@@ -5,7 +5,7 @@ import 'package:taxi_app/screens/usuario_cliente/presentacion/view/notificacione
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/seguridad_view.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/soporte_view.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/comentarios_conductor_view.dart';
-import 'package:taxi_app/screens/usuario_conductor/presentacion/view/RutaConductorView.dart';
+import 'package:taxi_app/features/driver_trip/screens/driver_trip_screen.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/historial_viaje_conductor.dart';
 import 'package:taxi_app/widgets/intermediate_transition_view.dart';
 import 'package:taxi_app/widgets/perfil.dart';
@@ -23,7 +23,7 @@ class InicioConductorNavigation {
           delay: const Duration(seconds: 2),
           title: 'Servicio aceptado',
           subtitle: 'Abriendo ruta hacia el cliente...',
-          nextBuilder: (_) => RutaConductor(idSolicitud: idSolicitud),
+          nextBuilder: (_) => DriverTripScreen(tripId: idSolicitud),
           icon: Icons.local_taxi,
         ),
         transitionsBuilder: (_, animation, __, child) {

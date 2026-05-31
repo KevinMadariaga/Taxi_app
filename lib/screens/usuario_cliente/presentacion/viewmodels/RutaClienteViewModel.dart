@@ -13,7 +13,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import 'package:taxi_app/core/helpers/session_helper.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/chat_message.dart';
-import 'package:taxi_app/screens/usuario_conductor/presentacion/view/RutaConductorView.dart';
+import 'package:taxi_app/features/driver_trip/screens/driver_trip_screen.dart';
 import 'package:taxi_app/core/services/chat_service_adapter.dart';
 import 'package:taxi_app/core/services/tracking_service.dart';
 
@@ -228,7 +228,7 @@ class Rutaclienteviewmodel extends ChangeNotifier {
           final estado = data?['estado'] ?? '';
           if (estado == 'asignado') {
             Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => RutaConductor(idSolicitud: id)),
+              MaterialPageRoute(builder: (_) => DriverTripScreen(tripId: id)),
             );
             return true;
           }
