@@ -222,13 +222,6 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
         solicitudId: solicitudId,
         currentUserId: FirebaseAuth.instance.currentUser?.uid ?? '',
         cancelledBy: 'cliente',
-        onSolicitudCancelada: () {
-          if (!mounted) return;
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (_) => const HomeClienteView()),
-            (route) => false,
-          );
-        },
       ),
       title: 'Conductor encontrado',
       subtitle: 'Preparando tu ruta y detalles del viaje...',
@@ -243,8 +236,16 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
     if (!mounted) return;
     _searchTimer?.cancel();
     _conductoresConectadosSub?.cancel();
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const HomeClienteView()),
+    await navigateWithIntermediateLoader(
+      context: context,
+      nextBuilder: (_) => const HomeClienteView(),
+      title: 'Viaje cancelado',
+      subtitle: 'Has cancelado la búsqueda.',
+      icon: Icons.close_rounded,
+      accentColor: AppColores.error,
+      drawCheck: false,
+      delay: const Duration(milliseconds: 1600),
+      clearStackOnNext: true,
     );
   }
 
@@ -286,10 +287,14 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
 
   Future<void> _rechazarOferta(String conductorId) async {
     if (_respondingOffer[conductorId] == true) return;
-    setState(() => _respondingOffer[conductorId] = true);
+    _respondingOffer[conductorId] = true;
+
+    // Solo elimina ESA oferta. Si era la única, el modal se cierra solo cuando
+    // la lista queda vacía (ver _buildModalContraofertas); si hay más, siguen
+    // mostrándose. Nunca sale de buscando taxi.
     final ok = await _vm.rechazarContraofertaDeConductor(conductorId);
     if (!mounted) return;
-    setState(() => _respondingOffer.remove(conductorId));
+    _respondingOffer.remove(conductorId);
     if (!ok) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No se pudo rechazar la oferta.')),
@@ -885,83 +890,87 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
         ],
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        child: Row(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            CircleAvatar(
-              radius: isTablet ? 26 : 22,
-              backgroundColor: AppColores.grey200,
-              backgroundImage: hasPhoto ? NetworkImage(o.conductorFoto!) : null,
-              child: !hasPhoto
-                  ? Icon(
-                      Icons.person,
-                      size: isTablet ? 28 : 24,
-                      color: AppColores.textSecondary,
-                    )
-                  : null,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    o.conductorNombre,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: isTablet ? 15 : 13,
-                      color: AppColores.textPrimary,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  if (o.placa != null && o.placa!.isNotEmpty)
-                    Text(
-                      o.placa!,
-                      style: TextStyle(
-                        fontSize: isTablet ? 13 : 11,
-                        color: AppColores.textSecondary,
-                      ),
-                    ),
-                  const SizedBox(height: 4),
-                  _buildEstrellas(o.calificacion, o.totalCalificaciones),
-                ],
-              ),
-            ),
-            const SizedBox(width: 10),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              mainAxisSize: MainAxisSize.min,
+            Row(
               children: [
+                CircleAvatar(
+                  radius: isTablet ? 26 : 22,
+                  backgroundColor: AppColores.grey200,
+                  backgroundImage:
+                      hasPhoto ? NetworkImage(o.conductorFoto!) : null,
+                  child: !hasPhoto
+                      ? Icon(
+                          Icons.person,
+                          size: isTablet ? 28 : 24,
+                          color: AppColores.textSecondary,
+                        )
+                      : null,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        o.conductorNombre,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: isTablet ? 15 : 13,
+                          color: AppColores.textPrimary,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (o.placa != null && o.placa!.isNotEmpty)
+                        Text(
+                          o.placa!,
+                          style: TextStyle(
+                            fontSize: isTablet ? 13 : 11,
+                            color: AppColores.textSecondary,
+                          ),
+                        ),
+                      const SizedBox(height: 4),
+                      _buildEstrellas(o.calificacion, o.totalCalificaciones),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
                 Text(
                   '\$${_formatCurrency(o.valor)}',
                   style: TextStyle(
                     fontWeight: FontWeight.w800,
-                    fontSize: isTablet ? 18 : 16,
+                    fontSize: isTablet ? 19 : 17,
                     color: AppColores.primary,
                   ),
                 ),
-                const SizedBox(height: 6),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _OfertaButton(
-                      label: 'Rechazar',
-                      color: AppColores.grey200,
-                      textColor: AppColores.textSecondary,
-                      isLoading: isResponding,
-                      onTap: () => _rechazarOferta(o.conductorId),
-                    ),
-                    const SizedBox(width: 6),
-                    _OfertaButton(
-                      label: 'Aceptar',
-                      color: AppColores.buttonPrimary,
-                      textColor: AppColores.textPrimary,
-                      isLoading: isResponding,
-                      onTap: () => _aceptarOferta(o.conductorId),
-                    ),
-                  ],
+              ],
+            ),
+            const SizedBox(height: 12),
+            // Botones debajo de la calificación, ocupando el ancho.
+            Row(
+              children: [
+                Expanded(
+                  child: _OfertaButton(
+                    label: 'Rechazar',
+                    color: AppColores.grey200,
+                    textColor: AppColores.textSecondary,
+                    isLoading: isResponding,
+                    onTap: () => _rechazarOferta(o.conductorId),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _OfertaButton(
+                    label: 'Aceptar',
+                    color: AppColores.buttonPrimary,
+                    textColor: AppColores.textWhite,
+                    isLoading: isResponding,
+                    onTap: () => _aceptarOferta(o.conductorId),
+                  ),
                 ),
               ],
             ),
@@ -1465,15 +1474,18 @@ class _OfertaButton extends StatelessWidget {
       child: Opacity(
         opacity: isLoading ? 0.6 : 1.0,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          width: double.infinity,
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
           decoration: BoxDecoration(
             color: color,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(12),
           ),
           child: Text(
             label,
+            textAlign: TextAlign.center,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: 14,
               fontWeight: FontWeight.w700,
               color: textColor,
             ),

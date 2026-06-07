@@ -19,6 +19,7 @@ class ResumenViajeController extends ChangeNotifier {
   bool _guardando = false;
   double _calificacionSeleccionada = 0;
   String _comentarioCalificacion = '';
+  String _conductorId = '';
   bool _sincronizadoDesdeBackend = false;
   bool _formularioEditado = false;
   bool _disposed = false;
@@ -59,6 +60,7 @@ class ResumenViajeController extends ChangeNotifier {
 
   void sincronizarFormulario(ResumenViajeModel resumen) {
     if (_disposed) return;
+    if (resumen.conductorId.isNotEmpty) _conductorId = resumen.conductorId;
     if (_sincronizadoDesdeBackend || _formularioEditado) return;
 
     _sincronizadoDesdeBackend = true;
@@ -94,6 +96,7 @@ class ResumenViajeController extends ChangeNotifier {
         solicitudId: solicitudId,
         calificacion: _calificacionSeleccionada,
         comentarioCalificacion: _comentarioCalificacion,
+        conductorId: _conductorId,
       );
       return null;
     } catch (_) {

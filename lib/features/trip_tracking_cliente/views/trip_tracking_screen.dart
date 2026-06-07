@@ -9,6 +9,8 @@ import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/constants/solicitud_estado.dart';
 import 'package:taxi_app/core/helpers/session_helper.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/InicioClienteView.dart';
+import 'package:taxi_app/widgets/intermediate_transition_view.dart';
+import 'package:taxi_app/features/trip_tracking_cliente/widgets/trip_details_sheet.dart';
 import 'package:taxi_app/core/services/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/RutaClienteDestinoView.dart';
@@ -25,13 +27,11 @@ class TripTrackingScreen extends StatefulWidget {
     required this.solicitudId,
     required this.currentUserId,
     this.cancelledBy = 'cliente',
-    this.onSolicitudCancelada,
   });
 
   final String solicitudId;
   final String currentUserId;
   final String cancelledBy;
-  final VoidCallback? onSolicitudCancelada;
 
   @override
   State<TripTrackingScreen> createState() => _TripTrackingScreenState();
@@ -436,85 +436,8 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
                                             ),
                                             onTap: () {
                                               Navigator.pop(ctx);
-                                              ScaffoldMessenger.of(
-                                                context,
-                                              ).showSnackBar(
-                                                SnackBar(
-                                                  content: Column(
-                                                    mainAxisSize:
-                                                        MainAxisSize.min,
-                                                    crossAxisAlignment:
-                                                        CrossAxisAlignment
-                                                            .start,
-                                                    children: [
-                                                      const Text(
-                                                        '¿Quieres cancelar la solicitud?',
-                                                        style: TextStyle(
-                                                          fontSize: 15,
-                                                          fontWeight:
-                                                              FontWeight.w600,
-                                                        ),
-                                                      ),
-                                                      const SizedBox(height: 8),
-                                                      Row(
-                                                        mainAxisAlignment:
-                                                            MainAxisAlignment
-                                                                .end,
-                                                        children: [
-                                                          TextButton(
-                                                            onPressed: () {
-                                                              ScaffoldMessenger.of(
-                                                                context,
-                                                              ).hideCurrentSnackBar();
-                                                            },
-                                                            child: const Text(
-                                                              'Cancelar',
-                                                              style: TextStyle(
-                                                                color: Colors
-                                                                    .white70,
-                                                              ),
-                                                            ),
-                                                          ),
-                                                          const SizedBox(
-                                                            width: 8,
-                                                          ),
-                                                          TextButton(
-                                                            onPressed: () {
-                                                              ScaffoldMessenger.of(
-                                                                context,
-                                                              ).hideCurrentSnackBar();
-                                                              _onCancelPressed(
-                                                                vm,
-                                                              );
-                                                            },
-                                                            child: const Text(
-                                                              'Aceptar',
-                                                              style: TextStyle(
-                                                                color: Colors
-                                                                    .redAccent,
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .bold,
-                                                              ),
-                                                            ),
-                                                          ),
-                                                        ],
-                                                      ),
-                                                    ],
-                                                  ),
-                                                  duration: const Duration(
-                                                    seconds: 5,
-                                                  ),
-                                                  behavior:
-                                                      SnackBarBehavior.floating,
-                                                  shape: RoundedRectangleBorder(
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          12,
-                                                        ),
-                                                  ),
-                                                ),
-                                              );
+                                              // Confirmación con modal centrado.
+                                              _onCancelPressed(vm);
                                             },
                                           ),
                                         ],
@@ -533,161 +456,22 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
                                     top: Radius.circular(24),
                                   ),
                                 ),
-                                builder: (ctx) {
-                                  return SafeArea(
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(24.0),
-                                      child: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Container(
-                                            width: 40,
-                                            height: 4,
-                                            decoration: BoxDecoration(
-                                              color: Colors.grey.shade300,
-                                              borderRadius:
-                                                  BorderRadius.circular(2),
-                                            ),
-                                          ),
-                                          const SizedBox(height: 24),
-                                          const Text(
-                                            'Detalles del Conductor',
-                                            style: TextStyle(
-                                              fontSize: 20,
-                                              fontWeight: FontWeight.bold,
-                                              color: AppColores.textPrimary,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 24),
-                                          Row(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.spaceEvenly,
-                                            children: [
-                                              Column(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  CircleAvatar(
-                                                    radius: 40,
-                                                    backgroundColor:
-                                                        AppColores.primary,
-                                                    backgroundImage:
-                                                        vm
-                                                            .fotoUsuario
-                                                            .isNotEmpty
-                                                        ? NetworkImage(
-                                                            vm.fotoUsuario,
-                                                          )
-                                                        : null,
-                                                    child:
-                                                        vm.fotoUsuario.isEmpty
-                                                        ? const Icon(
-                                                            Icons.person,
-                                                            size: 36,
-                                                            color: Colors.white,
-                                                          )
-                                                        : null,
-                                                  ),
-                                                  const SizedBox(height: 12),
-                                                  Text(
-                                                    vm.nombreUsuarioCard,
-                                                    style: const TextStyle(
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                      fontSize: 16,
-                                                      color: AppColores
-                                                          .textPrimary,
-                                                    ),
-                                                  ),
-                                                  const Text(
-                                                    'Conductor',
-                                                    style: TextStyle(
-                                                      color: Colors.grey,
-                                                      fontSize: 13,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                              Column(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  Container(
-                                                    width: 80,
-                                                    height: 80,
-                                                    decoration: BoxDecoration(
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            16,
-                                                          ),
-                                                      color:
-                                                          Colors.grey.shade200,
-                                                      image:
-                                                          vm
-                                                              .fotoVehiculo
-                                                              .isNotEmpty
-                                                          ? DecorationImage(
-                                                              image: NetworkImage(
-                                                                vm.fotoVehiculo,
-                                                              ),
-                                                              fit: BoxFit.cover,
-                                                            )
-                                                          : null,
-                                                    ),
-                                                    child:
-                                                        vm.fotoVehiculo.isEmpty
-                                                        ? const Icon(
-                                                            Icons.local_taxi,
-                                                            size: 36,
-                                                            color: Colors.grey,
-                                                          )
-                                                        : null,
-                                                  ),
-                                                  const SizedBox(height: 12),
-                                                  Container(
-                                                    padding:
-                                                        const EdgeInsets.symmetric(
-                                                          horizontal: 12,
-                                                          vertical: 4,
-                                                        ),
-                                                    decoration: BoxDecoration(
-                                                      color:
-                                                          Colors.grey.shade100,
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            8,
-                                                          ),
-                                                      border: Border.all(
-                                                        color: Colors
-                                                            .grey
-                                                            .shade300,
-                                                      ),
-                                                    ),
-                                                    child: Text(
-                                                      vm
-                                                              .placaVehiculo
-                                                              .isNotEmpty
-                                                          ? vm.placaVehiculo
-                                                                .toUpperCase()
-                                                          : 'N/A',
-                                                      style: const TextStyle(
-                                                        fontWeight:
-                                                            FontWeight.w800,
-                                                        fontSize: 16,
-                                                        color: AppColores
-                                                            .textPrimary,
-                                                        letterSpacing: 1.2,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 24),
-                                        ],
-                                      ),
-                                    ),
-                                  );
-                                },
+                                isScrollControlled: true,
+                                builder: (_) => TripDetailsSheet(
+                                  tituloPersona: 'Conductor',
+                                  nombrePersona: vm.nombreConductor,
+                                  fotoPersona: vm.fotoUsuario,
+                                  calificacion: vm.calificacionConductor,
+                                  totalCalificaciones:
+                                      vm.totalCalificacionesConductor,
+                                  fotoVehiculo: vm.fotoVehiculo,
+                                  placa: vm.placaVehiculo,
+                                  labelRecoger: 'Tu ubicación',
+                                  direccionRecoger: vm.tuUbicacionTexto,
+                                  direccionDestino: vm.destinoDireccion,
+                                  valorServicio: vm.valorServicio,
+                                  metodoPago: vm.metodoPago,
+                                ),
                               );
                             },
                           ),
@@ -716,6 +500,56 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
                                       ),
                                     ],
                                   ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        if (vm.isOffline)
+                          Positioned.fill(
+                            child: IgnorePointer(
+                              child: Center(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 18,
+                                    vertical: 14,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withValues(alpha: 0.78),
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  child: const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.wifi_off_rounded,
+                                        color: Colors.white,
+                                        size: 22,
+                                      ),
+                                      SizedBox(width: 10),
+                                      Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Sin conexión',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.w800,
+                                              fontSize: 14,
+                                            ),
+                                          ),
+                                          Text(
+                                            'Esperando señal...',
+                                            style: TextStyle(
+                                              color: Colors.white70,
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),
@@ -764,8 +598,16 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
 
   Future<void> _loadTaxiMarkerIcon() async {
     try {
+      final dpr = WidgetsBinding
+          .instance
+          .platformDispatcher
+          .views
+          .first
+          .devicePixelRatio;
+      // Tamaño lógico fijo (~32x46) escalado por dpr → consistente y nítido en
+      // todas las densidades (ni muy grande ni muy pequeño).
       final icon = await BitmapDescriptor.asset(
-        const ImageConfiguration(size: Size(20, 30)),
+        ImageConfiguration(size: const Size(32, 46), devicePixelRatio: dpr),
         'assets/img/taxi_icon.png',
       );
 
@@ -828,20 +670,113 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
       await SessionHelper.setActiveSolicitudScreen('ruta_cliente_destino');
     } catch (_) {}
 
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (_) => RutaClienteDestino(
-          idSolicitud: widget.solicitudId,
-          // passing the actual solicitudId from this screen
-          // currentUserId: widget.currentUserId,
-          // tipoUsuario: TipoUsuarioTracking.cliente,
+    await navigateWithIntermediateLoader(
+      context: context,
+      nextBuilder: (_) => RutaClienteDestino(idSolicitud: widget.solicitudId),
+      title: 'Viajando hacia el destino',
+      subtitle: 'Tu viaje está en curso.',
+      icon: Icons.navigation_rounded,
+      accentColor: AppColores.buttonPrimary,
+      drawCheck: false,
+      delay: const Duration(milliseconds: 1500),
+    );
+  }
+
+  Future<bool> _confirmarCancelacion() async {
+    final r = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 32),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(22, 24, 22, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: AppColores.error.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.cancel_outlined,
+                  color: AppColores.error,
+                  size: 34,
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                '¿Seguro quieres cancelar?',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 19,
+                  fontWeight: FontWeight.w800,
+                  color: AppColores.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Se cancelará tu solicitud de viaje. Esta acción no se puede deshacer.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: AppColores.textSecondary,
+                  height: 1.35,
+                ),
+              ),
+              const SizedBox(height: 22),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColores.textPrimary,
+                        side: const BorderSide(color: AppColores.borderSubtle),
+                        minimumSize: const Size.fromHeight(48),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: const Text(
+                        'No, seguir',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColores.error,
+                        minimumSize: const Size.fromHeight(48),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: const Text(
+                        'Sí, cancelar',
+                        style: TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
+    return r == true;
   }
 
   Future<void> _onCancelPressed(TripTrackingViewModel vm) async {
     if (_cancelledNavigationDone || vm.isCancelling) return;
+
+    if (!await _confirmarCancelacion() || !mounted) return;
 
     Object? cancelError;
     try {
@@ -882,13 +817,43 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
     } catch (_) {}
 
     if (!mounted) return;
-    _navigateToInicioCliente();
+    _navigateCancelado();
 
     if (cancelError != null) {
       debugPrint(
         '[TripTrackingScreen] Cancelacion remota pendiente por error: $cancelError',
       );
     }
+  }
+
+  /// Navega a InicioCliente mostrando la pantalla intermedia "Servicio
+  /// cancelado" (animación de cancelación rápida y fluida). Es el único punto
+  /// de salida cuando la solicitud queda en estado cancelado, sin importar si
+  /// la canceló el cliente o el conductor.
+  void _navigateCancelado() {
+    if (_cancelledNavigationDone || !mounted) return;
+    _cancelledNavigationDone = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        await SessionHelper.clearActiveSolicitud();
+        try {
+          await SessionHelper.clearActiveSolicitudScreen();
+        } catch (_) {}
+        await RouteCacheService.clearSolicitud(widget.solicitudId);
+      } catch (_) {}
+      if (!mounted) return;
+      await navigateWithIntermediateLoader(
+        context: context,
+        nextBuilder: (_) => const InicioClienteView(),
+        title: 'Servicio cancelado',
+        subtitle: 'Tu servicio fue cancelado.',
+        icon: Icons.close_rounded,
+        accentColor: AppColores.error,
+        drawCheck: false,
+        delay: const Duration(milliseconds: 1600),
+        clearStackOnNext: true,
+      );
+    });
   }
 
   Future<void> _openChat(TripTrackingViewModel vm) async {
@@ -990,38 +955,7 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      _navigateToInicioCliente();
-    });
-  }
-
-  void _navigateToInicioCliente() {
-    if (_cancelledNavigationDone || !mounted) return;
-    _cancelledNavigationDone = true;
-
-    if (widget.onSolicitudCancelada != null) {
-      try {
-        widget.onSolicitudCancelada!.call();
-      } catch (_) {}
-
-      // Si el callback externo no navega (o retorna sin hacer nada),
-      // hacemos fallback local para garantizar salida de la pantalla.
-      if (!mounted) return;
-    }
-
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      try {
-        await SessionHelper.clearActiveSolicitud();
-        try {
-          await SessionHelper.clearActiveSolicitudScreen();
-        } catch (_) {}
-        await RouteCacheService.clearSolicitud(widget.solicitudId);
-      } catch (_) {}
-
-      if (!mounted) return;
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const InicioClienteView()),
-        (route) => false,
-      );
+      _navigateCancelado();
     });
   }
 

@@ -120,6 +120,10 @@ class DriverTripController extends ChangeNotifier {
     return trip?.client.photoUrl ?? '';
   }
 
+  String get destinoDireccion => trip?.destinoDireccion ?? '';
+  double get valorServicio => trip?.valorServicio ?? 0;
+  String get metodoPago => trip?.metodoPago ?? '';
+
   bool get hasBothLocations => clientLatLng != null && driverLatLng != null;
 
   Future<void> init() async {

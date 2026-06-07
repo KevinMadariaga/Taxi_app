@@ -228,30 +228,33 @@ class _DriverClientInfoCardState extends State<DriverClientInfoCard>
                             children: [
                               Container(
                                 padding: const EdgeInsets.symmetric(
-                                  vertical: 10,
+                                  vertical: 11,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: Colors.transparent,
+                                  color: AppColores.buttonPrimary.withValues(
+                                    alpha: 0.12,
+                                  ),
                                   borderRadius: BorderRadius.circular(20),
                                   border: Border.all(
-                                    color: Colors.grey.shade300,
+                                    color: AppColores.buttonPrimary,
+                                    width: 1.4,
                                   ),
                                 ),
                                 child: const Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
                                     Icon(
-                                      Icons.chat_bubble_outline,
+                                      Icons.chat_bubble_rounded,
                                       size: 18,
-                                      color: AppColores.textPrimary,
+                                      color: AppColores.buttonPrimary,
                                     ),
                                     SizedBox(width: 6),
                                     Text(
                                       'Chat',
                                       style: TextStyle(
-                                        fontWeight: FontWeight.w600,
+                                        fontWeight: FontWeight.w700,
                                         fontSize: 13,
-                                        color: AppColores.textPrimary,
+                                        color: AppColores.buttonPrimary,
                                       ),
                                     ),
                                   ],
@@ -276,9 +279,9 @@ class _DriverClientInfoCardState extends State<DriverClientInfoCard>
                         onTap: widget.onOpenNavigation,
                         borderRadius: BorderRadius.circular(20),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          padding: const EdgeInsets.symmetric(vertical: 11),
                           decoration: BoxDecoration(
-                            color: Colors.grey.shade100,
+                            color: AppColores.secondary,
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: const Row(
@@ -287,15 +290,15 @@ class _DriverClientInfoCardState extends State<DriverClientInfoCard>
                               Icon(
                                 Icons.navigation_rounded,
                                 size: 18,
-                                color: AppColores.textPrimary,
+                                color: AppColores.textWhite,
                               ),
                               SizedBox(width: 6),
                               Text(
                                 'Navegar',
                                 style: TextStyle(
-                                  fontWeight: FontWeight.w600,
+                                  fontWeight: FontWeight.w700,
                                   fontSize: 13,
-                                  color: AppColores.textPrimary,
+                                  color: AppColores.textWhite,
                                 ),
                               ),
                             ],

@@ -34,8 +34,16 @@ class InicioConductorViewmodel extends ChangeNotifier {
   StreamSubscription<DocumentSnapshot>? _conductorSub;
   StreamSubscription<QuerySnapshot>? _ratingSub;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _previewStatusSub;
+  StreamSubscription<QuerySnapshot>? _assignedSub;
   StreamSubscription<String?>? _cachedNameSub;
   bool _previewStatusHandled = false;
+  // Solicitudes ya asignadas a este conductor que ya navegamos (evita repetir).
+  final Set<String> _handledAssigned = {};
+
+  /// Se invoca cuando una solicitud queda asignada a ESTE conductor
+  /// (acepta él, o el cliente acepta su contraoferta), sin importar si tenía
+  /// la preview abierta. La vista la usa para navegar a la ruta.
+  void Function(String solicitudId)? onAsignadoAMi;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final TrackingService _trackingService = TrackingService();
 
@@ -81,6 +89,7 @@ class InicioConductorViewmodel extends ChangeNotifier {
     _subscribeConductorStatus();
     _subscribeSolicitudes();
     _subscribeRatings();
+    _subscribeAssignedToMe();
 
     // Mark initial loading as false to avoid blocking UI; specific flags (like loadingLocation)
     // remain true until their respective tasks complete and update the VM.
@@ -302,6 +311,39 @@ class InicioConductorViewmodel extends ChangeNotifier {
   void ensureSolicitudesSubscription() {
     if (!isConnected) return;
     _subscribeSolicitudes();
+  }
+
+  /// Vigila si CUALQUIER solicitud queda asignada a este conductor (acepta él o
+  /// el cliente acepta su contraoferta) y dispara [onAsignadoAMi] para navegar,
+  /// sin depender de tener la preview abierta.
+  void _subscribeAssignedToMe() {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null || uid.isEmpty) return;
+    _assignedSub?.cancel();
+    _assignedSub = _firestore
+        .collection('solicitudes')
+        .where('conductor.id', isEqualTo: uid)
+        .snapshots()
+        .listen((snap) {
+          for (final doc in snap.docs) {
+            final data = doc.data() as Map<String, dynamic>?;
+            final estado = (data?['estado'] ?? data?['status'] ?? '')
+                .toString()
+                .toLowerCase();
+            final activo =
+                estado.contains('asignado') ||
+                estado.contains('espera') ||
+                estado.contains('camino') ||
+                estado.contains('ruta');
+            if (activo && !_handledAssigned.contains(doc.id)) {
+              _handledAssigned.add(doc.id);
+              try {
+                onAsignadoAMi?.call(doc.id);
+              } catch (_) {}
+              break;
+            }
+          }
+        });
   }
 
   void _handleSolicitudesQuerySnapshot(QuerySnapshot snap) {
@@ -753,6 +795,9 @@ class InicioConductorViewmodel extends ChangeNotifier {
       if (currentLocation != null) 'lat': currentLocation!.latitude,
       if (currentLocation != null) 'lng': currentLocation!.longitude,
       if (vehiclePhotoUrl != null) 'fotoVehiculo': vehiclePhotoUrl,
+      // Rating para que el cliente lo vea en la modal de ofertas.
+      'calificacionPromedio': rating,
+      'totalCalificaciones': totalRatings,
     };
   }
 
@@ -907,6 +952,9 @@ class InicioConductorViewmodel extends ChangeNotifier {
     } catch (_) {}
     try {
       _previewStatusSub?.cancel();
+    } catch (_) {}
+    try {
+      _assignedSub?.cancel();
     } catch (_) {}
     try {
       _cachedNameSub?.cancel();

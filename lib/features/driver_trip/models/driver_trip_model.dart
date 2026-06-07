@@ -98,6 +98,9 @@ class DriverTripModel {
     required this.client,
     required this.driver,
     required this.updatedAt,
+    this.destinoDireccion = '',
+    this.valorServicio = 0,
+    this.metodoPago = '',
   });
 
   final String id;
@@ -105,11 +108,23 @@ class DriverTripModel {
   final DriverTripParty client;
   final DriverTripParty driver;
   final DateTime? updatedAt;
+  final String destinoDireccion;
+  final double valorServicio;
+  final String metodoPago;
 
   factory DriverTripModel.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data() ?? <String, dynamic>{};
     final rawStatus = data['estado'] ?? data['status'];
     final rawUpdated = data['updatedAt'];
+    final destino = data['destino'];
+    final destinoMap = destino is Map ? destino : const {};
+    final tarifa = data['tarifa'];
+    final tarifaMap = tarifa is Map ? tarifa : const {};
+
+    double toDouble(dynamic v) {
+      if (v is num) return v.toDouble();
+      return double.tryParse(v?.toString() ?? '') ?? 0;
+    }
 
     return DriverTripModel(
       id: doc.id,
@@ -119,6 +134,24 @@ class DriverTripModel {
         data['conductor'] as Map<String, dynamic>?,
       ),
       updatedAt: rawUpdated is Timestamp ? rawUpdated.toDate() : null,
+      destinoDireccion: (data['destinoDireccion'] ??
+              destinoMap['direccion'] ??
+              destinoMap['title'] ??
+              destinoMap['address'] ??
+              '')
+          .toString(),
+      valorServicio: toDouble(
+        tarifaMap['total'] ??
+            data['valorServicio'] ??
+            data['valor'] ??
+            data['tarifaTotal'] ??
+            data['precio'],
+      ),
+      metodoPago: (data['paymentMethod'] ??
+              data['metodoPago'] ??
+              data['metodo_pago'] ??
+              '')
+          .toString(),
     );
   }
 }

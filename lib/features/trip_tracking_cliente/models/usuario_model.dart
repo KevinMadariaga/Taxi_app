@@ -4,6 +4,9 @@ class UsuarioModel {
   final String fotoUrl;
   final String fotoVehiculoUrl;
   final String placaVehiculo;
+  final double calificacion;
+  final int totalCalificaciones;
+  final String direccion;
   final double? lat;
   final double? lng;
 
@@ -15,6 +18,9 @@ class UsuarioModel {
     required this.placaVehiculo,
     required this.lat,
     required this.lng,
+    this.calificacion = 0,
+    this.totalCalificaciones = 0,
+    this.direccion = '',
   });
 
   bool get hasLocation => lat != null && lng != null;
@@ -68,6 +74,25 @@ class UsuarioModel {
       fotoUrl: foto.toString(),
       fotoVehiculoUrl: fotoVehiculo.toString(),
       placaVehiculo: placaVehiculo.toString(),
+      calificacion:
+          _toDouble(
+            data['calificacionPromedio'] ??
+                data['calificacion'] ??
+                data['rating'],
+          ) ??
+          0,
+      totalCalificaciones:
+          _toInt(
+            data['totalCalificaciones'] ??
+                data['totalRatings'] ??
+                data['ratingCount'],
+          ),
+      direccion:
+          (data['direccion'] ??
+                  data['origenTitle'] ??
+                  data['address'] ??
+                  '')
+              .toString(),
       lat: lat,
       lng: lng,
     );
@@ -80,6 +105,9 @@ class UsuarioModel {
       'foto': fotoUrl,
       'fotoVehiculo': fotoVehiculoUrl,
       'placa': placaVehiculo,
+      'calificacionPromedio': calificacion,
+      'totalCalificaciones': totalCalificaciones,
+      'direccion': direccion,
       'lat': lat,
       'lng': lng,
       'ubicacion': {'lat': lat, 'lng': lng},
@@ -97,5 +125,11 @@ class UsuarioModel {
   static double? _toDouble(dynamic value) {
     if (value is num) return value.toDouble();
     return double.tryParse(value?.toString() ?? '');
+  }
+
+  static int _toInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '') ?? 0;
   }
 }

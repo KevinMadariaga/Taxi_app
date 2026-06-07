@@ -11,10 +11,12 @@ Future<void> navigateWithIntermediateLoader({
   String subtitle = 'Preparando tu ruta y detalles del viaje...',
   IconData icon = Icons.local_taxi,
   bool clearStackOnNext = false,
+  Color accentColor = AppColores.buttonPrimary,
+  bool drawCheck = true,
 }) {
   return Navigator.of(context).pushReplacement(
     PageRouteBuilder(
-      transitionDuration: const Duration(milliseconds: 320),
+      transitionDuration: const Duration(milliseconds: 300),
       reverseTransitionDuration: const Duration(milliseconds: 200),
       pageBuilder: (_, _, _) => IntermediateTransitionView(
         nextBuilder: nextBuilder,
@@ -23,24 +25,21 @@ Future<void> navigateWithIntermediateLoader({
         subtitle: subtitle,
         icon: icon,
         clearStackOnNext: clearStackOnNext,
+        accentColor: accentColor,
+        drawCheck: drawCheck,
       ),
       transitionsBuilder: (_, animation, _, child) {
-        final curved = CurvedAnimation(
-          parent: animation,
-          curve: Curves.easeOut,
-        );
-        return FadeTransition(
-          opacity: curved,
-          child: ScaleTransition(
-            scale: Tween<double>(begin: 0.96, end: 1.0).animate(curved),
-            child: child,
-          ),
-        );
+        final curved = CurvedAnimation(parent: animation, curve: Curves.easeOut);
+        return FadeTransition(opacity: curved, child: child);
       },
     ),
   );
 }
 
+/// Pantalla intermedia animada que se muestra al pasar a la ruta cuando la
+/// solicitud queda 'asignado'. Cliente: "Conductor encontrado".
+/// Conductor: "Servicio aceptado". Animación: check que se dibuja dentro de un
+/// círculo con ondas concéntricas, y textos que aparecen escalonados.
 class IntermediateTransitionView extends StatefulWidget {
   final WidgetBuilder nextBuilder;
   final Duration delay;
@@ -48,6 +47,8 @@ class IntermediateTransitionView extends StatefulWidget {
   final String subtitle;
   final IconData icon;
   final bool clearStackOnNext;
+  final Color accentColor;
+  final bool drawCheck;
 
   const IntermediateTransitionView({
     super.key,
@@ -57,6 +58,8 @@ class IntermediateTransitionView extends StatefulWidget {
     required this.subtitle,
     required this.icon,
     this.clearStackOnNext = false,
+    this.accentColor = AppColores.buttonPrimary,
+    this.drawCheck = true,
   });
 
   @override
@@ -66,33 +69,49 @@ class IntermediateTransitionView extends StatefulWidget {
 
 class _IntermediateTransitionViewState extends State<IntermediateTransitionView>
     with TickerProviderStateMixin {
-  Timer? _navigationTimer;
-  late final AnimationController _pulseController; // anillo + puntos (repite)
-  late final AnimationController _entranceController; // entrada (una vez)
-  late final Animation<double> _scaleIn;
-  late final Animation<double> _fadeIn;
+  Timer? _navTimer;
+  late final AnimationController _entrance; // una vez
+  late final AnimationController _ripple; // repite
+
+  late final Animation<double> _circleScale;
+  late final Animation<double> _checkProgress;
+  late final Animation<double> _textFade;
+  late final Animation<double> _textSlide;
+
   bool _motionInit = false;
 
   @override
   void initState() {
     super.initState();
-    _pulseController = AnimationController(
+    _entrance = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1400),
+      duration: const Duration(milliseconds: 850),
     );
-    _entranceController = AnimationController(
+    _ripple = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 480),
+      duration: const Duration(milliseconds: 1800),
     );
-    _scaleIn = CurvedAnimation(
-      parent: _entranceController,
-      curve: Curves.easeOutBack,
+
+    _circleScale = CurvedAnimation(
+      parent: _entrance,
+      curve: const Interval(0.0, 0.5, curve: Curves.easeOutBack),
     );
-    _fadeIn = CurvedAnimation(
-      parent: _entranceController,
-      curve: Curves.easeOut,
+    _checkProgress = CurvedAnimation(
+      parent: _entrance,
+      curve: const Interval(0.4, 0.85, curve: Curves.easeInOut),
     );
-    _navigationTimer = Timer(widget.delay, _goNext);
+    _textFade = CurvedAnimation(
+      parent: _entrance,
+      curve: const Interval(0.55, 1.0, curve: Curves.easeOut),
+    );
+    _textSlide = Tween<double>(begin: 14, end: 0).animate(
+      CurvedAnimation(
+        parent: _entrance,
+        curve: const Interval(0.55, 1.0, curve: Curves.easeOutCubic),
+      ),
+    );
+
+    _navTimer = Timer(widget.delay, _goNext);
   }
 
   @override
@@ -100,13 +119,12 @@ class _IntermediateTransitionViewState extends State<IntermediateTransitionView>
     super.didChangeDependencies();
     if (_motionInit) return;
     _motionInit = true;
-    // Respetar la preferencia de reducir movimiento del sistema.
     final reduce = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
     if (reduce) {
-      _entranceController.value = 1.0;
+      _entrance.value = 1.0;
     } else {
-      _entranceController.forward();
-      _pulseController.repeat();
+      _entrance.forward();
+      _ripple.repeat();
     }
   }
 
@@ -119,7 +137,6 @@ class _IntermediateTransitionViewState extends State<IntermediateTransitionView>
       );
       return;
     }
-
     Navigator.of(
       context,
     ).pushReplacement(MaterialPageRoute(builder: widget.nextBuilder));
@@ -127,149 +144,196 @@ class _IntermediateTransitionViewState extends State<IntermediateTransitionView>
 
   @override
   void dispose() {
-    _navigationTimer?.cancel();
-    _pulseController.dispose();
-    _entranceController.dispose();
+    _navTimer?.cancel();
+    _entrance.dispose();
+    _ripple.dispose();
     super.dispose();
-  }
-
-  Widget _animatedDot(int index) {
-    return AnimatedBuilder(
-      animation: _pulseController,
-      builder: (_, _) {
-        final phase = (_pulseController.value + (index * 0.2)) % 1.0;
-        final active = phase < 0.5;
-        return Opacity(
-          opacity: active ? 1.0 : 0.35,
-          child: Transform.scale(
-            scale: active ? 1.0 : 0.85,
-            child: Container(
-              width: 8,
-              height: 8,
-              decoration: const BoxDecoration(
-                color: AppColores.buttonPrimary,
-                shape: BoxShape.circle,
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  /// Ícono central con anillo pulsante detrás.
-  Widget _buildIcon() {
-    return SizedBox(
-      width: 96,
-      height: 96,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          AnimatedBuilder(
-            animation: _pulseController,
-            builder: (_, child) {
-              final t = _pulseController.value;
-              final scale = 1.0 + t * 0.9;
-              final opacity = (1.0 - t) * 0.35;
-              return Transform.scale(
-                scale: scale,
-                child: Opacity(opacity: opacity, child: child),
-              );
-            },
-            child: Container(
-              width: 64,
-              height: 64,
-              decoration: const BoxDecoration(
-                color: AppColores.buttonPrimary,
-                shape: BoxShape.circle,
-              ),
-            ),
-          ),
-          Container(
-            width: 64,
-            height: 64,
-            decoration: const BoxDecoration(
-              color: AppColores.buttonPrimary,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(widget.icon, color: Colors.white, size: 30),
-          ),
-        ],
-      ),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
     final isTablet = MediaQuery.of(context).size.width >= 1000;
+    final accent = widget.accentColor;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF7F7F5),
       body: SafeArea(
         child: Center(
-          child: FadeTransition(
-            opacity: _fadeIn,
-            child: ScaleTransition(
-              scale: Tween<double>(begin: 0.85, end: 1.0).animate(_scaleIn),
-              child: Container(
-                width: isTablet ? 520 : 320,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 30,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(22),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0x14000000),
-                      blurRadius: 28,
-                      offset: Offset(0, 12),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _buildIcon(),
-                    const SizedBox(height: 18),
-                    Text(
-                      widget.title,
-                      style: TextStyle(
-                        fontSize: isTablet ? 24 : 20,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.black87,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      widget.subtitle,
-                      style: TextStyle(
-                        fontSize: isTablet ? 16 : 14,
-                        color: Colors.black54,
-                        fontWeight: FontWeight.w500,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 22),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Círculo + ondas + check (zona animada aislada en su capa).
+                RepaintBoundary(
+                  child: SizedBox(
+                    width: 160,
+                    height: 160,
+                    child: Stack(
+                      alignment: Alignment.center,
                       children: [
-                        _animatedDot(0),
-                        const SizedBox(width: 8),
-                        _animatedDot(1),
-                        const SizedBox(width: 8),
-                        _animatedDot(2),
+                        // Ondas concéntricas.
+                        AnimatedBuilder(
+                          animation: _ripple,
+                          builder: (_, _) => CustomPaint(
+                            size: const Size(160, 160),
+                            painter: _RipplePainter(
+                              progress: _ripple.value,
+                              color: accent,
+                            ),
+                          ),
+                        ),
+                        // Círculo con check (éxito) o ícono (ej. cancelado).
+                        ScaleTransition(
+                          scale: _circleScale,
+                          child: Container(
+                            width: 96,
+                            height: 96,
+                            decoration: BoxDecoration(
+                              color: accent,
+                              shape: BoxShape.circle,
+                              boxShadow: const [
+                                BoxShadow(
+                                  color: Color(0x33000000),
+                                  blurRadius: 18,
+                                  offset: Offset(0, 8),
+                                ),
+                              ],
+                            ),
+                            child: widget.drawCheck
+                                ? AnimatedBuilder(
+                                    animation: _checkProgress,
+                                    builder: (_, _) => CustomPaint(
+                                      painter: _CheckPainter(
+                                        progress: _checkProgress.value,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  )
+                                : Icon(
+                                    widget.icon,
+                                    color: Colors.white,
+                                    size: 44,
+                                  ),
+                          ),
+                        ),
                       ],
                     ),
-                  ],
+                  ),
                 ),
-              ),
+                const SizedBox(height: 28),
+                AnimatedBuilder(
+                  animation: _entrance,
+                  builder: (_, child) => Opacity(
+                    opacity: _textFade.value.clamp(0.0, 1.0),
+                    child: Transform.translate(
+                      offset: Offset(0, _textSlide.value),
+                      child: child,
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        widget.title,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: isTablet ? 26 : 22,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        widget.subtitle,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: isTablet ? 16 : 14,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.black54,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
         ),
       ),
     );
   }
+}
+
+/// Dibuja un checkmark progresivo (0..1) dentro del cuadro.
+class _CheckPainter extends CustomPainter {
+  _CheckPainter({required this.progress, required this.color});
+
+  final double progress;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (progress <= 0) return;
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 6
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    final p1 = Offset(size.width * 0.28, size.height * 0.52);
+    final p2 = Offset(size.width * 0.44, size.height * 0.67);
+    final p3 = Offset(size.width * 0.74, size.height * 0.35);
+
+    final seg1 = (p2 - p1).distance;
+    final seg2 = (p3 - p2).distance;
+    final total = seg1 + seg2;
+    final drawn = total * progress;
+
+    final path = Path()..moveTo(p1.dx, p1.dy);
+    if (drawn <= seg1) {
+      final t = seg1 == 0 ? 1.0 : drawn / seg1;
+      path.lineTo(p1.dx + (p2.dx - p1.dx) * t, p1.dy + (p2.dy - p1.dy) * t);
+    } else {
+      path.lineTo(p2.dx, p2.dy);
+      final t = seg2 == 0 ? 1.0 : (drawn - seg1) / seg2;
+      path.lineTo(p2.dx + (p3.dx - p2.dx) * t, p2.dy + (p3.dy - p2.dy) * t);
+    }
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(_CheckPainter old) =>
+      old.progress != progress || old.color != color;
+}
+
+/// Dibuja 2 ondas concéntricas que se expanden y desvanecen.
+class _RipplePainter extends CustomPainter {
+  _RipplePainter({required this.progress, required this.color});
+
+  final double progress;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    const minR = 48.0;
+    final maxR = size.width / 2;
+
+    for (int i = 0; i < 2; i++) {
+      final t = (progress + i * 0.5) % 1.0;
+      final radius = minR + (maxR - minR) * t;
+      final opacity = (1.0 - t) * 0.35;
+      if (opacity <= 0) continue;
+      final paint = Paint()
+        ..color = color.withValues(alpha: opacity)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2;
+      canvas.drawCircle(center, radius, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_RipplePainter old) =>
+      old.progress != progress || old.color != color;
 }

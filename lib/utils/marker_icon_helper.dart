@@ -68,7 +68,12 @@ class MarkerIconHelper {
       );
       if (byteData == null) return null;
 
-      return BitmapDescriptor.bytes(byteData.buffer.asUint8List());
+      // imagePixelRatio = dpr → el marcador se renderiza al tamaño LÓGICO
+      // indicado en `size` (consistente en todas las densidades).
+      return BitmapDescriptor.bytes(
+        byteData.buffer.asUint8List(),
+        imagePixelRatio: devicePixelRatio,
+      );
     } catch (_) {
       return null;
     }

@@ -38,6 +38,18 @@ Future<void> startBackgroundTrackingService() async {
   }
 }
 
+/// Detiene el servicio de tracking en segundo plano (si está corriendo).
+/// Útil al salir de las pantallas de viaje (ej. resumen) para no gastar batería.
+Future<void> stopBackgroundTrackingService() async {
+  try {
+    final service = FlutterBackgroundService();
+    if (await service.isRunning()) {
+      service.invoke('stop');
+      developer.log('🛑 Servicio de tracking en segundo plano detenido');
+    }
+  } catch (_) {}
+}
+
 @pragma('vm:entry-point')
 Future<bool> onIosBackground(ServiceInstance service) async {
   return true;

@@ -8,6 +8,9 @@ class SolicitudModel {
   final UsuarioModel cliente;
   final UsuarioModel conductor;
   final DateTime? updatedAt;
+  final String destinoDireccion;
+  final double valorServicio;
+  final String metodoPago;
 
   const SolicitudModel({
     required this.id,
@@ -15,6 +18,9 @@ class SolicitudModel {
     required this.cliente,
     required this.conductor,
     required this.updatedAt,
+    this.destinoDireccion = '',
+    this.valorServicio = 0,
+    this.metodoPago = '',
   });
 
   factory SolicitudModel.fromFirestore(
@@ -25,6 +31,8 @@ class SolicitudModel {
     final rawEstado = data['estado'] ?? data['status'];
     final clienteMap = _asStringMap(data['cliente']);
     final conductorMap = _asStringMap(data['conductor']);
+    final destinoMap = _asStringMap(data['destino']);
+    final tarifaMap = _asStringMap(data['tarifa']);
 
     return SolicitudModel(
       id: doc.id,
@@ -32,6 +40,24 @@ class SolicitudModel {
       cliente: UsuarioModel.fromMap(clienteMap),
       conductor: UsuarioModel.fromMap(conductorMap),
       updatedAt: updatedTs is Timestamp ? updatedTs.toDate() : null,
+      destinoDireccion: (data['destinoDireccion'] ??
+              destinoMap?['direccion'] ??
+              destinoMap?['title'] ??
+              destinoMap?['address'] ??
+              '')
+          .toString(),
+      valorServicio: _toDouble(
+        tarifaMap?['total'] ??
+            data['valorServicio'] ??
+            data['valor'] ??
+            data['tarifaTotal'] ??
+            data['precio'],
+      ),
+      metodoPago: (data['paymentMethod'] ??
+              data['metodoPago'] ??
+              data['metodo_pago'] ??
+              '')
+          .toString(),
     );
   }
 
@@ -47,6 +73,9 @@ class SolicitudModel {
       updatedAt: updated is int
           ? DateTime.fromMillisecondsSinceEpoch(updated)
           : null,
+      destinoDireccion: (map['destinoDireccion'] ?? '').toString(),
+      valorServicio: _toDouble(map['valorServicio']),
+      metodoPago: (map['metodoPago'] ?? '').toString(),
     );
   }
 
@@ -57,6 +86,9 @@ class SolicitudModel {
       'cliente': cliente.toMap(),
       'conductor': conductor.toMap(),
       'updatedAt': updatedAt?.millisecondsSinceEpoch,
+      'destinoDireccion': destinoDireccion,
+      'valorServicio': valorServicio,
+      'metodoPago': metodoPago,
     };
   }
 
@@ -68,5 +100,10 @@ class SolicitudModel {
       return value.map((key, val) => MapEntry(key.toString(), val));
     }
     return null;
+  }
+
+  static double _toDouble(dynamic value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse(value?.toString() ?? '') ?? 0;
   }
 }

@@ -174,13 +174,23 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
   }
 
   Future<void> _cargarMarcadoresPersonalizados() async {
+    // Tamaño lógico fijo escalado por dpr → marcadores consistentes en todas
+    // las densidades (ni muy grandes ni muy pequeños).
+    final dpr = WidgetsBinding
+        .instance
+        .platformDispatcher
+        .views
+        .first
+        .devicePixelRatio;
     final conductorIcon = await MarkerIconHelper.fromAsset(
       'assets/img/taxi_icon.png',
-      size: const Size(102, 102),
+      size: const Size(44, 44),
+      devicePixelRatio: dpr,
     );
     final destinoIcon = await MarkerIconHelper.fromAsset(
       'assets/img/map_pin_red.png',
-      size: const Size(108, 108),
+      size: const Size(48, 48),
+      devicePixelRatio: dpr,
     );
     if (!mounted) return;
     setState(() {
@@ -1294,11 +1304,12 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
           ),
         ),
 
-        // Controles Inferiores (Botón de Enfoque)
+        // Controles Inferiores (Botón de Enfoque) — a la izquierda.
         Positioned(
-          right: 16,
+          left: 16,
           bottom: safeBottom + 16,
           child: FloatingActionButton(
+            heroTag: 'fab_centrar_cliente',
             backgroundColor: AppColores.primary,
             child: Icon(
               _mostrarSoloDestino ? Icons.flag : Icons.person_pin_circle,

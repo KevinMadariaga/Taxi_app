@@ -5,6 +5,7 @@ class ResumenViajeModel {
     required this.solicitudId,
     required this.clienteNombre,
     required this.conductorNombre,
+    required this.conductorId,
     required this.destinoDireccion,
     required this.valorServicio,
     required this.fechaViaje,
@@ -15,6 +16,7 @@ class ResumenViajeModel {
   final String solicitudId;
   final String clienteNombre;
   final String conductorNombre;
+  final String conductorId;
   final String destinoDireccion;
   final double valorServicio;
   final DateTime? fechaViaje;
@@ -42,6 +44,14 @@ class ResumenViajeModel {
       conductorMap?['name'],
       data['nombre_conductor'],
     ], fallback: 'Conductor');
+
+    final conductorId = _firstString([
+      conductorMap?['id'],
+      conductorMap?['uid'],
+      conductorMap?['conductorId'],
+      data['conductorId'],
+      data['conductor_id'],
+    ], fallback: '');
 
     final destinoDireccion = _firstString([
       data['destinoDireccion'],
@@ -73,6 +83,7 @@ class ResumenViajeModel {
       solicitudId: solicitudId,
       clienteNombre: clienteNombre,
       conductorNombre: conductorNombre,
+      conductorId: conductorId,
       destinoDireccion: destinoDireccion,
       valorServicio: valorServicio,
       fechaViaje: fechaViaje,

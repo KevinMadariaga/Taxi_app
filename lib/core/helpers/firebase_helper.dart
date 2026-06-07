@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
@@ -11,6 +12,16 @@ class FirebaseHelper {
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
       );
+
+      // Persistencia offline: las escrituras (ej. ubicación del conductor) hechas
+      // sin conexión quedan en la cola local y se suben solas al reconectar (y se
+      // limpian de la cola). Default en móvil; lo dejamos explícito.
+      if (!kIsWeb) {
+        FirebaseFirestore.instance.settings = const Settings(
+          persistenceEnabled: true,
+          cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+        );
+      }
 
       // App Check: solo activar en producción con AppAttest.
       // En modo debug, omitir App Check para no bloquear FCM con errores 403

@@ -6,6 +6,7 @@ import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/InicioClienteView.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioConductorView.dart';
 import 'package:taxi_app/core/services/services.dart';
+import 'package:taxi_app/core/services/background_tracking_service.dart';
 import 'package:taxi_app/core/helpers/session_helper.dart';
 
 import '../controllers/resumen_viaje_controller.dart';
@@ -51,6 +52,8 @@ class _ResumenViajeBodyState extends State<_ResumenViajeBody> {
   @override
   void initState() {
     super.initState();
+    // Apagar el tracking en segundo plano al llegar al resumen (batería).
+    stopBackgroundTrackingService();
     _showTripFinishedNotification();
   }
 
@@ -184,7 +187,11 @@ class _ResumenViajeBodyState extends State<_ResumenViajeBody> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              const ResumenHeader(),
+                              ResumenHeader(
+                                subtitle: isCliente
+                                    ? 'Gracias por viajar con Taxi Ya'
+                                    : '¡Buen trabajo! Servicio finalizado',
+                              ),
                               const SizedBox(height: 14),
                               _SummaryCard(
                                 resumen: resumen,
@@ -270,6 +277,7 @@ class _ResumenViajeBodyState extends State<_ResumenViajeBody> {
       return;
     }
 
+    if (!context.mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const InicioConductor()),
       (route) => false,
@@ -286,12 +294,22 @@ class _SummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      elevation: 3,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(18),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            const Text(
+              'Detalles del viaje',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                color: AppColores.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 14),
             ResumenInfoItem(
               icon: Icons.person,
               label: isCliente ? 'Conductor' : 'Cliente',
@@ -299,23 +317,50 @@ class _SummaryCard extends StatelessWidget {
                   ? resumen.conductorNombre
                   : resumen.clienteNombre,
             ),
-            const Divider(height: 14),
+            const Divider(height: 18),
             ResumenInfoItem(
               icon: Icons.location_on,
               label: 'Destino',
               value: resumen.destinoDireccion,
             ),
-            const Divider(height: 14),
-            ResumenInfoItem(
-              icon: Icons.local_taxi,
-              label: 'Valor del servicio',
-              value: _currency(resumen.valorServicio),
-            ),
-            const Divider(height: 14),
+            const Divider(height: 18),
             ResumenInfoItem(
               icon: Icons.event,
               label: 'Fecha del viaje',
               value: _fecha(resumen.fechaViaje),
+            ),
+            const SizedBox(height: 16),
+            // Valor destacado (comercial).
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                color: AppColores.primary.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.local_taxi, color: AppColores.primary),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Text(
+                      'Valor del servicio',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: AppColores.textPrimary,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    _currency(resumen.valorServicio),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 20,
+                      color: AppColores.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),

@@ -160,9 +160,16 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
   }
 
   Future<void> _cargarMarcadoresPersonalizados() async {
+    final dpr = WidgetsBinding
+        .instance
+        .platformDispatcher
+        .views
+        .first
+        .devicePixelRatio;
     final destinoIcon = await MarkerIconHelper.fromAsset(
       'assets/img/map_pin_red.png',
-      size: const Size(106, 106),
+      size: const Size(48, 48),
+      devicePixelRatio: dpr,
     );
     if (!mounted) return;
     setState(() {
@@ -814,7 +821,7 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
                 ),
               ),
               Positioned(
-                right: 24,
+                left: 24,
                 bottom: MediaQuery.of(context).padding.bottom + 24,
                 child: FloatingActionButton(
                   heroTag: "fab_centrar",

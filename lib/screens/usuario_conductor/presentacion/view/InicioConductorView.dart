@@ -285,6 +285,13 @@ class _InicioConductorState extends State<InicioConductor>
       },
       child: Consumer<InicioConductorViewmodel>(
         builder: (context, vm, _) {
+          // Navega a la ruta cuando una solicitud queda asignada a este
+          // conductor (acepta él o el cliente acepta su contraoferta),
+          // escuchando el cambio de estado aunque no tenga la preview abierta.
+          vm.onAsignadoAMi ??= (solicitudId) {
+            if (!mounted || _navigatingToRuta) return;
+            _navegarARutaConductor(vm, solicitudId);
+          };
           if (_isPreparingLocation) {
             return const Scaffold(
               backgroundColor: AppColores.background,
@@ -890,7 +897,20 @@ class _InicioConductorState extends State<InicioConductor>
                                                                     solicitudId: s.id,
                                                                     onCanceladoOrRemoved: () async {
                                                                       if (!mounted) return;
+                                                                      // Estaba en la preview: cerrarla y avisar con snackbar,
+                                                                      // permaneciendo en el mapa para seguir recibiendo solicitudes.
                                                                       await _closePreview(vm);
+                                                                      if (!mounted) return;
+                                                                      ScaffoldMessenger.of(context)
+                                                                          .showSnackBar(
+                                                                        const SnackBar(
+                                                                          content: Text(
+                                                                            'El cliente canceló la solicitud.',
+                                                                          ),
+                                                                          backgroundColor:
+                                                                              AppColores.error,
+                                                                        ),
+                                                                      );
                                                                     },
                                                                     onAsignado: () async {
                                                                       await _navegarARutaConductor(vm, s.id);

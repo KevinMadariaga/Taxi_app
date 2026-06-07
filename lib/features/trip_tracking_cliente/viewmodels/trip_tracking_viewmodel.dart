@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
+import 'package:geocoding/geocoding.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../services/trip_route_math_service.dart';
 import 'package:taxi_app/core/services/services.dart';
@@ -188,6 +189,60 @@ class TripTrackingViewModel extends ChangeNotifier {
 
   bool get _isCurrentUserCliente => solicitud?.cliente.id == currentUserId;
 
+  // Datos extra para el detalle del viaje.
+  double get calificacionConductor => solicitud?.conductor.calificacion ?? 0;
+  int get totalCalificacionesConductor =>
+      solicitud?.conductor.totalCalificaciones ?? 0;
+  String get destinoDireccion => solicitud?.destinoDireccion ?? '';
+  double get valorServicio => solicitud?.valorServicio ?? 0;
+  String get metodoPago => solicitud?.metodoPago ?? '';
+  String get direccionCliente => solicitud?.cliente.direccion ?? '';
+
+  String? _direccionClienteResuelta;
+  bool _resolvingDireccionCliente = false;
+
+  /// Ubicación del cliente para mostrar ("Tu ubicación") en TEXTO (no coords):
+  /// dirección guardada si existe, si no la dirección resuelta por geocoding.
+  String get tuUbicacionTexto {
+    final dir = direccionCliente.trim();
+    if (dir.isNotEmpty) return dir;
+    final resuelta = _direccionClienteResuelta?.trim() ?? '';
+    if (resuelta.isNotEmpty) return resuelta;
+    return clienteLatLng != null
+        ? 'Obteniendo dirección...'
+        : 'Ubicación no disponible';
+  }
+
+  /// Geocoding inverso de la ubicación del cliente → dirección legible.
+  Future<void> _resolverDireccionCliente() async {
+    if (_resolvingDireccionCliente || _direccionClienteResuelta != null) return;
+    if (direccionCliente.trim().isNotEmpty) return;
+    final p = clienteLatLng;
+    if (p == null) return;
+    _resolvingDireccionCliente = true;
+    try {
+      final placemarks = await placemarkFromCoordinates(
+        p.latitude,
+        p.longitude,
+      );
+      if (placemarks.isEmpty) return;
+      final pm = placemarks.first;
+      final friendly = [
+        pm.street?.trim(),
+        pm.subLocality?.trim(),
+        pm.locality?.trim(),
+      ].whereType<String>().where((v) => v.isNotEmpty).take(2).join(', ').trim();
+      if (friendly.isNotEmpty) {
+        _direccionClienteResuelta = friendly;
+        _safeNotify();
+      }
+    } catch (_) {
+      // Falla geocoding: el getter muestra "Obteniendo dirección...".
+    } finally {
+      _resolvingDireccionCliente = false;
+    }
+  }
+
   Future<void> toggleMapFocusMode() async {
     focusMode = focusMode == MapFocusMode.clientOnly
         ? MapFocusMode.both
@@ -268,6 +323,7 @@ class TripTrackingViewModel extends ChangeNotifier {
         .listen(
           (item) async {
             solicitud = item;
+            unawaited(_resolverDireccionCliente());
             _handleConductorLocationUpdate(item);
             try {
               final d = solicitud?.conductor;
@@ -473,11 +529,40 @@ class TripTrackingViewModel extends ChangeNotifier {
         .length;
   }
 
+  DateTime? _lastRouteRecalcAt;
+
   void _handleConductorLocationUpdate(SolicitudModel item) {
     final d = item.conductor;
     if (!d.hasLocation) return;
     final next = LatLng(d.lat!, d.lng!);
+
+    // Desvío: si el conductor se aleja >40 m de la ruta trazada, recalcular la
+    // ruta con la API (con cooldown para no spamear). El cliente verá la nueva
+    // trayectoria de su conductor.
+    final desvio = _distanceToRoute(next);
+    final now = DateTime.now();
+    final cooldownOk =
+        _lastRouteRecalcAt == null ||
+        now.difference(_lastRouteRecalcAt!).inSeconds >= 8;
+    if (desvio != null && desvio > 40 && cooldownOk && !isOffline) {
+      _lastRouteRecalcAt = now;
+      unawaited(_updateRouteIfNeeded(forceRefresh: true));
+    }
+
     _enqueueConductorTarget(next);
+  }
+
+  /// Distancia mínima (m) del punto a la polilínea de ruta (vértice más cercano,
+  /// suficiente porque la ruta está densificada).
+  double? _distanceToRoute(LatLng p) {
+    final source = _fullRoutePoints.length >= 2 ? _fullRoutePoints : routePoints;
+    if (source.length < 2) return null;
+    double min = double.infinity;
+    for (final pt in source) {
+      final d = _mapService.distanceMeters(p, pt);
+      if (d < min) min = d;
+    }
+    return min.isFinite ? min : null;
   }
 
   void _enqueueConductorTarget(LatLng target) {

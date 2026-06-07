@@ -45,11 +45,53 @@ class ResumenViajeFirebaseService {
     required String solicitudId,
     required double calificacion,
     required String comentarioCalificacion,
+    String conductorId = '',
   }) async {
     await _firestore.collection('solicitudes').doc(solicitudId).update({
       'calificacion': calificacion,
       'comentarioCalificacion': comentarioCalificacion.trim(),
       'fechaCalificacion': FieldValue.serverTimestamp(),
     });
+
+    // Acumular el promedio en el doc del conductor para que se muestre en
+    // futuras ofertas (usuarios y/o conductores, según donde exista).
+    if (conductorId.trim().isNotEmpty) {
+      await _acumularCalificacionConductor(conductorId.trim(), calificacion);
+    }
+  }
+
+  /// Acumula la calificación del conductor SOLO en la colección `usuarios`
+  /// (no se crea colección `conductores`). Guarda el promedio en
+  /// `calificacionConductor` (campo solicitado) y mantiene `calificacionPromedio`
+  /// + `totalCalificaciones` para que la modal de ofertas muestre las estrellas.
+  Future<void> _acumularCalificacionConductor(
+    String conductorId,
+    double nuevaCalificacion,
+  ) async {
+    final ref = _firestore.collection('usuarios').doc(conductorId);
+    try {
+      await _firestore.runTransaction((tx) async {
+        final snap = await tx.get(ref);
+        final d = snap.data() ?? <String, dynamic>{};
+        final total =
+            (d['totalCalificaciones'] ?? d['totalRatings'] ?? 0) as num;
+        final prom =
+            (d['calificacionConductor'] ??
+                    d['calificacionPromedio'] ??
+                    d['calificacion'] ??
+                    d['rating'] ??
+                    0)
+                as num;
+        final nuevoTotal = total.toInt() + 1;
+        final nuevoProm =
+            ((prom.toDouble() * total.toInt()) + nuevaCalificacion) /
+            nuevoTotal;
+        tx.set(ref, {
+          'calificacionConductor': nuevoProm,
+          'calificacionPromedio': nuevoProm,
+          'totalCalificaciones': nuevoTotal,
+        }, SetOptions(merge: true));
+      });
+    } catch (_) {}
   }
 }

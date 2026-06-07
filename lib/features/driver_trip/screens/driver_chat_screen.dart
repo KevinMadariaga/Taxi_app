@@ -58,8 +58,13 @@ class _DriverChatScreenState extends State<DriverChatScreen> {
         final messages = controller.messages;
 
         return PopScope(
-          onPopInvokedWithResult: (didPop, _) {
-            if (didPop) FocusScope.of(context).unfocus();
+          // Cierra el teclado ANTES de salir para no romper la vista al volver.
+          canPop: false,
+          onPopInvokedWithResult: (didPop, _) async {
+            if (didPop) return;
+            FocusScope.of(context).unfocus();
+            await Future<void>.delayed(const Duration(milliseconds: 120));
+            if (context.mounted) Navigator.of(context).pop();
           },
           child: Scaffold(
             appBar: AppBar(

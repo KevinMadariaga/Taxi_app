@@ -10,6 +10,8 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/helpers/session_helper.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioConductorView.dart';
+import 'package:taxi_app/widgets/intermediate_transition_view.dart';
+import 'package:taxi_app/features/trip_tracking_cliente/widgets/trip_details_sheet.dart';
 import 'package:taxi_app/core/services/services.dart';
 
 import '../controllers/driver_trip_controller.dart';
@@ -408,75 +410,21 @@ class _DriverTripScreenState extends State<DriverTripScreen>
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (context) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                CircleAvatar(
-                  radius: 40,
-                  backgroundColor: AppColores.grey200,
-                  backgroundImage: controller.clientPhotoUrl.isNotEmpty
-                      ? NetworkImage(controller.clientPhotoUrl)
-                      : null,
-                  child: controller.clientPhotoUrl.isEmpty
-                      ? const Icon(
-                          Icons.person,
-                          size: 40,
-                          color: AppColores.textSecondary,
-                        )
-                      : null,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  controller.clientName,
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: AppColores.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.location_on_outlined,
-                      color: AppColores.buttonPrimary,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 8),
-                    Flexible(
-                      child: Text(
-                        controller.clientAddress.isNotEmpty
-                            ? controller.clientAddress
-                            : 'Ubicacion no disponible',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          color: AppColores.textSecondary,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-              ],
-            ),
-          ),
-        );
-      },
+      builder: (_) => TripDetailsSheet(
+        tituloPersona: 'Cliente',
+        nombrePersona: controller.clientName,
+        fotoPersona: controller.clientPhotoUrl,
+        calificacion: 0,
+        totalCalificaciones: 0,
+        fotoVehiculo: '',
+        placa: '',
+        direccionRecoger: controller.clientAddress,
+        direccionDestino: controller.destinoDireccion,
+        valorServicio: controller.valorServicio,
+        metodoPago: controller.metodoPago,
+        mostrarVehiculo: false,
+        mostrarCalificacion: false,
+      ),
     );
   }
 
@@ -672,19 +620,8 @@ class _DriverTripScreenState extends State<DriverTripScreen>
   }
 
   Future<void> _goToInicioConductorWithMessage(String? message) async {
-    if (message != null && message.trim().isNotEmpty && mounted) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            content: Text(message),
-            duration: const Duration(seconds: 2),
-          ),
-        );
-
-      await Future<void>.delayed(const Duration(milliseconds: 1200));
-    }
-
+    // El mensaje (motivo) ya se comunica con la pantalla intermedia
+    // "Solicitud cancelada" dentro de _goToInicioConductor.
     if (!mounted) return;
     await _goToInicioConductor();
   }
@@ -792,15 +729,16 @@ class _DriverTripScreenState extends State<DriverTripScreen>
       try {
         await SessionHelper.setActiveSolicitudScreen('ruta_destino');
       } catch (_) {}
-      await Navigator.of(context, rootNavigator: true).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => RutaDestino(
-            idSolicitud: widget.tripId,
-            // previously passed as tripId; RutaDestino expects `idSolicitud`
-            // currentUserId: FirebaseAuth.instance.currentUser?.uid ?? '',
-            // tipoUsuario: TipoUsuarioTracking.conductor,
-          ),
-        ),
+      if (!mounted) return;
+      await navigateWithIntermediateLoader(
+        context: context,
+        nextBuilder: (_) => RutaDestino(idSolicitud: widget.tripId),
+        title: 'Viajando hacia el destino',
+        subtitle: 'Llevando al cliente a su destino.',
+        icon: Icons.navigation_rounded,
+        accentColor: AppColores.buttonPrimary,
+        drawCheck: false,
+        delay: const Duration(milliseconds: 1500),
       );
     } catch (_) {
       _navigating = false;
@@ -820,9 +758,16 @@ class _DriverTripScreenState extends State<DriverTripScreen>
 
       if (!mounted) return;
 
-      await Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const InicioConductor()),
-        (route) => false,
+      await navigateWithIntermediateLoader(
+        context: context,
+        nextBuilder: (_) => const InicioConductor(),
+        title: 'Solicitud cancelada',
+        subtitle: 'El servicio fue cancelado.',
+        icon: Icons.close_rounded,
+        accentColor: AppColores.error,
+        drawCheck: false,
+        delay: const Duration(milliseconds: 1600),
+        clearStackOnNext: true,
       );
     } catch (_) {
       _navigating = false;
