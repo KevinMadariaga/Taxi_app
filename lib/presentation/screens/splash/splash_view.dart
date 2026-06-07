@@ -222,13 +222,17 @@ class _SplashViewState extends State<SplashView>
           ),
 
           // ── Indicador de carga anclado abajo ──────────────────────────
+          // Padding = inset real de la barra de navegación (gestos/3 botones)
+          // + margen, para que SIEMPRE quede por encima de la barra de Android
+          // en modo edge-to-edge y se vea completa.
           Positioned(
             left: 0,
             right: 0,
             bottom: 0,
-            child: SafeArea(
-              top: false,
-              minimum: const EdgeInsets.only(bottom: 44),
+            child: Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.viewPaddingOf(context).bottom + 28,
+              ),
               child: Center(
                 child: FadeTransition(
                   opacity: _textoFade,

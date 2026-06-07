@@ -16,6 +16,7 @@ class SignInGoogleClientUseCase {
       uid: identity.uid,
       displayName: identity.displayName,
       email: identity.email,
+      photoUrl: identity.photoUrl,
     );
 
     return AuthFlowResult(

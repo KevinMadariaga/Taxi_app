@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show FilteringTextInputFormatter;
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:taxi_app/core/app_colores.dart';
@@ -13,9 +15,14 @@ import 'package:taxi_app/widgets/google_maps_widget.dart';
 import 'package:taxi_app/core/helpers/permisos_helper.dart';
 import 'package:taxi_app/widgets/preview_solicitud_card.dart';
 import 'package:taxi_app/widgets/solicitud_card.dart';
+import 'package:taxi_app/screens/usuario_conductor/presentacion/view/activacion_servicio_view.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/view/home_cliente_view.dart';
 
 class InicioConductor extends StatefulWidget {
-  const InicioConductor({Key? key}) : super(key: key);
+  const InicioConductor({Key? key, this.mostrarBienvenida = false})
+    : super(key: key);
+
+  final bool mostrarBienvenida;
 
   @override
   State<InicioConductor> createState() => _InicioConductorState();
@@ -32,10 +39,16 @@ class _InicioConductorState extends State<InicioConductor>
   bool _isRequestingPermissions = false;
   bool _isPreparingLocation = false;
 
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _membresiaSub;
+  bool _dialogMembresiaVisible = false;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _initMembresiaWatcher();
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final ready = await _validateGpsAndPermissionsOnStart();
       if (!ready) return;
@@ -1071,9 +1084,64 @@ class _InicioConductorState extends State<InicioConductor>
     );
   }
 
+  /// Vigila la membresía del conductor en `usuarios/{uid}`. Mientras no esté
+  /// `activa`, muestra el modal de activación (persistente). Cuando pasa a
+  /// `activa`, lo cierra (y la pantalla de pago si estuviera encima).
+  void _initMembresiaWatcher() {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    _membresiaSub = FirebaseFirestore.instance
+        .collection('usuarios')
+        .doc(uid)
+        .snapshots()
+        .listen((doc) {
+          if (!mounted) return;
+          final activa =
+              (doc.data()?['membresia'] ?? '').toString().toLowerCase() ==
+              'activa';
+          if (!activa && !_dialogMembresiaVisible) {
+            _dialogMembresiaVisible = true;
+            mostrarBienvenidaConductorDialog(
+              context,
+              onVolverCliente: _volverACliente,
+            ).whenComplete(() {
+              _dialogMembresiaVisible = false;
+            });
+          } else if (activa && _dialogMembresiaVisible) {
+            _dialogMembresiaVisible = false;
+            Navigator.of(context).popUntil((route) => route.isFirst);
+          }
+        });
+  }
+
+  /// Vuelve a ser cliente desde la modal: cancela el watcher (para que no
+  /// reaparezca), cambia el rol a cliente (fire-and-forget) y navega a
+  /// InicioCliente removiendo la modal e InicioConductor.
+  void _volverACliente() {
+    _membresiaSub?.cancel();
+    _membresiaSub = null;
+    _dialogMembresiaVisible = false;
+
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null) {
+      // rol cliente + quitar solicitud para retirar la notificación del admin.
+      FirebaseFirestore.instance.collection('usuarios').doc(uid).set({
+        'rol': 'cliente',
+        'solicitudConductor': false,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    }
+
+    Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const HomeClienteView()),
+      (route) => false,
+    );
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _membresiaSub?.cancel();
     _mapController = null;
     super.dispose();
   }

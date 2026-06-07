@@ -14,6 +14,10 @@ import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/helpers/responsive_helper.dart';
 import 'package:taxi_app/core/helpers/session_helper.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/configuracion_aplicacion_view.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/view/home_cliente_view.dart';
+import 'package:taxi_app/screens/usuario_conductor/presentacion/view/completar_registro_conductor_view.dart';
+import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioConductorView.dart';
+import 'package:taxi_app/screens/usuario_conductor/presentacion/view/membresia_detalle_view.dart';
 import 'package:taxi_app/widgets/editar_perfil.dart';
 
 class PaginaPerfilUsuario extends StatefulWidget {
@@ -592,9 +596,174 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
     );
   }
 
+  Widget _buildSerConductorCard() {
+    // Si ya tiene datos de conductor guardados (placa + foto vehículo), solo
+    // cambia de vista a InicioConductor sin volver a registrar.
+    final placa = (userData?['placa'] ?? '').toString().trim();
+    final fotoVeh = (userData?['fotoVehiculo'] ?? '').toString().trim();
+    final yaRegistrado = placa.isNotEmpty && fotoVeh.isNotEmpty;
+
+    return Card(
+      margin: EdgeInsets.symmetric(vertical: ResponsiveHelper.hp(context, 0.8)),
+      child: ListTile(
+        leading: Icon(Icons.local_taxi, color: AppColores.primary),
+        title: Text(
+          yaRegistrado ? 'Modo conductor' : 'Ser conductor',
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+        subtitle: Text(
+          yaRegistrado
+              ? 'Entra como conductor'
+              : 'Completa tu registro y empieza a recibir viajes',
+        ),
+        trailing: const Icon(Icons.chevron_right),
+        contentPadding: EdgeInsets.symmetric(
+          horizontal: ResponsiveHelper.wp(context, 4),
+          vertical: ResponsiveHelper.hp(context, 0.5),
+        ),
+        onTap: () {
+          if (yaRegistrado) {
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (_) => const InicioConductor()),
+              (route) => false,
+            );
+          } else {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const CompletarRegistroConductorView(),
+              ),
+            );
+          }
+        },
+      ),
+    );
+  }
+
+  Widget _buildVolverClienteCard() {
+    return Card(
+      margin: EdgeInsets.symmetric(vertical: ResponsiveHelper.hp(context, 0.8)),
+      child: ListTile(
+        leading: Icon(Icons.person_outline, color: AppColores.primary),
+        title: const Text(
+          'Volver a ser cliente',
+          style: TextStyle(fontWeight: FontWeight.w600),
+        ),
+        subtitle: const Text('Usa la app como cliente'),
+        trailing: const Icon(Icons.chevron_right),
+        contentPadding: EdgeInsets.symmetric(
+          horizontal: ResponsiveHelper.wp(context, 4),
+          vertical: ResponsiveHelper.hp(context, 0.5),
+        ),
+        onTap: () {
+          final uid = _auth.currentUser?.uid;
+          if (uid != null) {
+            // Fire-and-forget: no bloquear la navegación esperando la red.
+            // rol cliente + quitar solicitud → retira notif del admin.
+            _firestore.collection('usuarios').doc(uid).set({
+              'rol': 'cliente',
+              'solicitudConductor': false,
+              'updatedAt': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true));
+          }
+          Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => const HomeClienteView()),
+            (route) => false,
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildMembresiaConductorCard() {
+    final activa =
+        (userData?['membresia'] ?? '').toString().toLowerCase() == 'activa';
+    final dias = userData?['membresiaDias'];
+    final venceTs = userData?['membresiaVence'];
+    String? venceStr;
+    int? diasRestantes;
+    if (venceTs is Timestamp) {
+      final d = venceTs.toDate();
+      venceStr =
+          '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
+      diasRestantes = d.difference(DateTime.now()).inDays;
+      if (diasRestantes < 0) diasRestantes = 0;
+    }
+    final color = activa ? AppColores.success : AppColores.error;
+
+    return Card(
+      margin: EdgeInsets.symmetric(vertical: ResponsiveHelper.hp(context, 0.8)),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) =>
+                  MembresiaDetalleView(data: userData ?? const {}),
+            ),
+          );
+        },
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: ResponsiveHelper.wp(context, 4),
+            vertical: ResponsiveHelper.hp(context, 1.5),
+          ),
+          child: Row(
+            children: [
+              Icon(activa ? Icons.verified : Icons.cancel,
+                  color: color, size: 28),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      activa ? 'Estás activo' : 'No estás activo',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: color,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      activa
+                          ? (dias != null
+                                ? 'Membresía activa · $dias días'
+                                      '${diasRestantes != null ? ' · faltan $diasRestantes días' : ''}'
+                                      '${venceStr != null ? ' · vence $venceStr' : ''}'
+                                : 'Membresía activa')
+                          : 'Activa tu membresía para recibir viajes',
+                      style: const TextStyle(
+                        color: AppColores.textSecondary,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    const Text(
+                      'Toca para más detalles',
+                      style: TextStyle(
+                        color: AppColores.textSecondary,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: AppColores.textSecondary),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final nombre = (userData?['nombre'] ?? 'Usuario').toString();
+    final nombreCompleto = [
+      (userData?['nombre'] ?? '').toString().trim(),
+      (userData?['apellido'] ?? '').toString().trim(),
+    ].where((p) => p.isNotEmpty).join(' ').trim();
+    final nombre = nombreCompleto.isEmpty ? 'Usuario' : nombreCompleto;
     final correo =
         (userData?['correo'] ?? userData?['email'] ?? 'Sin correo registrado')
             .toString();
@@ -630,6 +799,19 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
             : true,
         title: Text('Perfil', style: TextStyle(fontSize: appBarFontSize)),
         systemOverlayStyle: SystemUiOverlayStyle.dark,
+        actions: [
+          IconButton(
+            tooltip: 'Configuración',
+            icon: const Icon(Icons.settings),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const ConfiguracionAplicacionView(),
+                ),
+              );
+            },
+          ),
+        ],
       ),
       body: userData == null
           ? const Center(child: CircularProgressIndicator())
@@ -714,15 +896,36 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
                         ),
                         SizedBox(height: ResponsiveHelper.hp(context, 1.2)),
                         if (widget.tipoUsuario == 'conductor') ...[
+                          // Orden: estado/días → vehículo → correo → teléfono
+                          // → volver a ser cliente.
+                          _buildMembresiaConductorCard(),
+                          SizedBox(height: ResponsiveHelper.hp(context, 0.4)),
                           _buildVehiclePhotoCard(),
                           SizedBox(height: ResponsiveHelper.hp(context, 0.4)),
-                        ],
-                        if (correo.isNotEmpty &&
-                            correo != 'Sin correo registrado') ...[
-                          _buildInfoCard(Icons.email, 'Correo', correo),
+                          if (correo.isNotEmpty &&
+                              correo != 'Sin correo registrado') ...[
+                            _buildInfoCard(Icons.email, 'Correo', correo),
+                            SizedBox(height: ResponsiveHelper.hp(context, 0.4)),
+                          ],
+                          _buildInfoCard(Icons.phone, 'Teléfono', telefono),
                           SizedBox(height: ResponsiveHelper.hp(context, 0.4)),
+                          _buildVolverClienteCard(),
+                        ] else ...[
+                          if (correo.isNotEmpty &&
+                              correo != 'Sin correo registrado') ...[
+                            _buildInfoCard(Icons.email, 'Correo', correo),
+                            SizedBox(height: ResponsiveHelper.hp(context, 0.4)),
+                          ],
+                          _buildInfoCard(Icons.phone, 'Teléfono', telefono),
+                          if (widget.tipoUsuario == 'cliente' ||
+                              (userData?['rol'] ?? '')
+                                      .toString()
+                                      .toLowerCase() ==
+                                  'cliente') ...[
+                            SizedBox(height: ResponsiveHelper.hp(context, 0.4)),
+                            _buildSerConductorCard(),
+                          ],
                         ],
-                        _buildInfoCard(Icons.phone, 'Teléfono', telefono),
                         SizedBox(height: ResponsiveHelper.hp(context, 1.4)),
                         // NOTE: Buttons moved to bottom fixed area
                         // SizedBox(height: ResponsiveHelper.hp(context, 1)),
@@ -776,10 +979,10 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
                       ),
                       child: SafeArea(
                         top: false,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            ElevatedButton.icon(
+                        child: Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 600),
+                            child: ElevatedButton.icon(
                               onPressed: _mostrarDialogoEditar,
                               icon: const Icon(Icons.edit, size: 20),
                               label: const Text('Editar Datos'),
@@ -792,30 +995,7 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
                                 ),
                               ),
                             ),
-                            SizedBox(height: ResponsiveHelper.hp(context, 1)),
-                            OutlinedButton.icon(
-                              onPressed: () {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (_) =>
-                                        const ConfiguracionAplicacionView(),
-                                  ),
-                                );
-                              },
-                              icon: const Icon(Icons.settings, size: 20),
-                              label: const Text('Configuración'),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: AppColores.textPrimary,
-                                side: const BorderSide(
-                                  color: AppColores.borderSubtle,
-                                ),
-                                minimumSize: const Size.fromHeight(48),
-                                padding: EdgeInsets.symmetric(
-                                  vertical: ResponsiveHelper.hp(context, 1.2),
-                                ),
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
                       ),
                     ),

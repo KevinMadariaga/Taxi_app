@@ -60,6 +60,7 @@ class FakeClientAuthRepository implements ClientAuthRepository {
     required String uid,
     required String? displayName,
     required String? email,
+    String? photoUrl,
   }) async {
     return (await getClientUserById(uid))!;
   }

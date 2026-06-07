@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/utils/transicion_pagina.dart';
@@ -7,7 +8,9 @@ import 'package:taxi_app/caracteristicas/autenticacion/presentacion/controladore
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/casos_uso/sign_in_google_client_usecase.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/presentacion/vistas/complete_profile_page.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/home_cliente_view.dart';
+import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioConductorView.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/presentacion/vistas/login_conductor_screen.dart';
+import 'package:taxi_app/features/admin/admin_home_screen.dart';
 
 /// Pantalla de inicio de sesión del cliente.
 /// Diseño pulido: hero de marca + accesos sociales (Google / Apple).
@@ -42,7 +45,7 @@ class _HomeViewState extends State<HomeView> {
       });
       return;
     }
-    _navegarTrasLogin(result);
+    await _navegarTrasLogin(result);
   }
 
   Future<void> _loginWithApple(HomeAuthController authVm) async {
@@ -62,11 +65,11 @@ class _HomeViewState extends State<HomeView> {
       });
       return;
     }
-    _navegarTrasLogin(result);
+    await _navegarTrasLogin(result);
   }
 
   /// Navegación directa tras un login exitoso (sin diálogos ni snackbars).
-  void _navegarTrasLogin(AuthFlowResult result) {
+  Future<void> _navegarTrasLogin(AuthFlowResult result) async {
     if (!mounted) return;
 
     if (result.destination == AuthFlowDestination.completeProfile) {
@@ -79,6 +82,46 @@ class _HomeViewState extends State<HomeView> {
             initialTelefono: result.user.telefono,
           ),
         ),
+        (route) => false,
+      );
+      return;
+    }
+
+    // Enrutar según rol: admin → panel admin, conductor → inicio conductor,
+    // cliente (o desconocido) → home cliente. Se detecta por doc en
+    // `administradores` o por el campo `rol`/`role` en `usuarios`.
+    bool esAdmin = false;
+    String rol = '';
+    try {
+      final adminDoc = await FirebaseFirestore.instance
+          .collection('administradores')
+          .doc(result.user.id)
+          .get();
+      if (adminDoc.exists) esAdmin = true;
+
+      final userDoc = await FirebaseFirestore.instance
+          .collection('usuarios')
+          .doc(result.user.id)
+          .get();
+      rol = (userDoc.data()?['rol'] ?? userDoc.data()?['role'] ?? '')
+          .toString()
+          .toLowerCase();
+      if (rol == 'admin' || rol == 'administrador') esAdmin = true;
+    } catch (_) {}
+
+    if (!mounted) return;
+    if (esAdmin) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (_) => AdminHomeScreen(adminId: result.user.id),
+        ),
+        (route) => false,
+      );
+      return;
+    }
+    if (rol == 'conductor') {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const InicioConductor()),
         (route) => false,
       );
       return;
@@ -150,9 +193,13 @@ class _HomeViewState extends State<HomeView> {
                               'assets/img/icon_google.png',
                               width: 22,
                               height: 22,
+                              gaplessPlayback: true,
+                              filterQuality: FilterQuality.medium,
+                              cacheWidth: 44,
                               errorBuilder: (_, _, _) => const Icon(
                                 Icons.g_mobiledata_rounded,
-                                size: 26,
+                                size: 30,
+                                color: Color(0xFF4285F4),
                               ),
                             ),
                             onTap: () => _loginWithGoogle(authVm),

@@ -187,6 +187,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
       ),
       backgroundColor: AppColores.background,
       body: SingleChildScrollView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         padding: EdgeInsets.all(screenWidth * 0.04),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

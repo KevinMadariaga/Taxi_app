@@ -23,6 +23,7 @@ abstract class ClientAuthRepository {
     required String uid,
     required String? displayName,
     required String? email,
+    String? photoUrl,
   });
 
   Future<ClientUserEntity> ensureClientUserForPhone({

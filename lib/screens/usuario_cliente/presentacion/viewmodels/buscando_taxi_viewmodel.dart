@@ -15,6 +15,8 @@ class ContraofertaItem {
   final double valor;
   final DateTime? createdAt;
   final Map<String, dynamic> conductorPayload;
+  final double calificacion; // promedio 0-5
+  final int totalCalificaciones;
 
   const ContraofertaItem({
     required this.conductorId,
@@ -24,6 +26,8 @@ class ContraofertaItem {
     required this.valor,
     this.createdAt,
     required this.conductorPayload,
+    this.calificacion = 0,
+    this.totalCalificaciones = 0,
   });
 }
 
@@ -149,6 +153,15 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
         final stamp = entry['createdAt'];
         if (stamp is Timestamp) createdAt = stamp.toDate();
 
+        final calif = _toDouble(conductorData['calificacionPromedio'] ??
+                conductorData['calificacion'] ??
+                conductorData['rating']) ??
+            0;
+        final totalCalif = (conductorData['totalCalificaciones'] ??
+                conductorData['totalRatings'] ??
+                conductorData['ratingCount']);
+        final totalCalifInt = totalCalif is num ? totalCalif.toInt() : 0;
+
         newList.add(ContraofertaItem(
           conductorId: conductorId,
           conductorNombre: nombre,
@@ -157,6 +170,8 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
           valor: v,
           createdAt: createdAt,
           conductorPayload: conductorData,
+          calificacion: calif.clamp(0, 5).toDouble(),
+          totalCalificaciones: totalCalifInt,
         ));
       });
       // Ordenar por valor ascendente para mostrar la más barata primero
@@ -465,6 +480,21 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
     if (sub == null) return;
     try {
       await sub.cancel();
+    } catch (_) {}
+  }
+
+  /// Cancela por inactividad/abandono (app cerrada o en segundo plano demasiado
+  /// tiempo). Solo marca estado=cancelado, sin borrar (la app puede no seguir
+  /// viva para hacer cleanup). Best-effort.
+  Future<void> marcarCanceladaPorInactividad() async {
+    final solicitudId = _solicitudId;
+    if (solicitudId == null || solicitudId.isEmpty) return;
+    try {
+      await _firestore.collection('solicitudes').doc(solicitudId).update({
+        'estado': 'cancelado',
+        'cancelledAt': FieldValue.serverTimestamp(),
+        'cancelReason': 'inactividad',
+      });
     } catch (_) {}
   }
 

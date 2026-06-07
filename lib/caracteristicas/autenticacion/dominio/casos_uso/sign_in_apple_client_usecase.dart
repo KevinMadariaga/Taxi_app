@@ -23,12 +23,14 @@ class SignInAppleClientUseCase {
       displayName: firebaseUser.displayName,
       email: firebaseUser.email,
       phoneNumber: firebaseUser.phoneNumber,
+      photoUrl: firebaseUser.photoURL,
     );
 
     final user = await _repository.ensureClientUserForGoogle(
       uid: identity.uid,
       displayName: identity.displayName,
       email: identity.email,
+      photoUrl: identity.photoUrl,
     );
 
     return AuthFlowResult(

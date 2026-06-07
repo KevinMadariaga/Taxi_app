@@ -49,6 +49,7 @@ class ClientAuthFirebaseDataSource {
       displayName: user.displayName,
       email: user.email,
       phoneNumber: user.phoneNumber,
+      photoUrl: user.photoURL,
     );
   }
 

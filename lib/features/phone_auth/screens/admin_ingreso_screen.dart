@@ -6,7 +6,7 @@ import 'package:taxi_app/caracteristicas/autenticacion/dominio/casos_uso/sign_in
 import 'registro_administrador_screen.dart';
 import 'package:taxi_app/core/services/auth_service.dart';
 import '../services/user_data_service.dart';
-import 'panel_administrador_screen.dart';
+import 'package:taxi_app/features/admin/admin_home_screen.dart';
 
 class AdminIngresoScreen extends StatefulWidget {
   const AdminIngresoScreen({super.key});
@@ -47,7 +47,7 @@ class _AdminIngresoScreenState extends State<AdminIngresoScreen> {
         if (completo) {
           Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(
-              builder: (_) => PanelAdministradorScreen(adminId: uid),
+              builder: (_) => AdminHomeScreen(adminId: uid),
             ),
             (route) => false,
           );
@@ -103,7 +103,7 @@ class _AdminIngresoScreenState extends State<AdminIngresoScreen> {
         if (completo) {
           Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(
-              builder: (_) => PanelAdministradorScreen(adminId: uid),
+              builder: (_) => AdminHomeScreen(adminId: uid),
             ),
             (route) => false,
           );

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -712,6 +714,8 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
   final TextEditingController _destinoController = TextEditingController();
   final FocusNode _origenFocus = FocusNode();
   final FocusNode _destinoFocus = FocusNode();
+  // Debounce de búsqueda: evita una consulta a Firestore por cada tecla.
+  Timer? _debounce;
   List<UbicacionResultado> _sugerencias = [];
   bool _initialKeyboardOpened = false;
   Animation<double>? _routeAnimation;
@@ -831,6 +835,7 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _clearRouteAnimationListeners();
     _origenController.dispose();
     _destinoController.dispose();
@@ -1217,13 +1222,19 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
     _irAInicioCliente();
   }
 
-  Future<void> _onDestinoChanged(String value) async {
-    if (value.trim().isEmpty) {
+  void _onDestinoChanged(String value) {
+    _debounce?.cancel();
+    final query = value.trim();
+    if (query.isEmpty) {
       setState(() => _sugerencias = []);
       return;
     }
-    final results = await _buscarUbicacionesHelper(value);
-    setState(() => _sugerencias = results);
+    // Espera 350ms tras la última tecla antes de consultar: teclado fluido.
+    _debounce = Timer(const Duration(milliseconds: 350), () async {
+      final results = await _buscarUbicacionesHelper(query);
+      if (!mounted) return;
+      setState(() => _sugerencias = results);
+    });
   }
 
   Future<void> _abrirPreviewDesdeSugerencia(
@@ -1858,14 +1869,30 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
                 children: [
                   _buildSearchCard(hPad, textFieldFontSize),
                   const SizedBox(height: 16),
-                  if (_sugerencias.isEmpty) ...[
-                    Padding(
-                      padding: EdgeInsets.symmetric(horizontal: hPad),
-                      child: _buildQuickAccessSection(),
-                    ),
-                    const SizedBox(height: 16),
-                    _buildPegarUbicacionRow(hPad),
-                  ] else
+                  if (_sugerencias.isEmpty)
+                    // Scrollable para que al abrir el teclado el contenido se
+                    // desplace en vez de desbordar (sin overflow).
+                    Expanded(
+                      child: SingleChildScrollView(
+                        keyboardDismissBehavior:
+                            ScrollViewKeyboardDismissBehavior.onDrag,
+                        padding: EdgeInsets.only(
+                          bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Padding(
+                              padding: EdgeInsets.symmetric(horizontal: hPad),
+                              child: _buildQuickAccessSection(),
+                            ),
+                            const SizedBox(height: 16),
+                            _buildPegarUbicacionRow(hPad),
+                          ],
+                        ),
+                      ),
+                    )
+                  else
                     Expanded(child: _buildSugerenciasSection()),
                 ],
               ),

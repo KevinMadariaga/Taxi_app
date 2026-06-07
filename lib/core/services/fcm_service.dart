@@ -237,6 +237,17 @@ class FcmService {
         debugPrint('[FCM] ✅ Token guardado en cliente/$uid');
       }
     } catch (_) {}
+
+    // Guardar en `administradores` si el documento existe (para push a admins)
+    try {
+      final doc = await firestore.collection('administradores').doc(uid).get();
+      if (doc.exists) {
+        await firestore.collection('administradores').doc(uid).set({
+          'fcmToken': token,
+        }, SetOptions(merge: true));
+        debugPrint('[FCM] ✅ Token guardado en administradores/$uid');
+      }
+    } catch (_) {}
   }
 
   /// Fuerza la actualización del token en Firestore.

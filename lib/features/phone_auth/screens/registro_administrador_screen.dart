@@ -5,7 +5,7 @@ import 'package:taxi_app/core/app_colores.dart';
 
 import '../controllers/registro_administrador_controller.dart';
 import '../widgets/image_picker_tile.dart';
-import 'panel_administrador_screen.dart';
+import 'package:taxi_app/features/admin/admin_home_screen.dart';
 
 class RegistroAdministradorScreen extends StatefulWidget {
   const RegistroAdministradorScreen({
@@ -62,6 +62,8 @@ class _RegistroAdministradorScreenState
             body: SafeArea(
               child: Center(
                 child: SingleChildScrollView(
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 20,
                     vertical: 16,
@@ -189,7 +191,7 @@ class _RegistroAdministradorScreenState
 
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(
-        builder: (_) => PanelAdministradorScreen(adminId: widget.uid),
+        builder: (_) => AdminHomeScreen(adminId: widget.uid),
       ),
       (route) => false,
     );

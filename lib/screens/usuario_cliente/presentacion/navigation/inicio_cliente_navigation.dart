@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/location_model.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/view/buscar_destino_view.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/view/SeleccionDestino.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/DetailsSolicitud.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/MapaPreviewView.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/ayuda_view.dart';
@@ -108,7 +108,7 @@ class InicioClienteNavigation {
   }) {
     return Navigator.of(context).push(
       _buildSmoothRoute(
-        BuscarDestinoView(
+        DestinoSeleccionView(
           currentLocation: currentLocation,
           origenDireccionInicial: origenDireccionInicial,
         ),

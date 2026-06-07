@@ -35,12 +35,36 @@ const SystemUiOverlayStyle _globalSystemOverlayStyle = SystemUiOverlayStyle(
   statusBarBrightness: Brightness.light,
 );
 
+/// Error benigno conocido de google_maps_flutter_ios: cuando la vista del mapa
+/// se destruye/queda offstage mientras corre el sync interno
+/// `updateClusterManagers`, lanza un `channel-error` async. No afecta nada;
+/// lo filtramos para no ensuciar la consola. Cualquier otro error propaga.
+bool _esErrorBenignoMapas(Object error) {
+  if (error is! PlatformException) return false;
+  final detalle = '${error.code} ${error.message ?? ''}';
+  return detalle.contains('updateClusterManagers') ||
+      (error.code == 'channel-error' &&
+          detalle.contains('google_maps_flutter'));
+}
+
 /// Entry point for the Taxi App.
 /// Initializes services, handles permissions, and launches the app.
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   SystemChrome.setSystemUIOverlayStyle(_globalSystemOverlayStyle);
+
+  // Filtra el channel-error benigno de google_maps_flutter_ios
+  // (updateClusterManagers al destruir la vista). Todo lo demás propaga normal.
+  final flutterOnError = FlutterError.onError;
+  FlutterError.onError = (details) {
+    if (_esErrorBenignoMapas(details.exception)) return;
+    flutterOnError?.call(details);
+  };
+  PlatformDispatcher.instance.onError = (error, stack) {
+    if (_esErrorBenignoMapas(error)) return true; // tragado
+    return false; // no manejado → comportamiento por defecto
+  };
 
   // Solo lo imprescindible antes del primer frame: Firebase es requerido por
   // los providers (AppAuthAdapter). Todo lo demás (permisos, notificaciones,

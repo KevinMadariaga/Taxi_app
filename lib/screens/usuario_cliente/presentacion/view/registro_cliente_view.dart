@@ -161,6 +161,8 @@ class _RegistroClienteViewState extends State<RegistroClienteView> {
             child: Form(
               key: _formKey,
               child: SingleChildScrollView(
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [

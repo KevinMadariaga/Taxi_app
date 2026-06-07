@@ -7,7 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:taxi_app/core/helpers/responsive_helper.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/location_model.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/vehicle_type.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/view/buscar_destino_view.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/view/SeleccionDestino.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/buscando_taxi_view.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/mapapreview_viewmodel.dart';
 import 'package:taxi_app/widgets/MapaGoogle.dart';
@@ -71,7 +71,7 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
 
     await navigator.pushReplacement(
       _buildSmoothRoute(
-        BuscarDestinoView(currentLocation: widget.origen.position),
+        DestinoSeleccionView(currentLocation: widget.origen.position),
       ),
     );
   }

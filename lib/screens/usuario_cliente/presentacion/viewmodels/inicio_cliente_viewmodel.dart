@@ -4,7 +4,9 @@ import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:geocoding/geocoding.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:taxi_app/core/helpers/map_helper.dart';
 import 'package:taxi_app/core/helpers/session_helper.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/MapaClienteModel.dart';
@@ -24,6 +26,12 @@ class InicioClienteViewModel extends ChangeNotifier {
   // Último uid persistido en disco; evita reescrituras redundantes en cada
   // emisión del authStateChanges (que dispara con el mismo uid al recargar).
   String? _persistedUid;
+  // Caché de última ubicación: evita mostrar "Buscando ubicación" si el GPS
+  // devuelve la misma posición que ya teníamos guardada.
+  bool _ubicacionNueva = false;
+  static const double _umbralCambioMetros = 35.0;
+  static const String _kLastLat = 'cli_last_lat';
+  static const String _kLastLng = 'cli_last_lng';
 
   Set<Marker> _conductoresMarkers = <Marker>{};
   BitmapDescriptor? _taxiIcon;
@@ -35,6 +43,10 @@ class InicioClienteViewModel extends ChangeNotifier {
   bool get isLoadingLocation => _isLoadingLocation;
   bool get isLoadingFavoritos => _isLoadingFavoritos;
   LatLng? get currentLocation => _currentLocation;
+  /// `true` si la última carga detectó una ubicación nueva (distinta a la
+  /// cacheada). La vista lo usa para mostrar "Ubicación encontrada" solo
+  /// cuando realmente hubo un cambio.
+  bool get ubicacionFueActualizada => _ubicacionNueva;
   Set<Marker> get conductoresMarkers => _conductoresMarkers;
   List<UbicacionResultado> get favoritos => List.unmodifiable(_favoritos);
 
@@ -299,21 +311,76 @@ class InicioClienteViewModel extends ChangeNotifier {
   }
 
   Future<void> cargarUbicacionActual() async {
-    _isLoadingLocation = true;
-    if (!_disposed) notifyListeners();
+    _ubicacionNueva = false;
 
+    // 1. Mostrar de inmediato la última ubicación cacheada (sin loader).
+    final cache = await _leerUbicacionCache();
+    if (cache != null && _currentLocation == null) {
+      _currentLocation = cache;
+      if (!_disposed) notifyListeners();
+    }
+
+    // 2. Pedir ubicación al GPS.
+    LatLng? loc;
     try {
-      final loc = await _ubicacionService.obtenerUbicacionActual();
-      if (loc != null) {
-        _currentLocation = loc;
-        await _guardarUbicacionCliente(loc);
-      }
+      loc = await _ubicacionService.obtenerUbicacionActual();
     } catch (e) {
       debugPrint('Error obteniendo ubicación actual: $e');
+    }
+    if (loc == null) return;
+
+    // 3. Comparar con la cacheada. Si es la misma → mantenerla, sin loader.
+    final base = cache ?? _currentLocation;
+    final esNueva =
+        base == null ||
+        Geolocator.distanceBetween(
+              base.latitude,
+              base.longitude,
+              loc.latitude,
+              loc.longitude,
+            ) >
+            _umbralCambioMetros;
+
+    if (!esNueva) {
+      _currentLocation = base;
+      try {
+        await _guardarUbicacionCliente(base!);
+      } catch (_) {}
+      return;
+    }
+
+    // 4. Ubicación nueva → mostrar "Buscando ubicación" y actualizar.
+    _isLoadingLocation = true;
+    if (!_disposed) notifyListeners();
+    try {
+      _currentLocation = loc;
+      await _guardarUbicacionCliente(loc);
+      await _guardarUbicacionCache(loc);
+      _ubicacionNueva = true;
+    } catch (e) {
+      debugPrint('Error guardando ubicación: $e');
     } finally {
       _isLoadingLocation = false;
       if (!_disposed) notifyListeners();
     }
+  }
+
+  Future<LatLng?> _leerUbicacionCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final lat = prefs.getDouble(_kLastLat);
+      final lng = prefs.getDouble(_kLastLng);
+      if (lat != null && lng != null) return LatLng(lat, lng);
+    } catch (_) {}
+    return null;
+  }
+
+  Future<void> _guardarUbicacionCache(LatLng loc) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setDouble(_kLastLat, loc.latitude);
+      await prefs.setDouble(_kLastLng, loc.longitude);
+    } catch (_) {}
   }
 
   Future<void> _guardarUbicacionCliente(LatLng loc) async {

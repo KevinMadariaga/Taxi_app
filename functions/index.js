@@ -240,6 +240,122 @@ exports.onSolicitudEstadoChange = onDocumentUpdated(
 );
 
 /**
+ * Reúne los tokens FCM de todos los administradores.
+ * Busca en la colección `administradores` y en `usuarios` con rol admin.
+ */
+async function getAdminTokens(db) {
+  const tokens = new Set();
+
+  try {
+    const adminsSnap = await db.collection("administradores").get();
+    adminsSnap.forEach((d) => {
+      const t = d.data().fcmToken;
+      if (t) tokens.add(t);
+    });
+  } catch (err) {
+    console.error("Error leyendo administradores:", err);
+  }
+
+  for (const rol of ["admin", "administrador"]) {
+    try {
+      const snap = await db
+        .collection("usuarios")
+        .where("rol", "==", rol)
+        .get();
+      snap.forEach((d) => {
+        const t = d.data().fcmToken;
+        if (t) tokens.add(t);
+      });
+    } catch (err) {
+      console.error(`Error leyendo usuarios rol=${rol}:`, err);
+    }
+  }
+
+  return [...tokens];
+}
+
+/**
+ * Cloud Function: Notifica a los administradores cuando un cliente solicita
+ * activar el servicio de conductor (campo `solicitudConductor` pasa a true en
+ * /usuarios/{uid}). Llega aunque la app del admin esté cerrada (push FCM/APNs).
+ */
+exports.onSolicitudConductorNueva = onDocumentUpdated(
+  {
+    document: "usuarios/{uid}",
+    region: "us-central1",
+  },
+  async (event) => {
+    const before = event.data.before.data();
+    const after = event.data.after.data();
+    if (!before || !after) return null;
+
+    const pidioAntes = before.solicitudConductor === true;
+    const pideAhora = after.solicitudConductor === true;
+
+    // Solo cuando pasa de false/ausente a true
+    if (pidioAntes || !pideAhora) return null;
+
+    const db = getFirestore();
+    const tokens = await getAdminTokens(db);
+    if (tokens.length === 0) {
+      console.log("No hay tokens de administradores para notificar.");
+      return null;
+    }
+
+    const nombre =
+      [after.nombre, after.apellido]
+        .filter((p) => p && String(p).trim())
+        .join(" ")
+        .trim() || "Un cliente";
+
+    const title = "🚖 Nueva solicitud de conductor";
+    const body = `${nombre} quiere activar el servicio de conductor.`;
+
+    const message = {
+      tokens: tokens,
+      notification: { title, body },
+      data: {
+        type: "solicitud_conductor",
+        uid: event.params.uid,
+        title,
+        body,
+      },
+      apns: {
+        payload: {
+          aps: {
+            alert: { title, body },
+            badge: 1,
+            sound: "default",
+            contentAvailable: true,
+            mutableContent: true,
+          },
+        },
+        headers: { "apns-priority": "10" },
+      },
+      android: {
+        priority: "high",
+        notification: {
+          channelId: "taxi_trip_channel",
+          sound: "default",
+          priority: "high",
+        },
+      },
+    };
+
+    try {
+      const resp = await getMessaging().sendEachForMulticast(message);
+      console.log(
+        `✅ Notif. solicitud conductor: ${resp.successCount}/${tokens.length} enviadas.`
+      );
+    } catch (err) {
+      console.error(`❌ Error enviando notif. a admins: ${err.message}`);
+    }
+
+    return null;
+  }
+);
+
+/**
  * Función de diagnóstico: Permite enviar una notificación de prueba a un token.
  * URL: https://[region]-[project].cloudfunctions.net/debugPush?token=[FCM_TOKEN]
  */

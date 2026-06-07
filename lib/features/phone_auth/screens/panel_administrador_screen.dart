@@ -9,6 +9,7 @@ import '../widgets/conductor_list_item.dart';
 import 'admin_detalle_screen.dart';
 import 'conductor_detalle_screen.dart';
 import 'registro_conductor_screen.dart';
+import 'package:taxi_app/features/admin_conductores/gestion_conductores_screen.dart';
 
 class PanelAdministradorScreen extends StatelessWidget {
   const PanelAdministradorScreen({super.key, required this.adminId});
@@ -28,6 +29,17 @@ class PanelAdministradorScreen extends StatelessWidget {
               backgroundColor: AppColores.background,
               foregroundColor: AppColores.textPrimary,
               elevation: 0,
+              actions: [
+                IconButton(
+                  tooltip: 'Gestión de conductores',
+                  icon: const Icon(Icons.manage_accounts_rounded),
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const GestionConductoresScreen(),
+                    ),
+                  ),
+                ),
+              ],
             ),
             body: SafeArea(
               child: Column(

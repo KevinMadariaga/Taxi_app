@@ -1,0 +1,698 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/features/admin/admin_configuracion_screen.dart';
+
+/// Pantalla principal del administrador (rol `administrador`).
+///
+/// Dos pestañas desde la colección `usuarios`:
+///  - Conductores: notifica solicitudes de activación y permite aprobarlas,
+///    escribiendo `membresia: activa` y la vigencia en días.
+///  - Clientes (rol cliente / sin rol) con nombre y apellido.
+/// Buscador superior filtra ambas pestañas por nombre y apellido.
+class AdminHomeScreen extends StatefulWidget {
+  const AdminHomeScreen({super.key, required this.adminId});
+
+  final String adminId;
+
+  @override
+  State<AdminHomeScreen> createState() => _AdminHomeScreenState();
+}
+
+class _AdminHomeScreenState extends State<AdminHomeScreen> {
+  String _query = '';
+
+  bool _coincide(Map<String, dynamic> data) {
+    final q = _query.trim().toLowerCase();
+    if (q.isEmpty) return true;
+    final nombre = '${data['nombre'] ?? ''} ${data['apellido'] ?? ''}'
+        .toLowerCase();
+    return nombre.contains(q);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final usuariosRef = FirebaseFirestore.instance.collection('usuarios');
+
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        backgroundColor: AppColores.background,
+        appBar: AppBar(
+          title: const Text('Administrador'),
+          backgroundColor: AppColores.primary,
+          foregroundColor: AppColores.textWhite,
+          actions: [
+            IconButton(
+              tooltip: 'Configuración',
+              icon: const Icon(Icons.settings),
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) =>
+                      AdminConfiguracionScreen(adminId: widget.adminId),
+                ),
+              ),
+            ),
+          ],
+          bottom: TabBar(
+            indicatorColor: AppColores.textWhite,
+            labelColor: Colors.black,
+            unselectedLabelColor: Colors.black,
+            labelStyle: const TextStyle(fontWeight: FontWeight.w700),
+            unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700),
+            tabs: const [
+              Tab(text: 'Conductores'),
+              Tab(text: 'Clientes'),
+            ],
+          ),
+        ),
+        body: SafeArea(
+          child: Column(
+            children: [
+              Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 600),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                    child: TextField(
+                      onChanged: (v) => setState(() => _query = v),
+                      decoration: InputDecoration(
+                        hintText: 'Buscar por nombre o apellido',
+                        prefixIcon: const Icon(Icons.search),
+                        filled: true,
+                        fillColor: AppColores.surface,
+                        contentPadding: const EdgeInsets.symmetric(
+                          vertical: 0,
+                          horizontal: 12,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                  stream: usuariosRef.snapshots(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    if (snapshot.hasError) {
+                      return Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Text(
+                            'Error cargando usuarios: ${snapshot.error}',
+                          ),
+                        ),
+                      );
+                    }
+
+                    final docs = snapshot.data?.docs ?? const [];
+
+                    final conductores =
+                        <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+                    final clientes =
+                        <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+                    for (final d in docs) {
+                      final data = d.data();
+                      if (!_coincide(data)) continue;
+                      final rol = (data['rol'] ?? '').toString().toLowerCase();
+                      final pidioConductor = data['solicitudConductor'] == true;
+                      if (rol == 'conductor' || pidioConductor) {
+                        conductores.add(d);
+                      } else if (rol == 'cliente' || rol.isEmpty) {
+                        clientes.add(d);
+                      }
+                    }
+
+                    return TabBarView(
+                      children: [
+                        _ListaConductores(docs: conductores),
+                        _ListaClientes(docs: clientes),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+bool _membresiaActiva(Map<String, dynamic> data) =>
+    (data['membresia'] ?? '').toString().toLowerCase() == 'activa';
+
+String _str(Map<String, dynamic> data, List<String> keys, String fallback) {
+  for (final k in keys) {
+    final v = data[k];
+    if (v != null && v.toString().trim().isNotEmpty) return v.toString();
+  }
+  return fallback;
+}
+
+String _nombreCompleto(Map<String, dynamic> data, String fallback) {
+  final partes = [
+    (data['nombre'] ?? '').toString().trim(),
+    (data['apellido'] ?? '').toString().trim(),
+  ].where((p) => p.isNotEmpty).join(' ').trim();
+  return partes.isEmpty ? fallback : partes;
+}
+
+String _fechaCorta(Timestamp? ts) {
+  if (ts == null) return '';
+  final d = ts.toDate();
+  return '${d.day.toString().padLeft(2, '0')}/'
+      '${d.month.toString().padLeft(2, '0')}/${d.year}';
+}
+
+Future<bool> _confirmar(
+  BuildContext context,
+  String titulo,
+  String mensaje, {
+  String accion = 'Aceptar',
+  bool peligro = false,
+}) async {
+  final r = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(titulo),
+      content: Text(mensaje),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, false),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          style: peligro
+              ? FilledButton.styleFrom(backgroundColor: AppColores.error)
+              : null,
+          onPressed: () => Navigator.pop(ctx, true),
+          child: Text(accion),
+        ),
+      ],
+    ),
+  );
+  return r == true;
+}
+
+void _verDetalles(BuildContext context, Map<String, dynamic> data) {
+  Widget fila(String k, String v) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 90,
+              child: Text(k,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: AppColores.textSecondary)),
+            ),
+            Expanded(child: Text(v)),
+          ],
+        ),
+      );
+
+  final activa = _membresiaActiva(data);
+  final vence = data['membresiaVence'];
+  showDialog(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(_nombreCompleto(data, 'Usuario')),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          fila('Teléfono', _str(data, ['telefono'], '—')),
+          fila('Correo', _str(data, ['correo', 'email'], '—')),
+          fila('Placa', _str(data, ['placa'], '—')),
+          fila('Rol', _str(data, ['rol'], 'cliente')),
+          fila('Membresía', activa ? 'activa' : 'inactiva'),
+          if (activa && data['membresiaDias'] != null)
+            fila('Vigencia',
+                '${data['membresiaDias']} días${vence is Timestamp ? ' · vence ${_fechaCorta(vence)}' : ''}'),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('Cerrar'),
+        ),
+      ],
+    ),
+  );
+}
+
+class _ListaConductores extends StatelessWidget {
+  const _ListaConductores({required this.docs});
+  final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs;
+
+  @override
+  Widget build(BuildContext context) {
+    if (docs.isEmpty) {
+      return const _EmptyTile('No hay conductores.');
+    }
+    final pendientes = docs
+        .where((d) =>
+            d.data()['solicitudConductor'] == true &&
+            !_membresiaActiva(d.data()))
+        .length;
+
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 600),
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+          children: [
+            if (pendientes > 0)
+              Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColores.error.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: AppColores.error.withValues(alpha: 0.4),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.notifications_active,
+                        color: AppColores.error, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '$pendientes ${pendientes == 1 ? 'solicitud' : 'solicitudes'} de activación pendiente'
+                        '${pendientes == 1 ? '' : 's'}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: AppColores.error,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ...docs.map((d) => _ConductorCard(doc: d)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ListaClientes extends StatelessWidget {
+  const _ListaClientes({required this.docs});
+  final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs;
+
+  @override
+  Widget build(BuildContext context) {
+    if (docs.isEmpty) {
+      return const _EmptyTile('No hay clientes.');
+    }
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 600),
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+          children: docs.map((d) => _ClienteCard(doc: d)).toList(),
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyTile extends StatelessWidget {
+  const _EmptyTile(this.texto);
+  final String texto;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Text(
+          texto,
+          style: const TextStyle(color: AppColores.textSecondary),
+        ),
+      ),
+    );
+  }
+}
+
+class _ClienteCard extends StatelessWidget {
+  const _ClienteCard({required this.doc});
+  final QueryDocumentSnapshot<Map<String, dynamic>> doc;
+
+  Future<void> _eliminar(BuildContext context, String nombre) async {
+    final ok = await _confirmar(
+      context,
+      'Eliminar usuario',
+      'Se eliminará el registro de $nombre. Esta acción no se puede deshacer.',
+      accion: 'Eliminar',
+      peligro: true,
+    );
+    if (!ok) return;
+    await doc.reference.delete();
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$nombre eliminado.')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final data = doc.data();
+    final nombre = _nombreCompleto(data, 'Cliente');
+    final contacto =
+        _str(data, ['correo', 'email', 'telefono'], 'Sin contacto');
+    final foto = _str(data, ['foto', 'fotoUrl'], '');
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: AppColores.grey200,
+          backgroundImage: foto.isNotEmpty ? NetworkImage(foto) : null,
+          child: foto.isEmpty ? const Icon(Icons.person) : null,
+        ),
+        title: Text(nombre,
+            style: const TextStyle(fontWeight: FontWeight.w600)),
+        subtitle: Text(contacto),
+        trailing: PopupMenuButton<String>(
+          onSelected: (v) {
+            if (v == 'detalles') _verDetalles(context, data);
+            if (v == 'eliminar') _eliminar(context, nombre);
+          },
+          itemBuilder: (_) => const [
+            PopupMenuItem(value: 'detalles', child: Text('Ver detalles')),
+            PopupMenuItem(value: 'eliminar', child: Text('Eliminar usuario')),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ConductorCard extends StatelessWidget {
+  const _ConductorCard({required this.doc});
+  final QueryDocumentSnapshot<Map<String, dynamic>> doc;
+
+  Future<int?> _pedirDias(BuildContext context) {
+    final controller = TextEditingController(text: '30');
+    return showDialog<int>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Activar membresía'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('¿Por cuántos días se activa el servicio?'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              decoration: const InputDecoration(
+                labelText: 'Días',
+                suffixText: 'días',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColores.buttonPrimary,
+              foregroundColor: AppColores.textWhite,
+            ),
+            onPressed: () {
+              final dias = int.tryParse(controller.text.trim());
+              if (dias == null || dias <= 0) return;
+              Navigator.pop(ctx, dias);
+            },
+            child: const Text('Aprobar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _aprobar(BuildContext context, String nombre) async {
+    final dias = await _pedirDias(context);
+    if (dias == null) return;
+    final inicio = DateTime.now();
+    await doc.reference.update({
+      'membresia': 'activa',
+      'membresiaDias': dias,
+      'membresiaInicio': Timestamp.fromDate(inicio),
+      'membresiaVence': Timestamp.fromDate(inicio.add(Duration(days: dias))),
+      'servicioActivo': true,
+      'solicitudConductor': false,
+    });
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Membresía activada para $nombre ($dias días).'),
+          backgroundColor: AppColores.success,
+        ),
+      );
+    }
+  }
+
+  Future<void> _revocar(BuildContext context, String nombre) async {
+    final ok = await _confirmar(
+      context,
+      'Revocar membresía',
+      'Se desactivará el servicio de $nombre. Tendrá que activar de nuevo.',
+      accion: 'Revocar',
+      peligro: true,
+    );
+    if (!ok) return;
+    await doc.reference.update({
+      'membresia': '',
+      'servicioActivo': false,
+    });
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Membresía de $nombre revocada.')),
+      );
+    }
+  }
+
+  Future<void> _quitarConductor(BuildContext context, String nombre) async {
+    final ok = await _confirmar(
+      context,
+      'Quitar como conductor',
+      '$nombre volverá a ser cliente. Se desactiva su servicio.',
+      accion: 'Quitar',
+      peligro: true,
+    );
+    if (!ok) return;
+    await doc.reference.update({
+      'rol': 'cliente',
+      'solicitudConductor': false,
+      'membresia': '',
+      'servicioActivo': false,
+    });
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$nombre pasó a cliente.')),
+      );
+    }
+  }
+
+  Future<void> _eliminar(BuildContext context, String nombre) async {
+    final ok = await _confirmar(
+      context,
+      'Eliminar usuario',
+      'Se eliminará el registro de $nombre. Esta acción no se puede deshacer.',
+      accion: 'Eliminar',
+      peligro: true,
+    );
+    if (!ok) return;
+    await doc.reference.delete();
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$nombre eliminado.')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final data = doc.data();
+    final nombre = _nombreCompleto(data, 'Conductor');
+    final placa = _str(data, ['placa'], 'Sin placa');
+    final foto = _str(data, ['foto', 'fotoUrl'], '');
+    final activa = _membresiaActiva(data);
+    final pidio = data['solicitudConductor'] == true;
+    final dias = data['membresiaDias'];
+    final vence = data['membresiaVence'];
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  backgroundColor: AppColores.grey200,
+                  backgroundImage: foto.isNotEmpty ? NetworkImage(foto) : null,
+                  child:
+                      foto.isEmpty ? const Icon(Icons.local_taxi) : null,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(nombre,
+                          style:
+                              const TextStyle(fontWeight: FontWeight.w700)),
+                      Text('Placa: $placa',
+                          style: const TextStyle(
+                              color: AppColores.textSecondary)),
+                    ],
+                  ),
+                ),
+                PopupMenuButton<String>(
+                  onSelected: (v) {
+                    if (v == 'detalles') _verDetalles(context, data);
+                    if (v == 'revocar') _revocar(context, nombre);
+                    if (v == 'quitar') _quitarConductor(context, nombre);
+                    if (v == 'eliminar') _eliminar(context, nombre);
+                  },
+                  itemBuilder: (_) => [
+                    const PopupMenuItem(
+                        value: 'detalles', child: Text('Ver detalles')),
+                    if (activa)
+                      const PopupMenuItem(
+                          value: 'revocar', child: Text('Revocar membresía')),
+                    const PopupMenuItem(
+                        value: 'quitar', child: Text('Quitar como conductor')),
+                    const PopupMenuItem(
+                        value: 'eliminar', child: Text('Eliminar usuario')),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            if (activa)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColores.success.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(Icons.verified,
+                            color: AppColores.success, size: 18),
+                        SizedBox(width: 6),
+                        Text('Membresía: activa',
+                            style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: AppColores.success)),
+                      ],
+                    ),
+                    if (dias != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          'Vigencia: $dias días'
+                          '${vence is Timestamp ? ' · vence ${_fechaCorta(vence)}' : ''}',
+                          style: const TextStyle(
+                              color: AppColores.textSecondary),
+                        ),
+                      ),
+                  ],
+                ),
+              )
+            else if (pidio)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColores.warning.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.notifications_active,
+                            color: AppColores.warning, size: 18),
+                        SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'Quiere activar el servicio de conductor',
+                            style: TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColores.success,
+                        foregroundColor: AppColores.textWhite,
+                      ),
+                      icon: const Icon(Icons.check),
+                      label: const Text('Aprobar y activar membresía'),
+                      onPressed: () => _aprobar(context, nombre),
+                    ),
+                  ),
+                ],
+              )
+            else
+              Row(
+                children: [
+                  const Icon(Icons.info_outline,
+                      color: AppColores.textSecondary, size: 18),
+                  const SizedBox(width: 6),
+                  const Expanded(
+                    child: Text(
+                      'Registrado · sin solicitud de activación',
+                      style: TextStyle(color: AppColores.textSecondary),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => _aprobar(context, nombre),
+                    child: const Text('Activar'),
+                  ),
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}

@@ -8,6 +8,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/services/services.dart';
 import 'package:taxi_app/features/trip_tracking_cliente/views/trip_tracking_screen.dart';
 import 'package:taxi_app/core/helpers/responsive_helper.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/home_cliente_view.dart';
@@ -35,7 +36,7 @@ class BuscandoTaxiView extends StatefulWidget {
 }
 
 class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final BuscandoTaxiViewModel _vm;
   late final AnimationController _dotsController;
 
@@ -51,6 +52,19 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
 
   Timer? _searchTimer;
   int _searchSeconds = 0;
+  bool _notif5minEnviada = false;
+
+  // Cancela la solicitud si la app pasa demasiado tiempo en segundo plano.
+  Timer? _bgCancelTimer;
+  // true cuando ya se navegó/canceló: evita acciones de ciclo de vida tardías.
+  bool _flujoTerminado = false;
+  // Diálogo de contraofertas abierto (evita duplicarlo).
+  bool _modalContraofertasAbierto = false;
+  // Bottom sheet "Actualizar valor" abierto.
+  bool _modalEditarAbierto = false;
+
+  static const Duration _umbralBackgroundCancel = Duration(minutes: 6);
+  static const int _segundosAviso5min = 300;
 
   // Estado UI-only: qué conductores están siendo respondidos
   final Map<String, bool> _respondingOffer = {};
@@ -58,6 +72,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _vm = BuscandoTaxiViewModel();
     _vm.addListener(_onVmChanged);
     _vm.iniciarEscucha(
@@ -76,9 +91,34 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
     _subscribeConductoresConectados();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (_flujoTerminado) return;
+
+    if (state == AppLifecycleState.detached) {
+      // App cerrada estando en buscando → cancelar la solicitud.
+      _vm.marcarCanceladaPorInactividad();
+      return;
+    }
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      // Segundo plano: si pasan ~6 min sin volver, cancelar.
+      _bgCancelTimer?.cancel();
+      _bgCancelTimer = Timer(_umbralBackgroundCancel, () {
+        _vm.marcarCanceladaPorInactividad();
+      });
+      return;
+    }
+    if (state == AppLifecycleState.resumed) {
+      _bgCancelTimer?.cancel();
+    }
+  }
+
   void _onVmChanged() {
     if (!mounted) return;
     setState(() {});
+    _maybeMostrarModalContraofertas();
   }
 
   // ── Streams ───────────────────────────────────────────────────────────────
@@ -136,7 +176,22 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
     _searchTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
       setState(() => _searchSeconds++);
+      if (!_notif5minEnviada && _searchSeconds >= _segundosAviso5min) {
+        _notif5minEnviada = true;
+        _avisar5Minutos();
+      }
     });
+  }
+
+  Future<void> _avisar5Minutos() async {
+    try {
+      await NotificacionesServicio.instance.showNotification(
+        id: 1003,
+        title: 'Llevas 5 minutos buscando',
+        body: 'Aún no hay conductor. ¿Quieres aumentar tu oferta para '
+            'conseguir uno más rápido?',
+      );
+    } catch (_) {}
   }
 
   String _formatDuration(int seconds) {
@@ -149,6 +204,8 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
 
   Future<void> _onSolicitudAsignada(String solicitudId) async {
     if (!mounted) return;
+    _flujoTerminado = true;
+    _bgCancelTimer?.cancel();
     await _vm.detenerEscucha();
     if (!mounted) return;
     _searchTimer?.cancel();
@@ -174,6 +231,8 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
 
   Future<void> _cancelSolicitud() async {
     if (_vm.isCancelling) return;
+    _flujoTerminado = true;
+    _bgCancelTimer?.cancel();
     await _vm.cancelarSolicitud();
     if (!mounted) return;
     _searchTimer?.cancel();
@@ -185,6 +244,10 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
 
   Future<void> _aceptarOferta(String conductorId) async {
     if (_respondingOffer[conductorId] == true) return;
+    // Cerrar el modal de contraofertas antes de navegar al viaje.
+    if (_modalContraofertasAbierto && Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    }
     setState(() => _respondingOffer[conductorId] = true);
     final ok = await _vm.aceptarContraofertaDeConductor(conductorId);
     if (!mounted) return;
@@ -258,9 +321,11 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
       return [base + 500, base + 1000, base + 1500, base + 2000];
     }
 
+    _modalEditarAbierto = true;
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) {
         final media = MediaQuery.of(ctx);
@@ -386,6 +451,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
         );
       },
     );
+    _modalEditarAbierto = false;
     controller.dispose();
   }
 
@@ -393,6 +459,8 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _bgCancelTimer?.cancel();
     _conductoresSub?.cancel();
     _conductoresConectadosSub?.cancel();
     _searchTimer?.cancel();
@@ -412,99 +480,80 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
     final isTablet = screenW >= 600;
     final mapHeight = ResponsiveHelper.hp(
       context,
-      isTablet ? 35 : 38,
-    ).clamp(160.0, 560.0);
+      isTablet ? 42 : 46,
+    ).clamp(200.0, 620.0);
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        // Si hay una modal/diálogo abierto, Android cierra primero esa ruta y
+        // este callback NO se invoca. Aquí solo llega el back de la pantalla:
+        // cancelar la búsqueda de forma limpia (sin dejar solicitud huérfana).
+        if (_flujoTerminado || _vm.isCancelling) return;
+        // Si hay alguna modal abierta, no cancelar: dejar que se cierre sola.
+        if (_modalEditarAbierto || _modalContraofertasAbierto) return;
+        _cancelSolicitud();
+      },
+      child: Scaffold(
       backgroundColor: AppColores.background,
       body: SafeArea(
         bottom: false,
-        child: Stack(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // ①②③ Área scrollable: encabezado + mapa + oferta + (dots si no hay ofertas)
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: EdgeInsets.only(
-                      left: isTablet ? 32 : 16,
-                      right: isTablet ? 32 : 16,
-                      top: 12,
-                      bottom: 8,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _buildHeader(isTablet),
-                        const SizedBox(height: 14),
-                        _SonarMapWidget(
-                          clientLocation: _clientLocation,
-                          conductoresPositions: _conductoresPositions,
-                          conectadosPositions: _conectadosPositions,
-                          isMoto: _vm.isMotoSolicitud,
-                          mapHeight: mapHeight,
-                          onMapCreated: (controller) {
-                            _mapController = controller;
-                            if (_clientLocation != null) {
-                              controller.animateCamera(
-                                CameraUpdate.newLatLngZoom(
-                                  _clientLocation!,
-                                  14,
-                                ),
-                              );
-                            }
-                          },
-                        ),
-                        const SizedBox(height: 14),
-                        _buildOfertaActual(isTablet),
-                        if (_vm.contraofertas.isEmpty) ...[
-                          const SizedBox(height: 14),
-                          _buildSearchingSection(isTablet),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-                // ④ Panel de contraofertas fijo entre el scroll y el botón
-                if (_vm.contraofertas.isNotEmpty)
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxHeight: 220),
-                    child: SingleChildScrollView(
-                      physics: const ClampingScrollPhysics(),
-                      padding: EdgeInsets.fromLTRB(
-                        isTablet ? 32 : 16,
-                        8,
-                        isTablet ? 32 : 16,
-                        4,
-                      ),
-                      child: _buildContraofertasPanel(isTablet),
-                    ),
-                  ),
-                // ⑤ Botón cancelar siempre visible en el borde inferior
-                _buildBottomCancelBar(isTablet, media),
-              ],
+            // Encabezado fijo arriba
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                isTablet ? 32 : 16,
+                12,
+                isTablet ? 32 : 16,
+                0,
+              ),
+              child: _buildHeader(isTablet),
             ),
-            // FAB para centrar el mapa en la ubicación del cliente
-            Positioned(
-              right: isTablet ? 48 : 24,
-              top: 72,
-              child: FloatingActionButton.small(
-                heroTag: 'center_client',
-                backgroundColor: Colors.white,
-                foregroundColor: AppColores.textSecondary,
-                elevation: 3,
-                onPressed: () {
-                  if (_clientLocation == null) return;
-                  _mapController?.animateCamera(
-                    CameraUpdate.newLatLngZoom(_clientLocation!, 14),
-                  );
-                },
-                child: const Icon(Icons.my_location),
+            // Oferta + mapa centrados; el texto "buscando" queda equidistante
+            // entre el mapa y el botón cancelar (mismos Spacer arriba/abajo).
+            Expanded(
+              child: Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: isTablet ? 32 : 16,
+                  vertical: 8,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Spacer(),
+                    _buildOfertaActual(isTablet),
+                    const SizedBox(height: 16),
+                    _SonarMapWidget(
+                      clientLocation: _clientLocation,
+                      conductoresPositions: _conductoresPositions,
+                      conectadosPositions: _conectadosPositions,
+                      isMoto: _vm.isMotoSolicitud,
+                      ampliarRango: _searchSeconds >= _segundosAviso5min,
+                      mapHeight: mapHeight,
+                      onMapCreated: (controller) {
+                        _mapController = controller;
+                        if (_clientLocation != null) {
+                          controller.animateCamera(
+                            CameraUpdate.newLatLngZoom(_clientLocation!, 14),
+                          );
+                        }
+                      },
+                    ),
+                    const Spacer(),
+                    _buildSearchingSection(isTablet),
+                    const Spacer(),
+                  ],
+                ),
               ),
             ),
+            // Botón cancelar siempre visible en el borde inferior
+            _buildBottomCancelBar(isTablet, media),
           ],
         ),
+      ),
       ),
     );
   }
@@ -527,7 +576,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
           ),
         ),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
             color: AppColores.cardBackground,
             borderRadius: BorderRadius.circular(20),
@@ -536,7 +585,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
           child: Text(
             _formatDuration(_searchSeconds),
             style: TextStyle(
-              fontSize: isTablet ? 15 : 13,
+              fontSize: isTablet ? 17 : 15,
               fontWeight: FontWeight.w700,
               color: AppColores.primary,
             ),
@@ -547,51 +596,105 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
   }
 
   Widget _buildOfertaActual(bool isTablet) {
+    const Color verde = Color(0xFF1F9D55);
     return GestureDetector(
       onTap: _vm.isUpdatingValor ? null : _abrirModalEditarValor,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        padding: EdgeInsets.symmetric(
+          horizontal: 18,
+          vertical: isTablet ? 18 : 16,
+        ),
         decoration: BoxDecoration(
-          color: AppColores.cardBackground,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColores.borderSubtle),
-          boxShadow: const [
+          gradient: const LinearGradient(
+            colors: [Color(0xFF22B567), verde],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
             BoxShadow(
-              color: Colors.black12,
-              blurRadius: 4,
-              offset: Offset(0, 2),
+              color: verde.withValues(alpha: 0.35),
+              blurRadius: 14,
+              offset: const Offset(0, 6),
             ),
           ],
         ),
         child: Row(
           children: [
-            const Icon(
-              Icons.monetization_on_outlined,
-              color: AppColores.primary,
-              size: 20,
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.20),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.local_offer_rounded,
+                color: Colors.white,
+                size: 22,
+              ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 14),
             Expanded(
-              child: Text(
-                'Tu oferta: \$${_formatCurrency(_vm.valorServicioActual)}',
-                style: TextStyle(
-                  fontSize: isTablet ? 16 : 14,
-                  fontWeight: FontWeight.w700,
-                  color: AppColores.textPrimary,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Tu oferta',
+                    style: TextStyle(
+                      fontSize: isTablet ? 14 : 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white.withValues(alpha: 0.9),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '\$${_formatCurrency(_vm.valorServicioActual)}',
+                    style: TextStyle(
+                      fontSize: isTablet ? 32 : 28,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.5,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
               ),
             ),
             if (_vm.isUpdatingValor)
               const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2),
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
               )
             else
-              const Icon(
-                Icons.edit_outlined,
-                size: 16,
-                color: AppColores.textSecondary,
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.20),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.edit, size: 14, color: Colors.white),
+                    SizedBox(width: 4),
+                    Text(
+                      'Editar',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
               ),
           ],
         ),
@@ -619,33 +722,129 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
     );
   }
 
-  Widget _buildContraofertasPanel(bool isTablet) {
-    final ofertas = _vm.contraofertas;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  // ── Modal central de contraofertas ─────────────────────────────────────────
+
+  void _maybeMostrarModalContraofertas() {
+    if (_modalContraofertasAbierto || _flujoTerminado) return;
+    if (_vm.contraofertas.isEmpty) return;
+    _modalContraofertasAbierto = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        _modalContraofertasAbierto = false;
+        return;
+      }
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => _buildModalContraofertas(ctx),
+      ).whenComplete(() => _modalContraofertasAbierto = false);
+    });
+  }
+
+  Widget _buildModalContraofertas(BuildContext ctx) {
+    final isTablet = MediaQuery.of(ctx).size.width >= 600;
+    return AnimatedBuilder(
+      animation: _vm,
+      builder: (ctx, _) {
+        final ofertas = _vm.contraofertas;
+        // Cuando ya no quedan ofertas (aceptada/rechazadas), cerrar el modal.
+        if (ofertas.isEmpty) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (Navigator.of(ctx).canPop()) Navigator.of(ctx).pop();
+          });
+        }
+        return Dialog(
+          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
+          backgroundColor: AppColores.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(ctx).size.height * 0.72,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 18, 18, 8),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.local_taxi,
+                          color: AppColores.primary, size: 22),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Conductores que ofertaron (${ofertas.length})',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: isTablet ? 18 : 16,
+                            color: AppColores.textPrimary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(18, 0, 18, 8),
+                  child: Text(
+                    'Elige la oferta que prefieras según valor y calificación.',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      color: AppColores.textSecondary,
+                    ),
+                  ),
+                ),
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                    itemCount: ofertas.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 10),
+                    itemBuilder: (_, i) =>
+                        _buildContraofertaCard(ofertas[i], isTablet),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// Estrellas de calificación del conductor (promedio 0-5).
+  Widget _buildEstrellas(double calif, int total) {
+    if (total <= 0 && calif <= 0) {
+      return const Text(
+        'Conductor nuevo',
+        style: TextStyle(fontSize: 11.5, color: AppColores.textSecondary),
+      );
+    }
+    return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Row(
-          children: [
-            const Icon(Icons.local_taxi, color: AppColores.primary, size: 18),
-            const SizedBox(width: 6),
-            Text(
-              'Ofertas de conductores (${ofertas.length})',
-              style: TextStyle(
-                fontWeight: FontWeight.w700,
-                fontSize: isTablet ? 16 : 14,
-                color: AppColores.textPrimary,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        ListView.separated(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: ofertas.length,
-          separatorBuilder: (_, _) => const SizedBox(height: 8),
-          itemBuilder: (_, i) => _buildContraofertaCard(ofertas[i], isTablet),
+        ...List.generate(5, (i) {
+          IconData icon;
+          if (calif >= i + 1) {
+            icon = Icons.star_rounded;
+          } else if (calif >= i + 0.5) {
+            icon = Icons.star_half_rounded;
+          } else {
+            icon = Icons.star_outline_rounded;
+          }
+          return Icon(icon, size: 15, color: AppColores.warning);
+        }),
+        const SizedBox(width: 4),
+        Text(
+          '${calif.toStringAsFixed(1)} ($total)',
+          style: const TextStyle(
+            fontSize: 11.5,
+            fontWeight: FontWeight.w600,
+            color: AppColores.textSecondary,
+          ),
         ),
       ],
     );
@@ -705,6 +904,8 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
                         color: AppColores.textSecondary,
                       ),
                     ),
+                  const SizedBox(height: 4),
+                  _buildEstrellas(o.calificacion, o.totalCalificaciones),
                 ],
               ),
             ),
@@ -751,11 +952,13 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
   }
 
   Widget _buildBottomCancelBar(bool isTablet, MediaQueryData media) {
-    final bottomPad = media.padding.bottom > 0 ? media.padding.bottom : 16.0;
+    // Inset real de la barra de navegación + separación, para que el botón
+    // no quede pegado a la barra de Android (gestos o 3 botones).
+    final bottomPad = media.padding.bottom + 14.0;
     return Container(
       padding: EdgeInsets.fromLTRB(
         isTablet ? 32 : 16,
-        8,
+        isTablet ? 20 : 14,
         isTablet ? 32 : 16,
         bottomPad,
       ),
@@ -839,6 +1042,7 @@ class _SonarMapWidget extends StatefulWidget {
     required this.conductoresPositions,
     required this.conectadosPositions,
     required this.isMoto,
+    required this.ampliarRango,
     required this.mapHeight,
     required this.onMapCreated,
   });
@@ -847,6 +1051,7 @@ class _SonarMapWidget extends StatefulWidget {
   final Map<String, LatLng> conductoresPositions;
   final Map<String, LatLng> conectadosPositions;
   final bool isMoto;
+  final bool ampliarRango;
   final double mapHeight;
   final void Function(GoogleMapController) onMapCreated;
 
@@ -860,8 +1065,11 @@ class _SonarMapWidgetState extends State<_SonarMapWidget> {
   BitmapDescriptor? _taxiIcon;
   BitmapDescriptor? _smallTaxiIcon;
   BitmapDescriptor? _bigTaxiIcon;
+  BitmapDescriptor? _motoIcon;
 
   double _sonarRadius = 220.0;
+  // Radio máximo del sonar; se amplía tras 5 min sin encontrar conductor.
+  double get _maxSonarRadius => widget.ampliarRango ? 1500.0 : 700.0;
   Timer? _sonarTimer;
   Set<Circle> _sonarCircles = {};
   Set<Circle> _clientCircles = {};
@@ -874,8 +1082,23 @@ class _SonarMapWidgetState extends State<_SonarMapWidget> {
     super.initState();
     _loadTaxiIcon();
     _loadSmallTaxiIcon();
+    _loadMotoIcon();
     _updateClientCircle();
     _startSonarTimer();
+  }
+
+  Future<void> _loadMotoIcon() async {
+    try {
+      _motoIcon = await _bitmapDescriptorFromIcon(
+        Icons.two_wheeler_rounded,
+        96,
+        const Color(0xFF111111),
+      );
+      if (!mounted) return;
+      _updateTaxiMarkers();
+      _updateVisibleConectadosMarkers();
+      setState(() {});
+    } catch (_) {}
   }
 
   @override
@@ -908,7 +1131,7 @@ class _SonarMapWidgetState extends State<_SonarMapWidget> {
       if (!mounted) return;
       setState(() {
         _sonarRadius += 50;
-        if (_sonarRadius > 700) _sonarRadius = 250;
+        if (_sonarRadius > _maxSonarRadius) _sonarRadius = 250;
         _sonarCircles = {
           Circle(
             circleId: const CircleId('sonar'),
@@ -951,13 +1174,13 @@ class _SonarMapWidgetState extends State<_SonarMapWidget> {
       setState(() => _taxiMarkers = {});
       return;
     }
+    final motoIcon = _motoIcon ??
+        BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange);
     final markers = widget.conductoresPositions.entries.map((e) {
       return Marker(
         markerId: MarkerId('taxi_${e.key}'),
         position: e.value,
-        icon: isMoto
-            ? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange)
-            : _taxiIcon!,
+        icon: isMoto ? motoIcon : _taxiIcon!,
         infoWindow: InfoWindow(
           title: isMoto ? 'Moto cercana' : 'Taxi cercano',
         ),
@@ -989,7 +1212,8 @@ class _SonarMapWidgetState extends State<_SonarMapWidget> {
       final isNew = !_visibleConectadosIds.contains(id);
 
       final icon = isMoto
-          ? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange)
+          ? (_motoIcon ??
+              BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange))
           : (isNew
               ? (_bigTaxiIcon ??
                   _smallTaxiIcon ??
@@ -1019,9 +1243,10 @@ class _SonarMapWidgetState extends State<_SonarMapWidget> {
         Timer(const Duration(milliseconds: 420), () {
           if (!mounted) return;
           final smallIcon = isMoto
-              ? BitmapDescriptor.defaultMarkerWithHue(
-                  BitmapDescriptor.hueOrange,
-                )
+              ? (_motoIcon ??
+                  BitmapDescriptor.defaultMarkerWithHue(
+                    BitmapDescriptor.hueOrange,
+                  ))
               : (_smallTaxiIcon ??
                   BitmapDescriptor.defaultMarkerWithHue(
                     BitmapDescriptor.hueYellow,
@@ -1148,6 +1373,47 @@ Future<BitmapDescriptor> _bitmapDescriptorFromAsset(
     format: ui.ImageByteFormat.png,
   );
   return BitmapDescriptor.bytes(pngBytes!.buffer.asUint8List());
+}
+
+/// Renderiza un [IconData] (p.ej. moto) como marcador circular para el mapa.
+Future<BitmapDescriptor> _bitmapDescriptorFromIcon(
+  IconData icon,
+  double size,
+  Color color,
+) async {
+  final recorder = ui.PictureRecorder();
+  final canvas = Canvas(recorder);
+  final radius = size / 2;
+  // Fondo blanco circular + borde de marca para contraste sobre el mapa.
+  canvas.drawCircle(Offset(radius, radius), radius, Paint()..color = Colors.white);
+  canvas.drawCircle(
+    Offset(radius, radius),
+    radius - size * 0.04,
+    Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = size * 0.07
+      ..color = AppColores.primary,
+  );
+  final tp = TextPainter(textDirection: TextDirection.ltr);
+  tp.text = TextSpan(
+    text: String.fromCharCode(icon.codePoint),
+    style: TextStyle(
+      fontSize: size * 0.58,
+      fontFamily: icon.fontFamily,
+      package: icon.fontPackage,
+      color: color,
+    ),
+  );
+  tp.layout();
+  tp.paint(
+    canvas,
+    Offset((size - tp.width) / 2, (size - tp.height) / 2),
+  );
+  final image = await recorder
+      .endRecording()
+      .toImage(size.toInt(), size.toInt());
+  final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+  return BitmapDescriptor.bytes(bytes!.buffer.asUint8List());
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

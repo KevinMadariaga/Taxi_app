@@ -107,11 +107,8 @@ class CompleteProfileController extends ChangeNotifier {
     );
     if (apellidoError != null) return apellidoError;
 
-    // Require a profile image before completing the profile
-    if (_selectedImage == null) {
-      return 'Selecciona una foto de perfil.';
-    }
-
+    // Foto opcional: si no se elige una nueva, se conserva la del proveedor
+    // (Gmail) que ya quedó guardada en el perfil.
     var telefonoNormalizado = _normalizeToTenDigits(telefono);
     if (telefonoNormalizado.isEmpty) {
       telefonoNormalizado = _normalizeToTenDigits(_currentUser?.telefono ?? '');

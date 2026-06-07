@@ -220,14 +220,16 @@ class _SeleccionaUbicacionEnMapaViewState
                                 clipBehavior: Clip.antiAlias,
                                 child: ClipRRect(
                                   borderRadius: BorderRadius.circular(8),
-                                  child: Mapagoogle(
-                                    initialTarget: _center,
-                                    initialZoom: 16,
-                                    onMapCreated: _onMapCreated,
-                                    onCameraMove: _onCameraMove,
-                                    onCameraIdle: _onCameraIdle,
-                                    myLocationEnabled: true,
-                                    myLocationButtonEnabled: true,
+                                  child: RepaintBoundary(
+                                    child: Mapagoogle(
+                                      initialTarget: _center,
+                                      initialZoom: 16,
+                                      onMapCreated: _onMapCreated,
+                                      onCameraMove: _onCameraMove,
+                                      onCameraIdle: _onCameraIdle,
+                                      myLocationEnabled: true,
+                                      myLocationButtonEnabled: true,
+                                    ),
                                   ),
                                 ),
                               ),

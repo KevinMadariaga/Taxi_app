@@ -6,7 +6,7 @@ import 'package:taxi_app/core/helpers/session_helper.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/presentacion/vistas/home_screen.dart';
 import 'package:taxi_app/features/trip_tracking_cliente/views/trip_tracking_screen.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/presentacion/vistas/complete_profile_page.dart';
-import 'package:taxi_app/features/phone_auth/screens/panel_administrador_screen.dart';
+import 'package:taxi_app/features/admin/admin_home_screen.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/home_cliente_view.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/RutaClienteDestinoView.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/RutaDestinoView.dart';
@@ -85,10 +85,14 @@ class AuthService {
 
           if (usuariosDoc.exists && role != 'administrador') {
             final userData = usuariosDoc.data() ?? <String, dynamic>{};
-            final userRole = (userData['rol'] ?? '').toString().toLowerCase();
+            final userRole = (userData['rol'] ?? userData['role'] ?? '')
+                .toString()
+                .toLowerCase();
             final isProfileComplete = userData['isProfileComplete'] == true;
 
-            if (userRole == 'cliente') {
+            if (userRole == 'admin' || userRole == 'administrador') {
+              role = 'administrador';
+            } else if (userRole == 'cliente') {
               role = 'cliente';
 
               if (!isProfileComplete) {
@@ -251,7 +255,7 @@ class AuthService {
     if (role == 'administrador') {
       final adminId = (uid ?? '').trim();
       if (adminId.isNotEmpty) {
-        return PanelAdministradorScreen(adminId: adminId);
+        return AdminHomeScreen(adminId: adminId);
       }
       return const HomeView();
     }

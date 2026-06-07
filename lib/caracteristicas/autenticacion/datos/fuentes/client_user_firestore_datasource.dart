@@ -20,27 +20,44 @@ class ClientUserFirestoreDataSource {
     required String uid,
     required String? displayName,
     required String? email,
+    String? photoUrl,
   }) async {
+    final foto = (photoUrl ?? '').trim();
     final existing = await getById(uid);
     if (existing != null) {
-      final hasEmail = (existing.email ?? '').isNotEmpty;
-      if (!hasEmail && (email ?? '').trim().isNotEmpty) {
-        await _firestore.collection('usuarios').doc(uid).set({
-          'email': email!.trim(),
-          'rol': 'cliente',
-        }, SetOptions(merge: true));
+      final patch = <String, dynamic>{};
+      if ((existing.email ?? '').isEmpty && (email ?? '').trim().isNotEmpty) {
+        patch['email'] = email!.trim();
+      }
+      // Prellenar foto del proveedor (Gmail) solo si el usuario no tiene una.
+      if (existing.fotoUrl.trim().isEmpty && foto.isNotEmpty) {
+        patch['foto'] = foto;
+      }
+      if (patch.isNotEmpty) {
+        patch['rol'] = 'cliente';
+        await _firestore
+            .collection('usuarios')
+            .doc(uid)
+            .set(patch, SetOptions(merge: true));
       }
       return (await getById(uid)) ?? existing;
     }
 
-    final nombre = (displayName ?? '').trim();
+    // Separar displayName en nombre + apellido (lo que venga del proveedor).
+    final full = (displayName ?? '').trim();
+    final partes = full.isEmpty
+        ? <String>[]
+        : full.split(RegExp(r'\s+'));
+    final nombre = partes.isNotEmpty ? partes.first : '';
+    final apellido = partes.length > 1 ? partes.sublist(1).join(' ') : '';
+
     final payload = <String, dynamic>{
       'id': uid,
       'uid': uid,
       'nombre': nombre,
-      'apellido': '',
+      'apellido': apellido,
       'telefono': '',
-      'foto': '',
+      'foto': foto,
       'rol': 'cliente',
       'email': (email ?? '').trim(),
       'isProfileComplete': false,
@@ -53,9 +70,9 @@ class ClientUserFirestoreDataSource {
         ClientUserModel(
           id: uid,
           nombre: nombre,
-          apellido: '',
+          apellido: apellido,
           telefono: '',
-          fotoUrl: '',
+          fotoUrl: foto,
           rol: 'cliente',
           email: (email ?? '').trim().isEmpty ? null : email!.trim(),
           isProfileComplete: false,

@@ -58,11 +58,13 @@ class ClientAuthRepositoryImpl implements ClientAuthRepository {
     required String uid,
     required String? displayName,
     required String? email,
+    String? photoUrl,
   }) {
     return _userDataSource.ensureForGoogle(
       uid: uid,
       displayName: displayName,
       email: email,
+      photoUrl: photoUrl,
     );
   }
 

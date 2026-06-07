@@ -58,11 +58,13 @@ class AppAuthAdapter extends LegacyAuthRepository
     required String uid,
     required String? displayName,
     required String? email,
+    String? photoUrl,
   }) {
     return _clientRepo.ensureClientUserForGoogle(
       uid: uid,
       displayName: displayName,
       email: email,
+      photoUrl: photoUrl,
     );
   }
 

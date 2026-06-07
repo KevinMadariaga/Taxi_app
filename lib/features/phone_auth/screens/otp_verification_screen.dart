@@ -9,7 +9,7 @@ import 'package:taxi_app/screens/usuario_cliente/presentacion/view/home_cliente_
 import '../controllers/otp_verification_controller.dart';
 import '../models/phone_code_result_model.dart';
 import '../widgets/otp_code_field.dart';
-import 'panel_administrador_screen.dart';
+import 'package:taxi_app/features/admin/admin_home_screen.dart';
 import 'registro_administrador_screen.dart';
 import 'registro_cliente_phone_screen.dart';
 
@@ -226,7 +226,7 @@ class OtpVerificationScreen extends StatelessWidget {
         case AuthNextDestination.adminPanel:
           Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(
-              builder: (_) => PanelAdministradorScreen(adminId: resolution.uid),
+              builder: (_) => AdminHomeScreen(adminId: resolution.uid),
             ),
             (route) => false,
           );

@@ -7,7 +7,9 @@ import 'package:taxi_app/screens/usuario_cliente/presentacion/navigation/inicio_
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/location_model.dart';
 import 'package:taxi_app/widgets/google_maps_widget.dart';
 import 'dart:async';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../viewmodels/inicio_cliente_viewmodel.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/view/widgets/bienvenida_dialog.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/MapaClienteModel.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/historial_viaje_cliente.dart';
@@ -51,7 +53,23 @@ class _InicioClienteViewState extends State<InicioClienteView>
     _applyOverlayStyle();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _bootstrapClienteLocationFlow();
+      _maybeMostrarBienvenida();
     });
+  }
+
+  /// Muestra el diálogo de bienvenida SOLO la primera vez que este usuario
+  /// inicia sesión (flag persistido por uid en SharedPreferences).
+  Future<void> _maybeMostrarBienvenida() async {
+    final uid = widget.authUid ?? vm.clientId;
+    if (uid == null || uid.isEmpty) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final key = 'bienvenida_vista_$uid';
+      if (prefs.getBool(key) == true) return;
+      await prefs.setBool(key, true);
+      if (!mounted) return;
+      await mostrarBienvenida(context);
+    } catch (_) {}
   }
 
   /// Aplica el estilo de la barra de estado según la pestaña activa.
@@ -249,7 +267,11 @@ class _InicioClienteViewState extends State<InicioClienteView>
           CameraUpdate.newLatLngZoom(vm.currentLocation!, 16),
         );
       }
-      _mostrarBannerUbicacionEncontrada();
+      // Solo avisar "Ubicación encontrada" si el GPS detectó una posición
+      // nueva (distinta a la cacheada).
+      if (vm.ubicacionFueActualizada) {
+        _mostrarBannerUbicacionEncontrada();
+      }
     }
   }
 
@@ -293,6 +315,7 @@ class _InicioClienteViewState extends State<InicioClienteView>
       origenModel,
       destinoModel,
     );
+    if (mounted) _recentrarMapaEnUbicacionActual();
   }
 
   Future<void> _navigateToDestinoSeleccion() async {
@@ -317,8 +340,22 @@ class _InicioClienteViewState extends State<InicioClienteView>
         vm.currentLocation,
         origenDireccionInicial: origenDireccionInicial,
       );
+      // Al volver, recentrar el mapa en la ubicación ya guardada (sin volver a
+      // buscar por GPS): el mapa sigue vivo, solo reubicamos la cámara.
+      if (mounted) _recentrarMapaEnUbicacionActual();
     } finally {
       if (mounted) setState(() => _isPreparingNavigation = false);
+    }
+  }
+
+  /// Recentra la cámara en la ubicación actual ya conocida (cache/estado),
+  /// sin disparar una nueva búsqueda de GPS ni el loader.
+  void _recentrarMapaEnUbicacionActual() {
+    final loc = vm.currentLocation;
+    if (loc != null && _mapController != null) {
+      _mapController!.animateCamera(
+        CameraUpdate.newLatLngZoom(loc, 16),
+      );
     }
   }
 
@@ -523,14 +560,6 @@ class _InicioClienteViewState extends State<InicioClienteView>
                 ),
               ),
               const SizedBox(height: 2),
-              Text(
-                '¿A dónde vas hoy?',
-                style: TextStyle(
-                  fontSize: isTablet ? 16 : 15,
-                  fontWeight: FontWeight.w500,
-                  color: AppColores.textSecondary,
-                ),
-              ),
             ],
           ),
         ),
