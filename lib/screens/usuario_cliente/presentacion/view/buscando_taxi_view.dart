@@ -60,6 +60,10 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
   bool _flujoTerminado = false;
   // Diálogo de contraofertas abierto (evita duplicarlo).
   bool _modalContraofertasAbierto = false;
+  // Flujo de aceptación en curso: evita que la modal de ofertas se reabra.
+  bool _navegandoAViaje = false;
+  // Navegación al viaje ya realizada: evita duplicarla (manual + listener).
+  bool _viajeNavegado = false;
   // Bottom sheet "Actualizar valor" abierto.
   bool _modalEditarAbierto = false;
 
@@ -203,7 +207,9 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
   // ── Acciones ──────────────────────────────────────────────────────────────
 
   Future<void> _onSolicitudAsignada(String solicitudId) async {
-    if (!mounted) return;
+    if (!mounted || _viajeNavegado) return;
+    _viajeNavegado = true;
+    _navegandoAViaje = true;
     _flujoTerminado = true;
     _bgCancelTimer?.cancel();
     await _vm.detenerEscucha();
@@ -243,29 +249,39 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
   }
 
   Future<void> _aceptarOferta(String conductorId) async {
-    if (_respondingOffer[conductorId] == true) return;
-    // Cerrar el modal de contraofertas antes de navegar al viaje.
+    if (_respondingOffer[conductorId] == true || _navegandoAViaje) return;
+    _respondingOffer[conductorId] = true;
+    // Marca el flujo en curso: evita que la modal se reabra mientras cierra.
+    _navegandoAViaje = true;
+
+    // 1) Cerrar primero la modal de ofertas y esperar a que termine su
+    //    animación de cierre, para que la navegación se vea limpia.
     if (_modalContraofertasAbierto && Navigator.of(context).canPop()) {
       Navigator.of(context).pop();
+      _modalContraofertasAbierto = false;
+      await Future<void>.delayed(const Duration(milliseconds: 280));
     }
-    setState(() => _respondingOffer[conductorId] = true);
+    if (!mounted) return;
+
+    // 2) Aceptar en el backend.
     final ok = await _vm.aceptarContraofertaDeConductor(conductorId);
     if (!mounted) return;
     if (!ok) {
-      setState(() => _respondingOffer.remove(conductorId));
+      _respondingOffer.remove(conductorId);
+      _navegandoAViaje = false; // permitir reintentar / reabrir modal
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No se pudo aceptar la oferta.')),
       );
       return;
     }
-    // Aceptación exitosa: Firestore ya tiene estado='asignado'.
-    // Navegar directamente sin esperar el round-trip del listener.
+
+    // 3) Navegar al viaje con la animación de "Conductor encontrado".
     final id = widget.solicitudId;
     if (id != null) {
       await _onSolicitudAsignada(id);
     }
-    // Fallback: si solicitudId es null, el listener de iniciarEscucha
-    // detectará estado='asignado' y llamará onAsignada.
+    // Si solicitudId es null, el listener detectará 'asignado' y navegará
+    // (protegido por _navegandoAViaje para no duplicar).
   }
 
   Future<void> _rechazarOferta(String conductorId) async {
@@ -725,7 +741,11 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
   // ── Modal central de contraofertas ─────────────────────────────────────────
 
   void _maybeMostrarModalContraofertas() {
-    if (_modalContraofertasAbierto || _flujoTerminado) return;
+    if (_modalContraofertasAbierto ||
+        _flujoTerminado ||
+        _navegandoAViaje) {
+      return;
+    }
     if (_vm.contraofertas.isEmpty) return;
     _modalContraofertasAbierto = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1437,32 +1457,28 @@ class _OfertaButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Sin spinner: solo se atenúa y se deshabilita mientras procesa, para
+    // evitar doble toque. La confirmación visual la da la pantalla
+    // "Conductor encontrado" al aceptar.
     return GestureDetector(
       onTap: isLoading ? null : onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-        decoration: BoxDecoration(
-          color: isLoading ? AppColores.grey200 : color,
-          borderRadius: BorderRadius.circular(8),
+      child: Opacity(
+        opacity: isLoading ? 0.6 : 1.0,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: textColor,
+            ),
+          ),
         ),
-        child: isLoading
-            ? const SizedBox(
-                width: 14,
-                height: 14,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: AppColores.textSecondary,
-                ),
-              )
-            : Text(
-                label,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: textColor,
-                ),
-              ),
       ),
     );
   }

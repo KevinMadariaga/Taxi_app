@@ -13,6 +13,7 @@ import 'package:provider/provider.dart';
 import 'package:taxi_app/core/services/services.dart';
 import 'package:taxi_app/widgets/google_maps_widget.dart';
 import 'package:taxi_app/core/helpers/permisos_helper.dart';
+import 'package:taxi_app/core/helpers/session_helper.dart';
 import 'package:taxi_app/widgets/preview_solicitud_card.dart';
 import 'package:taxi_app/widgets/solicitud_card.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/activacion_servicio_view.dart';
@@ -41,6 +42,12 @@ class _InicioConductorState extends State<InicioConductor>
 
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _membresiaSub;
   bool _dialogMembresiaVisible = false;
+
+  // Mide la altura real de la card de preview para: (1) que el mapa reciba ese
+  // padding inferior y centre los marcadores en la zona visible, y (2) que la
+  // card use solo el alto de su contenido (sin hueco bajo los botones).
+  final GlobalKey _previewCardKey = GlobalKey();
+  double _previewCardHeight = 0;
 
   @override
   void initState() {
@@ -341,6 +348,11 @@ class _InicioConductorState extends State<InicioConductor>
 
           final selectedPreview = vm.isConnected ? vm.selectedPreview : null;
           final bool previewVisible = vm.isConnected && vm.selectedPreview != null;
+          // Padding inferior del mapa = alto real de la card (medido). Hasta
+          // medir, se usa un estimado (~42%) para evitar saltos grandes.
+          final double mapBottomPadding = _previewCardHeight > 0
+              ? _previewCardHeight
+              : MediaQuery.of(context).size.height * 0.42;
 
           return PopScope(
             canPop: false,
@@ -673,6 +685,13 @@ class _InicioConductorState extends State<InicioConductor>
                                               vm.currentLocation != null
                                               ? 16.0
                                               : 14.5,
+                                          // Deja libre el alto de la card para
+                                          // centrar los marcadores arriba.
+                                          padding: previewVisible
+                                              ? EdgeInsets.only(
+                                                  bottom: mapBottomPadding,
+                                                )
+                                              : EdgeInsets.zero,
                                           myLocationEnabled: true,
                                           myLocationButtonEnabled: true,
                                           compassEnabled: true,
@@ -1003,7 +1022,19 @@ class _InicioConductorState extends State<InicioConductor>
                                   : vm.fotoClientePorId(
                                       preview.solicitud.clienteId,
                                     );
-                              return PreviewSolicitudCard(
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                final h = _previewCardKey.currentContext?.size
+                                    ?.height;
+                                if (mounted &&
+                                    h != null &&
+                                    h > 0 &&
+                                    (h - _previewCardHeight).abs() > 1) {
+                                  setState(() => _previewCardHeight = h);
+                                }
+                              });
+                              return Container(
+                                key: _previewCardKey,
+                                child: PreviewSolicitudCard(
                                 preview: preview,
                                 clientPhotoUrl: foto,
                                 isLoading: _navigatingToRuta,
@@ -1044,6 +1075,7 @@ class _InicioConductorState extends State<InicioConductor>
                                     );
                                   }
                                 },
+                                ),
                               );
                             },
                           ),
@@ -1130,6 +1162,8 @@ class _InicioConductorState extends State<InicioConductor>
         'solicitudConductor': false,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
+      // Sincronizar caché para que al reiniciar abra como cliente.
+      SessionHelper.updateRole('cliente');
     }
 
     Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
@@ -1417,13 +1451,80 @@ class _InicioConductorState extends State<InicioConductor>
     );
   }
 
+  String _fmtMoneda(int v) {
+    final s = v.toString();
+    final buf = StringBuffer();
+    for (int i = 0; i < s.length; i++) {
+      final rev = s.length - i;
+      buf.write(s[i]);
+      if (rev > 1 && rev % 3 == 1) buf.write('.');
+    }
+    return buf.toString();
+  }
+
+  /// Modal de confirmación que se cierra solo a los 3 segundos.
+  void _mostrarConfirmacionContraoferta(int valor) {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        Future.delayed(const Duration(seconds: 3), () {
+          if (Navigator.of(ctx).canPop()) Navigator.of(ctx).pop();
+        });
+        return AlertDialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.check_circle,
+                  color: AppColores.success, size: 56),
+              const SizedBox(height: 12),
+              const Text(
+                'Contraoferta enviada',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 17),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Se hizo contraoferta de \$${_fmtMoneda(valor)}',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: AppColores.textSecondary,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _abrirContraofertaModal(
     InicioConductorViewmodel vm,
     PreviewSolicitud preview,
   ) async {
     final valorBase = (preview.valorServicio ?? 0).round();
-    final initial = valorBase > 0 ? valorBase.toString() : '11000';
-    final controller = TextEditingController(text: initial);
+    final base = valorBase > 0 ? valorBase : 10000;
+    final controller = TextEditingController(text: base.toString());
+    // Texto seleccionado al abrir: el conductor puede borrar todo y escribir.
+    controller.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: controller.text.length,
+    );
+
+    final opciones =
+        <int>{base, base + 1000, base + 2000, base + 3000, base + 5000}
+            .toList()
+          ..sort();
+
+    void setValor(int v) {
+      final t = v.toString();
+      controller.value = TextEditingValue(
+        text: t,
+        selection: TextSelection(baseOffset: 0, extentOffset: t.length),
+      );
+    }
 
     await showModalBottomSheet<void>(
       context: context,
@@ -1454,12 +1555,13 @@ class _InicioConductorState extends State<InicioConductor>
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Oferta actual del cliente: \$$valorBase',
+                    'Oferta actual del cliente: \$${_fmtMoneda(valorBase)}',
                     style: const TextStyle(color: Colors.black54),
                   ),
                   const SizedBox(height: 10),
                   TextField(
                     controller: controller,
+                    autofocus: true,
                     keyboardType: TextInputType.number,
                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     decoration: const InputDecoration(
@@ -1468,10 +1570,28 @@ class _InicioConductorState extends State<InicioConductor>
                       border: OutlineInputBorder(),
                     ),
                   ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: opciones
+                        .map(
+                          (o) => ActionChip(
+                            label: Text('\$${_fmtMoneda(o)}'),
+                            onPressed: () => setValor(o),
+                          ),
+                        )
+                        .toList(),
+                  ),
                   const SizedBox(height: 12),
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColores.buttonPrimary,
+                        foregroundColor: AppColores.textWhite,
+                        minimumSize: const Size.fromHeight(48),
+                      ),
                       onPressed: () async {
                         final digits = controller.text.replaceAll(
                           RegExp(r'[^0-9]'),
@@ -1488,13 +1608,7 @@ class _InicioConductorState extends State<InicioConductor>
                           );
                           if (!mounted) return;
                           Navigator.of(ctx).pop();
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Contraoferta enviada. Esperando respuesta del cliente.',
-                              ),
-                            ),
-                          );
+                          _mostrarConfirmacionContraoferta(valor.round());
                         } catch (e) {
                           if (!mounted) return;
                           ScaffoldMessenger.of(context).showSnackBar(

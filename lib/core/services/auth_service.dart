@@ -92,6 +92,8 @@ class AuthService {
 
             if (userRole == 'admin' || userRole == 'administrador') {
               role = 'administrador';
+            } else if (userRole == 'conductor') {
+              role = 'conductor';
             } else if (userRole == 'cliente') {
               role = 'cliente';
 
@@ -106,7 +108,11 @@ class AuthService {
             }
           }
 
-          if (role != 'administrador') {
+          // Solo usar colecciones legacy si el rol aún no se resolvió por
+          // `usuarios.rol` (no sobrescribir conductor/cliente ya detectado).
+          if (role != 'administrador' &&
+              role != 'conductor' &&
+              role != 'cliente') {
             final conductorDoc = await FirebaseFirestore.instance
                 .collection('conductor')
                 .doc(uid)

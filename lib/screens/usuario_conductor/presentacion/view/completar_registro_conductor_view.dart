@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart' as fb_storage;
 import 'package:image_picker/image_picker.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/helpers/session_helper.dart';
 import 'package:taxi_app/core/services/image_cropper_service.dart';
 import 'package:taxi_app/widgets/boton.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioConductorView.dart';
@@ -150,6 +151,9 @@ class _CompletarRegistroConductorViewState
         'servicioActivo': false,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
+
+      // Sincronizar rol en caché para que al reiniciar abra como conductor.
+      await SessionHelper.updateRole('conductor');
 
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(

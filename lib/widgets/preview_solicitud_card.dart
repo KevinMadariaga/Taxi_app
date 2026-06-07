@@ -35,16 +35,17 @@ class PreviewSolicitudCard extends StatelessWidget {
     final String cercania;
     final Color badgeColor;
     final Color badgeTextColor;
+    final String kmTxt = km != null ? ' · ${km.toStringAsFixed(1)} km' : '';
     if (km != null && km <= 1.0) {
-      cercania = 'Cerca';
+      cercania = 'Cerca$kmTxt';
       badgeColor = AppColores.success.withValues(alpha: 0.12);
       badgeTextColor = AppColores.success;
     } else if (km != null) {
-      cercania = 'Lejos';
+      cercania = 'Lejos$kmTxt';
       badgeColor = AppColores.warning.withValues(alpha: 0.12);
       badgeTextColor = AppColores.warning;
     } else {
-      cercania = '—';
+      cercania = 'Solicitud cercana';
       badgeColor = AppColores.grey200;
       badgeTextColor = AppColores.textSecondary;
     }
@@ -75,17 +76,24 @@ class PreviewSolicitudCard extends StatelessWidget {
               // Header: ícono + título + cerrar
               Row(
                 children: [
-                  const Icon(
-                    Icons.local_taxi,
-                    color: AppColores.textSecondary,
-                    size: 20,
+                  Container(
+                    padding: const EdgeInsets.all(7),
+                    decoration: BoxDecoration(
+                      color: AppColores.primary.withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.local_taxi,
+                      color: AppColores.primary,
+                      size: 18,
+                    ),
                   ),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 10),
                   const Expanded(
                     child: Text(
                       'Solicitud seleccionada',
                       style: TextStyle(
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w800,
                         fontSize: 16,
                         color: AppColores.textPrimary,
                       ),
@@ -281,60 +289,76 @@ class PreviewSolicitudCard extends StatelessWidget {
                 const SizedBox(height: 12),
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 10,
-                  ),
+                  padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
                     color: AppColores.background,
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(14),
                     border: Border.all(color: AppColores.borderSubtle),
                   ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          const Expanded(
+                            child: Text(
                               'Oferta del cliente',
                               style: TextStyle(
-                                fontWeight: FontWeight.w700,
+                                fontWeight: FontWeight.w600,
                                 fontSize: 13,
-                                color: AppColores.textPrimary,
+                                color: AppColores.textSecondary,
                               ),
                             ),
-                            if (valorContra != null) ...[
-                              const SizedBox(height: 2),
-                              const Text(
-                                'Contraoferta hecha',
+                          ),
+                          Text(
+                            '\$${_formatCurrency(valorCliente)}',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 22,
+                              color: AppColores.textPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (valorContra != null) ...[
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 10),
+                          child: Divider(
+                            height: 1,
+                            color: AppColores.borderSubtle,
+                          ),
+                        ),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.local_offer_outlined,
+                              size: 16,
+                              color: AppColores.primary,
+                            ),
+                            const SizedBox(width: 6),
+                            const Expanded(
+                              child: Text(
+                                'Tu contraoferta',
                                 style: TextStyle(
-                                  fontSize: 11,
-                                  color: AppColores.textSecondary,
                                   fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              Text(
-                                '\$${_formatCurrency(valorContra)}',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
                                   fontSize: 13,
                                   color: AppColores.textPrimary,
                                 ),
                               ),
-                            ],
+                            ),
+                            Text(
+                              '\$${_formatCurrency(valorContra)}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 18,
+                                color: AppColores.primary,
+                              ),
+                            ),
                           ],
                         ),
-                      ),
-                      Text(
-                        '\$${_formatCurrency(valorCliente)}',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 22,
-                          color: AppColores.textPrimary,
-                        ),
-                      ),
+                      ],
                     ],
                   ),
                 ),

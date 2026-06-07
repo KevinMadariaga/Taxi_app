@@ -22,6 +22,16 @@ class SessionHelper {
     } catch (_) {}
   }
 
+  /// Actualiza solo el rol en caché (mantiene uid y sesión). Útil cuando un
+  /// usuario cambia de cliente a conductor o viceversa, para que al reiniciar
+  /// la app se restaure la pantalla correcta.
+  static Future<void> updateRole(String role) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_keyRole, role);
+    } catch (_) {}
+  }
+
   static Future<void> clearSession() async {
     try {
       final prefs = await SharedPreferences.getInstance();

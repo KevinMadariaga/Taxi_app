@@ -48,25 +48,61 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
   }
 
   Future<void> _cargarDatos() async {
-    final uid = _auth.currentUser?.uid;
-    if (uid == null) return;
-
-    final snapshot = await _firestore.collection('usuarios').doc(uid).get();
-
-    if (snapshot.exists) {
-      if (!mounted) return;
-      setState(() {
-        userData = snapshot.data();
-      });
-      // Preparar caché de imagen: usar imagen local si existe, sino descargarla
-      try {
-        final fotoUrl = userData?['foto']?.toString();
-        await _loadCachedImageForUid(uid, fotoUrl);
-        // cargar caché de foto del vehículo (si aplica)
-        final vehUrl = userData?['fotoVehiculo']?.toString();
-        await _loadCachedVehicleImageForUid(uid, vehUrl);
-      } catch (_) {}
+    final user = _auth.currentUser;
+    final uid = user?.uid;
+    if (uid == null) {
+      if (mounted) setState(() => userData = <String, dynamic>{});
+      return;
     }
+
+    final Map<String, dynamic> data = {};
+
+    // 1) Fuente principal: usuarios/{uid}
+    try {
+      final snap = await _firestore.collection('usuarios').doc(uid).get();
+      final d = snap.data();
+      if (snap.exists && d != null) data.addAll(d);
+    } catch (_) {}
+
+    // 2) Fallback a colecciones legacy si faltan datos clave (ej. conductores
+    //    gestionados por admin guardan su perfil en `conductores`).
+    final bool faltaNombre =
+        (data['nombre'] ?? '').toString().trim().isEmpty;
+    if (faltaNombre) {
+      for (final col in const ['conductores', 'conductor', 'cliente']) {
+        try {
+          final s = await _firestore.collection(col).doc(uid).get();
+          final d = s.data();
+          if (s.exists && d != null) {
+            // usuarios tiene prioridad: solo se rellenan campos ausentes.
+            for (final e in d.entries) {
+              data.putIfAbsent(e.key, () => e.value);
+            }
+            break;
+          }
+        } catch (_) {}
+      }
+    }
+
+    // 3) Fallback final a la cuenta de Firebase Auth.
+    data.putIfAbsent('nombre', () => user?.displayName ?? '');
+    data.putIfAbsent('email', () => user?.email ?? '');
+    if ((data['foto'] ?? '').toString().trim().isEmpty &&
+        (data['fotoUrl'] ?? '').toString().trim().isEmpty) {
+      final photo = user?.photoURL;
+      if (photo != null && photo.isNotEmpty) data['foto'] = photo;
+    }
+
+    if (!mounted) return;
+    setState(() => userData = data);
+
+    // Preparar caché de imagen: usar imagen local si existe, sino descargarla.
+    try {
+      final fotoUrl = (data['foto'] ?? data['fotoUrl'])?.toString();
+      await _loadCachedImageForUid(uid, fotoUrl);
+      final vehUrl = data['fotoVehiculo']?.toString();
+      await _loadCachedVehicleImageForUid(uid, vehUrl);
+    } catch (_) {}
   }
 
   Future<void> _guardarCambios(Map<String, dynamic> nuevosDatos) async {
@@ -623,6 +659,16 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
         ),
         onTap: () {
           if (yaRegistrado) {
+            // Cambiar rol a conductor (Firestore + caché) para que al
+            // reiniciar la app abra como conductor.
+            final uid = _auth.currentUser?.uid;
+            if (uid != null) {
+              _firestore.collection('usuarios').doc(uid).set({
+                'rol': 'conductor',
+                'updatedAt': FieldValue.serverTimestamp(),
+              }, SetOptions(merge: true));
+            }
+            SessionHelper.updateRole('conductor');
             Navigator.of(context).pushAndRemoveUntil(
               MaterialPageRoute(builder: (_) => const InicioConductor()),
               (route) => false,
@@ -664,6 +710,8 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
               'solicitudConductor': false,
               'updatedAt': FieldValue.serverTimestamp(),
             }, SetOptions(merge: true));
+            // Sincronizar caché para que al reiniciar abra como cliente.
+            SessionHelper.updateRole('cliente');
           }
           Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
             MaterialPageRoute(builder: (_) => const HomeClienteView()),
@@ -769,6 +817,8 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
             .toString();
     final telefono = (userData?['telefono'] ?? 'Sin teléfono registrado')
         .toString();
+    final fotoUrl = (userData?['foto'] ?? userData?['fotoUrl'] ?? '')
+        .toString();
 
     // Responsive sizes based on screen dimensions and safe clamps
     final screenWidth = MediaQuery.of(context).size.width;
@@ -784,13 +834,6 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
     } else if (nombre.length > 26) {
       computedNameFontSize = math.max(16.0, computedNameFontSize * 0.8);
     }
-
-    // Ensure scroll area leaves room for bottom system inset (navigation bar)
-    final bottomInset = MediaQuery.of(context).viewPadding.bottom;
-    final scrollBottomPadding = math.max(
-      ResponsiveHelper.hp(context, 18),
-      bottomInset + ResponsiveHelper.hp(context, 6),
-    );
 
     return Scaffold(
       appBar: AppBar(
@@ -816,14 +859,15 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
       body: userData == null
           ? const Center(child: CircularProgressIndicator())
           : SafeArea(
-              child: Stack(
+              child: Column(
                 children: [
-                  SingleChildScrollView(
+                  Expanded(
+                    child: SingleChildScrollView(
                     padding: EdgeInsets.only(
                       left: ResponsiveHelper.wp(context, 4),
                       right: ResponsiveHelper.wp(context, 4),
                       top: ResponsiveHelper.hp(context, 0.5),
-                      bottom: scrollBottomPadding,
+                      bottom: ResponsiveHelper.hp(context, 2),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -841,20 +885,14 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
                                         _cachedImageFile!.existsSync()
                                     ? FileImage(_cachedImageFile!)
                                           as ImageProvider
-                                    : (userData != null &&
-                                          userData!['foto'] != null &&
-                                          (userData!['foto'] as String)
-                                              .isNotEmpty)
-                                    ? NetworkImage(userData!['foto'] as String)
-                                    : null,
+                                    : (fotoUrl.isNotEmpty
+                                          ? NetworkImage(fotoUrl)
+                                          : null),
                                 child:
                                     (_cachedImageFile == null ||
                                             !(_cachedImageFile?.existsSync() ??
                                                 false)) &&
-                                        (userData == null ||
-                                            userData!['foto'] == null ||
-                                            (userData!['foto'] as String)
-                                                .isEmpty)
+                                        fotoUrl.isEmpty
                                     ? Icon(
                                         Icons.person,
                                         size: avatarIconSize,
@@ -957,11 +995,10 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
                       ],
                     ),
                   ),
+                  ),
 
-                  // Bottom fixed action area
-                  Align(
-                    alignment: Alignment.bottomCenter,
-                    child: Container(
+                  // Barra inferior fija con el botón
+                  Container(
                       width: double.infinity,
                       padding: EdgeInsets.symmetric(
                         horizontal: ResponsiveHelper.wp(context, 4),
@@ -999,7 +1036,6 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
                         ),
                       ),
                     ),
-                  ),
                 ],
               ),
             ),
