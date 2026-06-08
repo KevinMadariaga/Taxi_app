@@ -1,8 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodels/historial_conductor_viewmodel.dart';
+import 'package:taxi_app/widgets/historial/historial_widgets.dart';
 import 'historial_detalle_conductor.dart';
 
 class HistorialConductor extends StatefulWidget {
@@ -51,16 +53,9 @@ class HistorialConductorState extends State<HistorialConductor> {
   }
 
   void _mostrarDetalle(BuildContext context, Map<String, dynamic> data) async {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final fontSize = screenWidth * 0.04;
-
     final destinoRaw = data['destino'] ?? 'Destino no disponible';
     final destino = await _vm.obtenerDireccion(destinoRaw);
     if (!context.mounted) return;
-
-    final calificacionScore = _vm.extraerCalificacion(data).clamp(0, 5);
-    final estrellasLlenas = calificacionScore.floor();
-    final tieneMedia = (calificacionScore - estrellasLlenas) >= 0.5;
 
     String cliente = 'Cliente';
     final clienteObj = data['cliente'];
@@ -69,174 +64,17 @@ class HistorialConductorState extends State<HistorialConductor> {
           (clienteObj['name'] ?? clienteObj['nombre'] ?? cliente).toString();
     }
 
-    final precio = _vm.extraerValorServicio(data);
-    final metodoPago =
-        (data['metodoPago'] ?? data['metodo_pago'] ?? 'efectivo')
-            .toString()
-            .toUpperCase();
-
     showDialog(
       context: context,
-      builder: (BuildContext dialogContext) {
-        return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Stack(
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 24,
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const SizedBox(height: 8),
-                    Text(
-                      'DETALLE DEL VIAJE',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: fontSize + 4,
-                        letterSpacing: 1,
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.location_on,
-                          size: 22,
-                          color: AppColores.textSecondary,
-                        ),
-                        const SizedBox(width: 4),
-                        Flexible(
-                          child: Text(
-                            destino.toUpperCase(),
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: fontSize + 5,
-                              color: AppColores.textPrimary,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    Column(
-                      children: [
-                        const CircleAvatar(
-                          radius: 28,
-                          backgroundColor: Colors.amber,
-                          child: Icon(
-                            Icons.person,
-                            color: Colors.white,
-                            size: 30,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          cliente,
-                          style: TextStyle(
-                            fontSize: fontSize + 1,
-                            fontWeight: FontWeight.w500,
-                            color: AppColores.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        Divider(color: Colors.grey[300]),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Calificación del viaje',
-                      style: TextStyle(
-                        fontSize: fontSize,
-                        fontWeight: FontWeight.bold,
-                        color: AppColores.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: List.generate(5, (index) {
-                        final esStar = index < estrellasLlenas;
-                        final esMedia =
-                            index == estrellasLlenas && tieneMedia;
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 4),
-                          child: Icon(
-                            esStar
-                                ? Icons.star
-                                : esMedia
-                                ? Icons.star_half
-                                : Icons.star_border,
-                            size: 32,
-                            color: (esStar || esMedia)
-                                ? Colors.amber[600]
-                                : Colors.grey[300],
-                          ),
-                        );
-                      }),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      calificacionScore > 0
-                          ? calificacionScore.toStringAsFixed(1)
-                          : 'Sin calificacion',
-                      style: TextStyle(
-                        fontSize: fontSize,
-                        fontWeight: FontWeight.w600,
-                        color: AppColores.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    Text(
-                      'VALOR DEL SERVICIO',
-                      style: TextStyle(
-                        fontSize: fontSize,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 1,
-                        color: AppColores.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '\$ ${_vm.formatearDinero(precio)}',
-                      style: TextStyle(
-                        fontSize: fontSize + 6,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.green[700],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      metodoPago,
-                      style: TextStyle(
-                        fontSize: fontSize * 0.95,
-                        color: AppColores.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-                ),
-              ),
-              Positioned(
-                top: 4,
-                right: 4,
-                child: IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.of(context).pop(),
-                  splashRadius: 20,
-                  color: AppColores.textSecondary,
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+      builder: (_) => DetalleViajeDialog(
+        destino: destino,
+        persona: cliente,
+        tituloPersona: 'Cliente',
+        calificacion: _vm.extraerCalificacion(data).clamp(0, 5).toDouble(),
+        valor: formatPesos(_vm.extraerValorServicio(data)),
+        metodoPago: (data['metodoPago'] ?? data['metodo_pago'] ?? 'efectivo')
+            .toString(),
+      ),
     );
   }
 
@@ -245,14 +83,28 @@ class HistorialConductorState extends State<HistorialConductor> {
     final conductorId = _vm.conductorId;
 
     return Scaffold(
+      backgroundColor: AppColores.background,
       appBar: AppBar(
-        title: const Text('Historial de Viajes'),
-        backgroundColor: Colors.amber,
+        title: const Text(
+          'Historial de Viajes',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: AppColores.primary,
+        foregroundColor: Colors.white,
+        surfaceTintColor: AppColores.primary,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        systemOverlayStyle: const SystemUiOverlayStyle(
+          statusBarColor: AppColores.primary,
+          statusBarIconBrightness: Brightness.dark,
+          statusBarBrightness: Brightness.light,
+        ),
       ),
       floatingActionButton: FloatingActionButton.extended(
-        icon: const Icon(Icons.analytics),
-        label: const Text('Ver detalle'),
-        backgroundColor: Colors.amber,
+        icon: const Icon(Icons.analytics_rounded),
+        label: const Text('Ver ganancias'),
+        backgroundColor: AppColores.primary,
+        foregroundColor: Colors.white,
         onPressed: () {
           Navigator.of(context).push(
             MaterialPageRoute(
@@ -266,22 +118,30 @@ class HistorialConductorState extends State<HistorialConductor> {
         future: _vm.cargarHistorial(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(
+              child: CircularProgressIndicator(color: AppColores.primary),
+            );
           }
           if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
+            return HistorialEstadoMensaje(
+              icon: Icons.error_outline_rounded,
+              titulo: 'Ocurrió un error',
+              subtitulo: '${snapshot.error}',
+            );
           }
 
-          final allViajes = snapshot.data ?? [];
+          final viajes = snapshot.data ?? [];
 
           double scoreTotal = 0.0;
           int ratedCount = 0;
-          for (final viaje in allViajes) {
+          double totalGanado = 0.0;
+          for (final viaje in viajes) {
             final score = _vm.extraerCalificacion(viaje).clamp(0, 5).toDouble();
             if (score > 0) {
               scoreTotal += score;
               ratedCount++;
             }
+            totalGanado += _vm.extraerValorServicio(viaje);
           }
           final promedio = ratedCount > 0 ? (scoreTotal / ratedCount) : 0.0;
 
@@ -293,123 +153,163 @@ class HistorialConductorState extends State<HistorialConductor> {
             );
           });
 
-          if (allViajes.isEmpty) {
-            return const Center(child: Text('No hay viajes registrados.'));
+          if (viajes.isEmpty) {
+            return const HistorialEstadoMensaje(
+              icon: Icons.history_rounded,
+              titulo: 'Sin viajes registrados',
+              subtitulo: 'Tus viajes completados aparecerán aquí.',
+            );
           }
 
-          return ListView.builder(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            itemCount: allViajes.length,
-            itemBuilder: (context, index) {
-              final data = allViajes[index];
-              final destinoRaw = data['destino'];
-              final destinoFuture = _vm.obtenerDireccion(destinoRaw);
-              final horaFinStr = _vm.formatarHoraFin(data);
-              final valorServicio = _vm.extraerValorServicio(data);
-              final calificacion = _vm.extraerCalificacion(data).clamp(0, 5);
-
-              return Card(
-                margin: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: ListTile(
-                        leading: const Icon(
-                          Icons.local_taxi,
-                          color: Colors.amber,
-                        ),
-                        title: FutureBuilder<String>(
-                          future: destinoFuture,
-                          builder: (context, snapshot) {
-                            if (snapshot.connectionState ==
-                                ConnectionState.waiting) {
-                              return const Text('Cargando...');
-                            }
-                            final text =
-                                snapshot.data ??
-                                (destinoRaw is Map
-                                    ? (destinoRaw['title']?.toString() ??
-                                          destinoRaw['address']?.toString() ??
-                                          'Destino')
-                                    : (destinoRaw?.toString() ?? 'Destino'));
-                            return Text(
-                              text.toUpperCase(),
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            );
-                          },
-                        ),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (horaFinStr != null) Text(horaFinStr),
-                          ],
-                        ),
-                        onTap: () => _mostrarDetalle(context, data),
-                      ),
+          return Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 700),
+              child: Column(
+                children: [
+                  _ResumenConductor(
+                    totalViajes: viajes.length,
+                    promedio: promedio,
+                    totalGanado: totalGanado,
+                  ),
+                  Expanded(
+                    child: ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(12, 4, 12, 90),
+                      itemCount: viajes.length,
+                      itemBuilder: (context, index) {
+                        final data = viajes[index];
+                        final destinoField = data['destino'];
+                        return HistorialViajeCard(
+                          destinoFuture: _vm.obtenerDireccion(destinoField),
+                          destinoFallback: _fallbackDestino(destinoField),
+                          fecha: _vm.formatarHoraFin(data),
+                          valor: formatPesos(_vm.extraerValorServicio(data)),
+                          calificacion: _vm
+                              .extraerCalificacion(data)
+                              .clamp(0, 5)
+                              .toDouble(),
+                          onTap: () => _mostrarDetalle(context, data),
+                        );
+                      },
                     ),
-                    Padding(
-                      padding: const EdgeInsets.only(right: 16.0),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                Icons.attach_money,
-                                size: 18,
-                                color: Colors.green,
-                              ),
-                              Text(
-                                _vm.formatearDinero(valorServicio),
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 15,
-                                  color: Colors.green,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.star,
-                                size: 16,
-                                color: calificacion > 0
-                                    ? Colors.amber[700]
-                                    : Colors.grey[400],
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                calificacion > 0
-                                    ? calificacion.toStringAsFixed(1)
-                                    : '-',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 13,
-                                  color: AppColores.textSecondary,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
+                  ),
+                ],
+              ),
+            ),
           );
         },
       ),
     );
+  }
+}
+
+String _fallbackDestino(dynamic field) {
+  if (field is Map) {
+    return (field['title']?.toString() ??
+            field['address']?.toString() ??
+            'Destino')
+        .toString();
+  }
+  return field?.toString() ?? 'Destino';
+}
+
+class _ResumenConductor extends StatelessWidget {
+  const _ResumenConductor({
+    required this.totalViajes,
+    required this.promedio,
+    required this.totalGanado,
+  });
+
+  final int totalViajes;
+  final double promedio;
+  final double totalGanado;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+      decoration: BoxDecoration(
+        color: AppColores.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColores.borderSubtle),
+      ),
+      child: Row(
+        children: [
+          _ResumenItem(
+            icon: Icons.local_taxi_rounded,
+            valor: totalViajes.toString(),
+            label: 'Viajes',
+            color: AppColores.primary,
+          ),
+          const _SeparadorVertical(),
+          _ResumenItem(
+            icon: Icons.star_rounded,
+            valor: promedio > 0 ? promedio.toStringAsFixed(1) : '–',
+            label: 'Calificación',
+            color: AppColores.primary,
+          ),
+          const _SeparadorVertical(),
+          _ResumenItem(
+            icon: Icons.payments_rounded,
+            valor: formatPesos(totalGanado),
+            label: 'Ganado',
+            color: AppColores.success,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ResumenItem extends StatelessWidget {
+  const _ResumenItem({
+    required this.icon,
+    required this.valor,
+    required this.label,
+    required this.color,
+  });
+  final IconData icon;
+  final String valor;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 22),
+          const SizedBox(height: 6),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              valor,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                color: AppColores.textPrimary,
+              ),
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 11.5,
+              color: AppColores.textSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SeparadorVertical extends StatelessWidget {
+  const _SeparadorVertical();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(width: 1, height: 38, color: AppColores.borderSubtle);
   }
 }

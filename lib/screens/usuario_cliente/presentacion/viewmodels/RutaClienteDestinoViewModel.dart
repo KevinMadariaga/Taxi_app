@@ -151,6 +151,20 @@ class Rutaclientedestinoviewmodel extends ChangeNotifier {
   double? latConductor;
   double? lngConductor;
 
+  // DETALLES DEL SERVICIO
+  String direccionDestino = '';
+  double valorServicio = 0;
+  String metodoPago = '';
+
+  static double _toDouble(dynamic value) {
+    if (value == null) return 0;
+    if (value is num) return value.toDouble();
+    return double.tryParse(
+          value.toString().replaceAll(RegExp(r'[^0-9.\-]'), ''),
+        ) ??
+        0;
+  }
+
   // Estado del conductor
   String nombreConductorEstado = 'Conductor';
   String estado = 'Disponible';
@@ -349,6 +363,31 @@ class Rutaclientedestinoviewmodel extends ChangeNotifier {
         lngDestino = null;
         debugPrint('[DEBUG] Campo destino no encontrado o no es un objeto');
       }
+
+      // Detalles del servicio: dirección destino, valor y método de pago.
+      final destinoMap = destino is Map<String, dynamic> ? destino : null;
+      final tarifa = data['tarifa'];
+      final tarifaMap = tarifa is Map<String, dynamic> ? tarifa : null;
+      direccionDestino =
+          (data['destinoDireccion'] ??
+                  destinoMap?['direccion'] ??
+                  destinoMap?['title'] ??
+                  destinoMap?['address'] ??
+                  '')
+              .toString();
+      valorServicio = _toDouble(
+        tarifaMap?['total'] ??
+            data['valorServicio'] ??
+            data['valor'] ??
+            data['tarifaTotal'] ??
+            data['precio'],
+      );
+      metodoPago =
+          (data['paymentMethod'] ??
+                  data['metodoPago'] ??
+                  data['metodo_pago'] ??
+                  '')
+              .toString();
       _safeNotify();
     } catch (e) {
       debugPrint('Error al cargar datos de conductor/cliente: $e');

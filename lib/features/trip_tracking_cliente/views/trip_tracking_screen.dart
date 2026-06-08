@@ -14,6 +14,7 @@ import 'package:taxi_app/features/trip_tracking_cliente/widgets/trip_details_she
 import 'package:taxi_app/core/services/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/RutaClienteDestinoView.dart';
+import 'package:taxi_app/routes/app_routes.dart';
 
 import '../controllers/solicitud_estado_controller.dart';
 import '../viewmodels/trip_tracking_viewmodel.dart';
@@ -352,6 +353,12 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
                                             ),
                                             onTap: () {
                                               Navigator.pop(ctx);
+                                              Navigator.of(context).pushNamed(
+                                                AppRoutes.ayudaEstadoSolicitud,
+                                                arguments: {
+                                                  'solicitudId': vm.solicitudId,
+                                                },
+                                              );
                                             },
                                           ),
                                           const Divider(
@@ -373,6 +380,14 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
                                             ),
                                             onTap: () {
                                               Navigator.pop(ctx);
+                                              Navigator.of(context).pushNamed(
+                                                AppRoutes.ayudaCambiarDestino,
+                                                arguments: {
+                                                  'solicitudId': vm.solicitudId,
+                                                  'direccion':
+                                                      vm.destinoDireccion,
+                                                },
+                                              );
                                             },
                                           ),
                                           const Divider(
@@ -394,6 +409,13 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
                                             ),
                                             onTap: () {
                                               Navigator.pop(ctx);
+                                              Navigator.of(context).pushNamed(
+                                                AppRoutes.ayudaMetodoPago,
+                                                arguments: {
+                                                  'solicitudId': vm.solicitudId,
+                                                  'metodoActual': vm.metodoPago,
+                                                },
+                                              );
                                             },
                                           ),
                                           const Divider(
@@ -415,6 +437,15 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
                                             ),
                                             onTap: () {
                                               Navigator.pop(ctx);
+                                              Navigator.of(context).pushNamed(
+                                                AppRoutes
+                                                    .ayudaProblemasConductor,
+                                                arguments: {
+                                                  'solicitudId': vm.solicitudId,
+                                                  'nombreConductor':
+                                                      vm.nombreConductor,
+                                                },
+                                              );
                                             },
                                           ),
                                           const Divider(
@@ -581,10 +612,10 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
     if (_lastEstadoProcesado == normalizado) return;
     _lastEstadoProcesado = normalizado;
 
-    // Open wait modal as soon as possible on 'en espera'.
-    // NOTE: La notificacion de 'en espera' se dispara desde el ViewModel
-    // (TripTrackingViewModel._handleStatusNotification) para que funcione
-    // incluso cuando la app esta en segundo plano.
+    // Abre el modal de espera en 'en espera'. Las notificaciones locales por
+    // cambio de estado ('en espera' → conductor afuera, 'en ruta' → viaje
+    // iniciado) las dispara SolicitudEstadoController.handleEstadoCambio, y
+    // funcionan en primer y segundo plano mientras el listener siga activo.
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       await _estadoController.handleEstadoCambio(

@@ -365,15 +365,13 @@ class DriverTripController extends ChangeNotifier {
       }
       waitingCanStartTrip = true;
       _stopWaitingTimer();
-      // Solo notificar si la app está en segundo plano
-      if (isAppInBackground) {
-        unawaited(
-          NotificacionesServicio.instance.showTripNotification(
-            title: '✅ Cliente ha confirmado',
-            body: 'El cliente ha confirmado su asistencia, ya viene en camino.',
-          ),
-        );
-      }
+      // Notificación local en primer y segundo plano.
+      unawaited(
+        NotificacionesServicio.instance.showTripNotification(
+          title: 'Cliente en camino',
+          body: 'El cliente va en camino, espera que llegue al vehículo.',
+        ),
+      );
       _safeNotify();
       return;
     }

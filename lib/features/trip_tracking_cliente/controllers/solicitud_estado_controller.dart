@@ -52,6 +52,13 @@ class SolicitudEstadoController {
 
     if (estado == SolicitudEstado.enEspera) {
       _rutaNotified = false;
+      // Notificación local (funciona en primer y segundo plano).
+      unawaited(
+        _notify(
+          title: 'Tu conductor llegó',
+          body: 'El conductor está afuera esperándote.',
+        ),
+      );
       if (!context.mounted) return;
       await _openWaitModal(context: context, solicitudId: solicitudId);
       return;
@@ -60,6 +67,13 @@ class SolicitudEstadoController {
     if (estado == SolicitudEstado.enRuta) {
       if (_rutaNotified) return;
       _rutaNotified = true;
+
+      unawaited(
+        _notify(
+          title: 'Viaje iniciado',
+          body: 'Comenzó el viaje hacia el destino.',
+        ),
+      );
 
       await onIrRutaClienteDestino();
       return;

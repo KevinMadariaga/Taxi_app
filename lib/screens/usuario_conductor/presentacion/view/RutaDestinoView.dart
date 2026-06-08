@@ -68,7 +68,6 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
         systemNavigationBarContrastEnforced: false,
       );
 
-  bool _isPaused = false;
   bool _completionFlowInProgress = false;
   bool _terminarViajePressed = false;
   bool _backgroundServiceRunning = false;
@@ -195,7 +194,6 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
       debugPrint(
         '🚀 [LOG] RutaDestinoView: onPaused - iniciando background service',
       );
-      _isPaused = true;
       _iniciarTrackingBackground();
     } else if (state == AppLifecycleState.resumed) {
       debugPrint(
@@ -203,7 +201,6 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
       );
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
       SystemChrome.setSystemUIOverlayStyle(_rutaDestinoOverlayStyle);
-      _isPaused = false;
       _detenerTrackingBackground();
     }
   }
@@ -344,15 +341,6 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
             _ubicacionConductor = nuevaUbicacion;
           });
 
-          debugPrint(
-            '[LOG] Ubicación extraída del GPS: lat=${nuevaUbicacion.latitude}, lng=${nuevaUbicacion.longitude}',
-          );
-          if (_isPaused) {
-            debugPrint(
-              '[LOG] [onPaused] Ubicación obtenida: lat=${nuevaUbicacion.latitude}, lng=${nuevaUbicacion.longitude}',
-            );
-          }
-
           // Guardar ubicación obtenida y fecha en Firestore (igual que en RutaConductorView)
           try {
             final timestampMs = DateTime.now().millisecondsSinceEpoch;
@@ -362,9 +350,6 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
               location: nuevaUbicacion,
               timestampMs: timestampMs,
               appendRouteHistory: true,
-            );
-            debugPrint(
-              '[LOG] Ubicación guardada en base de datos (servicio): lat=${nuevaUbicacion.latitude}, lng=${nuevaUbicacion.longitude}, ts=$timestampMs',
             );
             await vm.verificarUbicacionPersistida(widget.idSolicitud, nuevaUbicacion);
           } catch (e) {
@@ -564,16 +549,9 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
 
   Widget _mapWidget(BuildContext context) {
     final vm = Provider.of<RutaDestinoViewModel>(context);
-    LatLng? destinoLatLng;
-    if (vm.latDestino != null && vm.lngDestino != null) {
-      destinoLatLng = LatLng(vm.latDestino!, vm.lngDestino!);
-      debugPrint(
-        "✅ Ubicación destino encontrada: lat=${vm.latDestino}, lng=${vm.lngDestino}",
-      );
-    } else {
-      destinoLatLng = null;
-      debugPrint("❌ Ubicación destino NO encontrada");
-    }
+    final destinoLatLng = (vm.latDestino != null && vm.lngDestino != null)
+        ? LatLng(vm.latDestino!, vm.lngDestino!)
+        : null;
     final target = _ubicacionConductor ?? destinoLatLng ?? _initialTarget;
     final markers = <Marker>{
       // Marcador del destino
@@ -669,80 +647,153 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
   }
 
   void _openDetails(RutaDestinoViewModel vm) {
+    final nombre = vm.nombreCliente.isNotEmpty ? vm.nombreCliente : 'Cliente';
+    final destino = vm.direccionDestino.isNotEmpty ? vm.direccionDestino : '—';
+    final valor = _formatPesos(vm.valorServicio);
+    final pago = _metodoPagoLabel(vm.metodoPago);
+    final pagoIcon = _metodoPagoIcon(vm.metodoPago);
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(32),
-            topRight: Radius.circular(32),
-          ),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 24),
-            CircleAvatar(
-              radius: 50,
-              backgroundColor: AppColores.grey200,
-              backgroundImage: vm.fotoCliente.isNotEmpty
-                  ? CachedNetworkImageProvider(vm.fotoCliente)
-                  : null,
-              child: vm.fotoCliente.isEmpty
-                  ? const Icon(Icons.person, size: 50, color: Colors.grey)
-                  : null,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              vm.nombreCliente.isNotEmpty ? vm.nombreCliente : 'Cliente',
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: AppColores.textPrimary,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              vm.direccionDestino,
-              style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 32),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () => Navigator.pop(ctx),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColores.grey200,
-                  foregroundColor: AppColores.textPrimary,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-                child: const Text(
-                  'Cerrar',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                ),
-              ),
-            ),
-          ],
-        ),
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
+      builder: (ctx) {
+        return SafeArea(
+          top: false,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(ctx).size.height * 0.82,
+            ),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 44,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppColores.grey300,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  const Text(
+                    'Detalles del servicio',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: AppColores.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  // Cliente.
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 32,
+                        backgroundColor: AppColores.primary,
+                        backgroundImage: vm.fotoCliente.isNotEmpty
+                            ? CachedNetworkImageProvider(vm.fotoCliente)
+                            : null,
+                        child: vm.fotoCliente.isEmpty
+                            ? const Icon(
+                                Icons.person,
+                                size: 32,
+                                color: Colors.white,
+                              )
+                            : null,
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Cliente',
+                              style: TextStyle(
+                                color: AppColores.textSecondary,
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              nombre,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 17,
+                                color: AppColores.textPrimary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  const Divider(height: 1, color: AppColores.borderSubtle),
+                  const SizedBox(height: 14),
+                  _DetalleRow(
+                    icon: Icons.location_on,
+                    color: AppColores.error,
+                    label: 'Ubicación destino',
+                    value: destino,
+                  ),
+                  const SizedBox(height: 12),
+                  _DetalleRow(
+                    icon: Icons.attach_money_rounded,
+                    color: AppColores.success,
+                    label: 'Valor del servicio',
+                    value: valor,
+                  ),
+                  const SizedBox(height: 12),
+                  _DetalleRow(
+                    icon: pagoIcon,
+                    color: AppColores.secondary,
+                    label: 'Método de pago',
+                    value: pago,
+                    iconImage: vm.metodoPago.toLowerCase().contains('nequi')
+                        ? 'assets/img/nequi.png'
+                        : null,
+                  ),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColores.grey200,
+                        foregroundColor: AppColores.textPrimary,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      child: const Text(
+                        'Cerrar',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -848,6 +899,115 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Formatea un valor numérico como pesos (formato CO): `$12.000`.
+String _formatPesos(double value) {
+  final intVal = value.round();
+  final s = intVal.abs().toString();
+  final buf = StringBuffer();
+  for (int i = 0; i < s.length; i++) {
+    if (i > 0 && (s.length - i) % 3 == 0) buf.write('.');
+    buf.write(s[i]);
+  }
+  return '${intVal < 0 ? '-' : ''}\$${buf.toString()}';
+}
+
+/// Etiqueta legible del método de pago.
+String _metodoPagoLabel(String metodo) {
+  final m = metodo.toLowerCase();
+  if (m.contains('efectivo') || m.contains('cash')) return 'Efectivo';
+  if (m.contains('nequi')) return 'Nequi';
+  if (m.contains('transfer') || m.contains('banco')) return 'Transferencia';
+  return metodo.isEmpty ? 'No especificado' : metodo;
+}
+
+/// Icono según el método de pago.
+IconData _metodoPagoIcon(String metodo) {
+  final m = metodo.toLowerCase();
+  if (m.contains('efectivo') || m.contains('cash')) {
+    return Icons.payments_rounded;
+  }
+  if (m.contains('transfer') || m.contains('banco')) {
+    return Icons.account_balance;
+  }
+  if (m.contains('nequi')) return Icons.account_balance_wallet;
+  return Icons.payment;
+}
+
+/// Fila de detalle con icono en círculo, etiqueta y valor. Estilo alineado con
+/// `TripDetailsSheet`.
+class _DetalleRow extends StatelessWidget {
+  const _DetalleRow({
+    required this.icon,
+    required this.color,
+    required this.label,
+    required this.value,
+    this.iconImage,
+  });
+  final IconData icon;
+  final Color color;
+  final String label;
+  final String value;
+
+  /// Asset opcional a mostrar en vez del icono (ej. logo Nequi).
+  final String? iconImage;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 32,
+          height: 32,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: iconImage != null
+                ? Colors.white
+                : color.withValues(alpha: 0.12),
+            shape: BoxShape.circle,
+            border: iconImage != null
+                ? Border.all(color: AppColores.borderSubtle)
+                : null,
+          ),
+          child: iconImage != null
+              ? Image.asset(
+                  iconImage!,
+                  width: 20,
+                  height: 20,
+                  errorBuilder: (_, _, _) => Icon(icon, color: color, size: 18),
+                )
+              : Icon(icon, color: color, size: 18),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  color: AppColores.textSecondary,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: const TextStyle(
+                  color: AppColores.textPrimary,
+                  fontSize: 14.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

@@ -79,33 +79,38 @@ class Mapagoogle extends StatelessWidget {
       padding.bottom,
     );
 
-    return GoogleMap(
-      initialCameraPosition: CameraPosition(
-        target: initialTarget,
-        zoom: initialZoom,
+    // RepaintBoundary aísla la capa del mapa: evita que repintados de widgets
+    // hermanos (overlays, animaciones de tarjetas) fuercen repintar el mapa,
+    // reduciendo jank/caída de FPS.
+    return RepaintBoundary(
+      child: GoogleMap(
+        initialCameraPosition: CameraPosition(
+          target: initialTarget,
+          zoom: initialZoom,
+        ),
+        markers: allMarkers,
+        polylines: polylines,
+        circles: circles,
+        polygons: polygons,
+        onMapCreated: onMapCreated,
+        onCameraMove: onCameraMove,
+        onCameraIdle: onCameraIdle,
+        onTap: onTap,
+        onLongPress: onLongPress,
+        myLocationEnabled: myLocationEnabled,
+        myLocationButtonEnabled: showLocationButton,
+        zoomControlsEnabled: zoomControlsEnabled,
+        zoomGesturesEnabled: zoomGesturesEnabled,
+        rotateGesturesEnabled: rotateGesturesEnabled,
+        tiltGesturesEnabled: tiltGesturesEnabled,
+        compassEnabled: compassEnabled,
+        mapToolbarEnabled: mapToolbarEnabled,
+        trafficEnabled: trafficEnabled,
+        buildingsEnabled: buildingsEnabled,
+        indoorViewEnabled: indoorViewEnabled,
+        mapType: mapType,
+        padding: effectivePadding,
       ),
-      markers: allMarkers,
-      polylines: polylines,
-      circles: circles,
-      polygons: polygons,
-      onMapCreated: onMapCreated,
-      onCameraMove: onCameraMove,
-      onCameraIdle: onCameraIdle,
-      onTap: onTap,
-      onLongPress: onLongPress,
-      myLocationEnabled: myLocationEnabled,
-      myLocationButtonEnabled: showLocationButton,
-      zoomControlsEnabled: zoomControlsEnabled,
-      zoomGesturesEnabled: zoomGesturesEnabled,
-      rotateGesturesEnabled: rotateGesturesEnabled,
-      tiltGesturesEnabled: tiltGesturesEnabled,
-      compassEnabled: compassEnabled,
-      mapToolbarEnabled: mapToolbarEnabled,
-      trafficEnabled: trafficEnabled,
-      buildingsEnabled: buildingsEnabled,
-      indoorViewEnabled: indoorViewEnabled,
-      mapType: mapType,
-      padding: effectivePadding,
     );
   }
 }

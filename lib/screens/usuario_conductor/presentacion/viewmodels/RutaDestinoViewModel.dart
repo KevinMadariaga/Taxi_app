@@ -340,6 +340,19 @@ class RutaDestinoViewModel extends ChangeNotifier {
   String direccionDestino = '';
   String tituloDestino = '';
 
+  // DETALLES DEL SERVICIO
+  double valorServicio = 0;
+  String metodoPago = '';
+
+  static double _toDouble(dynamic value) {
+    if (value == null) return 0;
+    if (value is num) return value.toDouble();
+    return double.tryParse(
+          value.toString().replaceAll(RegExp(r'[^0-9.\-]'), ''),
+        ) ??
+        0;
+  }
+
   Map<String, dynamic>? _rawCliente;
   Map<String, dynamic>? get rawCliente => _rawCliente;
 
@@ -416,6 +429,23 @@ class RutaDestinoViewModel extends ChangeNotifier {
         tituloDestino = '';
         print('[RutaDestinoViewModel] No se encontró destino en la solicitud');
       }
+
+      // Valor del servicio y método de pago.
+      final tarifa = data['tarifa'];
+      final tarifaMap = tarifa is Map<String, dynamic> ? tarifa : null;
+      valorServicio = _toDouble(
+        tarifaMap?['total'] ??
+            data['valorServicio'] ??
+            data['valor'] ??
+            data['tarifaTotal'] ??
+            data['precio'],
+      );
+      metodoPago =
+          (data['paymentMethod'] ??
+                  data['metodoPago'] ??
+                  data['metodo_pago'] ??
+                  '')
+              .toString();
       notifyListeners();
     } catch (e) {
       debugPrint('Error al cargar datos de cliente/destino: $e');

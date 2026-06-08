@@ -215,158 +215,164 @@ class _DriverClientInfoCardState extends State<DriverClientInfoCard>
               if (_isExpanded) ...[
                 const SizedBox(height: 24),
 
-                // ── Botones Inferiores (Chat, Nav) ──────────────────────
-                Row(
-                  children: [
-                    if (widget.onOpenChat != null) ...[
-                      Expanded(
-                        child: InkWell(
-                          onTap: widget.onOpenChat,
-                          borderRadius: BorderRadius.circular(20),
-                          child: Stack(
-                            clipBehavior: Clip.none,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 11,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: AppColores.buttonPrimary.withValues(
-                                    alpha: 0.12,
-                                  ),
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(
-                                    color: AppColores.buttonPrimary,
-                                    width: 1.4,
-                                  ),
-                                ),
-                                child: const Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(
-                                      Icons.chat_bubble_rounded,
-                                      size: 18,
-                                      color: AppColores.buttonPrimary,
-                                    ),
-                                    SizedBox(width: 6),
-                                    Text(
-                                      'Chat',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 13,
-                                        color: AppColores.buttonPrimary,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              if (widget.unreadCount > 0)
-                                Positioned(
-                                  top: -6,
-                                  right: -4,
-                                  child: _UnreadBadge(
-                                    count: widget.unreadCount,
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                      ),
+                // ── Acciones ──────────────────────────────────────────────
+                if (widget.onOpenChat != null) ...[
+                  // Con chat: [Chat | Navegar] y botón principal debajo.
+                  Row(
+                    children: [
+                      Expanded(child: _buildChatButton()),
                       const SizedBox(width: 8),
+                      Expanded(child: _buildNavegarButton()),
                     ],
-                    Expanded(
-                      child: InkWell(
-                        onTap: widget.onOpenNavigation,
-                        borderRadius: BorderRadius.circular(20),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 11),
-                          decoration: BoxDecoration(
-                            color: AppColores.secondary,
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: const Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.navigation_rounded,
-                                size: 18,
-                                color: AppColores.textWhite,
-                              ),
-                              SizedBox(width: 6),
-                              Text(
-                                'Navegar',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 13,
-                                  color: AppColores.textWhite,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-
-                // ── Botón Principal (Llegué) ──────────────────────
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed:
-                        (widget.isSendingArrival ||
-                            widget.isArrivalReported ||
-                            !widget.arrivalButtonEnabled)
-                        ? null
-                        : widget.onReportArrival,
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(52),
-                      backgroundColor: AppColores.success,
-                      foregroundColor: AppColores.textWhite,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                    ),
-                    icon: widget.isSendingArrival
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: AppColores.textWhite,
-                            ),
-                          )
-                        : (widget.isArrivalReported
-                              ? const Icon(
-                                  Icons.check,
-                                  size: 20,
-                                  color: AppColores.textWhite,
-                                )
-                              : const Icon(
-                                  Icons.my_location_rounded,
-                                  size: 20,
-                                  color: AppColores.textWhite,
-                                )),
-                    label: Text(
-                      widget.isArrivalReported
-                          ? (widget.primaryButtonSuccessText ?? 'Enviado')
-                          : (widget.isSendingArrival
-                                ? 'Enviando...'
-                                : (widget.primaryButtonText ??
-                                      'Ya llegué al punto')),
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: _buildPrimaryButton(),
+                  ),
+                ] else
+                  // Sin chat: Navegar y botón principal uno al lado del otro.
+                  SizedBox(
+                    height: 52,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(child: _buildNavegarButton()),
+                        const SizedBox(width: 12),
+                        Expanded(child: _buildPrimaryButton()),
+                      ],
                     ),
                   ),
-                ),
               ],
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildChatButton() {
+    return InkWell(
+      onTap: widget.onOpenChat,
+      borderRadius: BorderRadius.circular(20),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(vertical: 11),
+            decoration: BoxDecoration(
+              color: AppColores.buttonPrimary.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppColores.buttonPrimary, width: 1.4),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.chat_bubble_rounded,
+                  size: 18,
+                  color: AppColores.buttonPrimary,
+                ),
+                SizedBox(width: 6),
+                Text(
+                  'Chat',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                    color: AppColores.buttonPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (widget.unreadCount > 0)
+            Positioned(
+              top: -6,
+              right: -4,
+              child: _UnreadBadge(count: widget.unreadCount),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNavegarButton() {
+    return InkWell(
+      onTap: widget.onOpenNavigation,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(vertical: 11),
+        decoration: BoxDecoration(
+          color: AppColores.secondary,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.navigation_rounded,
+              size: 18,
+              color: AppColores.textWhite,
+            ),
+            SizedBox(width: 6),
+            Text(
+              'Navegar',
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+                color: AppColores.textWhite,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPrimaryButton() {
+    return ElevatedButton.icon(
+      onPressed:
+          (widget.isSendingArrival ||
+              widget.isArrivalReported ||
+              !widget.arrivalButtonEnabled)
+          ? null
+          : widget.onReportArrival,
+      style: ElevatedButton.styleFrom(
+        minimumSize: const Size.fromHeight(52),
+        backgroundColor: AppColores.success,
+        foregroundColor: AppColores.textWhite,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
+      ),
+      icon: widget.isSendingArrival
+          ? const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: AppColores.textWhite,
+              ),
+            )
+          : (widget.isArrivalReported
+                ? const Icon(Icons.check, size: 20, color: AppColores.textWhite)
+                : const Icon(
+                    Icons.my_location_rounded,
+                    size: 20,
+                    color: AppColores.textWhite,
+                  )),
+      label: Text(
+        widget.isArrivalReported
+            ? (widget.primaryButtonSuccessText ?? 'Enviado')
+            : (widget.isSendingArrival
+                  ? 'Enviando...'
+                  : (widget.primaryButtonText ?? 'Ya llegué al punto')),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
       ),
     );
   }
