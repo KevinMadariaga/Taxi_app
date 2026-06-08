@@ -38,7 +38,6 @@ class HistorialClienteState extends State<HistorialCliente> {
     return Scaffold(
       backgroundColor: AppColores.background,
       appBar: AppBar(
-        automaticallyImplyLeading: false,
         title: const Text(
           'Historial de Viajes',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),

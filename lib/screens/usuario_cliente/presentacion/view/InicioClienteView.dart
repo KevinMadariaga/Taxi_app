@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:taxi_app/core/helpers/permisos_helper.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/navigation/inicio_cliente_navigation.dart';
@@ -12,7 +13,6 @@ import '../viewmodels/inicio_cliente_viewmodel.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/widgets/bienvenida_dialog.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/MapaClienteModel.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/view/historial_viaje_cliente.dart';
 import 'package:taxi_app/widgets/perfil.dart';
 
 class InicioClienteView extends StatefulWidget {
@@ -364,8 +364,82 @@ class _InicioClienteViewState extends State<InicioClienteView>
       FocusScope.of(context).unfocus();
     } catch (_) {}
     if (!mounted) return;
+    // Item 0 es "Más opciones": abre el menú sin cambiar de pestaña.
+    if (index == 0) {
+      await _showMoreOptionsSheet();
+      return;
+    }
     setState(() => _selectedIndex = index);
     _applyOverlayStyle();
+  }
+
+  Future<void> _showMoreOptionsSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 10),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColores.grey300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 8),
+              ListTile(
+                leading: const Icon(Icons.security),
+                title: const Text('Seguridad'),
+                onTap: () async {
+                  Navigator.of(ctx).pop();
+                  await InicioClienteNavigation.irASeguridad(context);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.help_outline),
+                title: const Text('Ayuda'),
+                onTap: () async {
+                  Navigator.of(ctx).pop();
+                  await InicioClienteNavigation.irAAyuda(context);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.support_agent),
+                title: const Text('Soporte'),
+                onTap: () async {
+                  Navigator.of(ctx).pop();
+                  await InicioClienteNavigation.irASoporte(context);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.notifications_none),
+                title: const Text('Notificaciones'),
+                onTap: () async {
+                  Navigator.of(ctx).pop();
+                  await InicioClienteNavigation.irANotificaciones(context);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.history),
+                title: const Text('Historial'),
+                onTap: () async {
+                  Navigator.of(ctx).pop();
+                  await InicioClienteNavigation.irAHistorial(context);
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _centerOnMarker() async {
@@ -413,47 +487,6 @@ class _InicioClienteViewState extends State<InicioClienteView>
         extendBodyBehindAppBar: true,
         key: _scaffoldKey,
         backgroundColor: AppColores.background,
-        endDrawer: Drawer(
-          child: SafeArea(
-            child: ListView(
-              padding: EdgeInsets.zero,
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.security),
-                  title: const Text('Seguridad'),
-                  onTap: () async {
-                    Navigator.of(context).pop();
-                    await InicioClienteNavigation.irASeguridad(context);
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.help_outline),
-                  title: const Text('Ayuda'),
-                  onTap: () async {
-                    Navigator.of(context).pop();
-                    await InicioClienteNavigation.irAAyuda(context);
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.support_agent),
-                  title: const Text('Soporte'),
-                  onTap: () async {
-                    Navigator.of(context).pop();
-                    await InicioClienteNavigation.irASoporte(context);
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.notifications_none),
-                  title: const Text('Notificaciones'),
-                  onTap: () async {
-                    Navigator.of(context).pop();
-                    await InicioClienteNavigation.irANotificaciones(context);
-                  },
-                ),
-              ],
-            ),
-          ),
-        ),
         body: Stack(
           children: [
             Container(
@@ -466,8 +499,8 @@ class _InicioClienteViewState extends State<InicioClienteView>
                   IndexedStack(
                     index: _selectedIndex,
                     children: [
-                      // 0 - Historial
-                      const HistorialCliente(),
+                      // 0 - Historial ahora se abre desde "Más opciones".
+                      const SizedBox.shrink(),
 
                       // 1 - Home
                       Column(
@@ -548,7 +581,9 @@ class _InicioClienteViewState extends State<InicioClienteView>
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Expanded(
-          child: Column(
+          child: Padding(
+            padding: const EdgeInsets.only(left: 12),
+            child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
@@ -561,28 +596,6 @@ class _InicioClienteViewState extends State<InicioClienteView>
               ),
               const SizedBox(height: 2),
             ],
-          ),
-        ),
-        GestureDetector(
-          onTap: () => _scaffoldKey.currentState?.openEndDrawer(),
-          child: Container(
-            width: 46,
-            height: 46,
-            decoration: BoxDecoration(
-              color: AppColores.surface,
-              borderRadius: BorderRadius.circular(13),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.06),
-                  blurRadius: 10,
-                  offset: const Offset(0, 3),
-                ),
-              ],
-            ),
-            child: const Icon(
-              Icons.menu_rounded,
-              size: 22,
-              color: AppColores.textPrimary,
             ),
           ),
         ),
@@ -590,76 +603,81 @@ class _InicioClienteViewState extends State<InicioClienteView>
     );
   }
 
+  /// Botón "¿A dónde vamos?" con patrón de campo de búsqueda (estilo Uber/DiDi/
+  /// Cabify): la lupa + el texto tipo placeholder comunican que al tocar se
+  /// elige el destino. Material + InkWell dan ripple táctil; la flecha hace un
+  /// micro-movimiento para reforzar la acción.
   Widget _buildSearchBox(bool isTablet) {
-    return GestureDetector(
-      onTap: () => _navigateToDestinoSeleccion(),
-      child: Container(
-        decoration: BoxDecoration(
-          color: AppColores.surface,
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.06),
-              blurRadius: 16,
-              offset: const Offset(0, 5),
+    return Material(
+      color: AppColores.surface,
+      elevation: 0,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        onTap: () => _navigateToDestinoSeleccion(),
+        borderRadius: BorderRadius.circular(18),
+        child: Ink(
+          decoration: BoxDecoration(
+            color: AppColores.surface,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: AppColores.primary.withValues(alpha: 0.35),
+              width: 1.4,
             ),
-          ],
-        ),
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          children: [
-            Container(
-              width: 46,
-              height: 46,
-              decoration: BoxDecoration(
-                color: AppColores.primary.withValues(alpha: 0.16),
-                borderRadius: BorderRadius.circular(13),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.06),
+                blurRadius: 16,
+                offset: const Offset(0, 5),
               ),
-              child: const Icon(
-                Icons.search_rounded,
-                size: 24,
-                color: AppColores.primary,
+            ],
+          ),
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              // Lupa: señal universal de "campo de búsqueda / tocar para buscar".
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: AppColores.primary.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: const Icon(
+                  Icons.search_rounded,
+                  size: 24,
+                  color: Color(0xFFB38F00),
+                ),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    '¿A dónde vamos?',
-                    style: TextStyle(
-                      color: AppColores.textPrimary,
-                      fontSize: isTablet ? 18 : 16.5,
-                      fontWeight: FontWeight.w800,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '¿A dónde vamos?',
+                      style: TextStyle(
+                        color: AppColores.textPrimary,
+                        fontSize: isTablet ? 18 : 16.5,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Toca para elegir tu destino',
-                    style: TextStyle(
-                      color: AppColores.textSecondary,
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w500,
+                    const SizedBox(height: 2),
+                    const Text(
+                      'Toca para elegir tu destino',
+                      style: TextStyle(
+                        color: AppColores.textSecondary,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: AppColores.primary,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(
-                Icons.arrow_forward_rounded,
-                size: 18,
-                color: Colors.black,
-              ),
-            ),
-          ],
+              const SizedBox(width: 8),
+              const _NudgingArrow(),
+            ],
+          ),
         ),
       ),
     );
@@ -831,7 +849,9 @@ class _InicioClienteViewState extends State<InicioClienteView>
                 itemCount: items.length,
                 itemBuilder: (context, index) {
                   final item = items[index];
-                  return Card(
+                  return GestureDetector(
+                    onTap: _mostrarPromoWhatsApp,
+                    child: Card(
                     elevation: 0,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
@@ -840,17 +860,10 @@ class _InicioClienteViewState extends State<InicioClienteView>
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
-                        // Fondo degradado
+                        // Fondo amarillo de marca
                         Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [
-                                AppColores.primary.withValues(alpha: 0.85),
-                                AppColores.primary,
-                              ],
-                            ),
+                          decoration: const BoxDecoration(
+                            color: AppColores.primary,
                           ),
                         ),
                         // Círculo decorativo top-right
@@ -904,6 +917,7 @@ class _InicioClienteViewState extends State<InicioClienteView>
                         ),
                       ],
                     ),
+                  ),
                   );
                 },
               ),
@@ -912,6 +926,112 @@ class _InicioClienteViewState extends State<InicioClienteView>
         ),
       ],
     );
+  }
+
+  Future<void> _mostrarPromoWhatsApp() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 14, 24, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColores.grey300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    color: AppColores.primary.withValues(alpha: 0.18),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.campaign_rounded,
+                    color: Color(0xFFB38F00),
+                    size: 34,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  '¿Quieres promocionar tu negocio?',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: AppColores.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Escríbenos por WhatsApp y te ayudamos a llegar a más clientes.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: AppColores.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 22),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.of(ctx).pop();
+                      _abrirWhatsAppPromo();
+                    },
+                    icon: const Icon(Icons.chat_rounded, size: 20),
+                    label: const Text(
+                      'Contactar por WhatsApp',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF25D366),
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size.fromHeight(52),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _abrirWhatsAppPromo() async {
+    final mensaje = Uri.encodeComponent(
+      'Quiero contratar para promocionar mi negocio',
+    );
+    final uri = Uri.parse('https://wa.me/573152987320?text=$mensaje');
+    try {
+      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!ok && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No se pudo abrir WhatsApp')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No se pudo abrir WhatsApp')),
+        );
+      }
+    }
   }
 
   Widget _buildMap() {
@@ -1048,8 +1168,8 @@ class _InicioClienteViewState extends State<InicioClienteView>
         unselectedLabelStyle: const TextStyle(fontSize: 11),
         items: const [
           BottomNavigationBarItem(
-            icon: Icon(Icons.history),
-            label: 'Historial',
+            icon: Icon(Icons.menu_rounded),
+            label: 'Más opciones',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.map_outlined),
@@ -1110,6 +1230,65 @@ class _InicioClienteViewState extends State<InicioClienteView>
 // ─────────────────────────────────────────────────────────────────────────────
 // Aviso "Ubicación encontrada" — píldora superior, animada y auto-ocultable
 // ─────────────────────────────────────────────────────────────────────────────
+
+/// Flecha del botón de búsqueda con un leve nudge horizontal recurrente para
+/// insinuar "tócame para continuar". Honra la preferencia de reducir movimiento.
+class _NudgingArrow extends StatefulWidget {
+  const _NudgingArrow();
+
+  @override
+  State<_NudgingArrow> createState() => _NudgingArrowState();
+}
+
+class _NudgingArrowState extends State<_NudgingArrow>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  );
+  late final Animation<double> _dx = Tween<double>(begin: 0, end: 4).animate(
+    CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final reduce = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    if (reduce) {
+      _controller.stop();
+      _controller.value = 0;
+    } else if (!_controller.isAnimating) {
+      _controller.repeat(reverse: true);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _dx,
+      builder: (_, child) =>
+          Transform.translate(offset: Offset(_dx.value, 0), child: child),
+      child: Container(
+        padding: const EdgeInsets.all(11),
+        decoration: BoxDecoration(
+          color: AppColores.primary,
+          borderRadius: BorderRadius.circular(13),
+        ),
+        child: const Icon(
+          Icons.arrow_forward_rounded,
+          size: 18,
+          color: Colors.black,
+        ),
+      ),
+    );
+  }
+}
 
 class _UbicacionOkBanner extends StatelessWidget {
   const _UbicacionOkBanner({required this.visible});
