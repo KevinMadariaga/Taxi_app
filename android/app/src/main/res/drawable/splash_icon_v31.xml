@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Icono para Android 12+ (windowSplashScreenAnimatedIcon).
+  Canvas total: 240dp. Zona segura visible: círculo 160dp de diámetro.
+  Contenido a 108×108dp → diagonal 152dp < 160dp → pin completo sin recorte.
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:width="108dp"
+        android:height="108dp"
+        android:gravity="center">
+        <bitmap
+            android:gravity="fill"
+            android:src="@drawable/icono_car" />
+    </item>
+</layer-list>

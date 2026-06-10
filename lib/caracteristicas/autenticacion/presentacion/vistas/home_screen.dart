@@ -9,7 +9,6 @@ import 'package:taxi_app/caracteristicas/autenticacion/dominio/casos_uso/sign_in
 import 'package:taxi_app/caracteristicas/autenticacion/presentacion/vistas/complete_profile_page.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/home_cliente_view.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioConductorView.dart';
-import 'package:taxi_app/caracteristicas/autenticacion/presentacion/vistas/login_conductor_screen.dart';
 import 'package:taxi_app/features/admin/admin_home_screen.dart';
 
 /// Pantalla de inicio de sesión del cliente.
@@ -220,36 +219,6 @@ class _HomeViewState extends State<HomeView> {
                             onTap: () => _loginWithApple(authVm),
                           ),
 
-                          const SizedBox(height: 22),
-
-                          // ── Acceso conductor (sutil) ───────────────────
-                          TextButton(
-                            onPressed: isBusy
-                                ? null
-                                : () => Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => const LoginConductor(),
-                                    ),
-                                  ),
-                            style: TextButton.styleFrom(
-                              foregroundColor: AppColores.textSecondary,
-                            ),
-                            child: const Text.rich(
-                              TextSpan(
-                                text: '¿Eres conductor?  ',
-                                children: [
-                                  TextSpan(
-                                    text: 'Ingresa aquí',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      color: AppColores.textPrimary,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
 
                           const SizedBox(height: 8),
                           Text(

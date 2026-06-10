@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:taxi_app/widgets/boton.dart';
+import 'package:taxi_app/widgets/sugerencia_modal.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/InicioClienteView.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioConductorView.dart';
@@ -270,12 +271,18 @@ class _ResumenViajeBodyState extends State<_ResumenViajeBody> {
       } catch (_) {}
 
       if (!context.mounted) return;
+      await registrarViajeYMostrarSugerenciaModal(context, tipo: 'cliente');
+
+      if (!context.mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const InicioClienteView()),
         (route) => false,
       );
       return;
     }
+
+    if (!context.mounted) return;
+    await registrarViajeYMostrarSugerenciaModal(context, tipo: 'conductor');
 
     if (!context.mounted) return;
     Navigator.of(context).pushAndRemoveUntil(

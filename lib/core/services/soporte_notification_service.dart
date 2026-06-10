@@ -13,9 +13,11 @@ class SoporteNotificationService {
   StreamSubscription<QuerySnapshot>? _userSub;
   StreamSubscription<QuerySnapshot>? _adminSub;
   StreamSubscription<QuerySnapshot>? _reportesSub;
+  StreamSubscription<QuerySnapshot>? _emergenciasSub;
   DateTime? _userListenerStarted;
   DateTime? _adminListenerStarted;
   DateTime? _reportesListenerStarted;
+  DateTime? _emergenciasListenerStarted;
   String? _currentUserId;
 
   /// Llama cuando el usuario (cliente o conductor) inicia sesión.
@@ -102,6 +104,53 @@ class SoporteNotificationService {
         }, onError: (_) {});
   }
 
+  /// Escucha nuevas emergencias (botón de pánico) de los clientes.
+  void iniciarEscuchaEmergencias() {
+    _emergenciasSub?.cancel();
+    _emergenciasListenerStarted = DateTime.now();
+
+    _emergenciasSub = FirebaseFirestore.instance
+        .collection('emergencias')
+        .where('atendido', isEqualTo: false)
+        .snapshots()
+        .listen((snap) {
+          for (final change in snap.docChanges) {
+            if (change.type != DocumentChangeType.added) continue;
+            final data = change.doc.data() as Map<String, dynamic>?;
+            if (data == null) continue;
+
+            final ts = data['timestamp'] as Timestamp?;
+            final msgTime = ts?.toDate();
+            final started = _emergenciasListenerStarted;
+            if (msgTime != null &&
+                started != null &&
+                msgTime.isBefore(
+                  started.subtract(const Duration(seconds: 2)),
+                )) {
+              continue;
+            }
+
+            final motivos = (data['motivos'] as List?)
+                    ?.map((e) => e.toString())
+                    .join(', ') ??
+                'Emergencia activada';
+            NotificacionesServicio.instance.showNotification(
+              id: change.doc.id.hashCode & 0x7fffffff,
+              title: '🚨 EMERGENCIA — cliente en peligro',
+              body: motivos.isNotEmpty ? motivos : 'Un cliente activó el botón de pánico.',
+              channelId: 'taxi_emergencia_channel',
+              channelName: 'Emergencias',
+              payload: 'admin_hub:3',
+            );
+          }
+        }, onError: (_) {});
+  }
+
+  void detenerEscuchaEmergencias() {
+    _emergenciasSub?.cancel();
+    _emergenciasSub = null;
+  }
+
   void detenerEscuchaUsuario() {
     _userSub?.cancel();
     _userSub = null;
@@ -152,6 +201,8 @@ class SoporteNotificationService {
     _adminSub = null;
     _reportesSub?.cancel();
     _reportesSub = null;
+    _emergenciasSub?.cancel();
+    _emergenciasSub = null;
   }
 
   void detenerTodo() {

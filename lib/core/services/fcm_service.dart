@@ -265,9 +265,10 @@ class FcmService {
     if (nav == null) return;
 
     int? tab;
-    if (type == 'soporte_chat') tab = 2;
     if (type == 'solicitud_activacion') tab = 0;
     if (type == 'reporte') tab = 1;
+    if (type == 'soporte_chat') tab = 2;
+    if (type == 'emergencia') tab = 3;
 
     if (tab != null) {
       nav.push(

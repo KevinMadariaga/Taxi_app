@@ -20,6 +20,7 @@ import '../controllers/solicitud_estado_controller.dart';
 import '../viewmodels/trip_tracking_viewmodel.dart';
 
 import '../widgets/user_trip_info_card.dart';
+import '../widgets/panic_button_fab.dart';
 import 'trip_chat_screen.dart';
 
 class TripTrackingScreen extends StatefulWidget {
@@ -43,11 +44,13 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
   late final SolicitudEstadoController _estadoController;
   BitmapDescriptor? _taxiMarkerIcon;
   Timer? _cancelDisableTimer;
+  Timer? _cameraFollowTimer;
   bool _cancelAllowed = true;
   bool _cancelAllowedBeforeModal = true;
   bool _initialCameraApplied = false;
   bool _cancelledNavigationDone = false;
   bool _rutaDestinoNavigationDone = false;
+  TripTrackingViewModel? _vm;
 
   String? _lastEstadoProcesado;
   String? _lastPersistedStatus;
@@ -107,6 +110,10 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
           _handleTripStateIfNeeded(vm);
           _handleSolicitudCanceladaIfNeeded(vm);
           _fitInitialCameraIfNeeded(vm);
+          if (_vm != vm) {
+            _vm = vm;
+            _startCameraFollowTimer(vm);
+          }
 
           final markers = <Marker>{
             if (vm.conductorLatLng != null)
@@ -233,13 +240,15 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
                                     ),
                                   ),
                                 ),
+                              // FAB de enfoque — izquierda arriba
                               Positioned(
-                                right: 16,
-                                bottom: safeBottom + 16,
+                                left: 16,
+                                bottom: safeBottom + 80,
                                 child: FloatingActionButton(
                                   heroTag: 'focus_trip_tracking',
                                   backgroundColor: AppColores.buttonPrimary,
                                   onPressed: () => _toggleFocus(vm),
+                                  tooltip: 'Centrar mapa',
                                   child: Icon(
                                     vm.focusMode == MapFocusMode.clientOnly
                                         ? Icons.person_pin_circle
@@ -247,6 +256,12 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
                                     color: AppColores.textWhite,
                                   ),
                                 ),
+                              ),
+                              // Botón de pánico — izquierda abajo
+                              Positioned(
+                                left: 16,
+                                bottom: safeBottom + 16,
+                                child: const PanicButtonFab(),
                               ),
                             ],
                           ),
@@ -961,9 +976,34 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
     });
   }
 
+  void _startCameraFollowTimer(TripTrackingViewModel vm) {
+    _cameraFollowTimer?.cancel();
+    _cameraFollowTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+      if (!mounted) return;
+      final map = _mapController;
+      if (map == null) return;
+      if (vm.focusMode != MapFocusMode.clientOnly) return;
+      final conductor = vm.conductorLatLng;
+      if (conductor == null) return;
+      unawaited(
+        map.animateCamera(
+          CameraUpdate.newCameraPosition(
+            CameraPosition(
+              target: conductor,
+              bearing: vm.conductorHeading,
+              zoom: 16.5,
+              tilt: 0,
+            ),
+          ),
+        ),
+      );
+    });
+  }
+
   @override
   void dispose() {
     _mapController?.dispose();
+    _cameraFollowTimer?.cancel();
     try {
       _estadoController.waitModalVisible.removeListener(() {});
     } catch (_) {}

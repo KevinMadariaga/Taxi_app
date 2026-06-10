@@ -17,30 +17,18 @@ class AdminHubScreen extends StatefulWidget {
 }
 
 class _AdminHubScreenState extends State<AdminHubScreen> {
-  int _usuarios = 0;
   int _reportes = 0;
   int _mensajes = 0;
+  int _sugerencias = 0;
 
-  StreamSubscription<QuerySnapshot>? _usuariosSub;
   StreamSubscription<QuerySnapshot>? _reportesSub;
   StreamSubscription<QuerySnapshot>? _mensajesSub;
+  StreamSubscription<QuerySnapshot>? _sugerenciasSub;
 
   @override
   void initState() {
     super.initState();
     final fs = FirebaseFirestore.instance;
-
-    _usuariosSub = fs
-        .collection('usuarios')
-        .where('solicitudConductor', isEqualTo: true)
-        .snapshots()
-        .listen((snap) {
-      final count = snap.docs.where((d) {
-        final m = (d.data()['membresia'] ?? '').toString().toLowerCase();
-        return m != 'activa';
-      }).length;
-      setState(() => _usuarios = count);
-    });
 
     _reportesSub = fs
         .collection('reportes')
@@ -53,13 +41,19 @@ class _AdminHubScreenState extends State<AdminHubScreen> {
         .where('hayMensajesNuevosAdmin', isEqualTo: true)
         .snapshots()
         .listen((snap) => setState(() => _mensajes = snap.docs.length));
+
+    _sugerenciasSub = fs
+        .collection('sugerencias')
+        .where('visto', isEqualTo: false)
+        .snapshots()
+        .listen((snap) => setState(() => _sugerencias = snap.docs.length));
   }
 
   @override
   void dispose() {
-    _usuariosSub?.cancel();
     _reportesSub?.cancel();
     _mensajesSub?.cancel();
+    _sugerenciasSub?.cancel();
     super.dispose();
   }
 
@@ -83,17 +77,17 @@ class _AdminHubScreenState extends State<AdminHubScreen> {
             unselectedLabelColor: AppColores.textSecondary,
             indicatorColor: AppColores.primary,
             tabs: [
-              _BadgeTab(label: 'Usuarios', count: _usuarios),
               _BadgeTab(label: 'Reportes', count: _reportes),
               _BadgeTab(label: 'Mensajes', count: _mensajes),
+              _BadgeTab(label: 'Sugerencias', count: _sugerencias),
             ],
           ),
         ),
         body: const TabBarView(
           children: [
-            _TabUsuarios(),
             _TabReportes(),
             _TabMensajes(),
+            _TabSugerencias(),
           ],
         ),
       ),
@@ -134,106 +128,6 @@ class _BadgeTab extends StatelessWidget {
           ],
         ],
       ),
-    );
-  }
-}
-
-// ─── TAB USUARIOS ────────────────────────────────────────────────────────────
-
-class _TabUsuarios extends StatelessWidget {
-  const _TabUsuarios();
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance
-          .collection('usuarios')
-          .where('tipoUsuario', whereIn: ['cliente', 'conductor'])
-          .orderBy('nombre')
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        final docs = snapshot.data?.docs ?? [];
-
-        if (docs.isEmpty) {
-          return const Center(
-            child: Text(
-              'Sin usuarios registrados.',
-              style: TextStyle(color: AppColores.textSecondary),
-            ),
-          );
-        }
-
-        return ListView.separated(
-          padding: const EdgeInsets.all(16),
-          itemCount: docs.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 6),
-          itemBuilder: (context, index) {
-            final data = docs[index].data();
-            final nombre = (data['nombre'] ?? 'Sin nombre').toString();
-            final apellido = (data['apellido'] ?? '').toString();
-            final tipo = (data['tipoUsuario'] ?? data['rol'] ?? '').toString();
-            final telefono = (data['telefono'] ?? '').toString();
-            final foto = (data['foto'] ?? data['fotoUrl'] ?? '').toString();
-            final esConductor = tipo == 'conductor';
-
-            return ListTile(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              tileColor: AppColores.surface,
-              leading: CircleAvatar(
-                backgroundColor: esConductor
-                    ? AppColores.primary.withValues(alpha: 0.18)
-                    : AppColores.grey200,
-                backgroundImage:
-                    foto.isNotEmpty ? NetworkImage(foto) : null,
-                child: foto.isEmpty
-                    ? Icon(
-                        esConductor ? Icons.local_taxi : Icons.person,
-                        color: esConductor
-                            ? AppColores.textPrimary
-                            : AppColores.textSecondary,
-                      )
-                    : null,
-              ),
-              title: Text(
-                apellido.isNotEmpty ? '$nombre $apellido' : nombre,
-                style: const TextStyle(fontWeight: FontWeight.w700),
-              ),
-              subtitle: Text(
-                telefono.isNotEmpty ? telefono : tipo,
-                style: const TextStyle(color: AppColores.textSecondary),
-              ),
-              trailing: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: esConductor
-                      ? AppColores.primary.withValues(alpha: 0.15)
-                      : AppColores.grey200,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  esConductor ? 'Conductor' : 'Cliente',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: esConductor
-                        ? const Color(0xFF7A6000)
-                        : AppColores.textSecondary,
-                  ),
-                ),
-              ),
-            );
-          },
-        );
-      },
     );
   }
 }
@@ -576,6 +470,262 @@ class _TabMensajes extends StatelessWidget {
           },
         );
       },
+    );
+  }
+}
+
+// ─── TAB SUGERENCIAS ─────────────────────────────────────────────────────────
+
+class _TabSugerencias extends StatelessWidget {
+  const _TabSugerencias();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('sugerencias')
+          .orderBy('creadoEn', descending: true)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final docs = snapshot.data?.docs ?? [];
+
+        if (docs.isEmpty) {
+          return const Center(
+            child: Text(
+              'Sin sugerencias aún.',
+              style: TextStyle(color: AppColores.textSecondary),
+            ),
+          );
+        }
+
+        return ListView.separated(
+          padding: const EdgeInsets.all(16),
+          itemCount: docs.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 6),
+          itemBuilder: (context, index) {
+            final data = docs[index].data();
+            final tipo = (data['tipo'] ?? 'cliente').toString();
+            final mensaje = (data['mensaje'] ?? '').toString();
+            final estrellas = (data['estrellas'] as num?)?.toInt() ?? 0;
+            final visto = data['visto'] as bool? ?? false;
+            final ts = data['creadoEn'] as Timestamp?;
+            final fecha = ts != null
+                ? '${ts.toDate().day}/${ts.toDate().month}/${ts.toDate().year}'
+                : '';
+            final esConductor = tipo == 'conductor';
+
+            return ListTile(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              tileColor: visto
+                  ? AppColores.surface
+                  : AppColores.primary.withValues(alpha: 0.05),
+              leading: CircleAvatar(
+                backgroundColor: visto
+                    ? AppColores.grey200
+                    : AppColores.primary.withValues(alpha: 0.15),
+                child: Icon(
+                  esConductor ? Icons.local_taxi : Icons.person,
+                  color: visto
+                      ? AppColores.textSecondary
+                      : AppColores.textPrimary,
+                  size: 20,
+                ),
+              ),
+              title: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: esConductor
+                          ? AppColores.primary.withValues(alpha: 0.12)
+                          : Colors.blue.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      esConductor ? 'Conductor' : 'Cliente',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: esConductor
+                            ? const Color(0xFF7A6000)
+                            : Colors.blue.shade700,
+                      ),
+                    ),
+                  ),
+                  if (estrellas > 0) ...[
+                    const SizedBox(width: 6),
+                    Row(
+                      children: List.generate(
+                        estrellas,
+                        (_) => const Icon(
+                          Icons.star_rounded,
+                          size: 14,
+                          color: Color(0xFFFFC107),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              subtitle: mensaje.isNotEmpty
+                  ? Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        mensaje,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: visto
+                              ? AppColores.textSecondary
+                              : AppColores.textPrimary,
+                          fontWeight: visto
+                              ? FontWeight.normal
+                              : FontWeight.w500,
+                        ),
+                      ),
+                    )
+                  : null,
+              trailing: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    fecha,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColores.textSecondary,
+                    ),
+                  ),
+                  if (!visto)
+                    Container(
+                      margin: const EdgeInsets.only(top: 4),
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(
+                        color: AppColores.primary,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                ],
+              ),
+              onTap: () async {
+                if (!visto) {
+                  await FirebaseFirestore.instance
+                      .collection('sugerencias')
+                      .doc(docs[index].id)
+                      .update({'visto': true});
+                }
+                if (context.mounted && mensaje.isNotEmpty) {
+                  _mostrarDetalleSugerencia(
+                    context,
+                    tipo: tipo,
+                    mensaje: mensaje,
+                    estrellas: estrellas,
+                    fecha: fecha,
+                  );
+                }
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _mostrarDetalleSugerencia(
+    BuildContext context, {
+    required String tipo,
+    required String mensaje,
+    required int estrellas,
+    required String fecha,
+  }) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColores.grey300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                const Icon(
+                  Icons.lightbulb_outline_rounded,
+                  color: AppColores.primary,
+                ),
+                const SizedBox(width: 8),
+                const Text(
+                  'Sugerencia',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  fecha,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColores.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              tipo == 'conductor' ? 'Conductor' : 'Cliente',
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: AppColores.textSecondary,
+              ),
+            ),
+            if (estrellas > 0) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: List.generate(
+                  estrellas,
+                  (_) => const Icon(
+                    Icons.star_rounded,
+                    size: 20,
+                    color: Color(0xFFFFC107),
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(height: 12),
+            Text(
+              mensaje,
+              style: const TextStyle(fontSize: 15),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

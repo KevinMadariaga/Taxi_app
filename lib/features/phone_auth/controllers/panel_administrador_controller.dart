@@ -12,6 +12,7 @@ class PanelAdministradorController extends ChangeNotifier {
   }) : _userDataService = userDataService ?? UserDataService() {
     SoporteNotificationService.instance.iniciarEscuchaAdmin();
     SoporteNotificationService.instance.iniciarEscuchaReportes();
+    SoporteNotificationService.instance.iniciarEscuchaEmergencias();
   }
 
   final String adminId;

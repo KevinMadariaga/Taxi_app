@@ -25,6 +25,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     super.initState();
     SoporteNotificationService.instance.iniciarEscuchaAdmin();
     SoporteNotificationService.instance.iniciarEscuchaReportes();
+    SoporteNotificationService.instance.iniciarEscuchaEmergencias();
   }
 
   @override
@@ -726,12 +727,14 @@ class _AdminBellIconState extends State<_AdminBellIcon> {
   int _chats = 0;
   int _reportes = 0;
   int _conductores = 0;
+  int _emergencias = 0;
 
   StreamSubscription<QuerySnapshot>? _chatsSub;
   StreamSubscription<QuerySnapshot>? _reportesSub;
   StreamSubscription<QuerySnapshot>? _conductoresSub;
+  StreamSubscription<QuerySnapshot>? _emergenciasSub;
 
-  int get _total => _chats + _reportes + _conductores;
+  int get _total => _chats + _reportes + _conductores + _emergencias;
 
   @override
   void initState() {
@@ -761,6 +764,12 @@ class _AdminBellIconState extends State<_AdminBellIcon> {
       }).length;
       setState(() => _conductores = pendientes);
     });
+
+    _emergenciasSub = fs
+        .collection('emergencias')
+        .where('atendido', isEqualTo: false)
+        .snapshots()
+        .listen((snap) => setState(() => _emergencias = snap.docs.length));
   }
 
   @override
@@ -768,6 +777,7 @@ class _AdminBellIconState extends State<_AdminBellIcon> {
     _chatsSub?.cancel();
     _reportesSub?.cancel();
     _conductoresSub?.cancel();
+    _emergenciasSub?.cancel();
     super.dispose();
   }
 

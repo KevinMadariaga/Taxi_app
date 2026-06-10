@@ -56,6 +56,8 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
 
   // Cancela la solicitud si la app pasa demasiado tiempo en segundo plano.
   Timer? _bgCancelTimer;
+  // Cancela la solicitud 5 s después de que el motor Flutter se destruya.
+  Timer? _detachedCancelTimer;
   // true cuando ya se navegó/canceló: evita acciones de ciclo de vida tardías.
   bool _flujoTerminado = false;
   // Diálogo de contraofertas abierto (evita duplicarlo).
@@ -67,7 +69,10 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
   // Bottom sheet "Actualizar valor" abierto.
   bool _modalEditarAbierto = false;
 
+  // 6 min en segundo plano sin volver → cancelar solicitud.
   static const Duration _umbralBackgroundCancel = Duration(minutes: 6);
+  // 5 s tras destrucción del motor → cancelar solicitud.
+  static const Duration _umbralDetachedCancel = Duration(seconds: 5);
   static const int _segundosAviso5min = 300;
 
   // Estado UI-only: qué conductores están siendo respondidos
@@ -101,21 +106,26 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
     if (_flujoTerminado) return;
 
     if (state == AppLifecycleState.detached) {
-      // App cerrada estando en buscando → cancelar la solicitud.
-      _vm.marcarCanceladaPorInactividad();
+      // Motor Flutter destruido (app cerrada por completo).
+      // Esperar 5 s para dar tiempo al SDK a enviar la escritura a Firestore.
+      _detachedCancelTimer?.cancel();
+      _detachedCancelTimer = Timer(_umbralDetachedCancel, () {
+        if (!_flujoTerminado) _vm.marcarCanceladaPorInactividad();
+      });
       return;
     }
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden) {
-      // Segundo plano: si pasan ~6 min sin volver, cancelar.
+      // App en segundo plano: cancelar tras 6 min sin volver.
       _bgCancelTimer?.cancel();
       _bgCancelTimer = Timer(_umbralBackgroundCancel, () {
-        _vm.marcarCanceladaPorInactividad();
+        if (!_flujoTerminado) _vm.marcarCanceladaPorInactividad();
       });
       return;
     }
     if (state == AppLifecycleState.resumed) {
       _bgCancelTimer?.cancel();
+      _detachedCancelTimer?.cancel();
     }
   }
 
@@ -212,6 +222,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
     _navegandoAViaje = true;
     _flujoTerminado = true;
     _bgCancelTimer?.cancel();
+    _detachedCancelTimer?.cancel();
     await _vm.detenerEscucha();
     if (!mounted) return;
     _searchTimer?.cancel();
@@ -232,6 +243,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
     if (_vm.isCancelling) return;
     _flujoTerminado = true;
     _bgCancelTimer?.cancel();
+    _detachedCancelTimer?.cancel();
     await _vm.cancelarSolicitud();
     if (!mounted) return;
     _searchTimer?.cancel();
@@ -482,6 +494,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _bgCancelTimer?.cancel();
+    _detachedCancelTimer?.cancel();
     _conductoresSub?.cancel();
     _conductoresConectadosSub?.cancel();
     _searchTimer?.cancel();

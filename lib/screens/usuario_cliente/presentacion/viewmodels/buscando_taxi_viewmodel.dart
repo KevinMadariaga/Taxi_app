@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import 'package:taxi_app/core/services/services.dart';
+import 'package:taxi_app/core/helpers/session_helper.dart';
 
 /// Contraoferta individual de un conductor.
 class ContraofertaItem {
@@ -81,6 +82,9 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
 
     _solicitudSub?.cancel();
     if (solicitudId == null || solicitudId.isEmpty) return;
+
+    // Persist so a forced-kill + restart can find and auto-cancel this solicitud.
+    SessionHelper.setActiveSolicitud(solicitudId).ignore();
 
     _solicitudSub = _firestore
         .collection('solicitudes')
@@ -496,6 +500,7 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
         'cancelReason': 'inactividad',
       });
     } catch (_) {}
+    SessionHelper.clearActiveSolicitud().ignore();
   }
 
   Future<void> cancelarSolicitud() async {

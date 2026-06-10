@@ -67,6 +67,7 @@ class TripTrackingViewModel extends ChangeNotifier {
 
   bool _disposed = false;
   bool _chatBootstrapped = false;
+  bool _proximityNotified = false;
 
   // Heading (degrees) for the conductor marker; 0 = north, 90 = east.
   double conductorHeading = 0.0;
@@ -531,10 +532,28 @@ class TripTrackingViewModel extends ChangeNotifier {
 
   DateTime? _lastRouteRecalcAt;
 
+  void _checkProximityNotification(LatLng conductorPos) {
+    if (_proximityNotified) return;
+    final client = clienteLatLng;
+    if (client == null) return;
+    final distancia = _mapService.distanceMeters(conductorPos, client);
+    if (distancia <= 50) {
+      _proximityNotified = true;
+      NotificacionesServicio.instance.showNotification(
+        id: 77701,
+        title: 'Tu conductor está cerca',
+        body: 'El conductor esta por llegar. ¡Prepárate para abordar!',
+        payload: 'soporte_chat', // payload genérico; redirige al inicio del cliente si toca
+      );
+    }
+  }
+
   void _handleConductorLocationUpdate(SolicitudModel item) {
     final d = item.conductor;
     if (!d.hasLocation) return;
     final next = LatLng(d.lat!, d.lng!);
+
+    _checkProximityNotification(next);
 
     // Desvío: si el conductor se aleja >40 m de la ruta trazada, recalcular la
     // ruta con la API (con cooldown para no spamear). El cliente verá la nueva

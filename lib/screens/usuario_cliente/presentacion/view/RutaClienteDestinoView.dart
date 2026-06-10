@@ -99,7 +99,9 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
   // =====================
   bool _mostrarSoloDestino = false;
   bool _isUpdatingRoute = false;
-  bool _isRouteListenerAttached = false;
+  bool _hasInitialCameraApplied = false;
+  DateTime? _lastRouteCalcAt;
+  int _cameraFollowTick = 0;
 
   @override
   void initState() {
@@ -134,12 +136,7 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
       await _cargarMarcadoresPersonalizados();
       _viewModel!.escucharEstadoSolicitud(widget.idSolicitud, context);
 
-      if (!_isRouteListenerAttached) {
-        _viewModel!.addListener(_actualizarRuta);
-        _isRouteListenerAttached = true;
-      }
-
-      // Llamar una vez al inicio
+      // Calcular ruta una sola vez al inicio
       await _actualizarRuta();
 
       // Suscribirse a cambios en la solicitud para actualizar ubicación del conductor en tiempo real
@@ -243,14 +240,20 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
         return;
       }
 
-      _fullRoutePoints = _densifyPolyline(puntos);
-      if (_conductorLatLng != null) {
-        _routeProgressIndex = _nearestIndexRaw(
-          _conductorLatLng!,
-          _fullRoutePoints,
-        );
+      final newDense = _densifyPolyline(puntos);
+      final isFirstLoad = _fullRoutePoints.isEmpty;
+      if (isFirstLoad) {
+        _fullRoutePoints = newDense;
+        _routeProgressIndex = _conductorLatLng != null
+            ? _nearestIndexRaw(_conductorLatLng!, _fullRoutePoints)
+            : 0;
       } else {
-        _routeProgressIndex = 0;
+        // Preservar progreso al refrescar ruta — no resetear a 0
+        final savedMarker = _conductorLatLng;
+        _fullRoutePoints = newDense;
+        if (savedMarker != null) {
+          _routeProgressIndex = _nearestIndexRaw(savedMarker, newDense);
+        }
       }
 
       final currentMarker = _conductorLatLng ?? conductorLatLng;
@@ -272,28 +275,20 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
         _distancia = distanciaStr;
       });
 
-      if (currentMarker != null) {
-        final nextRotation = _computeConductorHeading(
-          currentMarker,
-          _conductorRotation,
-        );
-        if (nextRotation != _conductorRotation) {
-          setState(() {
-            _conductorRotation = nextRotation;
-          });
-        }
-      }
-
       final segundos = await vm.calcularTiempoEstimado();
       if (segundos != null) {
         final minutos = (segundos / 60).ceil();
         vm.setTiempoEstimado('$minutos min');
       }
 
-      await _fitConductorDestinoCamera(
-        _conductorLatLng ?? conductorLatLng,
-        destinoLatLng,
-      );
+      // Ajustar cámara solo en la primera carga (no en cada refresco)
+      if (isFirstLoad && !_hasInitialCameraApplied) {
+        _hasInitialCameraApplied = true;
+        await _fitConductorDestinoCamera(
+          _conductorLatLng ?? conductorLatLng,
+          destinoLatLng,
+        );
+      }
     } finally {
       _isUpdatingRoute = false;
     }
@@ -422,6 +417,18 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
     // Encola cada ubicacion escuchada para reproducir el recorrido completo.
     _pendingConductorTargets.add(snappedTarget);
 
+    // Refresca ruta si el conductor se desvía (con cooldown de 15s)
+    if (_fullRoutePoints.isNotEmpty) {
+      final desvio = _distanceToNearestRoutePoint(snappedTarget);
+      final now = DateTime.now();
+      final cooldownOk = _lastRouteCalcAt == null ||
+          now.difference(_lastRouteCalcAt!).inSeconds >= 15;
+      if (desvio > 50 && cooldownOk) {
+        _lastRouteCalcAt = now;
+        unawaited(_refreshRouteOnly());
+      }
+    }
+
     _ensureMovementTimer();
   }
 
@@ -515,6 +522,24 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
       _distancia = _distanceToLabel(distance);
       _conductorRotation = nextRotation;
     });
+
+    // Camera follow suave: cada 40 ticks (2s) seguir al conductor
+    _cameraFollowTick++;
+    if (_cameraFollowTick >= 40 && !_mostrarSoloDestino && _mapController != null) {
+      _cameraFollowTick = 0;
+      unawaited(
+        _mapController!.animateCamera(
+          CameraUpdate.newCameraPosition(
+            CameraPosition(
+              target: current,
+              bearing: nextRotation,
+              zoom: 16.5,
+              tilt: 0,
+            ),
+          ),
+        ),
+      );
+    }
 
     if (_activePathIndex >= _activePathPoints.length) {
       if (_pendingConductorTargets.isNotEmpty) {
@@ -743,6 +768,45 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
     return dense;
   }
 
+  /// Recalcula la ruta sin resetear el progreso ni mover la cámara.
+  Future<void> _refreshRouteOnly() async {
+    if (_isUpdatingRoute || !mounted) return;
+    _isUpdatingRoute = true;
+    try {
+      final vm = Provider.of<Rutaclientedestinoviewmodel>(
+        context,
+        listen: false,
+      );
+      final puntos = await vm.obtenerPolylineConductorDestino();
+      if (puntos.isEmpty || !mounted) return;
+      final newDense = _densifyPolyline(puntos);
+      final savedMarker = _conductorLatLng;
+      _fullRoutePoints = newDense;
+      if (savedMarker != null) {
+        _routeProgressIndex = _nearestIndexRaw(savedMarker, newDense);
+      } else {
+        _routeProgressIndex = 0;
+      }
+    } finally {
+      _isUpdatingRoute = false;
+    }
+  }
+
+  double _distanceToNearestRoutePoint(LatLng p) {
+    if (_fullRoutePoints.isEmpty) return 0;
+    var min = double.infinity;
+    for (final pt in _fullRoutePoints) {
+      final d = _calculateDistance(
+        p.latitude,
+        p.longitude,
+        pt.latitude,
+        pt.longitude,
+      );
+      if (d < min) min = d;
+    }
+    return min.isFinite ? min : 0;
+  }
+
   double _polylineDistance(List<LatLng> points) {
     if (points.length < 2) return 0;
     var total = 0.0;
@@ -868,11 +932,6 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
     _conductorLocationSub?.cancel();
     _conductorLocationFirestoreSub?.cancel();
     _mapController?.dispose();
-    // Remover listener del ViewModel para evitar llamadas tras dispose
-    if (_isRouteListenerAttached) {
-      _viewModel?.removeListener(_actualizarRuta);
-      _isRouteListenerAttached = false;
-    }
     super.dispose();
   }
 

@@ -331,7 +331,7 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
         Geolocator.getPositionStream(
           locationSettings: const LocationSettings(
             accuracy: LocationAccuracy.high,
-            distanceFilter: 15, // Actualiza cada 15 metros de movimiento
+            distanceFilter: 5,
           ),
         ).listen((Position position) async {
           final nuevaUbicacion = LatLng(position.latitude, position.longitude);

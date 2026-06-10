@@ -303,6 +303,25 @@ class AuthService {
         return null;
       }
 
+      // Si la solicitud quedó en 'buscando' (app fue cerrada/matada antes de
+      // que llegara un conductor), cancelarla automáticamente al reabrir.
+      if (estado == 'buscando') {
+        try {
+          await FirebaseFirestore.instance
+              .collection('solicitudes')
+              .doc(solicitudId)
+              .update({
+            'estado': 'cancelado',
+            'cancelledAt': FieldValue.serverTimestamp(),
+            'cancelReason': 'inactividad',
+          });
+        } catch (_) {}
+        try {
+          await SessionHelper.clearActiveSolicitud();
+        } catch (_) {}
+        return null;
+      }
+
       final currentUid = FirebaseAuth.instance.currentUser?.uid;
 
       // Resolver ids de conductor y cliente desde el documento
