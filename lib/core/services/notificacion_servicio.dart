@@ -10,6 +10,9 @@ class NotificacionesServicio {
   static NotificacionesServicio get instance =>
       _instance ??= NotificacionesServicio._();
 
+  /// Callback para tap en notificación. Se asigna desde main.dart.
+  static void Function(String? payload)? onNotificationTap;
+
   // Constructor privado
   NotificacionesServicio._();
 
@@ -51,7 +54,7 @@ class NotificacionesServicio {
     await _plugin.initialize(
       settings,
       onDidReceiveNotificationResponse: (NotificationResponse response) {
-        // Handle notification tap (navigation, etc.)
+        onNotificationTap?.call(response.payload);
       },
     );
 
@@ -83,6 +86,7 @@ class NotificacionesServicio {
     required String body,
     String? channelId,
     String? channelName,
+    String? payload,
   }) async {
     await _ensureInitialized();
 
@@ -111,6 +115,7 @@ class NotificacionesServicio {
       title,
       body,
       notificationDetails,
+      payload: payload,
     );
   }
 

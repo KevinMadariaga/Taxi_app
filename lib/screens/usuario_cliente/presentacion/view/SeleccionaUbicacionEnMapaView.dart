@@ -331,7 +331,7 @@ class _SeleccionaUbicacionEnMapaViewState
                             child: ElevatedButton(
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colores.amarillo,
-                                foregroundColor: Colors.black87,
+                                foregroundColor: Colors.white,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(28),
                                 ),

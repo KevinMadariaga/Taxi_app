@@ -368,35 +368,6 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
                                           ListTile(
                                             contentPadding: EdgeInsets.zero,
                                             title: const Text(
-                                              'Cambiar mi dirección',
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.w600,
-                                                fontSize: 15,
-                                              ),
-                                            ),
-                                            trailing: const Icon(
-                                              Icons.chevron_right,
-                                              color: Colors.black54,
-                                            ),
-                                            onTap: () {
-                                              Navigator.pop(ctx);
-                                              Navigator.of(context).pushNamed(
-                                                AppRoutes.ayudaCambiarDestino,
-                                                arguments: {
-                                                  'solicitudId': vm.solicitudId,
-                                                  'direccion':
-                                                      vm.destinoDireccion,
-                                                },
-                                              );
-                                            },
-                                          ),
-                                          const Divider(
-                                            height: 1,
-                                            color: Colors.black12,
-                                          ),
-                                          ListTile(
-                                            contentPadding: EdgeInsets.zero,
-                                            title: const Text(
                                               'Revisar o modificar mi pago',
                                               style: TextStyle(
                                                 fontWeight: FontWeight.w600,

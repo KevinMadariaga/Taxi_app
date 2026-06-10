@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/services/admin_fcm_service.dart';
 import 'package:taxi_app/widgets/boton.dart';
 
 // ============================================================================
@@ -22,10 +23,19 @@ Future<void> _marcarSolicitudActivacion() async {
   final uid = FirebaseAuth.instance.currentUser?.uid;
   if (uid == null) return;
   try {
+    final doc = await FirebaseFirestore.instance.collection('usuarios').doc(uid).get();
+    final nombre = (doc.data()?['nombre'] ?? 'Conductor').toString();
+
     await FirebaseFirestore.instance.collection('usuarios').doc(uid).set({
       'solicitudConductor': true,
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
+
+    AdminFcmService.instance.sendToAllAdmins(
+      title: 'Solicitud de activación',
+      body: '$nombre quiere activar el servicio de conductor',
+      type: 'solicitud_activacion',
+    );
   } catch (_) {}
 }
 

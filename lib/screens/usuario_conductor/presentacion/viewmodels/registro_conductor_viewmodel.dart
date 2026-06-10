@@ -81,7 +81,11 @@ class RegistroConductorViewModel {
         docData['foto'] = photoUrl;
       }
 
-      await _firestore.collection('conductor').doc(uid).set(docData);
+      await _firestore.collection('usuarios').doc(uid).set({
+        ...docData,
+        'rol': 'conductor',
+        'tipoUsuario': 'conductor',
+      });
 
       // Guardar estado de sesión y rol
       await SessionHelper.saveSession('conductor', uid);

@@ -136,13 +136,6 @@ class GestionConductoresViewModel extends ChangeNotifier {
     };
     batch.set(_firestore.collection('usuarios').doc(uid), data,
         SetOptions(merge: true));
-    // Mantener colecciones espejo si existen.
-    batch.set(_firestore.collection('conductor').doc(uid),
-        {'servicioHabilitado': true, 'servicioExpiraAt': Timestamp.fromDate(expira), 'estado': 'activo'},
-        SetOptions(merge: true));
-    batch.set(_firestore.collection('conductores').doc(uid),
-        {'servicioHabilitado': true, 'servicioExpiraAt': Timestamp.fromDate(expira), 'estado': 'activo'},
-        SetOptions(merge: true));
     await batch.commit();
   }
 
@@ -154,12 +147,6 @@ class GestionConductoresViewModel extends ChangeNotifier {
       'estado': 'inactivo',
     };
     batch.set(_firestore.collection('usuarios').doc(uid), data,
-        SetOptions(merge: true));
-    batch.set(_firestore.collection('conductor').doc(uid),
-        {'servicioHabilitado': false, 'estado': 'inactivo'},
-        SetOptions(merge: true));
-    batch.set(_firestore.collection('conductores').doc(uid),
-        {'servicioHabilitado': false, 'estado': 'inactivo'},
         SetOptions(merge: true));
     await batch.commit();
   }

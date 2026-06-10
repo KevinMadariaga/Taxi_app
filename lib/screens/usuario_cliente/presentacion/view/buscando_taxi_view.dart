@@ -1120,7 +1120,7 @@ class _SonarMapWidgetState extends State<_SonarMapWidget> {
     try {
       _motoIcon = await _bitmapDescriptorFromIcon(
         Icons.two_wheeler_rounded,
-        96,
+        60,
         const Color(0xFF111111),
       );
       if (!mounted) return;

@@ -74,6 +74,7 @@ class _SplashViewState extends State<SplashView>
       androidId: 'com.taxiya.taxiapp',
       iOSAppStoreId: _iOSAppStoreId.isEmpty ? null : _iOSAppStoreId,
       minimumRequiredVersionFetcher: _fetchMinimumRequiredVersion,
+      latestVersionFetcher: _remoteConfigService.fetchLatestVersion,
     );
 
     _startAppFlow();

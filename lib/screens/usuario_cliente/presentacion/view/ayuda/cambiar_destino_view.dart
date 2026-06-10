@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:geocoding/geocoding.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/widgets/MapaGoogle.dart';
@@ -27,16 +28,66 @@ class CambiarDestinoView extends StatefulWidget {
 class _CambiarDestinoViewState extends State<CambiarDestinoView> {
   static const LatLng _fallback = LatLng(8.2595534, -73.353469);
 
+  GoogleMapController? _mapaController;
   LatLng? _seleccion;
   String _direccion = '';
   bool _geocodificando = false;
   bool _guardando = false;
+  bool _cargandoUbicacion = false;
 
   @override
   void initState() {
     super.initState();
     _seleccion = widget.destinoInicial;
     _direccion = widget.direccionInicial;
+  }
+
+  @override
+  void dispose() {
+    _mapaController?.dispose();
+    super.dispose();
+  }
+
+  void _onMapCreated(GoogleMapController controller) {
+    _mapaController = controller;
+    final destino = widget.destinoInicial;
+    if (destino != null) {
+      _mapaController!.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(target: destino, zoom: 15.5),
+        ),
+      );
+    }
+  }
+
+  Future<void> _centrarEnUbicacionActual() async {
+    if (_cargandoUbicacion || _mapaController == null) return;
+    
+    setState(() => _cargandoUbicacion = true);
+    try {
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.best,
+          distanceFilter: 0,
+        ),
+      );
+      
+      final ubicacion = LatLng(pos.latitude, pos.longitude);
+      await _mapaController?.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(target: ubicacion, zoom: 15.5),
+        ),
+      );
+      
+      if (!mounted) return;
+      setState(() => _cargandoUbicacion = false);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _cargandoUbicacion = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo obtener tu ubicación: $e')),
+      );
+    }
   }
 
   Future<void> _onTapMapa(LatLng pos) async {
@@ -139,6 +190,7 @@ class _CambiarDestinoViewState extends State<CambiarDestinoView> {
               markers: markers,
               myLocationEnabled: true,
               onTap: _onTapMapa,
+              onMapCreated: _onMapCreated,
               padding: const EdgeInsets.only(bottom: 220),
             ),
           ),
@@ -175,6 +227,26 @@ class _CambiarDestinoViewState extends State<CambiarDestinoView> {
                   ),
                 ],
               ),
+            ),
+          ),
+          Positioned(
+            top: 80,
+            right: 16,
+            child: FloatingActionButton(
+              mini: true,
+              backgroundColor: Colors.white,
+              foregroundColor: AppColores.primary,
+              onPressed: _cargandoUbicacion ? null : _centrarEnUbicacionActual,
+              child: _cargandoUbicacion
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation(AppColores.primary),
+                      ),
+                    )
+                  : const Icon(Icons.my_location),
             ),
           ),
           Align(

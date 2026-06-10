@@ -18,6 +18,8 @@ import 'package:taxi_app/screens/usuario_cliente/presentacion/view/home_cliente_
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/completar_registro_conductor_view.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioConductorView.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/membresia_detalle_view.dart';
+import 'package:taxi_app/screens/usuario_conductor/presentacion/view/cambiar_vehiculo_view.dart';
+import 'package:taxi_app/widgets/informacion_perfil_view.dart';
 import 'package:taxi_app/widgets/editar_perfil.dart';
 
 class PaginaPerfilUsuario extends StatefulWidget {
@@ -471,6 +473,9 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
     final nombreController = TextEditingController(
       text: userData?['nombre'] ?? '',
     );
+    final apellidoController = TextEditingController(
+      text: userData?['apellido'] ?? '',
+    );
     final telefonoController = TextEditingController(
       text: userData?['telefono'] ?? '',
     );
@@ -483,6 +488,7 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
       MaterialPageRoute(
         builder: (_) => EditarPerfilScreen(
           nombreController: nombreController,
+          apellidoController: apellidoController,
           telefonoController: telefonoController,
           placaController: placaController,
           esConductor: esConductor,
@@ -544,89 +550,6 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
               }
             }
           },
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInfoCard(IconData icon, String title, String value) {
-    const double iconSize = 24.0;
-    const double titleFontSize = 16.0;
-    const double valueFontSize = 14.0;
-
-    return Card(
-      margin: EdgeInsets.symmetric(vertical: ResponsiveHelper.hp(context, 0.8)),
-      child: Container(
-        constraints: const BoxConstraints(minHeight: 56),
-        padding: EdgeInsets.symmetric(
-          horizontal: ResponsiveHelper.wp(context, 4),
-          vertical: ResponsiveHelper.hp(context, 1.5),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, color: AppColores.primary, size: iconSize),
-            SizedBox(width: 12),
-            Expanded(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: titleFontSize,
-                    ),
-                  ),
-                  Flexible(
-                    child: Text(
-                      value,
-                      textAlign: TextAlign.right,
-                      style: const TextStyle(fontSize: valueFontSize),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildVehiclePhotoCard() {
-    ImageProvider? imageProvider;
-    if (_cachedVehicleFile != null &&
-        (_cachedVehicleFile?.existsSync() ?? false)) {
-      imageProvider = FileImage(_cachedVehicleFile!);
-    } else if (userData != null &&
-        userData!['fotoVehiculo'] != null &&
-        (userData!['fotoVehiculo'] as String).isNotEmpty) {
-      imageProvider = NetworkImage(userData!['fotoVehiculo'] as String);
-    }
-
-    return Card(
-      margin: EdgeInsets.symmetric(vertical: ResponsiveHelper.hp(context, 0.8)),
-      child: ListTile(
-        leading: Icon(Icons.directions_car, color: AppColores.primary),
-        title: const Text(
-          'Foto del vehículo',
-          style: TextStyle(fontWeight: FontWeight.w600),
-        ),
-        trailing: ClipRRect(
-          borderRadius: BorderRadius.circular(10),
-          child: Container(
-            width: 80,
-            height: 48,
-            color: Colors.grey.shade200,
-            child: imageProvider != null
-                ? Image(image: imageProvider, fit: BoxFit.cover)
-                : const Icon(Icons.directions_car, color: Colors.white),
-          ),
-        ),
-        contentPadding: EdgeInsets.symmetric(
-          horizontal: ResponsiveHelper.wp(context, 4),
-          vertical: ResponsiveHelper.hp(context, 1),
         ),
       ),
     );
@@ -722,6 +645,132 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
     );
   }
 
+  Widget _buildInfoPerfilCard() {
+    final esConductor =
+        widget.tipoUsuario == 'conductor' ||
+        (userData?['rol'] ?? '').toString().toLowerCase() == 'conductor';
+    return Card(
+      margin: EdgeInsets.symmetric(vertical: ResponsiveHelper.hp(context, 0.8)),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => InformacionPerfilView(
+                data: userData ?? const {},
+                esConductor: esConductor,
+                onEditar: _mostrarDialogoEditar,
+              ),
+            ),
+          );
+        },
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: ResponsiveHelper.wp(context, 4),
+            vertical: ResponsiveHelper.hp(context, 1.5),
+          ),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.account_circle_outlined,
+                color: AppColores.primary,
+                size: 28,
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Información del perfil',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                        color: AppColores.textPrimary,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'Datos personales y vehículos',
+                      style: TextStyle(
+                        color: AppColores.textSecondary,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: AppColores.textSecondary),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCambiarVehiculoCard() {
+    final tipo = (userData?['tipoVehiculo'] ?? '').toString().toLowerCase();
+    final tipoLabel = tipo == 'moto'
+        ? 'Moto'
+        : tipo == 'carro'
+        ? 'Carro'
+        : '—';
+    return Card(
+      margin: EdgeInsets.symmetric(vertical: ResponsiveHelper.hp(context, 0.8)),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () async {
+          final cambiado = await Navigator.of(context).push<bool>(
+            MaterialPageRoute(builder: (_) => const CambiarVehiculoView()),
+          );
+          if (cambiado == true) await _cargarDatos();
+        },
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: ResponsiveHelper.wp(context, 4),
+            vertical: ResponsiveHelper.hp(context, 1.5),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                tipo == 'moto'
+                    ? Icons.two_wheeler_rounded
+                    : Icons.directions_car_filled_rounded,
+                color: AppColores.primary,
+                size: 28,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Cambiar de vehículo',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                        color: AppColores.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Actual: $tipoLabel · Cambia tipo, foto y placa',
+                      style: const TextStyle(
+                        color: AppColores.textSecondary,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: AppColores.textSecondary),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildMembresiaConductorCard() {
     final activa =
         (userData?['membresia'] ?? '').toString().toLowerCase() == 'activa';
@@ -812,11 +861,6 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
       (userData?['apellido'] ?? '').toString().trim(),
     ].where((p) => p.isNotEmpty).join(' ').trim();
     final nombre = nombreCompleto.isEmpty ? 'Usuario' : nombreCompleto;
-    final correo =
-        (userData?['correo'] ?? userData?['email'] ?? 'Sin correo registrado')
-            .toString();
-    final telefono = (userData?['telefono'] ?? 'Sin teléfono registrado')
-        .toString();
     final fotoUrl = (userData?['foto'] ?? userData?['fotoUrl'] ?? '')
         .toString();
 
@@ -934,27 +978,20 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
                         ),
                         SizedBox(height: ResponsiveHelper.hp(context, 1.2)),
                         if (widget.tipoUsuario == 'conductor') ...[
-                          // Orden: estado/días → vehículo → correo → teléfono
-                          // → volver a ser cliente.
+                          // Conductor: membresía (estás activo / vence / toca
+                          // para más detalles) primero → información del perfil
+                          // → cambiar vehículo → volver a ser cliente.
                           _buildMembresiaConductorCard(),
                           SizedBox(height: ResponsiveHelper.hp(context, 0.4)),
-                          _buildVehiclePhotoCard(),
+                          _buildInfoPerfilCard(),
                           SizedBox(height: ResponsiveHelper.hp(context, 0.4)),
-                          if (correo.isNotEmpty &&
-                              correo != 'Sin correo registrado') ...[
-                            _buildInfoCard(Icons.email, 'Correo', correo),
-                            SizedBox(height: ResponsiveHelper.hp(context, 0.4)),
-                          ],
-                          _buildInfoCard(Icons.phone, 'Teléfono', telefono),
+                          _buildCambiarVehiculoCard(),
                           SizedBox(height: ResponsiveHelper.hp(context, 0.4)),
                           _buildVolverClienteCard(),
                         ] else ...[
-                          if (correo.isNotEmpty &&
-                              correo != 'Sin correo registrado') ...[
-                            _buildInfoCard(Icons.email, 'Correo', correo),
-                            SizedBox(height: ResponsiveHelper.hp(context, 0.4)),
-                          ],
-                          _buildInfoCard(Icons.phone, 'Teléfono', telefono),
+                          // Cliente: información del perfil + opción de
+                          // convertirse en conductor.
+                          _buildInfoPerfilCard(),
                           if (widget.tipoUsuario == 'cliente' ||
                               (userData?['rol'] ?? '')
                                       .toString()
@@ -997,45 +1034,6 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
                   ),
                   ),
 
-                  // Barra inferior fija con el botón
-                  Container(
-                      width: double.infinity,
-                      padding: EdgeInsets.symmetric(
-                        horizontal: ResponsiveHelper.wp(context, 4),
-                        vertical: ResponsiveHelper.hp(context, 2),
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColores.background,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.04),
-                            blurRadius: 8,
-                            offset: const Offset(0, -2),
-                          ),
-                        ],
-                      ),
-                      child: SafeArea(
-                        top: false,
-                        child: Center(
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 600),
-                            child: ElevatedButton.icon(
-                              onPressed: _mostrarDialogoEditar,
-                              icon: const Icon(Icons.edit, size: 20),
-                              label: const Text('Editar Datos'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColores.buttonPrimary,
-                                foregroundColor: AppColores.textWhite,
-                                minimumSize: const Size.fromHeight(48),
-                                padding: EdgeInsets.symmetric(
-                                  vertical: ResponsiveHelper.hp(context, 1.2),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
                 ],
               ),
             ),

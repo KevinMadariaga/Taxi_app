@@ -243,6 +243,7 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
           statusBarBrightness: Brightness.light,
         ),
         child: Scaffold(
+          resizeToAvoidBottomInset: false,
           extendBodyBehindAppBar: false,
           appBar: AppBar(
             backgroundColor: AppColores.surface.withValues(alpha: 0.95),

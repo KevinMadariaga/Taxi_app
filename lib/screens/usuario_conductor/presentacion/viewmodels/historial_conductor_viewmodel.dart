@@ -41,7 +41,7 @@ class HistorialConductorViewModel extends ChangeNotifier {
     if (uid.isEmpty) return;
     try {
       await FirebaseFirestore.instance
-          .collection('conductor')
+          .collection('usuarios')
           .doc(uid)
           .set({
             'calificacionPromedio': averageRating,

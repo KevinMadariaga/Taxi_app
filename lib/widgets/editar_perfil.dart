@@ -15,6 +15,7 @@ import 'package:taxi_app/core/services/image_cropper_service.dart';
 
 class EditarPerfilScreen extends StatefulWidget {
   final TextEditingController nombreController;
+  final TextEditingController apellidoController;
   final TextEditingController telefonoController;
   final TextEditingController placaController;
   final bool esConductor;
@@ -27,6 +28,7 @@ class EditarPerfilScreen extends StatefulWidget {
   const EditarPerfilScreen({
     Key? key,
     required this.nombreController,
+    required this.apellidoController,
     required this.telefonoController,
     required this.placaController,
     required this.esConductor,
@@ -238,6 +240,27 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
               controller: widget.nombreController,
               decoration: InputDecoration(
                 labelText: 'Nombre',
+                labelStyle: TextStyle(
+                  fontSize: labelFontSize,
+                  color: AppColores.textPrimary,
+                ),
+                enabledBorder: UnderlineInputBorder(
+                  borderSide: BorderSide(color: AppColores.primary),
+                ),
+                focusedBorder: UnderlineInputBorder(
+                  borderSide: BorderSide(color: AppColores.primary),
+                ),
+              ),
+              style: TextStyle(
+                fontSize: fieldFontSize,
+                color: AppColores.textPrimary,
+              ),
+            ),
+            SizedBox(height: screenHeight * 0.02),
+            TextField(
+              controller: widget.apellidoController,
+              decoration: InputDecoration(
+                labelText: 'Apellido',
                 labelStyle: TextStyle(
                   fontSize: labelFontSize,
                   color: AppColores.textPrimary,
@@ -493,6 +516,8 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                               }
                               final Map<String, dynamic> datos = {};
                               datos['nombre'] = widget.nombreController.text
+                                  .trim();
+                              datos['apellido'] = widget.apellidoController.text
                                   .trim();
                               datos['telefono'] = widget.telefonoController.text
                                   .trim();

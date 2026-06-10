@@ -1,16 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/services/soporte_notification_service.dart';
 import 'package:taxi_app/features/admin/admin_configuracion_screen.dart';
+import 'package:taxi_app/features/phone_auth/screens/admin_hub_screen.dart';
 
-/// Pantalla principal del administrador (rol `administrador`).
-///
-/// Dos pestañas desde la colección `usuarios`:
-///  - Conductores: notifica solicitudes de activación y permite aprobarlas,
-///    escribiendo `membresia: activa` y la vigencia en días.
-///  - Clientes (rol cliente / sin rol) con nombre y apellido.
-/// Buscador superior filtra ambas pestañas por nombre y apellido.
 class AdminHomeScreen extends StatefulWidget {
   const AdminHomeScreen({super.key, required this.adminId});
 
@@ -22,6 +19,19 @@ class AdminHomeScreen extends StatefulWidget {
 
 class _AdminHomeScreenState extends State<AdminHomeScreen> {
   String _query = '';
+
+  @override
+  void initState() {
+    super.initState();
+    SoporteNotificationService.instance.iniciarEscuchaAdmin();
+    SoporteNotificationService.instance.iniciarEscuchaReportes();
+  }
+
+  @override
+  void dispose() {
+    SoporteNotificationService.instance.detenerEscuchaAdmin();
+    super.dispose();
+  }
 
   bool _coincide(Map<String, dynamic> data) {
     final q = _query.trim().toLowerCase();
@@ -44,6 +54,11 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           backgroundColor: AppColores.primary,
           foregroundColor: AppColores.textWhite,
           actions: [
+            _AdminBellIcon(
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const AdminHubScreen()),
+              ),
+            ),
             IconButton(
               tooltip: 'Configuración',
               icon: const Icon(Icons.settings),
@@ -692,6 +707,105 @@ class _ConductorCard extends StatelessWidget {
               ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ─── BELL BADGE ──────────────────────────────────────────────────────────────
+
+class _AdminBellIcon extends StatefulWidget {
+  const _AdminBellIcon({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  State<_AdminBellIcon> createState() => _AdminBellIconState();
+}
+
+class _AdminBellIconState extends State<_AdminBellIcon> {
+  int _chats = 0;
+  int _reportes = 0;
+  int _conductores = 0;
+
+  StreamSubscription<QuerySnapshot>? _chatsSub;
+  StreamSubscription<QuerySnapshot>? _reportesSub;
+  StreamSubscription<QuerySnapshot>? _conductoresSub;
+
+  int get _total => _chats + _reportes + _conductores;
+
+  @override
+  void initState() {
+    super.initState();
+    final fs = FirebaseFirestore.instance;
+
+    _chatsSub = fs
+        .collection('soporte_chats')
+        .where('hayMensajesNuevosAdmin', isEqualTo: true)
+        .snapshots()
+        .listen((snap) => setState(() => _chats = snap.docs.length));
+
+    _reportesSub = fs
+        .collection('reportes')
+        .where('visto', isEqualTo: false)
+        .snapshots()
+        .listen((snap) => setState(() => _reportes = snap.docs.length));
+
+    _conductoresSub = fs
+        .collection('usuarios')
+        .where('solicitudConductor', isEqualTo: true)
+        .snapshots()
+        .listen((snap) {
+      final pendientes = snap.docs.where((d) {
+        final m = (d.data()['membresia'] ?? '').toString().toLowerCase();
+        return m != 'activa';
+      }).length;
+      setState(() => _conductores = pendientes);
+    });
+  }
+
+  @override
+  void dispose() {
+    _chatsSub?.cancel();
+    _reportesSub?.cancel();
+    _conductoresSub?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final count = _total;
+    return IconButton(
+      tooltip: 'Notificaciones — Mensajes, Reportes y Activaciones',
+      onPressed: widget.onTap,
+      icon: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          const Icon(Icons.notifications_rounded),
+          if (count > 0)
+            Positioned(
+              top: -5,
+              right: -5,
+              child: Container(
+                padding: const EdgeInsets.all(2),
+                constraints:
+                    const BoxConstraints(minWidth: 17, minHeight: 17),
+                decoration: const BoxDecoration(
+                  color: Colors.red,
+                  shape: BoxShape.circle,
+                ),
+                child: Text(
+                  count > 99 ? '99+' : count.toString(),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                    height: 1.2,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

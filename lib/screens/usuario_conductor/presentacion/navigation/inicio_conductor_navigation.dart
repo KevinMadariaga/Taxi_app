@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/view/ayuda_view.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/configuracion_aplicacion_view.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/view/notificaciones_view.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/view/seguridad_view.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/view/soporte_view.dart';
+import 'package:taxi_app/screens/usuario_conductor/presentacion/view/ayuda_conductor_view.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/comentarios_conductor_view.dart';
+import 'package:taxi_app/screens/usuario_conductor/presentacion/view/notificaciones_conductor_view.dart';
+import 'package:taxi_app/screens/usuario_conductor/presentacion/view/seguridad_conductor_view.dart';
+import 'package:taxi_app/screens/usuario_conductor/presentacion/view/soporte_conductor_view.dart';
 import 'package:taxi_app/features/driver_trip/screens/driver_trip_screen.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/historial_viaje_conductor.dart';
 import 'package:taxi_app/widgets/intermediate_transition_view.dart';
@@ -46,27 +46,27 @@ class InicioConductorNavigation {
   }
 
   static Future<void> irASeguridad(BuildContext context) {
-    return Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => const SeguridadView()));
+    return Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const SeguridadConductorView()),
+    );
   }
 
   static Future<void> irAAyuda(BuildContext context) {
-    return Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => const AyudaView()));
+    return Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const AyudaConductorView()),
+    );
   }
 
   static Future<void> irASoporte(BuildContext context) {
-    return Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => const SoporteView()));
+    return Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const SoporteConductorView()),
+    );
   }
 
   static Future<void> irANotificaciones(BuildContext context) {
-    return Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => const NotificacionesView()));
+    return Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const NotificacionesConductorView()),
+    );
   }
 
   static Future<void> irAComentarios(BuildContext context) {

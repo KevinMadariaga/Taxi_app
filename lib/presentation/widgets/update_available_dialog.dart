@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/services/update_service.dart';
 
 enum UpdateDialogAction { updateNow, later }
@@ -32,35 +33,32 @@ class UpdateAvailableDialog extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
         decoration: BoxDecoration(
+          color: AppColores.surface,
           borderRadius: BorderRadius.circular(24),
-          gradient: const LinearGradient(
-            colors: [Color(0xFFFDFEFF), Color(0xFFF3F8FF)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              width: 48,
-              height: 48,
+              width: 52,
+              height: 52,
               decoration: BoxDecoration(
-                color: const Color(0xFFE6F0FF),
+                color: AppColores.primary.withValues(alpha: 0.18),
                 borderRadius: BorderRadius.circular(14),
               ),
               child: const Icon(
                 Icons.system_update_alt_rounded,
-                color: Color(0xFF0A66C2),
-                size: 26,
+                color: Color(0xFFB38F00),
+                size: 28,
               ),
             ),
             const SizedBox(height: 16),
             Text(
-              'Actualización disponible',
+              'Nueva actualización',
               style: theme.textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.w800,
+                color: AppColores.textPrimary,
               ),
             ),
             const SizedBox(height: 10),
@@ -117,12 +115,16 @@ class UpdateAvailableDialog extends StatelessWidget {
                         Navigator.of(context).pop(UpdateDialogAction.updateNow),
                     style: FilledButton.styleFrom(
                       minimumSize: const Size.fromHeight(48),
-                      backgroundColor: const Color(0xFF0A66C2),
+                      backgroundColor: AppColores.primary,
+                      foregroundColor: AppColores.textPrimary,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14),
                       ),
                     ),
-                    child: const Text('Actualizar ahora'),
+                    child: const Text(
+                      'Actualizar',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
                   ),
                 ),
               ],

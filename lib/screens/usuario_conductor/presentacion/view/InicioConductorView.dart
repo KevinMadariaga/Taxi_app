@@ -41,6 +41,8 @@ class _InicioConductorState extends State<InicioConductor>
   bool _isPreparingLocation = false;
 
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _membresiaSub;
+  Timer? _membresiaExpiryTimer;
+  bool _expirandoMembresia = false;
   bool _dialogMembresiaVisible = false;
 
   // Mide la altura real de la card de preview para: (1) que el mapa reciba ese
@@ -1148,9 +1150,35 @@ class _InicioConductorState extends State<InicioConductor>
         .snapshots()
         .listen((doc) {
           if (!mounted) return;
-          final activa =
-              (doc.data()?['membresia'] ?? '').toString().toLowerCase() ==
-              'activa';
+          final data = doc.data();
+          final flagActiva =
+              (data?['membresia'] ?? '').toString().toLowerCase() == 'activa';
+          final venceRaw = data?['membresiaVence'];
+          final DateTime? vence = venceRaw is Timestamp
+              ? venceRaw.toDate()
+              : null;
+          final now = DateTime.now();
+          // Vencida = marcada activa pero ya pasó la fecha de vencimiento.
+          final vencida = flagActiva && vence != null && !vence.isAfter(now);
+
+          // El snapshot NO se re-dispara por el solo paso del tiempo: programa
+          // un Timer que corte exactamente al vencer (ej. activada el 7 a las
+          // 14:00 por 1 día → corta el 8 a las 14:00).
+          _membresiaExpiryTimer?.cancel();
+          if (flagActiva && vence != null && vence.isAfter(now)) {
+            _membresiaExpiryTimer = Timer(
+              vence.difference(now),
+              () => _expirarMembresia(uid),
+            );
+          }
+
+          // Si ya venció (incluido al reabrir la app tras el plazo), persiste la
+          // desactivación; eso re-dispara el snapshot con membresia vacía.
+          if (vencida) {
+            _expirarMembresia(uid);
+          }
+
+          final activa = flagActiva && !vencida;
           if (!activa && !_dialogMembresiaVisible) {
             _dialogMembresiaVisible = true;
             mostrarBienvenidaConductorDialog(
@@ -1166,12 +1194,32 @@ class _InicioConductorState extends State<InicioConductor>
         });
   }
 
+  /// Desactiva la membresía en Firestore al vencer el plazo (idempotente).
+  /// Deja `membresia` vacía y `servicioActivo` en false, igual que una revocación
+  /// del administrador, para que el conductor quede inactivo de inmediato.
+  Future<void> _expirarMembresia(String uid) async {
+    if (_expirandoMembresia) return;
+    _expirandoMembresia = true;
+    try {
+      await FirebaseFirestore.instance.collection('usuarios').doc(uid).set({
+        'membresia': '',
+        'servicioActivo': false,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (_) {
+    } finally {
+      _expirandoMembresia = false;
+    }
+  }
+
   /// Vuelve a ser cliente desde la modal: cancela el watcher (para que no
   /// reaparezca), cambia el rol a cliente (fire-and-forget) y navega a
   /// InicioCliente removiendo la modal e InicioConductor.
   void _volverACliente() {
     _membresiaSub?.cancel();
     _membresiaSub = null;
+    _membresiaExpiryTimer?.cancel();
+    _membresiaExpiryTimer = null;
     _dialogMembresiaVisible = false;
 
     final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -1196,6 +1244,7 @@ class _InicioConductorState extends State<InicioConductor>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _membresiaSub?.cancel();
+    _membresiaExpiryTimer?.cancel();
     _mapController = null;
     super.dispose();
   }

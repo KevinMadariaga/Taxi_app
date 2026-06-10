@@ -9,6 +9,7 @@ import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/helpers/session_helper.dart';
 import 'package:taxi_app/core/services/image_cropper_service.dart';
 import 'package:taxi_app/widgets/boton.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/model/vehicle_type.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioConductorView.dart';
 
 /// Pantalla para que un cliente complete su registro como conductor:
@@ -33,6 +34,7 @@ class _CompletarRegistroConductorViewState
   XFile? _fotoVehiculo;
   String? _fotoExistenteUrl;
   String? _fotoVehiculoExistenteUrl;
+  VehicleType _tipoVehiculo = VehicleType.carro;
   bool _guardando = false;
 
   @override
@@ -57,6 +59,12 @@ class _CompletarRegistroConductorViewState
         _fotoVehiculoExistenteUrl = (data['fotoVehiculo'] ?? '').toString();
         final placa = (data['placa'] ?? '').toString();
         if (placa.isNotEmpty) _placaController.text = placa;
+        final tipo = (data['tipoVehiculo'] ?? '').toString().toLowerCase();
+        if (tipo == 'moto') {
+          _tipoVehiculo = VehicleType.moto;
+        } else if (tipo == 'carro') {
+          _tipoVehiculo = VehicleType.carro;
+        }
       });
     } catch (_) {}
   }
@@ -146,6 +154,7 @@ class _CompletarRegistroConductorViewState
         'foto': fotoUrl,
         'fotoVehiculo': vehUrl,
         'placa': placa.toUpperCase(),
+        'tipoVehiculo': _tipoVehiculo.firestoreKey,
         'rol': 'conductor',
         'solicitudConductor': false,
         'servicioActivo': false,
@@ -172,6 +181,45 @@ class _CompletarRegistroConductorViewState
   void _mostrarError(String mensaje) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(mensaje), backgroundColor: AppColores.error),
+    );
+  }
+
+  Widget _tipoCard(VehicleType tipo, IconData icon) {
+    final sel = _tipoVehiculo == tipo;
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: () => setState(() => _tipoVehiculo = tipo),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 18),
+        decoration: BoxDecoration(
+          color: sel
+              ? AppColores.primary.withValues(alpha: 0.12)
+              : AppColores.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: sel ? AppColores.primary : AppColores.grey300,
+            width: sel ? 2 : 1,
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              icon,
+              size: 34,
+              color: sel ? const Color(0xFFB38F00) : AppColores.grey600,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              tipo.label,
+              style: TextStyle(
+                fontWeight: sel ? FontWeight.w800 : FontWeight.w600,
+                fontSize: 15,
+                color: AppColores.textPrimary,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -282,6 +330,29 @@ class _CompletarRegistroConductorViewState
                     ),
                   ],
                 ),
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                '¿Qué conduces?',
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: _tipoCard(
+                      VehicleType.carro,
+                      Icons.directions_car_filled_rounded,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _tipoCard(
+                      VehicleType.moto,
+                      Icons.two_wheeler_rounded,
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 24),
               TextField(

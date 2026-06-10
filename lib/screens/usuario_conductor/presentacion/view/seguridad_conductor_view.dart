@@ -2,22 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/soporte_chat_screen.dart';
 
-class SeguridadView extends StatefulWidget {
-  const SeguridadView({super.key, this.userType = 'cliente'});
-
-  final String userType;
+class SeguridadConductorView extends StatefulWidget {
+  const SeguridadConductorView({super.key});
 
   @override
-  State<SeguridadView> createState() => _SeguridadViewState();
+  State<SeguridadConductorView> createState() =>
+      _SeguridadConductorViewState();
 }
 
-class _SeguridadViewState extends State<SeguridadView> {
+class _SeguridadConductorViewState extends State<SeguridadConductorView> {
   final List<String> _emergencyContacts = [];
 
   Future<void> _openSupportChat() async {
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => SoporteChatScreen(userType: widget.userType),
+        builder: (_) => const SoporteChatScreen(userType: 'conductor'),
       ),
     );
   }
@@ -37,7 +36,7 @@ class _SeguridadViewState extends State<SeguridadView> {
               if (_emergencyContacts.length >= 5) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                    content: Text('Ya agregaste el maximo de 5 contactos.'),
+                    content: Text('Ya agregaste el máximo de 5 contactos.'),
                   ),
                 );
                 return;
@@ -52,10 +51,11 @@ class _SeguridadViewState extends State<SeguridadView> {
                   content: TextField(
                     controller: ctrl,
                     decoration: const InputDecoration(
-                      hintText: 'Nombre y telefono',
+                      hintText: 'Nombre y teléfono',
                     ),
                     textInputAction: TextInputAction.done,
-                    onSubmitted: (v) => Navigator.of(dialogCtx).pop(v.trim()),
+                    onSubmitted: (v) =>
+                        Navigator.of(dialogCtx).pop(v.trim()),
                   ),
                   actions: [
                     TextButton(
@@ -98,13 +98,13 @@ class _SeguridadViewState extends State<SeguridadView> {
                     ),
                     const SizedBox(height: 8),
                     const Text(
-                      'Puedes agregar 5 contactos de emergencia.',
+                      'Puedes agregar hasta 5 contactos de emergencia.',
                       style: TextStyle(color: AppColores.textSecondary),
                     ),
                     const SizedBox(height: 14),
                     if (_emergencyContacts.isEmpty)
                       const Text(
-                        'No tienes contactos agregados todavia.',
+                        'No tienes contactos agregados todavía.',
                         style: TextStyle(color: AppColores.textSecondary),
                       )
                     else

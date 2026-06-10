@@ -18,6 +18,7 @@ import 'package:taxi_app/caracteristicas/autenticacion/dominio/casos_uso/verify_
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/casos_uso/get_client_user_usecase.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/casos_uso/complete_client_profile_usecase.dart';
 import 'package:taxi_app/routes/app_routes.dart';
+import 'package:taxi_app/presentation/widgets/app_update_gate.dart';
 import 'package:taxi_app/features/client/data/firebaseDB.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/datos/repositorios/app_auth_adapter.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/repositorios/client_auth_repository.dart';
@@ -28,6 +29,9 @@ import 'package:taxi_app/core/services/background_tracking_service.dart';
 import 'package:taxi_app/core/services/notificacion_servicio.dart';
 import 'package:taxi_app/core/services/tracking_service.dart';
 import 'package:taxi_app/core/services/fcm_service.dart';
+import 'package:taxi_app/core/app_navigator.dart';
+import 'package:taxi_app/features/phone_auth/screens/admin_hub_screen.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/view/soporte_chat_screen.dart';
 
 const SystemUiOverlayStyle _globalSystemOverlayStyle = SystemUiOverlayStyle(
   statusBarColor: Colors.transparent,
@@ -45,6 +49,24 @@ bool _esErrorBenignoMapas(Object error) {
   return detalle.contains('updateClusterManagers') ||
       (error.code == 'channel-error' &&
           detalle.contains('google_maps_flutter'));
+}
+
+/// Maneja el tap en notificaciones locales. Payload:
+///   'admin_hub:N'  → AdminHubScreen con pestaña N
+///   'soporte_chat' → SoporteChatScreen (usuario)
+void _manejarTapNotificacion(String? payload) {
+  if (payload == null) return;
+  final nav = appNavigatorKey.currentState;
+  if (nav == null) return;
+
+  if (payload.startsWith('admin_hub:')) {
+    final tab = int.tryParse(payload.split(':').last) ?? 0;
+    nav.push(
+      MaterialPageRoute(builder: (_) => AdminHubScreen(initialTab: tab)),
+    );
+  } else if (payload == 'soporte_chat') {
+    nav.push(MaterialPageRoute(builder: (_) => const SoporteChatScreen()));
+  }
 }
 
 /// Entry point for the Taxi App.
@@ -102,6 +124,7 @@ Future<void> _inicializarServiciosDiferidos() async {
   } catch (_) {}
   try {
     await NotificacionesServicio.instance.init();
+    NotificacionesServicio.onNotificationTap = _manejarTapNotificacion;
   } catch (_) {}
   try {
     await initializeLocationNotificationChannel();
@@ -126,7 +149,6 @@ class MyApp extends StatelessWidget {
 
   final AppDependencies dependencies;
   final AppAuthAdapter _authAdapter;
-
   @override
   Widget build(BuildContext context) {
     return ScreenUtilInit(
@@ -173,14 +195,18 @@ class MyApp extends StatelessWidget {
             debugShowCheckedModeBanner: false,
             title: AppConstants.appTitle,
             theme: AppThemeConfig.lightTheme,
+            navigatorKey: appNavigatorKey,
             initialRoute: AppRoutes.splash,
             onGenerateRoute: (settings) {
               return AppRoutes.onGenerateRoute(settings, dependencies);
             },
             builder: (context, child) {
-              return AnnotatedRegion<SystemUiOverlayStyle>(
-                value: _globalSystemOverlayStyle,
-                child: child ?? const SizedBox.shrink(),
+              return AppUpdateGate(
+                navigatorKey: appNavigatorKey,
+                child: AnnotatedRegion<SystemUiOverlayStyle>(
+                  value: _globalSystemOverlayStyle,
+                  child: child ?? const SizedBox.shrink(),
+                ),
               );
             },
           ),

@@ -108,23 +108,16 @@ class AuthService {
             }
           }
 
-          // Solo usar colecciones legacy si el rol aún no se resolvió por
-          // `usuarios.rol` (no sobrescribir conductor/cliente ya detectado).
+          // Si usuarios.rol/tipoUsuario no resolvió, usar tipoUsuario como fallback.
           if (role != 'administrador' &&
               role != 'conductor' &&
               role != 'cliente') {
-            final conductorDoc = await FirebaseFirestore.instance
-                .collection('conductor')
-                .doc(uid)
-                .get();
-            if (conductorDoc.exists) {
+            final userData = usuariosDoc.data() ?? <String, dynamic>{};
+            final tipoUsuario = (userData['tipoUsuario'] ?? '').toString().toLowerCase();
+            if (tipoUsuario == 'conductor') {
               role = 'conductor';
-            } else {
-              final clienteDoc = await FirebaseFirestore.instance
-                  .collection('cliente')
-                  .doc(uid)
-                  .get();
-              if (clienteDoc.exists) role = 'cliente';
+            } else if (tipoUsuario == 'cliente') {
+              role = 'cliente';
             }
           }
         } catch (_) {}

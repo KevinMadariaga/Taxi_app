@@ -5,7 +5,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:taxi_app/core/app_navigator.dart';
 import 'package:taxi_app/core/services/notificacion_servicio.dart';
+import 'package:taxi_app/features/phone_auth/screens/admin_hub_screen.dart';
 
 /// Handler de nivel TOP para mensajes recibidos en background/terminated.
 ///
@@ -151,9 +154,10 @@ class FcmService {
     // 9) Verificar si la app se abrió desde una notificación (app terminada)
     final initialMessage = await _messaging.getInitialMessage();
     if (initialMessage != null) {
-      debugPrint(
-        '[FCM] App abierta desde notificación: ${initialMessage.messageId}',
-      );
+      debugPrint('[FCM] App abierta desde notificación: ${initialMessage.messageId}');
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _navigateFromMessage(initialMessage);
+      });
     }
 
     _initialized = true;
@@ -216,27 +220,6 @@ class FcmService {
       debugPrint('[FCM] Error guardando token en usuarios: $e');
     }
 
-    // Guardar en `conductor` si el documento existe
-    try {
-      final doc = await firestore.collection('conductor').doc(uid).get();
-      if (doc.exists) {
-        await firestore.collection('conductor').doc(uid).set({
-          'fcmToken': token,
-        }, SetOptions(merge: true));
-        debugPrint('[FCM] ✅ Token guardado en conductor/$uid');
-      }
-    } catch (_) {}
-
-    // Guardar en `cliente` si el documento existe
-    try {
-      final doc = await firestore.collection('cliente').doc(uid).get();
-      if (doc.exists) {
-        await firestore.collection('cliente').doc(uid).set({
-          'fcmToken': token,
-        }, SetOptions(merge: true));
-        debugPrint('[FCM] ✅ Token guardado en cliente/$uid');
-      }
-    } catch (_) {}
 
     // Guardar en `administradores` si el documento existe (para push a admins)
     try {
@@ -272,5 +255,26 @@ class FcmService {
   /// Cuando el usuario toca la notificación con la app en background.
   void _onMessageOpenedApp(RemoteMessage message) {
     debugPrint('[FCM] Notificación tocada: ${message.data}');
+    _navigateFromMessage(message);
+  }
+
+  /// Navega a la pantalla correcta según el tipo de mensaje FCM.
+  void _navigateFromMessage(RemoteMessage message) {
+    final type = message.data['type'] as String? ?? '';
+    final nav = appNavigatorKey.currentState;
+    if (nav == null) return;
+
+    int? tab;
+    if (type == 'soporte_chat') tab = 2;
+    if (type == 'solicitud_activacion') tab = 0;
+    if (type == 'reporte') tab = 1;
+
+    if (tab != null) {
+      nav.push(
+        MaterialPageRoute(
+          builder: (_) => AdminHubScreen(initialTab: tab!),
+        ),
+      );
+    }
   }
 }

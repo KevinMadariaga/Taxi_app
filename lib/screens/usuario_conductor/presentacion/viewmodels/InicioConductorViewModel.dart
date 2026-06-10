@@ -14,6 +14,7 @@ import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodels/previ
 import 'package:taxi_app/core/services/tracking_service.dart';
 import 'package:taxi_app/core/services/services.dart';
 import 'package:taxi_app/core/services/map_service_adapter.dart';
+import 'package:taxi_app/core/services/soporte_notification_service.dart';
 
 class InicioConductorViewmodel extends ChangeNotifier {
   // Variables de estado y colecciones faltantes
@@ -90,6 +91,11 @@ class InicioConductorViewmodel extends ChangeNotifier {
     _subscribeSolicitudes();
     _subscribeRatings();
     _subscribeAssignedToMe();
+
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null && uid.isNotEmpty) {
+      SoporteNotificationService.instance.iniciarEscuchaUsuario(uid);
+    }
 
     // Mark initial loading as false to avoid blocking UI; specific flags (like loadingLocation)
     // remain true until their respective tasks complete and update the VM.
@@ -962,6 +968,7 @@ class InicioConductorViewmodel extends ChangeNotifier {
     try {
       _newSolicitudController.close();
     } catch (_) {}
+    SoporteNotificationService.instance.detenerEscuchaUsuario();
     super.dispose();
   }
 

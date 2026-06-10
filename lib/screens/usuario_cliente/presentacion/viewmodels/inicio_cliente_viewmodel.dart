@@ -11,6 +11,7 @@ import 'package:taxi_app/core/helpers/map_helper.dart';
 import 'package:taxi_app/core/helpers/session_helper.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/MapaClienteModel.dart';
 import 'package:taxi_app/core/services/services.dart';
+import 'package:taxi_app/core/services/soporte_notification_service.dart';
 import 'package:taxi_app/core/services/ubicacion_servicio.dart';
 
 class InicioClienteViewModel extends ChangeNotifier {
@@ -76,11 +77,13 @@ class InicioClienteViewModel extends ChangeNotifier {
           _persistedUid = user.uid;
         }
         await cargarFavoritosUnaVez();
+        SoporteNotificationService.instance.iniciarEscuchaUsuario(user.uid);
         if (!_disposed) notifyListeners();
       } else {
         _clientId = null;
         _favoritos = [];
         _favoritosLoaded = false;
+        SoporteNotificationService.instance.detenerEscuchaUsuario();
         await _cargarClienteDesdeCache();
         if (!_disposed) notifyListeners();
       }
@@ -432,6 +435,7 @@ class InicioClienteViewModel extends ChangeNotifier {
     try {
       _conductoresSub?.cancel();
     } catch (_) {}
+    SoporteNotificationService.instance.detenerEscuchaUsuario();
     super.dispose();
   }
 

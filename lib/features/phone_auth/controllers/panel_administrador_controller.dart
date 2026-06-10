@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:taxi_app/core/services/soporte_notification_service.dart';
 
 import '../models/admin_model.dart';
 import '../models/driver_model.dart';
@@ -8,7 +9,10 @@ class PanelAdministradorController extends ChangeNotifier {
   PanelAdministradorController({
     required this.adminId,
     UserDataService? userDataService,
-  }) : _userDataService = userDataService ?? UserDataService();
+  }) : _userDataService = userDataService ?? UserDataService() {
+    SoporteNotificationService.instance.iniciarEscuchaAdmin();
+    SoporteNotificationService.instance.iniciarEscuchaReportes();
+  }
 
   final String adminId;
   final UserDataService _userDataService;
@@ -21,5 +25,11 @@ class PanelAdministradorController extends ChangeNotifier {
 
   Stream<DriverModel?> conductorStream(String conductorId) {
     return _userDataService.streamConductor(conductorId);
+  }
+
+  @override
+  void dispose() {
+    SoporteNotificationService.instance.detenerEscuchaAdmin();
+    super.dispose();
   }
 }

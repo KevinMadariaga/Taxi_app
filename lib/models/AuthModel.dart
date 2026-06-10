@@ -65,20 +65,13 @@ class AuthViewModel extends ChangeNotifier {
       String role = 'cliente';
       if (uid.isNotEmpty) {
         final firestore = FirebaseFirestore.instance;
-        final conductorDoc = await firestore
-            .collection('conductor')
-            .doc(uid)
-            .get();
-        if (conductorDoc.exists) {
+        final usuarioDoc = await firestore.collection('usuarios').doc(uid).get();
+        final data = usuarioDoc.data() ?? <String, dynamic>{};
+        final tipoUsuario = (data['tipoUsuario'] ?? data['rol'] ?? data['role'] ?? '').toString().toLowerCase();
+        if (tipoUsuario == 'conductor') {
           role = 'conductor';
-        } else {
-          final clienteDoc = await firestore
-              .collection('cliente')
-              .doc(uid)
-              .get();
-          if (clienteDoc.exists) {
-            role = 'cliente';
-          }
+        } else if (tipoUsuario == 'admin' || tipoUsuario == 'administrador') {
+          role = 'administrador';
         }
       }
       await SessionHelper.saveSession(role, uid);
