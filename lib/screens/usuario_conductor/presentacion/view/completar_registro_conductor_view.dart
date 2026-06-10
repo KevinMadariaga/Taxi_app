@@ -6,7 +6,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart' as fb_storage;
 import 'package:image_picker/image_picker.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/helpers/permisos_helper.dart';
 import 'package:taxi_app/core/helpers/session_helper.dart';
+import 'package:taxi_app/core/services/admin_fcm_service.dart';
 import 'package:taxi_app/core/services/image_cropper_service.dart';
 import 'package:taxi_app/widgets/boton.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/vehicle_type.dart';
@@ -150,19 +152,34 @@ class _CompletarRegistroConductorViewState
           ? await _subirImagen(_fotoVehiculo!, 'fotoVehiculo', uid)
           : _fotoVehiculoExistenteUrl!;
 
+      final nombre =
+          (FirebaseAuth.instance.currentUser?.displayName ?? 'Conductor')
+              .toString();
+
       await FirebaseFirestore.instance.collection('usuarios').doc(uid).set({
         'foto': fotoUrl,
         'fotoVehiculo': vehUrl,
         'placa': placa.toUpperCase(),
         'tipoVehiculo': _tipoVehiculo.firestoreKey,
         'rol': 'conductor',
-        'solicitudConductor': false,
+        'solicitudConductor': true,
         'servicioActivo': false,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
+      // Notificar al admin que hay un nuevo conductor pendiente de revisión.
+      AdminFcmService.instance.sendToAllAdmins(
+        title: 'Nuevo conductor registrado',
+        body: '$nombre quiere activar el servicio, revisa.',
+        type: 'solicitud_conductor',
+      ).ignore();
+
       // Sincronizar rol en caché para que al reiniciar abra como conductor.
       await SessionHelper.updateRole('conductor');
+
+      // Solicitar permisos de ubicación en segundo plano (conductor).
+      // En iOS esto muestra el diálogo nativo "Permitir siempre".
+      await PermissionsHelper.requestAllPermissions(isDriver: true);
 
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
@@ -240,32 +257,68 @@ class _CompletarRegistroConductorViewState
               Center(
                 child: GestureDetector(
                   onTap: () => _pickImage(esVehiculo: false),
-                  child: CircleAvatar(
-                    radius: 65,
-                    backgroundColor: Colors.grey.shade200,
-                    backgroundImage: _fotoPerfil != null
-                        ? FileImage(File(_fotoPerfil!.path)) as ImageProvider
-                        : (_fotoExistenteUrl != null &&
-                                _fotoExistenteUrl!.isNotEmpty)
-                            ? NetworkImage(_fotoExistenteUrl!)
+                  child: Stack(
+                    alignment: Alignment.bottomRight,
+                    children: [
+                      CircleAvatar(
+                        radius: 65,
+                        backgroundColor: Colors.grey.shade200,
+                        backgroundImage: _fotoPerfil != null
+                            ? FileImage(File(_fotoPerfil!.path)) as ImageProvider
+                            : (_fotoExistenteUrl != null &&
+                                    _fotoExistenteUrl!.isNotEmpty)
+                                ? NetworkImage(_fotoExistenteUrl!)
+                                : null,
+                        child: (_fotoPerfil == null &&
+                                (_fotoExistenteUrl == null ||
+                                    _fotoExistenteUrl!.isEmpty))
+                            ? Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: const [
+                                  Icon(
+                                    Icons.camera_alt,
+                                    size: 32,
+                                    color: Colors.black54,
+                                  ),
+                                  SizedBox(height: 6),
+                                  Text(
+                                    'Foto de perfil',
+                                    style: TextStyle(fontSize: 12),
+                                  ),
+                                ],
+                              )
                             : null,
-                    child: (_fotoPerfil == null &&
-                            (_fotoExistenteUrl == null ||
-                                _fotoExistenteUrl!.isEmpty))
-                        ? Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: const [
-                              Icon(
-                                Icons.camera_alt,
-                                size: 32,
-                                color: Colors.black54,
+                      ),
+                      // Badge cámara: siempre visible para indicar que se puede cambiar.
+                      Positioned(
+                        bottom: 2,
+                        right: 2,
+                        child: Container(
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(
+                            color: AppColores.buttonPrimary,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Colors.white,
+                              width: 2,
+                            ),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Colors.black26,
+                                blurRadius: 4,
+                                offset: Offset(0, 2),
                               ),
-                              SizedBox(height: 6),
-                              Text('Foto de perfil',
-                                  style: TextStyle(fontSize: 12)),
                             ],
-                          )
-                        : null,
+                          ),
+                          child: const Icon(
+                            Icons.camera_alt,
+                            size: 17,
+                            color: AppColores.textPrimary,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),

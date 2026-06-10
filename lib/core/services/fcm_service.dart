@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_navigator.dart';
 import 'package:taxi_app/core/services/notificacion_servicio.dart';
 import 'package:taxi_app/features/phone_auth/screens/admin_hub_screen.dart';
+import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioConductorView.dart';
 
 /// Handler de nivel TOP para mensajes recibidos en background/terminated.
 ///
@@ -263,6 +264,23 @@ class FcmService {
     final type = message.data['type'] as String? ?? '';
     final nav = appNavigatorKey.currentState;
     if (nav == null) return;
+
+    // Nueva solicitud de conductor → llevar al admin a su pantalla principal.
+    if (type == 'solicitud_conductor') {
+      nav.popUntil((route) => route.isFirst);
+      return;
+    }
+
+    // Membresía activada → llevar al conductor a su pantalla de inicio.
+    if (type == 'membresia_activada') {
+      nav.pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (_) => const InicioConductor(mostrarBienvenida: true),
+        ),
+        (route) => false,
+      );
+      return;
+    }
 
     int? tab;
     if (type == 'solicitud_activacion') tab = 0;

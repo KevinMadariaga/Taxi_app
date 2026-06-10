@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/services/admin_fcm_service.dart';
 import 'package:taxi_app/core/services/soporte_notification_service.dart';
 import 'package:taxi_app/features/admin/admin_configuracion_screen.dart';
 import 'package:taxi_app/features/phone_auth/screens/admin_hub_screen.dart';
@@ -26,6 +27,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     SoporteNotificationService.instance.iniciarEscuchaAdmin();
     SoporteNotificationService.instance.iniciarEscuchaReportes();
     SoporteNotificationService.instance.iniciarEscuchaEmergencias();
+    SoporteNotificationService.instance.iniciarEscuchaConductores();
   }
 
   @override
@@ -482,6 +484,16 @@ class _ConductorCard extends StatelessWidget {
       'servicioActivo': true,
       'solicitudConductor': false,
     });
+
+    // Notificar al conductor por FCM (funciona en primer, segundo plano y apagado).
+    final conductorToken = (doc.data()?['fcmToken'] as String?) ?? '';
+    AdminFcmService.instance.sendToToken(
+      token: conductorToken,
+      title: '¡Membresía activada!',
+      body: 'Hola $nombre, tu membresía de conductor ya está activa por $dias días.',
+      type: 'membresia_activada',
+    ).ignore();
+
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

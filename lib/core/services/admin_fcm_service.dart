@@ -65,6 +65,21 @@ class AdminFcmService {
               'title': title,
               'body': body,
               'sound': 'default',
+              'android_channel_id': 'taxi_admin_channel',
+            },
+            'android': {
+              'priority': 'high',
+              'notification': {
+                'channel_id': 'taxi_admin_channel',
+                'default_sound': true,
+                'default_vibrate_timings': true,
+                'notification_priority': 'PRIORITY_MAX',
+              },
+            },
+            'apns': {
+              'payload': {
+                'aps': {'sound': 'default'},
+              },
             },
             'data': {
               'type': type,
@@ -77,6 +92,55 @@ class AdminFcmService {
       } catch (e) {
         debugPrint('[AdminFcm] Error enviando a $token: $e');
       }
+    }
+  }
+
+  /// Envía una notificación push a un token FCM individual (p.ej. conductor).
+  Future<void> sendToToken({
+    required String token,
+    required String title,
+    required String body,
+    String type = 'notification',
+    Map<String, String> extraData = const {},
+  }) async {
+    if (token.isEmpty) return;
+
+    String? serverKey;
+    try {
+      serverKey = await AppRemoteConfigService.instance.fetchFcmServerKey();
+    } catch (_) {}
+
+    if (serverKey == null || serverKey.isEmpty) {
+      debugPrint('[AdminFcm] fcm_server_key no configurado en Remote Config');
+      return;
+    }
+
+    try {
+      final response = await http.post(
+        Uri.parse(_fcmUrl),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'key=$serverKey',
+        },
+        body: jsonEncode({
+          'to': token,
+          'priority': 'high',
+          'notification': {
+            'title': title,
+            'body': body,
+            'sound': 'default',
+          },
+          'data': {
+            'type': type,
+            'title': title,
+            'body': body,
+            ...extraData,
+          },
+        }),
+      );
+      debugPrint('[AdminFcm] Token individual — status ${response.statusCode}');
+    } catch (e) {
+      debugPrint('[AdminFcm] Error enviando token individual: $e');
     }
   }
 }

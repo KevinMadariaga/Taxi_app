@@ -36,6 +36,9 @@ class NotificacionesServicio {
   static const String _systemChannelId = 'taxi_system_channel';
   static const String _systemChannelName = 'Notificaciones del Sistema';
 
+  static const String _adminChannelId = 'taxi_admin_channel';
+  static const String _adminChannelName = 'Notificaciones del Administrador';
+
   /// Inicializa el servicio de notificaciones.
   /// Solo se inicializa una vez, llamadas subsecuentes son ignoradas.
   Future<void> init() async {
@@ -75,6 +78,21 @@ class NotificacionesServicio {
             : '⚠️ [NotificacionesServicio] Permisos iOS no concedidos',
       );
     }
+
+    // Registrar canal de alta importancia para notificaciones de admin.
+    // Debe existir antes de que FCM intente usarlo con android_channel_id.
+    await _plugin
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(
+          const AndroidNotificationChannel(
+            _adminChannelId,
+            _adminChannelName,
+            importance: Importance.max,
+            playSound: true,
+            enableVibration: true,
+          ),
+        );
 
     _initialized = true;
   }

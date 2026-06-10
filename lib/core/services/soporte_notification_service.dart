@@ -14,10 +14,12 @@ class SoporteNotificationService {
   StreamSubscription<QuerySnapshot>? _adminSub;
   StreamSubscription<QuerySnapshot>? _reportesSub;
   StreamSubscription<QuerySnapshot>? _emergenciasSub;
+  StreamSubscription<QuerySnapshot>? _conductoresSub;
   DateTime? _userListenerStarted;
   DateTime? _adminListenerStarted;
   DateTime? _reportesListenerStarted;
   DateTime? _emergenciasListenerStarted;
+  DateTime? _conductoresListenerStarted;
   String? _currentUserId;
 
   /// Llama cuando el usuario (cliente o conductor) inicia sesión.
@@ -196,6 +198,61 @@ class SoporteNotificationService {
         }, onError: (_) {});
   }
 
+  /// Escucha nuevas solicitudes de registro de conductor.
+  /// Notifica al admin cuando un conductor completa su registro y espera activación.
+  void iniciarEscuchaConductores() {
+    _conductoresSub?.cancel();
+    _conductoresListenerStarted = DateTime.now();
+
+    _conductoresSub = FirebaseFirestore.instance
+        .collection('usuarios')
+        .where('solicitudConductor', isEqualTo: true)
+        .snapshots()
+        .listen((snap) {
+          for (final change in snap.docChanges) {
+            // added = doc recién entró al query (solicitudConductor acaba de ser true).
+            if (change.type != DocumentChangeType.added) continue;
+
+            final data = change.doc.data() as Map<String, dynamic>?;
+            if (data == null) continue;
+
+            // Ignorar docs que ya existían cuando arrancó el listener.
+            final ts = data['updatedAt'] as Timestamp?;
+            final msgTime = ts?.toDate();
+            final started = _conductoresListenerStarted;
+            if (msgTime != null &&
+                started != null &&
+                msgTime.isBefore(
+                  started.subtract(const Duration(seconds: 2)),
+                )) {
+              continue;
+            }
+
+            // No notificar si ya tiene membresía activa.
+            final membresia =
+                (data['membresia'] ?? '').toString().toLowerCase();
+            if (membresia == 'activa') continue;
+
+            final nombre =
+                (data['nombre'] ?? data['displayName'] ?? 'Un conductor')
+                    .toString();
+            NotificacionesServicio.instance.showNotification(
+              id: change.doc.id.hashCode & 0x7fffffff,
+              title: 'Nuevo conductor registrado',
+              body: '$nombre quiere activar el servicio, revisa.',
+              channelId: 'taxi_admin_channel',
+              channelName: 'Notificaciones del Administrador',
+              payload: 'admin_conductores',
+            );
+          }
+        }, onError: (_) {});
+  }
+
+  void detenerEscuchaConductores() {
+    _conductoresSub?.cancel();
+    _conductoresSub = null;
+  }
+
   void detenerEscuchaAdmin() {
     _adminSub?.cancel();
     _adminSub = null;
@@ -203,6 +260,8 @@ class SoporteNotificationService {
     _reportesSub = null;
     _emergenciasSub?.cancel();
     _emergenciasSub = null;
+    _conductoresSub?.cancel();
+    _conductoresSub = null;
   }
 
   void detenerTodo() {

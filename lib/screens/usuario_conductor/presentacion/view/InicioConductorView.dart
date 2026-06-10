@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show FilteringTextInputFormatter;
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -44,6 +45,8 @@ class _InicioConductorState extends State<InicioConductor>
   Timer? _membresiaExpiryTimer;
   bool _expirandoMembresia = false;
   bool _dialogMembresiaVisible = false;
+  // null = primer snapshot aún no recibido; false = inactiva; true = activa
+  bool? _membresiaPreviamenteActiva;
 
   // Mide la altura real de la card de preview para: (1) que el mapa reciba ese
   // padding inferior y centre los marcadores en la zona visible, y (2) que la
@@ -132,14 +135,30 @@ class _InicioConductorState extends State<InicioConductor>
       return false;
     }
 
+    // 3) Permiso de segundo plano: mostrar explicación si aún no está concedido.
+    final yaConBg = await PermissionsHelper.hasBackgroundLocationPermission();
+    if (!yaConBg) {
+      if (!mounted) return false;
+      final continuar = await _showBackgroundLocationDialog();
+      if (!continuar) {
+        _showGpsSnackBar(
+          'Activa la ubicación en segundo plano para recibir solicitudes.',
+        );
+        return false;
+      }
+    }
+
     final backgroundGranted =
         await PermissionsHelper.requestBackgroundLocationPermission();
     if (!backgroundGranted) {
-      _showGpsSnackBar('Permiso de ubicación en segundo plano rechazado.');
+      if (!mounted) return false;
+      // En iOS el usuario puede haber elegido "Cuando uso la app" en vez de
+      // "Siempre". Guiar a Ajustes para completar la selección.
+      await _showIrAAjustesUbicacionDialog();
       return false;
     }
 
-    // 3) Todos los permisos OK: listos para iniciar.
+    // 4) Todos los permisos OK: listos para iniciar.
     return true;
   }
 
@@ -183,13 +202,24 @@ class _InicioConductorState extends State<InicioConductor>
         }
       }
 
-      // Después de activar GPS y permisos en primer plano, solicitar permiso de ubicación en segundo plano para conductor.
+      // Permiso de segundo plano: mostrar explicación si aún no está concedido.
+      final yaConBg = await PermissionsHelper.hasBackgroundLocationPermission();
+      if (!yaConBg) {
+        if (!mounted) return false;
+        final continuar = await _showBackgroundLocationDialog();
+        if (!continuar) {
+          _showGpsSnackBar(
+            'Activa la ubicación en segundo plano para recibir solicitudes.',
+          );
+          return false;
+        }
+      }
+
       final bgGranted =
           await PermissionsHelper.requestBackgroundLocationPermission();
       if (!bgGranted) {
-        _showGpsSnackBar(
-          'Permiso de ubicación en segundo plano no concedido. Activar para un mejor seguimiento.',
-        );
+        if (!mounted) return false;
+        await _showIrAAjustesUbicacionDialog();
         return false;
       }
 
@@ -266,13 +296,6 @@ class _InicioConductorState extends State<InicioConductor>
         final vm = InicioConductorViewmodel();
         // Request necessary permissions and initialize services without blocking UI
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          // fire-and-forget permission request
-          () async {
-            try {
-              await PermissionsHelper.requestAllPermissions(isDriver: true);
-            } catch (_) {}
-          }();
-
           // fire-and-forget notification init
           () async {
             try {
@@ -1179,6 +1202,7 @@ class _InicioConductorState extends State<InicioConductor>
           }
 
           final activa = flagActiva && !vencida;
+
           if (!activa && !_dialogMembresiaVisible) {
             _dialogMembresiaVisible = true;
             mostrarBienvenidaConductorDialog(
@@ -1187,11 +1211,311 @@ class _InicioConductorState extends State<InicioConductor>
             ).whenComplete(() {
               _dialogMembresiaVisible = false;
             });
-          } else if (activa && _dialogMembresiaVisible) {
-            _dialogMembresiaVisible = false;
-            Navigator.of(context).popUntil((route) => route.isFirst);
+          } else if (activa) {
+            if (_dialogMembresiaVisible) {
+              _dialogMembresiaVisible = false;
+              Navigator.of(context).popUntil((route) => route.isFirst);
+            }
+
+            // Detectar activación: primera apertura con mostrarBienvenida=true
+            // (tap en notificación FCM) o transición inactivo → activo en vivo.
+            final primeraVezActiva =
+                _membresiaPreviamenteActiva == null && widget.mostrarBienvenida;
+            final recienActivada = _membresiaPreviamenteActiva == false;
+
+            if (primeraVezActiva || recienActivada) {
+              if (recienActivada) {
+                // Conductor tiene la app abierta en este momento: notificación local.
+                NotificacionesServicio.instance.showNotification(
+                  id: 'membresia_activada'.hashCode,
+                  title: '¡Membresía activada!',
+                  body:
+                      'Tu membresía de conductor está activa. ¡Ya puedes recibir solicitudes!',
+                );
+              }
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) _mostrarDialogBienvenidaActivacion();
+              });
+            }
           }
+
+          _membresiaPreviamenteActiva = activa;
         });
+  }
+
+  /// Muestra explicación antes de pedir permiso de ubicación en segundo plano.
+  /// Retorna true si el usuario acepta continuar, false si pospone.
+  Future<bool> _showBackgroundLocationDialog() async {
+    if (!mounted) return false;
+    final bool isIOS = Platform.isIOS;
+
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              decoration: const BoxDecoration(
+                color: AppColores.primary,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.location_on_rounded,
+                size: 38,
+                color: AppColores.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Ubicación en segundo plano',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: AppColores.textPrimary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Para recibir solicitudes y compartir tu posición con los clientes '
+              'mientras usas otras apps, necesitamos acceder a tu ubicación '
+              'siempre, incluso en segundo plano.',
+              style: const TextStyle(
+                fontSize: 14,
+                color: AppColores.textSecondary,
+                height: 1.4,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            if (isIOS) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColores.grey100,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Text(
+                  'En el diálogo que aparece a continuación, selecciona '
+                  '"Siempre" para activar el seguimiento en segundo plano.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColores.textSecondary,
+                    height: 1.4,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ],
+          ],
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        actions: [
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColores.buttonPrimary,
+                    foregroundColor: AppColores.textPrimary,
+                    minimumSize: const Size.fromHeight(48),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                    elevation: 0,
+                  ),
+                  onPressed: () => Navigator.of(ctx).pop(true),
+                  child: const Text(
+                    'Activar ubicación',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                    ),
+                  ),
+                ),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text(
+                  'Recordar más tarde',
+                  style: TextStyle(
+                    color: AppColores.textSecondary,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    return result == true;
+  }
+
+  /// Se muestra cuando el sistema denegó "siempre" (usuario eligió "cuando uso").
+  /// Guía al conductor a Ajustes para cambiar manualmente la opción.
+  Future<void> _showIrAAjustesUbicacionDialog() async {
+    if (!mounted) return;
+    final bool isIOS = Platform.isIOS;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              decoration: const BoxDecoration(
+                color: AppColores.primary,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.location_off_rounded,
+                size: 38,
+                color: AppColores.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Permiso insuficiente',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: AppColores.textPrimary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              isIOS
+                  ? 'Ve a Ajustes → Privacidad → Localización → Taxi Ya y selecciona "Siempre".'
+                  : 'Ve a Ajustes → Aplicaciones → Taxi Ya → Permisos → Ubicación y selecciona "Permitir todo el tiempo".',
+              style: const TextStyle(
+                fontSize: 14,
+                color: AppColores.textSecondary,
+                height: 1.4,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        actions: [
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColores.buttonPrimary,
+                foregroundColor: AppColores.textPrimary,
+                minimumSize: const Size.fromHeight(48),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(15),
+                ),
+                elevation: 0,
+              ),
+              onPressed: () async {
+                Navigator.of(ctx).pop();
+                await Geolocator.openAppSettings();
+              },
+              child: const Text(
+                'Abrir Ajustes',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text(
+              'Después',
+              style: TextStyle(
+                color: AppColores.textSecondary,
+                fontSize: 13,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _mostrarDialogBienvenidaActivacion() {
+    if (!mounted) return;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: const [
+            Icon(Icons.verified, size: 64, color: AppColores.primary),
+            SizedBox(height: 16),
+            Text(
+              '¡Membresía activada!',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: 10),
+            Text(
+              'Bienvenido como conductor activo. Ya puedes conectarte y recibir solicitudes de viaje.',
+              style: TextStyle(color: AppColores.textSecondary, height: 1.4),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+        actions: [
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColores.buttonPrimary,
+                foregroundColor: AppColores.textPrimary,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                _iniciarFlujoUbicacionSiNecesario();
+              },
+              child: const Text(
+                '¡Comenzar!',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Verifica permisos e inicia el flujo de ubicación. Se llama tras confirmar
+  /// membresía activa para garantizar que los permisos se piden en el contexto
+  /// correcto (especialmente el diálogo de "siempre" en iOS).
+  Future<void> _iniciarFlujoUbicacionSiNecesario() async {
+    final yaConBg = await PermissionsHelper.hasBackgroundLocationPermission();
+    if (yaConBg) return; // permisos ya completos desde sesión anterior
+    if (!mounted) return;
+    final ready = await _validateGpsAndPermissionsOnStart();
+    if (!ready || !mounted) return;
+    setState(() => _isPreparingLocation = true);
+    await _bootstrapConductorLocationFlow();
+    if (mounted) setState(() => _isPreparingLocation = false);
   }
 
   /// Desactiva la membresía en Firestore al vencer el plazo (idempotente).

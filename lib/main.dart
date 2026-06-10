@@ -52,8 +52,9 @@ bool _esErrorBenignoMapas(Object error) {
 }
 
 /// Maneja el tap en notificaciones locales. Payload:
-///   'admin_hub:N'  → AdminHubScreen con pestaña N
-///   'soporte_chat' → SoporteChatScreen (usuario)
+///   'admin_hub:N'       → AdminHubScreen con pestaña N
+///   'admin_conductores' → pop al root (AdminHomeScreen lista de conductores)
+///   'soporte_chat'      → SoporteChatScreen (usuario)
 void _manejarTapNotificacion(String? payload) {
   if (payload == null) return;
   final nav = appNavigatorKey.currentState;
@@ -64,6 +65,9 @@ void _manejarTapNotificacion(String? payload) {
     nav.push(
       MaterialPageRoute(builder: (_) => AdminHubScreen(initialTab: tab)),
     );
+  } else if (payload == 'admin_conductores') {
+    // Lleva al admin a su pantalla principal (lista de conductores).
+    nav.popUntil((route) => route.isFirst);
   } else if (payload == 'soporte_chat') {
     nav.push(MaterialPageRoute(builder: (_) => const SoporteChatScreen()));
   }

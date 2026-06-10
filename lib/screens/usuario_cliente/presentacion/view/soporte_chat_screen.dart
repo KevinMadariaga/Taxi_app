@@ -228,36 +228,53 @@ class _SoporteChatScreenState extends State<SoporteChatScreen> {
 
           // Banner de sesión expirada
           if (expirado)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              color: AppColores.grey200,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'Sesión finalizada por inactividad.',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: AppColores.textSecondary,
+            SafeArea(
+              top: false,
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                decoration: BoxDecoration(
+                  color: AppColores.grey200,
+                  border: Border(
+                    top: BorderSide(
+                      color: AppColores.borderSubtle,
+                      width: 1,
                     ),
-                    textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColores.buttonPrimary,
-                        foregroundColor: AppColores.textPrimary,
-                        minimumSize: const Size.fromHeight(42),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'Sesión finalizada por inactividad.',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppColores.textSecondary,
                       ),
-                      icon: const Icon(Icons.refresh, size: 18),
-                      label: const Text('Nuevo chat'),
-                      onPressed: _nuevaConversacion,
+                      textAlign: TextAlign.center,
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColores.buttonPrimary,
+                          foregroundColor: AppColores.textPrimary,
+                          minimumSize: const Size.fromHeight(46),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        icon: const Icon(Icons.refresh, size: 18),
+                        label: const Text(
+                          'Reiniciar conversación',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        onPressed: _nuevaConversacion,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
 

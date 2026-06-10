@@ -118,14 +118,30 @@ class PermissionsHelper {
   /// Retorna `true` si el permiso fue concedido.
   static Future<bool> requestBackgroundLocationPermission() async {
     return await _runExclusive(() async {
+      // iOS: permission_handler gestiona su propio estado de permisos,
+      // independiente de geolocator. Si geolocator ya obtuvo whileInUse
+      // pero permission_handler aún no lo sabe, el request de locationAlways
+      // falla. Primero garantizamos que permission_handler tenga whileInUse.
+      if (Platform.isIOS) {
+        final whenInUse = await Permission.locationWhenInUse.status;
+        if (!whenInUse.isGranted) {
+          final result = await Permission.locationWhenInUse.request();
+          if (!result.isGranted) {
+            debugPrint('❌ [iOS] locationWhenInUse no concedido via permission_handler');
+            return false;
+          }
+        }
+      }
+
       final backgroundPermission = await Permission.locationAlways.request();
 
       if (backgroundPermission.isGranted) {
         debugPrint('✅ Ubicación en segundo plano permitida (conductor)');
         return true;
       } else {
-        debugPrint('❌ Ubicación en segundo plano no permitida');
-
+        debugPrint(
+          '❌ Ubicación en segundo plano no permitida — estado: $backgroundPermission',
+        );
         if (await Permission.locationAlways.isPermanentlyDenied) {
           await openAppSettings();
         }

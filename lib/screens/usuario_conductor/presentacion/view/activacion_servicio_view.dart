@@ -32,10 +32,10 @@ Future<void> _marcarSolicitudActivacion() async {
     }, SetOptions(merge: true));
 
     AdminFcmService.instance.sendToAllAdmins(
-      title: 'Solicitud de activación',
-      body: '$nombre quiere activar el servicio de conductor',
-      type: 'solicitud_activacion',
-    );
+      title: 'Nuevo conductor registrado',
+      body: '$nombre quiere activar el servicio, revisa.',
+      type: 'solicitud_conductor',
+    ).ignore();
   } catch (_) {}
 }
 
