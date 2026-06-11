@@ -118,6 +118,15 @@ class PermissionsHelper {
   /// Retorna `true` si el permiso fue concedido.
   static Future<bool> requestBackgroundLocationPermission() async {
     return await _runExclusive(() async {
+      // Si Geolocator ya confirma "always", no re-solicitar — en iOS llamar
+      // Permission.locationAlways.request() cuando ya está concedido devuelve
+      // denied porque el sistema no muestra el prompt de nuevo.
+      final current = await Geolocator.checkPermission();
+      if (current == LocationPermission.always) {
+        debugPrint('✅ Ubicación en segundo plano ya concedida (geolocator)');
+        return true;
+      }
+
       // iOS: permission_handler gestiona su propio estado de permisos,
       // independiente de geolocator. Si geolocator ya obtuvo whileInUse
       // pero permission_handler aún no lo sabe, el request de locationAlways

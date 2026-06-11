@@ -32,8 +32,6 @@ const ESTADO_MENSAJES = {
     title: "⏳ Esperando confirmación",
     body: "El conductor está esperando tu confirmación para iniciar el viaje.",
   },
-  // Notificación de "en camino" eliminada por solicitud (era confusa para el
-  // cliente durante la validación de llegada / "ya voy hacia el carro").
   "en ruta": {
     title: "🚕 Viaje iniciado",
     body: "El viaje ha comenzado. ¡Disfruta el recorrido!",
@@ -60,7 +58,6 @@ function normalizeEstado(raw) {
   const s = raw.toLowerCase().trim().replace(/_/g, " ").replace(/-/g, " ");
 
   if (s.includes("en ruta") || s.includes("enruta")) return "en ruta";
-  if (s.includes("en camino") || s.includes("encam")) return "en camino";
   if (s.includes("en espera") || s.includes("enespera")) return "en espera";
   if (s.includes("asignado") || s.includes("assigned")) return "asignado";
   if (s.includes("cancel")) return "cancelado";
