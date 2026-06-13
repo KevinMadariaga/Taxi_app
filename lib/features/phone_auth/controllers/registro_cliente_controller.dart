@@ -36,7 +36,7 @@ class RegistroClienteController extends ChangeNotifier {
 
   Future<void> pickProfileImage() async {
     final picked = await _imagePicker.pickImage(
-      source: ImageSource.gallery,
+      source: ImageSource.camera,
       imageQuality: 78,
       maxWidth: 1280,
     );

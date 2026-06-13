@@ -30,7 +30,7 @@ class SignInAppleClientUseCase {
       uid: identity.uid,
       displayName: identity.displayName,
       email: identity.email,
-      photoUrl: identity.photoUrl,
+      photoUrl: null,
     );
 
     return AuthFlowResult(

@@ -112,14 +112,14 @@ class _RegistroConductorScreenState extends State<RegistroConductorScreen> {
                             ),
                             const SizedBox(height: 12),
                             ImagePickerTile(
-                              title: 'Foto del conductor',
+                              title: 'Tomar foto del conductor',
                               image: vm.fotoConductor,
                               circular: true,
                               onTap: vm.pickFotoConductor,
                             ),
                             const SizedBox(height: 10),
                             ImagePickerTile(
-                              title: 'Foto del vehiculo',
+                              title: 'Tomar foto del vehiculo',
                               image: vm.fotoVehiculo,
                               onTap: vm.pickFotoVehiculo,
                             ),

@@ -72,7 +72,7 @@ class CompleteProfileController extends ChangeNotifier {
 
   Future<void> pickProfileImage() async {
     final picked = await _imagePicker.pickImage(
-      source: ImageSource.gallery,
+      source: ImageSource.camera,
       imageQuality: 100,
       maxWidth: 512,
       maxHeight: 512,
@@ -107,8 +107,10 @@ class CompleteProfileController extends ChangeNotifier {
     );
     if (apellidoError != null) return apellidoError;
 
-    // Foto opcional: si no se elige una nueva, se conserva la del proveedor
-    // (Gmail) que ya quedó guardada en el perfil.
+    if (_selectedImage == null) {
+      return 'Toma una foto de perfil para continuar.';
+    }
+
     var telefonoNormalizado = _normalizeToTenDigits(telefono);
     if (telefonoNormalizado.isEmpty) {
       telefonoNormalizado = _normalizeToTenDigits(_currentUser?.telefono ?? '');

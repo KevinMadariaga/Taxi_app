@@ -62,7 +62,7 @@ class ImagePickerTile extends StatelessWidget {
                 ),
               ),
             ),
-            const Icon(Icons.upload_rounded, color: AppColores.secondary),
+            const Icon(Icons.camera_alt_rounded, color: AppColores.secondary),
           ],
         ),
       ),

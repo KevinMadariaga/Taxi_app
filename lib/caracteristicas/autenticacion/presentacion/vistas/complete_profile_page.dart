@@ -136,8 +136,7 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
 
   Widget _buildForm(BuildContext context, CompleteProfileController vm) {
     final file = vm.selectedImage != null ? File(vm.selectedImage!.path) : null;
-    final netUrl = vm.currentUser?.fotoUrl;
-    final tieneFoto = file != null || (netUrl ?? '').isNotEmpty;
+    final tieneFoto = file != null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -165,18 +164,20 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
         Center(
           child: _AvatarPicker(
             selectedFile: file,
-            networkUrl: netUrl,
+            networkUrl: null,
             enabled: !vm.saving,
             onTap: vm.pickProfileImage,
           ),
         ),
         const SizedBox(height: 8),
         Text(
-          tieneFoto ? 'Toca para cambiar la foto' : 'Agrega una foto de perfil',
+          tieneFoto
+              ? 'Toca para cambiar la foto'
+              : 'Toma tu foto de perfil (obligatorio)',
           textAlign: TextAlign.center,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 12.5,
-            color: AppColores.textSecondary,
+            color: tieneFoto ? AppColores.textSecondary : AppColores.error,
             fontWeight: FontWeight.w500,
           ),
         ),

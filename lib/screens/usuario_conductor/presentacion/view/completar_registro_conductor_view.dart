@@ -80,7 +80,7 @@ class _CompletarRegistroConductorViewState
   Future<void> _pickImage({required bool esVehiculo}) async {
     try {
       final XFile? picked = await _picker.pickImage(
-        source: ImageSource.gallery,
+        source: ImageSource.camera,
         imageQuality: 90,
       );
       if (picked == null) return;

@@ -48,7 +48,7 @@ class RegistroConductorController extends ChangeNotifier {
 
   Future<void> pickFotoConductor() async {
     final picked = await _imagePicker.pickImage(
-      source: ImageSource.gallery,
+      source: ImageSource.camera,
       imageQuality: 78,
       maxWidth: 1400,
     );
@@ -65,7 +65,7 @@ class RegistroConductorController extends ChangeNotifier {
 
   Future<void> pickFotoVehiculo() async {
     final picked = await _imagePicker.pickImage(
-      source: ImageSource.gallery,
+      source: ImageSource.camera,
       imageQuality: 78,
       maxWidth: 1600,
     );

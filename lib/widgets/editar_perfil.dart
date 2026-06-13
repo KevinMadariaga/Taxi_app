@@ -83,7 +83,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
   Future<void> _pickImage(bool isVehicle) async {
     try {
       final XFile? picked = await _picker.pickImage(
-        source: ImageSource.gallery,
+        source: ImageSource.camera,
         imageQuality: 80,
         maxWidth: 1200,
       );

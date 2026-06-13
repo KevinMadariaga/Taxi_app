@@ -91,7 +91,7 @@ class _RegistroClientePhoneScreenState
                             ),
                             const SizedBox(height: 12),
                             ImagePickerTile(
-                              title: 'Seleccionar foto de perfil',
+                              title: 'Tomar foto de perfil',
                               image: vm.profileImage,
                               circular: true,
                               onTap: vm.pickProfileImage,
