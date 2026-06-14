@@ -13,6 +13,7 @@ Future<void> navigateWithIntermediateLoader({
   bool clearStackOnNext = false,
   Color accentColor = AppColores.buttonPrimary,
   bool drawCheck = true,
+  VoidCallback? onAfterDelay,
 }) {
   return Navigator.of(context).pushReplacement(
     PageRouteBuilder(
@@ -27,6 +28,7 @@ Future<void> navigateWithIntermediateLoader({
         clearStackOnNext: clearStackOnNext,
         accentColor: accentColor,
         drawCheck: drawCheck,
+        onAfterDelay: onAfterDelay,
       ),
       transitionsBuilder: (_, animation, _, child) {
         final curved = CurvedAnimation(parent: animation, curve: Curves.easeOut);
@@ -49,6 +51,7 @@ class IntermediateTransitionView extends StatefulWidget {
   final bool clearStackOnNext;
   final Color accentColor;
   final bool drawCheck;
+  final VoidCallback? onAfterDelay;
 
   const IntermediateTransitionView({
     super.key,
@@ -60,6 +63,7 @@ class IntermediateTransitionView extends StatefulWidget {
     this.clearStackOnNext = false,
     this.accentColor = AppColores.buttonPrimary,
     this.drawCheck = true,
+    this.onAfterDelay,
   });
 
   @override
@@ -111,7 +115,10 @@ class _IntermediateTransitionViewState extends State<IntermediateTransitionView>
       ),
     );
 
-    _navTimer = Timer(widget.delay, _goNext);
+    _navTimer = Timer(widget.delay, () {
+      widget.onAfterDelay?.call();
+      _goNext();
+    });
   }
 
   @override

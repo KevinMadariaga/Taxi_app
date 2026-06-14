@@ -82,7 +82,7 @@ class _ContenidoBienvenida extends StatelessWidget {
                   ),
                   const SizedBox(height: 20),
                   const Text(
-                    '¡Bienvenido a Taxi Ya!',
+                    '¡Bienvenido a Ride!',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 22,

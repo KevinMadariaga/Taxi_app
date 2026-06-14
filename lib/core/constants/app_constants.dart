@@ -1,7 +1,7 @@
 class AppConstants {
-  static const String appTitle = 'Taxi Ya';
+  static const String appTitle = 'Ride';
   static const String splashMessage =
-      'Consigue un taxi de manera facil y segura';
+      'Tu servicio de transporte de manera facil y segura';
 
   static const Duration splashDuration = Duration(milliseconds: 2500);
 

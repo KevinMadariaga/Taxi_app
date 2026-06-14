@@ -114,6 +114,7 @@ class NotificacionesServicio {
       importance: Importance.high,
       priority: Priority.high,
       icon: 'ic_notification',
+      largeIcon: const DrawableResourceAndroidBitmap('ic_notification_color'),
       color: const Color(0xFF081B33),
     );
 
@@ -121,6 +122,8 @@ class NotificacionesServicio {
       presentAlert: true,
       presentBadge: true,
       presentSound: true,
+      threadIdentifier: 'sistema',
+      interruptionLevel: InterruptionLevel.active,
     );
 
     final notificationDetails = NotificationDetails(
@@ -144,7 +147,7 @@ class NotificacionesServicio {
   }) async {
     await _ensureInitialized();
 
-    const androidDetails = AndroidNotificationDetails(
+    final androidDetails = AndroidNotificationDetails(
       _chatChannelId,
       _chatChannelName,
       channelDescription: 'Notificaciones de mensajes de chat',
@@ -153,16 +156,19 @@ class NotificacionesServicio {
       enableVibration: true,
       playSound: true,
       icon: 'ic_notification',
-      color: Color(0xFF081B33),
+      largeIcon: const DrawableResourceAndroidBitmap('ic_notification_color'),
+      color: const Color(0xFF081B33),
     );
 
     const iosDetails = DarwinNotificationDetails(
       presentAlert: true,
       presentBadge: true,
       presentSound: true,
+      threadIdentifier: 'chat',
+      interruptionLevel: InterruptionLevel.timeSensitive,
     );
 
-    const notificationDetails = NotificationDetails(
+    final notificationDetails = NotificationDetails(
       android: androidDetails,
       iOS: iosDetails,
     );
@@ -193,6 +199,7 @@ class NotificacionesServicio {
       enableVibration: vibrate,
       playSound: playSound,
       icon: 'ic_notification',
+      largeIcon: const DrawableResourceAndroidBitmap('ic_notification_color'),
       color: const Color(0xFF081B33),
     );
 
@@ -200,6 +207,8 @@ class NotificacionesServicio {
       presentAlert: true,
       presentBadge: true,
       presentSound: playSound,
+      threadIdentifier: 'viaje',
+      interruptionLevel: InterruptionLevel.timeSensitive,
     );
 
     final notificationDetails = NotificationDetails(

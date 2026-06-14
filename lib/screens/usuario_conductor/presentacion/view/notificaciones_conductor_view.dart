@@ -74,7 +74,7 @@ class _NotificacionesConductorViewState
     }
 
     await NotificacionesServicio.instance.showNotification(
-      title: 'Taxi Ya',
+      title: 'Ride',
       body: 'Esta es una notificación de prueba.',
     );
 

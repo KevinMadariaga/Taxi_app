@@ -27,7 +27,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   if (data.containsKey('title') ||
       data.containsKey('body') ||
       notification != null) {
-    final String title = data['title'] ?? notification?.title ?? 'Taxi Ya';
+    final String title = data['title'] ?? notification?.title ?? 'Ride';
     final String body =
         data['body'] ?? notification?.body ?? 'Actualización de servicio';
 
@@ -72,6 +72,13 @@ class FcmService {
 
     // 1) Registrar handler de background antes que todo
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+
+    // iOS: mostrar notificaciones FCM también cuando la app está en primer plano
+    await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
 
     // 2) Solicitar permisos push (en iOS muestra el diálogo nativo)
     final settings = await _messaging.requestPermission(
@@ -248,7 +255,7 @@ class FcmService {
     if (notification == null) return;
 
     NotificacionesServicio.instance.showTripNotification(
-      title: notification.title ?? 'Taxi Ya',
+      title: notification.title ?? 'Ride',
       body: notification.body ?? '',
     );
   }

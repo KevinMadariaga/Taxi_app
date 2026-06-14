@@ -16,7 +16,7 @@
     <!-- Google Mobile Ads SDK -->
     <uses-permission android:name="com.google.android.gms.permission.AD_ID" />
     <application
-        android:label="Taxi Ya"
+        android:label="Ride"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <!-- Google Maps API key configured directly in manifest. -->

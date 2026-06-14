@@ -4,7 +4,7 @@ import 'package:taxi_app/core/app_colores.dart';
 class ResumenHeader extends StatelessWidget {
   const ResumenHeader({
     super.key,
-    this.subtitle = 'Gracias por viajar con Taxi Ya',
+    this.subtitle = 'Gracias por viajar con Ride',
   });
 
   final String subtitle;

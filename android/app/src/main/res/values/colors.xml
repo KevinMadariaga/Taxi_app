@@ -4,4 +4,5 @@
     <!-- Fondo del splash/arranque: blanco, coincide con el SplashView de
          Flutter para evitar parpadeos negros entre nativo y primer frame. -->
     <color name="splashFondo">#FFFFFF</color>
+	<color name="ic_launcher_background">#FFFFFF</color>
 </resources>

@@ -261,7 +261,7 @@ class _Hero extends StatelessWidget {
         SizedBox(
           height: (h * 0.22).clamp(140.0, 220.0),
           child: Image.asset(
-            'assets/img/foreground_car.png',
+            'assets/img/Ride_foreground.png',
             fit: BoxFit.contain,
             errorBuilder: (_, _, _) => Icon(
               Icons.local_taxi_rounded,
@@ -272,7 +272,7 @@ class _Hero extends StatelessWidget {
         ),
         const SizedBox(height: 18),
         const Text(
-          'Taxi Ya',
+          'Ride',
           textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: 34,

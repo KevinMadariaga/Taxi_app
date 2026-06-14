@@ -227,7 +227,7 @@ class PermissionsHelper {
             if (status.isPermanentlyDenied) {
               debugPrint(
                 '⚠️ Notificaciones denegadas permanentemente. '
-                'El usuario debe habilitarlas desde Ajustes → Taxi Ya.',
+                'El usuario debe habilitarlas desde Ajustes → Ride.',
               );
               // No abrir Ajustes automáticamente; hacerlo desde la UI
             } else {

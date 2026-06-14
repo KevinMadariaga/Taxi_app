@@ -179,7 +179,7 @@ class _SplashViewState extends State<SplashView>
                         width: logoSize,
                         height: logoSize,
                         child: Image.asset(
-                          'assets/img/foreground_car.png',
+                          'assets/img/Ride_foreground.png',
                           fit: BoxFit.contain,
                           errorBuilder: (_, _, _) => Icon(
                             Icons.local_taxi_rounded,
@@ -197,7 +197,7 @@ class _SplashViewState extends State<SplashView>
                   child: Column(
                     children: [
                       const Text(
-                        'Taxi Ya',
+                        'Ride',
                         style: TextStyle(
                           fontSize: 34,
                           fontWeight: FontWeight.w900,

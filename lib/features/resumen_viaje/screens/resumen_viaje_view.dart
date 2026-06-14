@@ -190,7 +190,7 @@ class _ResumenViajeBodyState extends State<_ResumenViajeBody> {
                             children: [
                               ResumenHeader(
                                 subtitle: isCliente
-                                    ? 'Gracias por viajar con Taxi Ya'
+                                    ? 'Gracias por viajar con Ride'
                                     : '¡Buen trabajo! Servicio finalizado',
                               ),
                               const SizedBox(height: 14),

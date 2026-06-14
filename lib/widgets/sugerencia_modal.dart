@@ -135,7 +135,7 @@ class _SugerenciaSheetState extends State<_SugerenciaSheet> {
                 const SizedBox(height: 14),
 
                 const Text(
-                  '¿Qué opinas de Taxi Ya?',
+                  '¿Qué opinas de Ride?',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 20,

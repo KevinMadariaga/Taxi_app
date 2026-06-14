@@ -601,7 +601,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
         const SizedBox(width: 8),
         Expanded(
           child: Text(
-            'Buscando taxi...',
+            'Buscando...',
             style: TextStyle(
               fontSize: isTablet ? 22 : 18,
               fontWeight: FontWeight.w800,

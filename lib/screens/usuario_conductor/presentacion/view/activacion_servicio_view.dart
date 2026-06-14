@@ -16,7 +16,7 @@ const String kBancolombiaNumero = '912-614617-52';
 const int kValorActivacion = 1000;
 // ============================================================================
 
-const String _kMensajeWhatsapp = 'Quiero activar el servicio de Taxi Ya';
+const String _kMensajeWhatsapp = 'Quiero activar el servicio de Ride';
 
 /// Marca la solicitud de activación del conductor (dispara push al admin).
 Future<void> _marcarSolicitudActivacion() async {
@@ -57,11 +57,11 @@ Future<void> mostrarBienvenidaConductorDialog(
           children: const [
             Icon(Icons.local_taxi, color: AppColores.primary),
             SizedBox(width: 8),
-            Expanded(child: Text('Bienvenido a Taxi Ya')),
+            Expanded(child: Text('Bienvenido a Ride')),
           ],
         ),
         content: const Text(
-          'Bienvenido a Taxi Ya como conductor. Activa el servicio para continuar.',
+          'Bienvenido a Ride como conductor. Activa el servicio para continuar.',
         ),
         actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         actions: [

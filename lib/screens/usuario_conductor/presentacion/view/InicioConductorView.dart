@@ -1403,8 +1403,8 @@ class _InicioConductorState extends State<InicioConductor>
             const SizedBox(height: 10),
             Text(
               isIOS
-                  ? 'Ve a Ajustes → Privacidad → Localización → Taxi Ya y selecciona "Siempre".'
-                  : 'Ve a Ajustes → Aplicaciones → Taxi Ya → Permisos → Ubicación y selecciona "Permitir todo el tiempo".',
+                  ? 'Ve a Ajustes → Privacidad → Localización → Ride y selecciona "Siempre".'
+                  : 'Ve a Ajustes → Aplicaciones → Ride → Permisos → Ubicación y selecciona "Permitir todo el tiempo".',
               style: const TextStyle(
                 fontSize: 14,
                 color: AppColores.textSecondary,

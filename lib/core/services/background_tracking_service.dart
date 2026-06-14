@@ -84,7 +84,7 @@ void onStart(ServiceInstance service) async {
     if (service is AndroidServiceInstance) {
       try {
         await service.setForegroundNotificationInfo(
-          title: 'Taxi Ya',
+          title: 'Ride',
           content: userType == 'conductor'
               ? 'Recolectando ubicación en segundo plano'
               : '',

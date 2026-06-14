@@ -7,7 +7,7 @@
 		<key>CFBundleDevelopmentRegion</key>
 		<string>$(DEVELOPMENT_LANGUAGE)</string>
 		<key>CFBundleDisplayName</key>
-		<string>Taxi Ya</string>
+		<string>Ride</string>
 		<key>CFBundleExecutable</key>
 		<string>$(EXECUTABLE_NAME)</string>
 		<key>CFBundleIdentifier</key>
@@ -50,7 +50,7 @@
 		<key>NSLocationAlwaysUsageDescription</key>
 		<string>Usamos tu ubicacion en segundo plano para mantener el seguimiento del viaje activo y seguro.</string>
 		<key>NSLocationWhenInUseUsageDescription</key>
-		<string>La aplicación necesita acceder a tu ubicación para ofrecer servicios de taxi.</string>
+		<string>La aplicación necesita acceder a tu ubicación para ofrecer el servicio de transporte.</string>
 		<key>NSPhotoLibraryAddUsageDescription</key>
 		<string>Necesitamos permiso para guardar comprobantes e imagenes del servicio en tu galeria.</string>
 		<key>NSPhotoLibraryUsageDescription</key>
