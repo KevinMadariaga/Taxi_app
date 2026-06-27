@@ -599,30 +599,12 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
       children: [
         const Icon(Icons.search, color: AppColores.primary, size: 22),
         const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            'Buscando...',
-            style: TextStyle(
-              fontSize: isTablet ? 22 : 18,
-              fontWeight: FontWeight.w800,
-              color: AppColores.textPrimary,
-            ),
-          ),
-        ),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: AppColores.cardBackground,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppColores.borderSubtle),
-          ),
-          child: Text(
-            _formatDuration(_searchSeconds),
-            style: TextStyle(
-              fontSize: isTablet ? 17 : 15,
-              fontWeight: FontWeight.w700,
-              color: AppColores.primary,
-            ),
+        Text(
+          'Buscando...',
+          style: TextStyle(
+            fontSize: isTablet ? 22 : 18,
+            fontWeight: FontWeight.w800,
+            color: AppColores.textPrimary,
           ),
         ),
       ],
@@ -752,6 +734,16 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
         ),
         const SizedBox(height: 14),
         _buildSearchingDots(isTablet),
+        const SizedBox(height: 10),
+        Text(
+          _formatDuration(_searchSeconds),
+          style: TextStyle(
+            fontSize: isTablet ? 28 : 24,
+            fontWeight: FontWeight.w700,
+            color: AppColores.primary,
+            letterSpacing: 2,
+          ),
+        ),
       ],
     );
   }

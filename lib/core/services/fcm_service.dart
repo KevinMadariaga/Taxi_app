@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_navigator.dart';
 import 'package:taxi_app/core/services/notificacion_servicio.dart';
@@ -247,16 +246,31 @@ class FcmService {
     await _saveCurrentToken();
   }
 
-  /// Mensajes en primer plano — FCM no los muestra automáticamente en iOS,
-  /// así que los mostramos con flutter_local_notifications.
+  /// Mensajes en primer plano.
+  ///
+  /// iOS: setForegroundNotificationPresentationOptions ya muestra el banner
+  /// del sistema, así que solo usamos flutter_local_notifications para
+  /// mensajes data-only (sin bloque notification). Si hay bloque notification
+  /// en iOS, el OS ya lo muestra — mostrar otra local notification duplicaría.
+  ///
+  /// Android: FCM nunca muestra el banner en foreground por sí solo, así que
+  /// siempre delegamos a flutter_local_notifications.
   void _onForegroundMessage(RemoteMessage message) {
     debugPrint('[FCM Foreground] ${message.notification?.title}');
     final notification = message.notification;
-    if (notification == null) return;
+
+    if (Platform.isIOS && notification != null) {
+      // iOS + notification block → el sistema ya lo muestra; no duplicar.
+      return;
+    }
+
+    final title = notification?.title ?? message.data['title'] as String? ?? 'Ride';
+    final body  = notification?.body  ?? message.data['body']  as String? ?? '';
+    if (title.isEmpty && body.isEmpty) return;
 
     NotificacionesServicio.instance.showTripNotification(
-      title: notification.title ?? 'Ride',
-      body: notification.body ?? '',
+      title: title,
+      body: body,
     );
   }
 

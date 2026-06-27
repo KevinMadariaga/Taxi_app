@@ -119,7 +119,7 @@ class TrackingService {
             distanceFilter: distanceFilter.toInt(),
             intervalDuration: Duration(seconds: timeInterval),
             foregroundNotificationConfig: const ForegroundNotificationConfig(
-              notificationTitle: 'Taxi App - Tracking activo',
+              notificationTitle: 'Ride - Tracking activo',
               notificationText: 'Compartiendo tu ubicación en tiempo real.',
               enableWakeLock: true,
               // notificationIcon eliminado para usar el predeterminado del sistema

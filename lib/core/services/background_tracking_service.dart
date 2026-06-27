@@ -15,7 +15,7 @@ Future<void> initializeBackgroundService() async {
       autoStart: false,
       isForegroundMode: true,
       notificationChannelId: 'tracking_channel',
-      initialNotificationTitle: 'Taxi App',
+      initialNotificationTitle: 'Ride',
       initialNotificationContent: '',
     ),
     iosConfiguration: IosConfiguration(

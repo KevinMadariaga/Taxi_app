@@ -75,7 +75,7 @@ class _NotificacionesViewState extends State<NotificacionesView> {
     }
 
     await NotificacionesServicio.instance.showNotification(
-      title: 'Taxi App',
+      title: 'Ride',
       body: 'Esta es una notificacion de prueba.',
     );
 
