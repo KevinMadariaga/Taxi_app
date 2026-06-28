@@ -18,6 +18,7 @@ import '../controllers/driver_trip_controller.dart';
 import '../widgets/driver_client_info_card.dart';
 import '../widgets/driver_waiting_client_modal.dart';
 import 'driver_chat_screen.dart';
+import 'reportar_problema_screen.dart';
 
 class DriverTripScreen extends StatefulWidget {
   const DriverTripScreen({super.key, required this.tripId});
@@ -326,6 +327,7 @@ class _DriverTripScreenState extends State<DriverTripScreen>
                               left: 0,
                               right: 0,
                               child: DriverClientInfoCard(
+                                isMoto: controller.trip?.isMoto ?? false,
                                 clientName: controller.clientName,
                                 clientAddress: controller.clientAddress,
                                 clientPhotoUrl: controller.clientPhotoUrl,
@@ -349,20 +351,21 @@ class _DriverTripScreenState extends State<DriverTripScreen>
                           ],
                         ),
 
-                        if (controller.isLoading || controller.isRouteLoading)
+                        // Overlay solo durante la carga INICIAL del viaje, no en refrescos de ruta.
+                        if (controller.isLoading)
                           Positioned.fill(
                             child: Container(
                               color: Colors.white.withValues(alpha: 0.6),
-                              child: Center(
+                              child: const Center(
                                 child: Column(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    const CircularProgressIndicator(
+                                    CircularProgressIndicator(
                                       color: AppColores.primary,
                                     ),
-                                    const SizedBox(height: 12),
-                                    const Text(
-                                      'Cargando ruta...',
+                                    SizedBox(height: 12),
+                                    Text(
+                                      'Cargando viaje...',
                                       style: TextStyle(
                                         fontWeight: FontWeight.w700,
                                         fontSize: 16,
@@ -372,6 +375,18 @@ class _DriverTripScreenState extends State<DriverTripScreen>
                                   ],
                                 ),
                               ),
+                            ),
+                          ),
+                        // Indicador sutil de refresco de ruta (no bloquea el mapa).
+                        if (controller.isRouteLoading)
+                          const Positioned(
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            child: LinearProgressIndicator(
+                              color: AppColores.primary,
+                              backgroundColor: Colors.transparent,
+                              minHeight: 3,
                             ),
                           ),
                       ],
@@ -490,66 +505,14 @@ class _DriverTripScreenState extends State<DriverTripScreen>
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (ctx) {
-        return SafeArea(
-          top: false,
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(
-              20,
-              18,
-              20,
-              MediaQuery.of(ctx).viewInsets.bottom + 16,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
-                Text(
-                  'Centro de seguridad',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
-                ),
-                SizedBox(height: 8),
-                Text(
-                  'Selecciona una opcion de ayuda rapida.',
-                  style: TextStyle(color: AppColores.textSecondary),
-                ),
-                SizedBox(height: 16),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(Icons.sos, color: AppColores.buttonCancel),
-                  title: Text(
-                    'Emergencia',
-                    style: TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                  subtitle: Text('Solicitar asistencia urgente.'),
-                ),
-                Divider(height: 1),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(Icons.report_problem_outlined),
-                  title: Text(
-                    'Reportar problema',
-                    style: TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                  subtitle: Text('Reportar incidente durante el viaje.'),
-                ),
-                Divider(height: 1),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(Icons.support_agent_outlined),
-                  title: Text(
-                    'Contactar soporte',
-                    style: TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                  subtitle: Text('Hablar con soporte de Taxi App.'),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+      builder: (ctx) => _SecurityCenterSheet(
+        tripId: widget.tripId,
+        onClose: () => Navigator.of(ctx).pop(),
+      ),
     );
   }
+
+
 
   void _fitInitialCameraIfNeeded(DriverTripController controller) {
     final map = _mapController;
@@ -772,5 +735,146 @@ class _DriverTripScreenState extends State<DriverTripScreen>
     } catch (_) {
       _navigating = false;
     }
+  }
+}
+
+/// Bottom sheet del centro de seguridad del conductor durante el viaje.
+class _SecurityCenterSheet extends StatefulWidget {
+  const _SecurityCenterSheet({required this.tripId, required this.onClose});
+  final String tripId;
+  final VoidCallback onClose;
+
+  @override
+  State<_SecurityCenterSheet> createState() => _SecurityCenterSheetState();
+}
+
+class _SecurityCenterSheetState extends State<_SecurityCenterSheet> {
+  bool _callingEmergency = false;
+
+  Future<void> _handleEmergency() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: AppColores.error.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.phone_in_talk_rounded, color: AppColores.error, size: 22),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text(
+                'Llamar a emergencias',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+              ),
+            ),
+          ],
+        ),
+        content: const Text(
+          '¿Deseas llamar al 123 (Policía Nacional de Colombia)?',
+          style: TextStyle(fontSize: 15),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancelar', style: TextStyle(color: AppColores.textSecondary)),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColores.error,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text(
+              'Llamar al 123',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true) {
+      setState(() => _callingEmergency = true);
+      try {
+        final uri = Uri.parse('tel:123');
+        if (await canLaunchUrl(uri)) await launchUrl(uri);
+      } finally {
+        if (mounted) setState(() => _callingEmergency = false);
+      }
+    }
+  }
+
+  void _handleReportar() {
+    widget.onClose();
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ReportarProblemaScreen(solicitudId: widget.tripId),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          20,
+          18,
+          20,
+          MediaQuery.of(context).viewInsets.bottom + 16,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Centro de seguridad',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Selecciona una opción de ayuda rápida.',
+              style: TextStyle(color: AppColores.textSecondary),
+            ),
+            const SizedBox(height: 16),
+            // Emergencia
+            ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+              leading: _callingEmergency
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColores.error),
+                    )
+                  : const Icon(Icons.sos_rounded, color: AppColores.error, size: 28),
+              title: const Text('Emergencia', style: TextStyle(fontWeight: FontWeight.w700)),
+              subtitle: const Text('Llama al 123 — Policía Nacional.'),
+              onTap: _callingEmergency ? null : _handleEmergency,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              tileColor: AppColores.error.withValues(alpha: 0.06),
+            ),
+            const SizedBox(height: 10),
+            // Reportar problema
+            ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+              leading: const Icon(Icons.report_problem_outlined, color: AppColores.warning),
+              title: const Text('Reportar problema', style: TextStyle(fontWeight: FontWeight.w700)),
+              subtitle: const Text('Reportar incidente durante el viaje.'),
+              onTap: _handleReportar,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              tileColor: AppColores.warning.withValues(alpha: 0.06),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
   }
 }

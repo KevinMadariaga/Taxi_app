@@ -10,10 +10,11 @@ import 'package:taxi_app/core/services/image_cropper_service.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/vehicle_type.dart';
 import 'package:taxi_app/widgets/boton.dart';
 
-/// Permite al conductor gestionar DOS vehículos (carro y moto). Cada tipo
-/// guarda su propia foto y placa en `usuarios/{uid}.vehiculos.{tipo}`. Al
-/// guardar, el tipo seleccionado queda como vehículo activo
-/// (`tipoVehiculo`/`fotoVehiculo`/`placa`).
+/// Gestión de DOS vehículos (carro y moto).
+/// Cada tipo tiene su propia foto y placa almacenadas en
+/// `usuarios/{uid}.vehiculos.{tipo}`.
+/// - "Guardar datos": guarda foto/placa del tipo seleccionado sin cambiar el activo.
+/// - "Usar {tipo}": guarda + activa ese tipo (actualiza root fields).
 class CambiarVehiculoView extends StatefulWidget {
   const CambiarVehiculoView({super.key});
 
@@ -26,8 +27,8 @@ class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
   final ImageCropperService _cropper = const ImageCropperService();
 
   VehicleType _tipo = VehicleType.carro;
+  VehicleType? _tipoActivo; // tipo activo guardado en Firestore
 
-  // Estado por tipo de vehículo (carro / moto).
   final Map<VehicleType, TextEditingController> _placas = {
     VehicleType.carro: TextEditingController(),
     VehicleType.moto: TextEditingController(),
@@ -43,6 +44,7 @@ class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
 
   bool _cargando = true;
   bool _guardando = false;
+  bool _activando = false;
 
   @override
   void initState() {
@@ -63,8 +65,9 @@ class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
           .get();
       final data = doc.data();
       if (data != null && mounted) {
-        final tipoActivo = (data['tipoVehiculo'] ?? '').toString().toLowerCase();
-        if (tipoActivo == 'moto') _tipo = VehicleType.moto;
+        final tipoStr = (data['tipoVehiculo'] ?? '').toString().toLowerCase();
+        _tipoActivo = tipoStr == 'moto' ? VehicleType.moto : VehicleType.carro;
+        _tipo = _tipoActivo!;
 
         final vehiculos = data['vehiculos'];
         final Map<String, dynamic> mapa = vehiculos is Map
@@ -79,12 +82,10 @@ class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
           }
         }
 
-        // Sembrar el tipo activo desde campos legacy si no había mapa.
-        final activeKey = tipoActivo == 'moto' ? 'moto' : 'carro';
+        // Migración legacy: campos raíz → sub-doc del tipo activo.
+        final activeKey = _tipoActivo!.firestoreKey;
         if (mapa[activeKey] is! Map) {
-          final t = tipoActivo == 'moto'
-              ? VehicleType.moto
-              : VehicleType.carro;
+          final t = _tipoActivo!;
           final legacyFoto = (data['fotoVehiculo'] ?? '').toString();
           final legacyPlaca = (data['placa'] ?? '').toString();
           if (legacyFoto.isNotEmpty) _fotosUrl[t] = legacyFoto;
@@ -119,9 +120,7 @@ class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
       setState(() => _fotosNuevas[_tipo] = XFile(cropped.path));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error seleccionando imagen: $e')),
-      );
+      _mostrarError('Error seleccionando imagen: $e');
     }
   }
 
@@ -133,49 +132,85 @@ class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
     return ref.getDownloadURL();
   }
 
-  Future<void> _guardar() async {
-    if (_guardando) return;
+  bool _tieneDataCompleta(VehicleType t) =>
+      (_fotosUrl[t]!.isNotEmpty || _fotosNuevas[t] != null) &&
+      _placas[t]!.text.trim().isNotEmpty;
 
-    final placa = _placas[_tipo]!.text.trim();
-    final tieneFoto =
-        _fotosNuevas[_tipo] != null || _fotosUrl[_tipo]!.isNotEmpty;
-    if (!tieneFoto) {
-      _mostrarError('Agrega la foto de tu ${_tipo.label.toLowerCase()}.');
-      return;
-    }
-    if (placa.isEmpty) {
-      _mostrarError('Ingresa la placa de tu ${_tipo.label.toLowerCase()}.');
-      return;
-    }
+  bool get _puedeGuardar =>
+      (_fotosNuevas[_tipo] != null || _fotosUrl[_tipo]!.isNotEmpty) &&
+      _placas[_tipo]!.text.trim().isNotEmpty;
+
+  /// Guarda foto + placa del tipo actual SIN cambiar el vehículo activo.
+  Future<void> _guardarDatos() async {
+    if (_guardando || _activando) return;
+    if (!_validar()) return;
 
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) {
-      _mostrarError('Sesión no válida. Vuelve a iniciar sesión.');
-      return;
-    }
+    if (uid == null) { _mostrarError('Sesión no válida.'); return; }
 
     setState(() => _guardando = true);
     try {
       final fotoUrl = _fotosNuevas[_tipo] != null
           ? await _subirImagen(_fotosNuevas[_tipo]!, uid)
           : _fotosUrl[_tipo]!;
-      final placaUp = placa.toUpperCase();
+      final placaUp = _placas[_tipo]!.text.trim().toUpperCase();
 
-      final data = <String, dynamic>{
-        // Solo se actualiza la sub-clave del tipo (merge conserva el otro).
-        'vehiculos': {
-          _tipo.firestoreKey: {'foto': fotoUrl, 'placa': placaUp},
-        },
-        // El tipo seleccionado queda como vehículo activo.
-        'tipoVehiculo': _tipo.firestoreKey,
-        'fotoVehiculo': fotoUrl,
-        'placa': placaUp,
-        'updatedAt': FieldValue.serverTimestamp(),
-      };
       await FirebaseFirestore.instance
           .collection('usuarios')
           .doc(uid)
-          .set(data, SetOptions(merge: true));
+          .set({
+            'vehiculos': {
+              _tipo.firestoreKey: {'foto': fotoUrl, 'placa': placaUp},
+            },
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+
+      if (!mounted) return;
+      setState(() {
+        _fotosUrl[_tipo] = fotoUrl;
+        _fotosNuevas[_tipo] = null;
+        _placas[_tipo]!.text = placaUp;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Datos de ${_tipo.label} guardados.'),
+          backgroundColor: AppColores.success,
+        ),
+      );
+    } catch (e) {
+      if (mounted) _mostrarError('No se pudo guardar: $e');
+    } finally {
+      if (mounted) setState(() => _guardando = false);
+    }
+  }
+
+  /// Guarda foto + placa Y activa este vehículo como el activo.
+  Future<void> _activarVehiculo() async {
+    if (_guardando || _activando) return;
+    if (!_validar()) return;
+
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) { _mostrarError('Sesión no válida.'); return; }
+
+    setState(() => _activando = true);
+    try {
+      final fotoUrl = _fotosNuevas[_tipo] != null
+          ? await _subirImagen(_fotosNuevas[_tipo]!, uid)
+          : _fotosUrl[_tipo]!;
+      final placaUp = _placas[_tipo]!.text.trim().toUpperCase();
+
+      await FirebaseFirestore.instance
+          .collection('usuarios')
+          .doc(uid)
+          .set({
+            'vehiculos': {
+              _tipo.firestoreKey: {'foto': fotoUrl, 'placa': placaUp},
+            },
+            'tipoVehiculo': _tipo.firestoreKey,
+            'fotoVehiculo': fotoUrl,
+            'placa': placaUp,
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -186,26 +221,43 @@ class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
       );
       Navigator.of(context).pop(true);
     } catch (e) {
-      if (!mounted) return;
-      setState(() => _guardando = false);
-      _mostrarError('No se pudo guardar: $e');
+      if (mounted) {
+        setState(() => _activando = false);
+        _mostrarError('No se pudo activar: $e');
+      }
     }
   }
 
-  void _mostrarError(String mensaje) {
+  bool _validar() {
+    final tieneFoto =
+        _fotosNuevas[_tipo] != null || _fotosUrl[_tipo]!.isNotEmpty;
+    if (!tieneFoto) {
+      _mostrarError('Agrega la foto de tu ${_tipo.label.toLowerCase()}.');
+      return false;
+    }
+    if (_placas[_tipo]!.text.trim().isEmpty) {
+      _mostrarError('Ingresa la placa de tu ${_tipo.label.toLowerCase()}.');
+      return false;
+    }
+    return true;
+  }
+
+  void _mostrarError(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(mensaje), backgroundColor: AppColores.error),
+      SnackBar(content: Text(msg), backgroundColor: AppColores.error),
     );
   }
 
   Widget _tipoCard(VehicleType tipo, IconData icon) {
     final sel = _tipo == tipo;
-    final tieneDatos = _fotosUrl[tipo]!.isNotEmpty || _fotosNuevas[tipo] != null;
+    final activo = _tipoActivo == tipo;
+    final tieneData = _tieneDataCompleta(tipo);
+
     return InkWell(
       borderRadius: BorderRadius.circular(14),
       onTap: () => setState(() => _tipo = tipo),
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 18),
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
         decoration: BoxDecoration(
           color: sel
               ? AppColores.primary.withValues(alpha: 0.12)
@@ -223,7 +275,7 @@ class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
               size: 34,
               color: sel ? const Color(0xFFB38F00) : AppColores.grey600,
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Text(
               tipo.label,
               style: TextStyle(
@@ -232,14 +284,13 @@ class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
                 color: AppColores.textPrimary,
               ),
             ),
-            if (tieneDatos)
-              const Padding(
-                padding: EdgeInsets.only(top: 2),
-                child: Text(
-                  'Registrado',
-                  style: TextStyle(fontSize: 11, color: AppColores.success),
-                ),
-              ),
+            const SizedBox(height: 4),
+            if (activo)
+              _Badge('Activo', AppColores.primary)
+            else if (tieneData)
+              _Badge('Registrado', AppColores.success)
+            else
+              _Badge('Sin datos', AppColores.grey400),
           ],
         ),
       ),
@@ -250,32 +301,34 @@ class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
   Widget build(BuildContext context) {
     final fotoNueva = _fotosNuevas[_tipo];
     final fotoUrl = _fotosUrl[_tipo]!;
+    final isBusy = _guardando || _activando;
 
     return Scaffold(
       backgroundColor: AppColores.background,
       appBar: AppBar(
-        title: const Text('Cambiar de vehículo'),
+        title: const Text('Mis vehículos'),
         backgroundColor: AppColores.primary,
         foregroundColor: Colors.white,
       ),
       body: _cargando
-          ? const Center(
-              child: CircularProgressIndicator(color: AppColores.primary),
-            )
+          ? const Center(child: CircularProgressIndicator(color: AppColores.primary))
           : SafeArea(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    // ── Selección de tipo ──────────────────────────────────
                     const Text(
                       'Selecciona el vehículo',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 16,
-                      ),
+                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Puedes registrar carro y moto de forma independiente.',
+                      style: TextStyle(fontSize: 12.5, color: AppColores.textSecondary),
+                    ),
+                    const SizedBox(height: 12),
                     Row(
                       children: [
                         Expanded(
@@ -293,13 +346,13 @@ class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 24),
+
+                    const SizedBox(height: 28),
+
+                    // ── Foto ──────────────────────────────────────────────
                     Text(
                       'Foto del ${_tipo.label.toLowerCase()}',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 16,
-                      ),
+                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
                     ),
                     const SizedBox(height: 8),
                     GestureDetector(
@@ -313,15 +366,11 @@ class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
                               width: double.infinity,
                               color: AppColores.grey200,
                               child: fotoNueva != null
-                                  ? Image.file(
-                                      File(fotoNueva.path),
-                                      fit: BoxFit.cover,
-                                    )
+                                  ? Image.file(File(fotoNueva.path), fit: BoxFit.cover)
                                   : fotoUrl.isNotEmpty
                                       ? Image.network(fotoUrl, fit: BoxFit.cover)
                                       : Column(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
+                                          mainAxisAlignment: MainAxisAlignment.center,
                                           children: [
                                             Icon(
                                               _tipo == VehicleType.moto
@@ -333,9 +382,7 @@ class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
                                             const SizedBox(height: 8),
                                             Text(
                                               'Agregar foto del ${_tipo.label.toLowerCase()}',
-                                              style: const TextStyle(
-                                                fontSize: 13,
-                                              ),
+                                              style: const TextStyle(fontSize: 13),
                                             ),
                                           ],
                                         ),
@@ -351,16 +398,16 @@ class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
                                 color: AppColores.buttonPrimary,
                                 borderRadius: BorderRadius.circular(8),
                               ),
-                              child: const Icon(
-                                Icons.camera_alt,
-                                color: AppColores.textPrimary,
-                              ),
+                              child: const Icon(Icons.camera_alt, color: AppColores.textPrimary),
                             ),
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 24),
+
+                    const SizedBox(height: 20),
+
+                    // ── Placa ─────────────────────────────────────────────
                     TextField(
                       controller: _placas[_tipo],
                       textCapitalization: TextCapitalization.characters,
@@ -369,21 +416,124 @@ class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
                         prefixIcon: const Icon(Icons.confirmation_number),
                         border: const OutlineInputBorder(),
                       ),
+                      onChanged: (_) => setState(() {}),
                     ),
+
                     const SizedBox(height: 28),
-                    CustomButton(
-                      text: _guardando
-                          ? 'Guardando...'
-                          : 'Usar ${_tipo.label} y guardar',
-                      isLoading: _guardando,
-                      onPressed: _guardando ? null : _guardar,
-                      height: 50,
-                      fontSize: 16,
+
+                    // ── Botones ───────────────────────────────────────────
+                    Row(
+                      children: [
+                        // Guardar datos sin activar
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: isBusy || !_puedeGuardar
+                                ? null
+                                : _guardarDatos,
+                            style: OutlinedButton.styleFrom(
+                              side: BorderSide(
+                                color: _puedeGuardar && !isBusy
+                                    ? AppColores.primary
+                                    : AppColores.grey300,
+                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: _guardando
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  )
+                                : Text(
+                                    'Guardar datos',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                      color: _puedeGuardar && !isBusy
+                                          ? AppColores.primary
+                                          : AppColores.grey400,
+                                    ),
+                                  ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        // Activar vehículo
+                        Expanded(
+                          child: CustomButton(
+                            text: _activando
+                                ? 'Activando...'
+                                : 'Usar ${_tipo.label}',
+                            isLoading: _activando,
+                            onPressed: isBusy || !_puedeGuardar
+                                ? null
+                                : _activarVehiculo,
+                            height: 50,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    // Nota explicativa
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColores.primary.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.info_outline, size: 16, color: AppColores.primary),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              '"Guardar datos" registra la foto y placa sin cambiar tu vehículo activo. '
+                              '"Usar ${_tipo.label}" lo guarda y lo activa para recibir servicios.',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColores.textSecondary,
+                                height: 1.4,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
               ),
             ),
+    );
+  }
+}
+
+class _Badge extends StatelessWidget {
+  const _Badge(this.text, this.color);
+  final String text;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: color,
+        ),
+      ),
     );
   }
 }

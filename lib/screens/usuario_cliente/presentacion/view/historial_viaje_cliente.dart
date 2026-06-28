@@ -99,6 +99,7 @@ class HistorialClienteState extends State<HistorialCliente> {
                     valor: pesosFrom(_vm.extraerPrecio(data)),
                     calificacion: _vm.extraerCalificacion(data).toDouble(),
                     onTap: () => _mostrarDetalle(context, data),
+                    isMoto: (data['tipoVehiculo'] ?? '').toString().toLowerCase() == 'moto',
                   );
                 },
               ),

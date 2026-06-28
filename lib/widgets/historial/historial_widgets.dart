@@ -36,6 +36,7 @@ class HistorialViajeCard extends StatelessWidget {
     required this.valor,
     required this.calificacion,
     required this.onTap,
+    this.isMoto = false,
   });
 
   final Future<String> destinoFuture;
@@ -44,6 +45,7 @@ class HistorialViajeCard extends StatelessWidget {
   final String valor;
   final double calificacion;
   final VoidCallback onTap;
+  final bool isMoto;
 
   @override
   Widget build(BuildContext context) {
@@ -69,8 +71,8 @@ class HistorialViajeCard extends StatelessWidget {
                   color: AppColores.primary,
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
-                  Icons.local_taxi_rounded,
+                child: Icon(
+                  isMoto ? Icons.two_wheeler_rounded : Icons.directions_car_rounded,
                   color: Colors.white,
                 ),
               ),

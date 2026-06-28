@@ -20,8 +20,12 @@ class DriverClientInfoCard extends StatefulWidget {
     required this.onDetails,
     this.primaryButtonText,
     this.primaryButtonSuccessText,
+    this.isMoto = false,
+    this.onReportProblem,
   });
 
+  final bool isMoto;
+  final VoidCallback? onReportProblem;
   final String clientName;
   final String clientAddress;
   final String clientPhotoUrl;
@@ -210,7 +214,7 @@ class _DriverClientInfoCardState extends State<DriverClientInfoCard>
               SizedBox(height: _isExpanded ? 20 : 12),
 
               // ── Barra direccional animada - Always Visible ──────────────────
-              _DirectionalBar(animation: _shimmerAnimation),
+              _DirectionalBar(animation: _shimmerAnimation, isMoto: widget.isMoto),
 
               if (_isExpanded) ...[
                 const SizedBox(height: 24),
@@ -243,6 +247,28 @@ class _DriverClientInfoCardState extends State<DriverClientInfoCard>
                       ],
                     ),
                   ),
+                if (widget.onReportProblem != null) ...[
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: widget.onReportProblem,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.red.shade700,
+                        side: BorderSide(color: Colors.red.shade400, width: 1.4),
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      icon: Icon(Icons.report_problem_rounded, size: 18, color: Colors.red.shade700),
+                      label: Text(
+                        'Problemas con el cliente',
+                        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: Colors.red.shade700),
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ],
           ),
@@ -379,15 +405,16 @@ class _DriverClientInfoCardState extends State<DriverClientInfoCard>
 }
 
 class _DirectionalBar extends StatelessWidget {
-  const _DirectionalBar({required this.animation});
+  const _DirectionalBar({required this.animation, this.isMoto = false});
   final Animation<double> animation;
+  final bool isMoto;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        const Icon(
-          Icons.directions_car,
+        Icon(
+          isMoto ? Icons.two_wheeler_rounded : Icons.directions_car,
           size: 18,
           color: AppColores.buttonPrimary,
         ),

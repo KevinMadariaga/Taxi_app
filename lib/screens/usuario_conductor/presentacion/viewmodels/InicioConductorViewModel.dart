@@ -734,17 +734,29 @@ class InicioConductorViewmodel extends ChangeNotifier {
     if (uid == null) throw Exception('No user logged in');
 
     final conductorPayload = _buildConductorPayload(uid);
+    final ref = _firestore.collection('solicitudes').doc(solicitudId);
 
-    await _firestore.collection('solicitudes').doc(solicitudId).update({
-      'estado': 'asignado',
-      'conductor': conductorPayload,
-      'estadoContraoferta': 'sin_contraoferta',
-      'contraoferta': {
-        'estado': 'sin_contraoferta',
+    await _firestore.runTransaction((tx) async {
+      final snap = await tx.get(ref);
+      if (!snap.exists) {
+        throw StateError('La solicitud ya no existe.');
+      }
+      final data = snap.data() ?? <String, dynamic>{};
+      final estado = (data['estado'] ?? data['status'])?.toString().toLowerCase();
+      if (estado != 'buscando') {
+        throw StateError('Esta solicitud ya fue tomada por otro conductor.');
+      }
+      tx.update(ref, {
+        'estado': 'asignado',
+        'conductor': conductorPayload,
+        'estadoContraoferta': 'sin_contraoferta',
+        'contraoferta': {
+          'estado': 'sin_contraoferta',
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
+        'fecha de aceptacion conductor': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
-      },
-      'fecha de aceptacion conductor': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
+      });
     });
   }
 

@@ -1,12 +1,11 @@
 import 'dart:async';
-import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show rootBundle;
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/services/services.dart';
 import 'package:taxi_app/features/trip_tracking_cliente/views/trip_tracking_screen.dart';
@@ -14,6 +13,7 @@ import 'package:taxi_app/core/helpers/responsive_helper.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/home_cliente_view.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/buscando_taxi_viewmodel.dart'
     show BuscandoTaxiViewModel, ContraofertaItem;
+import 'package:taxi_app/utils/marker_icon_helper.dart';
 import 'package:taxi_app/widgets/MapaGoogle.dart';
 import 'package:taxi_app/widgets/intermediate_transition_view.dart';
 
@@ -62,6 +62,9 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
   bool _flujoTerminado = false;
   // Diálogo de contraofertas abierto (evita duplicarlo).
   bool _modalContraofertasAbierto = false;
+  // true mientras se ejecuta el pop del modal: evita double-pop por múltiples
+  // snapshots de Firestore (optimista + confirmación servidor).
+  bool _dismissingModal = false;
   // Flujo de aceptación en curso: evita que la modal de ofertas se reabra.
   bool _navegandoAViaje = false;
   // Navegación al viaje ya realizada: evita duplicarla (manual + listener).
@@ -166,6 +169,20 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
   // ── Ubicación ─────────────────────────────────────────────────────────────
 
   Future<void> _initClientLocation() async {
+    // 1. Mostrar posición cacheada inmediatamente (sin esperar GPS)
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final lat = prefs.getDouble('cli_last_lat');
+      final lng = prefs.getDouble('cli_last_lng');
+      if (lat != null && lng != null && mounted) {
+        setState(() => _clientLocation = LatLng(lat, lng));
+        _mapController?.animateCamera(
+          CameraUpdate.newLatLngZoom(_clientLocation!, 14),
+        );
+      }
+    } catch (_) {}
+
+    // 2. GPS fresco en background → actualiza mapa y renueva cache
     try {
       final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
@@ -173,12 +190,14 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
         ),
       );
       if (!mounted) return;
-      setState(() {
-        _clientLocation = LatLng(position.latitude, position.longitude);
-      });
+      final fresh = LatLng(position.latitude, position.longitude);
+      setState(() => _clientLocation = fresh);
       _mapController?.animateCamera(
-        CameraUpdate.newLatLngZoom(_clientLocation!, 14),
+        CameraUpdate.newLatLngZoom(fresh, 14),
       );
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setDouble('cli_last_lat', fresh.latitude);
+      await prefs.setDouble('cli_last_lng', fresh.longitude);
     } catch (_) {}
   }
 
@@ -751,11 +770,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
   // ── Modal central de contraofertas ─────────────────────────────────────────
 
   void _maybeMostrarModalContraofertas() {
-    if (_modalContraofertasAbierto ||
-        _flujoTerminado ||
-        _navegandoAViaje) {
-      return;
-    }
+    if (_modalContraofertasAbierto || _flujoTerminado || _navegandoAViaje) return;
     if (_vm.contraofertas.isEmpty) return;
     _modalContraofertasAbierto = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -767,7 +782,14 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
         context: context,
         barrierDismissible: false,
         builder: (ctx) => _buildModalContraofertas(ctx),
-      ).whenComplete(() => _modalContraofertasAbierto = false);
+      ).whenComplete(() {
+        _modalContraofertasAbierto = false;
+        _dismissingModal = false;
+        // Re-check: new offers may have arrived while this dialog was closing.
+        if (mounted && !_flujoTerminado && !_navegandoAViaje) {
+          _maybeMostrarModalContraofertas();
+        }
+      });
     });
   }
 
@@ -778,9 +800,14 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
       builder: (ctx, _) {
         final ofertas = _vm.contraofertas;
         // Cuando ya no quedan ofertas (aceptada/rechazadas), cerrar el modal.
+        // Se usa el context del State (no ctx del dialog) para evitar que un
+        // ctx en animación de salida haga double-pop y saque BuscandoTaxiView.
+        // _modalContraofertasAbierto actúa como guard de un solo disparo.
         if (ofertas.isEmpty) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (Navigator.of(ctx).canPop()) Navigator.of(ctx).pop();
+            if (!mounted || !_modalContraofertasAbierto || _dismissingModal) return;
+            _dismissingModal = true;
+            Navigator.of(context).maybePop();
           });
         }
         return Dialog(
@@ -1123,7 +1150,7 @@ class _SonarMapWidgetState extends State<_SonarMapWidget> {
 
   Future<void> _loadMotoIcon() async {
     try {
-      _motoIcon = await _bitmapDescriptorFromIcon(
+      _motoIcon = await MarkerIconHelper.fromIcon(
         Icons.two_wheeler_rounded,
         60,
         const Color(0xFF111111),
@@ -1325,9 +1352,10 @@ class _SonarMapWidgetState extends State<_SonarMapWidget> {
 
   Future<void> _loadTaxiIcon() async {
     try {
-      _taxiIcon = await _bitmapDescriptorFromAsset(
-        'assets/img/taxi_icon.png',
-        26,
+      _taxiIcon = await MarkerIconHelper.fromIcon(
+        Icons.directions_car_rounded,
+        60,
+        const Color(0xFF111111),
       );
       if (!mounted) return;
       _updateTaxiMarkers();
@@ -1336,13 +1364,16 @@ class _SonarMapWidgetState extends State<_SonarMapWidget> {
 
   Future<void> _loadSmallTaxiIcon() async {
     try {
-      _smallTaxiIcon = await _bitmapDescriptorFromAsset(
-        'assets/img/taxi_icon.png',
-        24,
+      _smallTaxiIcon = await MarkerIconHelper.fromIcon(
+        Icons.directions_car_rounded,
+        54,
+        const Color(0xFF111111),
       );
-      _bigTaxiIcon = await _bitmapDescriptorFromAsset(
-        'assets/img/taxi_icon.png',
-        34,
+      if (!mounted) return;
+      _bigTaxiIcon = await MarkerIconHelper.fromIcon(
+        Icons.directions_car_rounded,
+        70,
+        const Color(0xFF111111),
       );
       if (!mounted) return;
       setState(() {});
@@ -1388,67 +1419,6 @@ class _SonarMapWidgetState extends State<_SonarMapWidget> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Helper: carga un asset como BitmapDescriptor escalado
-// ─────────────────────────────────────────────────────────────────────────────
-
-Future<BitmapDescriptor> _bitmapDescriptorFromAsset(
-  String path,
-  int targetWidth,
-) async {
-  final byteData = await rootBundle.load(path);
-  final bytes = byteData.buffer.asUint8List();
-  final codec = await ui.instantiateImageCodec(
-    bytes,
-    targetWidth: targetWidth,
-  );
-  final frame = await codec.getNextFrame();
-  final pngBytes = await frame.image.toByteData(
-    format: ui.ImageByteFormat.png,
-  );
-  return BitmapDescriptor.bytes(pngBytes!.buffer.asUint8List());
-}
-
-/// Renderiza un [IconData] (p.ej. moto) como marcador circular para el mapa.
-Future<BitmapDescriptor> _bitmapDescriptorFromIcon(
-  IconData icon,
-  double size,
-  Color color,
-) async {
-  final recorder = ui.PictureRecorder();
-  final canvas = Canvas(recorder);
-  final radius = size / 2;
-  // Fondo blanco circular + borde de marca para contraste sobre el mapa.
-  canvas.drawCircle(Offset(radius, radius), radius, Paint()..color = Colors.white);
-  canvas.drawCircle(
-    Offset(radius, radius),
-    radius - size * 0.04,
-    Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = size * 0.07
-      ..color = AppColores.primary,
-  );
-  final tp = TextPainter(textDirection: TextDirection.ltr);
-  tp.text = TextSpan(
-    text: String.fromCharCode(icon.codePoint),
-    style: TextStyle(
-      fontSize: size * 0.58,
-      fontFamily: icon.fontFamily,
-      package: icon.fontPackage,
-      color: color,
-    ),
-  );
-  tp.layout();
-  tp.paint(
-    canvas,
-    Offset((size - tp.width) / 2, (size - tp.height) / 2),
-  );
-  final image = await recorder
-      .endRecording()
-      .toImage(size.toInt(), size.toInt());
-  final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
-  return BitmapDescriptor.bytes(bytes!.buffer.asUint8List());
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // _OfertaButton — botón de aceptar/rechazar con estado de carga

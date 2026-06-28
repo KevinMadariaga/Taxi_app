@@ -16,12 +16,16 @@ class UserTripInfoCard extends StatefulWidget {
     required this.distanceText,
     required this.onHelp,
     required this.onDetails,
+    this.isMoto = false,
     this.cancelEnabled = true,
     this.title = 'Conductor llegando a tu ubicacion',
     this.primaryActionText = 'Chat',
     this.primaryActionIcon = Icons.chat_bubble_outline,
+    this.onEmergency,
   });
 
+  final bool isMoto;
+  final VoidCallback? onEmergency;
   final String name;
   final String vehiclePlate;
   final String userPhotoUrl;
@@ -209,11 +213,33 @@ class _UserTripInfoCardState extends State<UserTripInfoCard>
               SizedBox(height: _isExpanded ? 18 : 10),
 
               // ── Barra direccional animada - Always Visible ──────────────────
-              _DirectionalBar(animation: _shimmerAnimation),
+              _DirectionalBar(animation: _shimmerAnimation, isMoto: widget.isMoto),
 
               // ── Botones Inferiores (Chat y Detalles) ──────────────────────
               if (_isExpanded) ...[
                 const SizedBox(height: 24),
+                if (widget.onEmergency != null) ...[
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: widget.onEmergency,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.red.shade700,
+                        side: BorderSide(color: Colors.red.shade400, width: 1.4),
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      icon: Icon(Icons.emergency_rounded, size: 18, color: Colors.red.shade700),
+                      label: Text(
+                        'Llamar emergencia',
+                        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: Colors.red.shade700),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -308,9 +334,10 @@ class _UserTripInfoCardState extends State<UserTripInfoCard>
 
 // ──────────────────────────────────────────────────────────────────────────────
 class _DirectionalBar extends StatelessWidget {
-  const _DirectionalBar({required this.animation});
+  const _DirectionalBar({required this.animation, this.isMoto = false});
 
   final Animation<double> animation;
+  final bool isMoto;
 
   @override
   Widget build(BuildContext context) {
@@ -330,8 +357,8 @@ class _DirectionalBar extends StatelessWidget {
                   shape: BoxShape.circle,
                   color: AppColores.buttonPrimary, // Color verde tracker visual
                 ),
-                child: const Icon(
-                  Icons.local_taxi_rounded, // Taxi a la izquierda
+                child: Icon(
+                  isMoto ? Icons.two_wheeler_rounded : Icons.local_taxi_rounded,
                   color: Colors.white,
                   size: 24,
                 ),

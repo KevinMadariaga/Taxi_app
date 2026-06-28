@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:taxi_app/core/helpers/session_helper.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/RutaClienteDestinoViewModel.dart';
 import 'package:taxi_app/widgets/MapaGoogle.dart';
@@ -14,6 +15,7 @@ import 'package:taxi_app/utils/marker_icon_helper.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:taxi_app/features/trip_tracking_cliente/services/trip_tracking_firestore_service.dart';
 import 'package:taxi_app/features/trip_tracking_cliente/widgets/user_trip_info_card.dart';
+import 'package:taxi_app/features/trip_tracking_cliente/widgets/panic_button_fab.dart';
 import 'package:taxi_app/routes/app_routes.dart';
 
 class RutaClienteDestino extends StatelessWidget {
@@ -97,6 +99,7 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
   // =====================
   // UI State
   // =====================
+  bool _isMoto = false;
   bool _mostrarSoloDestino = false;
   bool _isUpdatingRoute = false;
   bool _hasInitialCameraApplied = false;
@@ -123,16 +126,12 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
       try {
         await SessionHelper.setActiveSolicitudScreen('ruta_cliente_destino');
       } catch (_) {}
-      // Persist that the user is on the RutaClienteDestino screen so reload
-      // keeps this exact view when the solicitud está 'asignado'.
-      try {
-        await SessionHelper.setActiveSolicitudScreen('ruta_cliente_destino');
-      } catch (_) {}
       _viewModel!.inicializarNotificaciones();
       if (!mounted) return;
       await _viewModel!.cargarDatosConductorYUbicacionDestino(
         widget.idSolicitud,
       );
+      await _loadTipoVehiculo();
       await _cargarMarcadoresPersonalizados();
       _viewModel!.escucharEstadoSolicitud(widget.idSolicitud, context);
 
@@ -171,20 +170,24 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
     });
   }
 
+  Future<void> _loadTipoVehiculo() async {
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('solicitudes')
+          .doc(widget.idSolicitud)
+          .get();
+      final tipo = (doc.data()?['tipoVehiculo'] ?? '').toString().toLowerCase();
+      if (mounted) setState(() => _isMoto = tipo == 'moto');
+    } catch (_) {}
+  }
+
   Future<void> _cargarMarcadoresPersonalizados() async {
-    // Tamaño lógico fijo escalado por dpr → marcadores consistentes en todas
-    // las densidades (ni muy grandes ni muy pequeños).
     final dpr = WidgetsBinding
         .instance
         .platformDispatcher
         .views
         .first
         .devicePixelRatio;
-    final conductorIcon = await MarkerIconHelper.fromAsset(
-      'assets/img/taxi_icon.png',
-      size: const Size(44, 44),
-      devicePixelRatio: dpr,
-    );
     final destinoIcon = await MarkerIconHelper.fromAsset(
       'assets/img/map_pin_red.png',
       size: const Size(48, 48),
@@ -192,7 +195,6 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
     );
     if (!mounted) return;
     setState(() {
-      _conductorMarkerIcon = conductorIcon;
       _destinoMarkerIcon = destinoIcon;
     });
   }
@@ -1332,13 +1334,8 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
         Marker(
           markerId: const MarkerId('conductor'),
           position: conductorLatLng,
-          rotation: _conductorRotation,
-          anchor: const Offset(0.5, 0.5),
-          flat: true,
           infoWindow: const InfoWindow(title: 'Conductor'),
-          icon:
-              _conductorMarkerIcon ??
-              BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
         ),
       if (destinoLatLng != null)
         Marker(
@@ -1367,32 +1364,44 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
           ),
         ),
 
-        // Controles Inferiores (Botón de Enfoque) — a la izquierda.
+        // Controles Inferiores — a la izquierda: FAB centrar + botón emergencia.
         Positioned(
           left: 16,
           bottom: safeBottom + 16,
-          child: FloatingActionButton(
-            heroTag: 'fab_centrar_cliente',
-            backgroundColor: AppColores.primary,
-            child: Icon(
-              _mostrarSoloDestino ? Icons.flag : Icons.person_pin_circle,
-              color: Colors.white,
-            ),
-            onPressed: () async {
-              setState(() {
-                _mostrarSoloDestino = !_mostrarSoloDestino;
-              });
-              if (_mapController == null) return;
-              if (_mostrarSoloDestino && destinoLatLng != null) {
-                await _mapController!.animateCamera(
-                  CameraUpdate.newCameraPosition(
-                    CameraPosition(target: destinoLatLng, zoom: 15.8, tilt: 0),
-                  ),
-                );
-                return;
-              }
-              await _fitConductorDestinoCamera(conductorLatLng, destinoLatLng);
-            },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              FloatingActionButton(
+                heroTag: 'fab_centrar_cliente',
+                backgroundColor: AppColores.primary,
+                child: Icon(
+                  _mostrarSoloDestino ? Icons.flag : Icons.person_pin_circle,
+                  color: Colors.white,
+                ),
+                onPressed: () async {
+                  setState(() {
+                    _mostrarSoloDestino = !_mostrarSoloDestino;
+                  });
+                  if (_mapController == null) return;
+                  if (_mostrarSoloDestino && destinoLatLng != null) {
+                    await _mapController!.animateCamera(
+                      CameraUpdate.newCameraPosition(
+                        CameraPosition(
+                          target: destinoLatLng,
+                          zoom: 15.8,
+                          tilt: 0,
+                        ),
+                      ),
+                    );
+                    return;
+                  }
+                  await _fitConductorDestinoCamera(conductorLatLng, destinoLatLng);
+                },
+              ),
+              const SizedBox(height: 10),
+              const PanicButtonFab(),
+            ],
           ),
         ),
 
@@ -1403,6 +1412,7 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
           right: 0,
           child: UserTripInfoCard(
             title: 'En camino al destino',
+            isMoto: _isMoto,
             name: vm.nombreConductor,
             vehiclePlate: vm.placaVehiculo,
             userPhotoUrl: vm.fotoConductor,

@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:taxi_app/utils/marker_icon_helper.dart';
 
 import 'package:flutter/services.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -52,6 +54,14 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
   bool _rutaDestinoNavigationDone = false;
   TripTrackingViewModel? _vm;
 
+  // Smooth marker animation
+  bool _isMoto = false;
+  LatLng? _conductorSmooth;
+  LatLng? _conductorTarget;
+  double _conductorRotation = 0;
+  Timer? _movementTimer;
+  TripTrackingViewModel? _vmRef;
+
   String? _lastEstadoProcesado;
   String? _lastPersistedStatus;
 
@@ -72,8 +82,11 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
         }
       });
     });
-    _loadTaxiMarkerIcon();
+    _loadTipoVehiculoYIcono();
     _startCancelDisableTimer();
+    // _vmRef is wired in the Consumer builder the first time vm is available,
+    // because ChangeNotifierProvider lives inside build() and is not yet
+    // reachable via context here in initState.
     // Persist current screen so reload restores this exact view
     try {
       SessionHelper.setActiveSolicitudScreen('trip_tracking');
@@ -111,22 +124,22 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
           _handleSolicitudCanceladaIfNeeded(vm);
           _fitInitialCameraIfNeeded(vm);
           if (_vm != vm) {
+            _vmRef?.removeListener(_onConductorPosChanged);
             _vm = vm;
+            _vmRef = vm;
+            vm.addListener(_onConductorPosChanged);
             _startCameraFollowTimer(vm);
           }
 
+          final conductorPos = _conductorSmooth ?? vm.conductorLatLng;
           final markers = <Marker>{
-            if (vm.conductorLatLng != null)
+            if (conductorPos != null)
               Marker(
                 markerId: const MarkerId('conductor'),
-                position: vm.conductorLatLng!,
-                infoWindow: const InfoWindow(title: 'Conductor'),
-                icon:
-                    _taxiMarkerIcon ??
+                position: conductorPos,
+                icon: _taxiMarkerIcon ??
                     BitmapDescriptor.defaultMarkerWithHue(
-                      BitmapDescriptor.hueAzure,
-                    ),
-                rotation: vm.conductorHeading,
+                        BitmapDescriptor.hueAzure),
                 flat: true,
                 anchor: const Offset(0.5, 0.5),
               ),
@@ -273,6 +286,7 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
                           left: 0,
                           right: 0,
                           child: UserTripInfoCard(
+                            isMoto: _isMoto,
                             name: vm.nombreUsuarioCard,
                             vehiclePlate: vm.placaVehiculo,
                             userPhotoUrl: vm.fotoUsuario,
@@ -613,26 +627,77 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
     });
   }
 
-  Future<void> _loadTaxiMarkerIcon() async {
+  Future<void> _loadTipoVehiculoYIcono() async {
     try {
-      final dpr = WidgetsBinding
-          .instance
-          .platformDispatcher
-          .views
-          .first
-          .devicePixelRatio;
-      // Tamaño lógico fijo (~32x46) escalado por dpr → consistente y nítido en
-      // todas las densidades (ni muy grande ni muy pequeño).
-      final icon = await BitmapDescriptor.asset(
-        ImageConfiguration(size: const Size(32, 46), devicePixelRatio: dpr),
-        'assets/img/taxi_icon.png',
-      );
-
-      if (!mounted) return;
-      setState(() {
-        _taxiMarkerIcon = icon;
-      });
+      final doc = await FirebaseFirestore.instance
+          .collection('solicitudes')
+          .doc(widget.solicitudId)
+          .get();
+      final tipo = (doc.data()?['tipoVehiculo'] ?? '').toString().toLowerCase();
+      if (mounted) setState(() => _isMoto = tipo == 'moto');
     } catch (_) {}
+    _loadTaxiMarkerIcon();
+  }
+
+  Future<void> _loadTaxiMarkerIcon() async {
+    final iconData =
+        _isMoto ? Icons.two_wheeler_rounded : Icons.directions_car_rounded;
+    BitmapDescriptor? icon;
+    try {
+      icon = await MarkerIconHelper.fromIcon(iconData, 60, const Color(0xFF111111));
+    } catch (_) {}
+    if (!mounted) return;
+    setState(() => _taxiMarkerIcon = icon);
+  }
+
+  void _onConductorPosChanged() {
+    if (!mounted) return;
+    final vm = _vmRef;
+    if (vm == null) return;
+    final loc = vm.conductorLatLng;
+    if (loc != null && loc != _conductorTarget) {
+      _conductorTarget = loc;
+      _ensureMovementTimer();
+    }
+  }
+
+  void _ensureMovementTimer() {
+    _movementTimer ??= Timer.periodic(
+      const Duration(milliseconds: 50),
+      _tickMovement,
+    );
+  }
+
+  void _tickMovement(Timer _) {
+    if (!mounted) {
+      _movementTimer?.cancel();
+      _movementTimer = null;
+      return;
+    }
+    final target = _conductorTarget;
+    if (target == null) return;
+    if (_conductorSmooth == null) {
+      setState(() => _conductorSmooth = target);
+      return;
+    }
+    const alpha = 0.15;
+    final newLat = _conductorSmooth!.latitude +
+        (target.latitude - _conductorSmooth!.latitude) * alpha;
+    final newLng = _conductorSmooth!.longitude +
+        (target.longitude - _conductorSmooth!.longitude) * alpha;
+    final dist = Geolocator.distanceBetween(
+      newLat, newLng, target.latitude, target.longitude,
+    );
+    final newPos = dist < 0.3 ? target : LatLng(newLat, newLng);
+    final vm = _vmRef;
+    if (vm == null) return;
+    _conductorRotation = _lerpAngle(_conductorRotation, vm.conductorHeading, alpha);
+    setState(() => _conductorSmooth = newPos);
+  }
+
+  double _lerpAngle(double current, double target, double t) {
+    final diff = (target - current + 540) % 360 - 180;
+    return (current + diff * t) % 360;
   }
 
   void _syncSolicitudPersistence(TripTrackingViewModel vm) {
@@ -1002,6 +1067,8 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
 
   @override
   void dispose() {
+    _vmRef?.removeListener(_onConductorPosChanged);
+    _movementTimer?.cancel();
     _mapController?.dispose();
     _cameraFollowTimer?.cancel();
     try {

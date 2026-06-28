@@ -56,7 +56,6 @@ class _ContenidoBienvenida extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Badge con icono de taxi
                   Container(
                     width: 84,
                     height: 84,
@@ -73,7 +72,7 @@ class _ContenidoBienvenida extends StatelessWidget {
                           color: AppColores.primary,
                         ),
                         child: const Icon(
-                          Icons.local_taxi_rounded,
+                          Icons.celebration_rounded,
                           size: 32,
                           color: Colors.black,
                         ),

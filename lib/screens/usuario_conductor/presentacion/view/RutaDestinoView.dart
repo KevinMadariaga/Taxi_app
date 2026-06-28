@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as Math;
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
@@ -20,6 +21,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:taxi_app/utils/marker_icon_helper.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:taxi_app/features/driver_trip/widgets/driver_client_info_card.dart';
+import 'package:taxi_app/features/driver_trip/screens/reportar_problema_screen.dart';
 
 class RutaDestino extends StatelessWidget {
   final String idSolicitud;
@@ -90,6 +92,14 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
 
   LatLng? _ubicacionInicialConductor;
   BitmapDescriptor? _destinoMarkerIcon;
+  BitmapDescriptor? _conductorMarkerIcon;
+
+  // Smooth animation
+  bool _isMoto = false;
+  LatLng? _conductorSmooth;
+  LatLng? _conductorTarget;
+  double _conductorRotation = 0;
+  Timer? _movementTimer;
   // Calcula los bounds de la polyline para ajustar la cámara
   LatLngBounds? _calcularBoundsPolyline(List<LatLng> points) {
     if (points.isEmpty) return null;
@@ -138,6 +148,8 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
       await vm.cargarDatosCliente(widget.idSolicitud);
       if (!mounted) return;
 
+      await _loadTipoVehiculo();
+      if (!mounted) return;
       await _cargarMarcadoresPersonalizados();
       if (!mounted) return;
 
@@ -158,6 +170,17 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
     });
   }
 
+  Future<void> _loadTipoVehiculo() async {
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('solicitudes')
+          .doc(widget.idSolicitud)
+          .get();
+      final tipo = (doc.data()?['tipoVehiculo'] ?? '').toString().toLowerCase();
+      if (mounted) setState(() => _isMoto = tipo == 'moto');
+    } catch (_) {}
+  }
+
   Future<void> _cargarMarcadoresPersonalizados() async {
     final dpr = WidgetsBinding
         .instance
@@ -173,13 +196,60 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
     if (!mounted) return;
     setState(() {
       _destinoMarkerIcon = destinoIcon;
+      // _conductorMarkerIcon queda null → usa el marcador azul default del mapa
     });
+  }
+
+  void _enqueueSmoothTarget(LatLng newPos, double? heading) {
+    _conductorTarget = newPos;
+    if (heading != null) {
+      _conductorRotation = _lerpAngle(_conductorRotation, heading, 0.3);
+    }
+    _ensureMovementTimer();
+  }
+
+  void _ensureMovementTimer() {
+    _movementTimer ??= Timer.periodic(
+      const Duration(milliseconds: 50),
+      _tickMovement,
+    );
+  }
+
+  void _tickMovement(Timer _) {
+    if (!mounted) {
+      _movementTimer?.cancel();
+      _movementTimer = null;
+      return;
+    }
+    final target = _conductorTarget;
+    if (target == null) return;
+    if (_conductorSmooth == null) {
+      setState(() => _conductorSmooth = target);
+      return;
+    }
+    const alpha = 0.15;
+    final newLat = _conductorSmooth!.latitude +
+        (target.latitude - _conductorSmooth!.latitude) * alpha;
+    final newLng = _conductorSmooth!.longitude +
+        (target.longitude - _conductorSmooth!.longitude) * alpha;
+    final dist = Geolocator.distanceBetween(
+      newLat, newLng, target.latitude, target.longitude,
+    );
+    setState(() {
+      _conductorSmooth = dist < 0.3 ? target : LatLng(newLat, newLng);
+    });
+  }
+
+  double _lerpAngle(double current, double target, double t) {
+    final diff = (target - current + 540) % 360 - 180;
+    return (current + diff * t) % 360;
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _positionStream?.cancel();
+    _movementTimer?.cancel();
     // Ensure background service is stopped when widget is disposed
     try {
       _detenerTrackingBackground();
@@ -337,9 +407,8 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
           final nuevaUbicacion = LatLng(position.latitude, position.longitude);
 
           if (!mounted) return;
-          setState(() {
-            _ubicacionConductor = nuevaUbicacion;
-          });
+          setState(() => _ubicacionConductor = nuevaUbicacion);
+          _enqueueSmoothTarget(nuevaUbicacion, position.heading);
 
           // Guardar ubicación obtenida y fecha en Firestore (igual que en RutaConductorView)
           try {
@@ -554,19 +623,15 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
         : null;
     final target = _ubicacionConductor ?? destinoLatLng ?? _initialTarget;
     final markers = <Marker>{
-      // Marcador del destino
       if (destinoLatLng != null)
         Marker(
           markerId: const MarkerId('destino'),
           position: destinoLatLng,
           infoWindow: InfoWindow(
             title: vm.tituloDestino.isNotEmpty ? vm.tituloDestino : 'Destino',
-            snippet: vm.direccionDestino.isNotEmpty
-                ? vm.direccionDestino
-                : null,
+            snippet: vm.direccionDestino.isNotEmpty ? vm.direccionDestino : null,
           ),
-          icon:
-              _destinoMarkerIcon ??
+          icon: _destinoMarkerIcon ??
               BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
         ),
     };
@@ -596,6 +661,7 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
           polylines: polylines,
           circles: _circles,
           myLocationEnabled: true,
+          myLocationButtonEnabled: false,
           // Shift visual center down
           padding: const EdgeInsets.only(top: 180, bottom: 20),
           onMapCreated: (controller) {
@@ -818,6 +884,7 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
                 left: 0,
                 right: 0,
                 child: DriverClientInfoCard(
+                  isMoto: _isMoto,
                   clientName: vm.nombreCliente.isNotEmpty
                       ? vm.nombreCliente
                       : 'Cliente',
@@ -874,25 +941,47 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
               Positioned(
                 left: 24,
                 bottom: MediaQuery.of(context).padding.bottom + 24,
-                child: FloatingActionButton(
-                  heroTag: "fab_centrar",
-                  backgroundColor: AppColores.buttonPrimary,
-                  child: Icon(
-                    _centraSoloConductor
-                        ? Icons.person_pin_circle
-                        : Icons.group,
-                    color: AppColores.textWhite,
-                  ),
-                  onPressed: () {
-                    setState(() {
-                      if (_centraSoloConductor) {
-                        _centerOnConductor();
-                      } else {
-                        _fitMarkers();
-                      }
-                      _centraSoloConductor = !_centraSoloConductor;
-                    });
-                  },
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    FloatingActionButton(
+                      heroTag: "fab_centrar",
+                      backgroundColor: AppColores.buttonPrimary,
+                      child: Icon(
+                        _centraSoloConductor
+                            ? Icons.person_pin_circle
+                            : Icons.group,
+                        color: AppColores.textWhite,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          if (_centraSoloConductor) {
+                            _centerOnConductor();
+                          } else {
+                            _fitMarkers();
+                          }
+                          _centraSoloConductor = !_centraSoloConductor;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    FloatingActionButton(
+                      heroTag: "fab_problema",
+                      backgroundColor: Colors.red.shade700,
+                      child: const Icon(
+                        Icons.report_problem_rounded,
+                        color: Colors.white,
+                      ),
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ReportarProblemaScreen(
+                            solicitudId: widget.idSolicitud,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],

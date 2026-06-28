@@ -79,6 +79,60 @@ class MarkerIconHelper {
     }
   }
 
+  /// Renders a Material [IconData] as a circular map marker (white bg + primary border).
+  /// [mirrored] flips the icon horizontally — used for southward headings so the
+  /// marker never appears upside-down on the map.
+  static Future<BitmapDescriptor> fromIcon(
+    IconData icon,
+    double size,
+    Color iconColor, {
+    Color borderColor = const Color(0xFFFFCC00),
+    bool mirrored = false,
+  }) async {
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    final radius = size / 2;
+    canvas.drawCircle(
+      Offset(radius, radius),
+      radius,
+      Paint()..color = Colors.white,
+    );
+    canvas.drawCircle(
+      Offset(radius, radius),
+      radius - size * 0.04,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = size * 0.07
+        ..color = borderColor,
+    );
+    final tp = TextPainter(textDirection: TextDirection.ltr)
+      ..text = TextSpan(
+        text: String.fromCharCode(icon.codePoint),
+        style: TextStyle(
+          fontSize: size * 0.56,
+          fontFamily: icon.fontFamily,
+          package: icon.fontPackage,
+          color: iconColor,
+        ),
+      )
+      ..layout();
+    final iconOffset = Offset((size - tp.width) / 2, (size - tp.height) / 2);
+    if (mirrored) {
+      canvas.save();
+      canvas.translate(size, 0);
+      canvas.scale(-1, 1);
+      tp.paint(canvas, iconOffset);
+      canvas.restore();
+    } else {
+      tp.paint(canvas, iconOffset);
+    }
+    final image = await recorder
+        .endRecording()
+        .toImage(size.toInt(), size.toInt());
+    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+    return BitmapDescriptor.bytes(bytes!.buffer.asUint8List());
+  }
+
   static Future<Rect?> _opaqueBounds(ui.Image image) async {
     final raw = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
     if (raw == null) return null;

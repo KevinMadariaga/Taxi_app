@@ -36,6 +36,7 @@ class _InicioConductorState extends State<InicioConductor>
   int _selectedIndex = 1;
   bool _hasCentered = false;
   bool _navigatingToRuta = false;
+  bool _isAcceptingRequest = false;
   bool _gpsPromptShown = false;
   bool _isGpsDialogOpen = false;
   bool _isRequestingPermissions = false;
@@ -390,6 +391,7 @@ class _InicioConductorState extends State<InicioConductor>
             canPop: false,
             child: Scaffold(
               backgroundColor: AppColores.background,
+              resizeToAvoidBottomInset: false,
               appBar: previewVisible
                   ? null
                   : AppBar(
@@ -1082,7 +1084,7 @@ class _InicioConductorState extends State<InicioConductor>
                                 child: PreviewSolicitudCard(
                                 preview: preview,
                                 clientPhotoUrl: foto,
-                                isLoading: _navigatingToRuta,
+                                isAcceptLoading: _isAcceptingRequest,
                                 onClose: () async {
                                   if (!_navigatingToRuta) {
                                     await _closePreview(vm);
@@ -1094,14 +1096,27 @@ class _InicioConductorState extends State<InicioConductor>
                                   }
                                 },
                                 onAccept: () async {
+                                  if (_isAcceptingRequest || _navigatingToRuta) return;
+                                  setState(() => _isAcceptingRequest = true);
                                   final id = preview.solicitud.id;
-                                  final messenger =
-                                      ScaffoldMessenger.of(context);
+                                  final messenger = ScaffoldMessenger.of(context);
                                   try {
                                     await vm.aceptarSolicitud(id);
+                                    if (mounted) setState(() => _isAcceptingRequest = false);
                                     await _navegarARutaConductor(vm, id);
+                                  } on StateError catch (e) {
+                                    if (mounted) {
+                                      setState(() => _isAcceptingRequest = false);
+                                      messenger.showSnackBar(
+                                        SnackBar(
+                                          content: Text(e.message),
+                                          backgroundColor: Colors.orange,
+                                        ),
+                                      );
+                                    }
                                   } catch (e) {
                                     if (mounted) {
+                                      setState(() => _isAcceptingRequest = false);
                                       messenger.showSnackBar(
                                         SnackBar(
                                           content: Text(
@@ -1899,15 +1914,10 @@ class _InicioConductorState extends State<InicioConductor>
   ) async {
     final valorBase = (preview.valorServicio ?? 0).round();
     final base = valorBase > 0 ? valorBase : 10000;
-    final controller = TextEditingController(text: base.toString());
-    // Texto seleccionado al abrir: el conductor puede borrar todo y escribir.
-    controller.selection = TextSelection(
-      baseOffset: 0,
-      extentOffset: controller.text.length,
-    );
+    final controller = TextEditingController();
 
     final opciones =
-        <int>{base, base + 1000, base + 2000, base + 3000, base + 5000}
+        <int>{base + 1000, base + 2000, base + 3000, base + 5000, base + 7000}
             .toList()
           ..sort();
 

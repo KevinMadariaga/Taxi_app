@@ -188,6 +188,7 @@ class HistorialConductorState extends State<HistorialConductor> {
                               .clamp(0, 5)
                               .toDouble(),
                           onTap: () => _mostrarDetalle(context, data),
+                          isMoto: (data['tipoVehiculo'] ?? '').toString().toLowerCase() == 'moto',
                         );
                       },
                     ),
@@ -236,7 +237,7 @@ class _ResumenConductor extends StatelessWidget {
       child: Row(
         children: [
           _ResumenItem(
-            icon: Icons.local_taxi_rounded,
+            icon: Icons.directions_car_rounded,
             valor: totalViajes.toString(),
             label: 'Viajes',
             color: AppColores.primary,

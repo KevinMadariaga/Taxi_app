@@ -6,7 +6,8 @@ import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodels/previ
 class PreviewSolicitudCard extends StatelessWidget {
   final PreviewSolicitud preview;
   final String? clientPhotoUrl;
-  final bool isLoading;
+  /// true while the Firestore accept transaction is running (Aceptar button only).
+  final bool isAcceptLoading;
   final VoidCallback onClose;
   final VoidCallback onCancel;
   final VoidCallback onAccept;
@@ -16,7 +17,7 @@ class PreviewSolicitudCard extends StatelessWidget {
     super.key,
     required this.preview,
     this.clientPhotoUrl,
-    required this.isLoading,
+    this.isAcceptLoading = false,
     required this.onClose,
     required this.onCancel,
     required this.onAccept,
@@ -371,10 +372,14 @@ class PreviewSolicitudCard extends StatelessWidget {
                     child: CustomButton(
                       text: 'Ofertar',
                       color: AppColores.surface,
-                      textColor: AppColores.buttonPrimary,
-                      borderColor: AppColores.buttonPrimary,
-                      isLoading: isLoading,
-                      onPressed: isLoading ? null : onCounterOffer,
+                      textColor: isAcceptLoading
+                          ? AppColores.grey400
+                          : AppColores.buttonPrimary,
+                      borderColor: isAcceptLoading
+                          ? AppColores.grey300
+                          : AppColores.buttonPrimary,
+                      isLoading: false,
+                      onPressed: isAcceptLoading ? null : onCounterOffer,
                       width: double.infinity,
                       height: 48,
                       fontSize: 14,
@@ -386,8 +391,8 @@ class PreviewSolicitudCard extends StatelessWidget {
                       text: 'Aceptar',
                       color: AppColores.buttonPrimary,
                       textColor: AppColores.textWhite,
-                      isLoading: isLoading,
-                      onPressed: isLoading ? null : onAccept,
+                      isLoading: isAcceptLoading,
+                      onPressed: isAcceptLoading ? null : onAccept,
                       width: double.infinity,
                       height: 48,
                       fontSize: 14,

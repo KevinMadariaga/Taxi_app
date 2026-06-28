@@ -39,6 +39,7 @@ class _InicioClienteViewState extends State<InicioClienteView>
   bool _isRequestingPermissions = false;
   bool _isGpsDialogOpen = false;
   bool _mostrarUbicacionOk = false;
+  bool _pendingCenter = false;
 
   // ── Ciclo de vida ────────────────────────────────────────────────────────
 
@@ -263,9 +264,13 @@ class _InicioClienteViewState extends State<InicioClienteView>
     if (!mounted) return;
     if (vm.currentLocation != null) {
       if (_mapController != null) {
+        _pendingCenter = false;
         await _mapController!.animateCamera(
           CameraUpdate.newLatLngZoom(vm.currentLocation!, 16),
         );
+      } else {
+        // Map not ready yet; onMapCreated will center when it fires.
+        _pendingCenter = true;
       }
       // Solo avisar "Ubicación encontrada" si el GPS detectó una posición
       // nueva (distinta a la cacheada).
@@ -1061,10 +1066,19 @@ class _InicioClienteViewState extends State<InicioClienteView>
                 markers: vm.conductoresMarkers,
                 onMapCreated: (controller) async {
                   _mapController = controller;
-                  if (vm.currentLocation != null) {
-                    await controller.animateCamera(
-                      CameraUpdate.newLatLngZoom(vm.currentLocation!, 16),
-                    );
+                  // Short delay: lets SharedPreferences cache load (~10ms)
+                  // and avoids animateCamera during the route transition frame.
+                  await Future.delayed(const Duration(milliseconds: 150));
+                  if (!mounted) return;
+                  final loc = vm.currentLocation;
+                  if (loc != null || _pendingCenter) {
+                    _pendingCenter = false;
+                    final target = vm.currentLocation;
+                    if (target != null) {
+                      await controller.animateCamera(
+                        CameraUpdate.newLatLngZoom(target, 16),
+                      );
+                    }
                   }
                 },
               ),

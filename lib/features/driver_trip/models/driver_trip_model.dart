@@ -101,6 +101,7 @@ class DriverTripModel {
     this.destinoDireccion = '',
     this.valorServicio = 0,
     this.metodoPago = '',
+    this.isMoto = false,
   });
 
   final String id;
@@ -111,6 +112,7 @@ class DriverTripModel {
   final String destinoDireccion;
   final double valorServicio;
   final String metodoPago;
+  final bool isMoto;
 
   factory DriverTripModel.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data() ?? <String, dynamic>{};
@@ -152,6 +154,11 @@ class DriverTripModel {
               data['metodo_pago'] ??
               '')
           .toString(),
+      isMoto: (data['tipoVehiculo'] ?? data['tipo_vehiculo'] ?? '')
+              .toString()
+              .trim()
+              .toLowerCase() ==
+          'moto',
     );
   }
 }

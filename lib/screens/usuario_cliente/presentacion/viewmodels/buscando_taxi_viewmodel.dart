@@ -50,6 +50,10 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
 
   // Lista de contraofertas activas (una por conductor)
   List<ContraofertaItem> _contraofertas = [];
+  // IDs de conductores cuya contraoferta ya fue rechazada: nunca volver a notificar ni mostrar.
+  final Set<String> _rejectedContraIds = {};
+  // IDs de conductores a quienes ya se les mostró notificación: evita duplicar en snapshots múltiples.
+  final Set<String> _notifiedContraIds = {};
 
   // Compat: campos legacy para solicitudes antiguas sin mapa contraofertas
   double? _valorContraofertaPendiente;
@@ -178,16 +182,22 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
           totalCalificaciones: totalCalifInt,
         ));
       });
+      // Filtrar solo la oferta exacta rechazada (clave conductorId:valor).
+      // Si el mismo conductor manda un precio diferente, es oferta nueva → pasa.
+      newList.removeWhere((o) => _rejectedContraIds.contains(
+            '${o.conductorId}:${o.valor.toStringAsFixed(0)}'));
       // Ordenar por valor ascendente para mostrar la más barata primero
       newList.sort((a, b) => a.valor.compareTo(b.valor));
 
-      final prevCount = _contraofertas.length;
       _contraofertas = newList;
 
-      // Notificación por cada nueva oferta que aparezca
-      if (newList.length > prevCount) {
-        for (int i = prevCount; i < newList.length; i++) {
-          unawaited(_mostrarNotificacionContraoferta(newList[i].valor));
+      // Notificar por cada oferta única (conductorId:valor).
+      // El mismo conductor con precio distinto genera nueva notificación.
+      for (final item in newList) {
+        final key = '${item.conductorId}:${item.valor.toStringAsFixed(0)}';
+        if (!_notifiedContraIds.contains(key)) {
+          _notifiedContraIds.add(key);
+          unawaited(_mostrarNotificacionContraoferta(item.valor));
         }
       }
     } else {
@@ -235,13 +245,24 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
 
   Future<void> _mostrarNotificacionContraoferta(double valor) async {
     try {
-      final valorTxt = valor.round().toString();
+      final valorTxt = _formatMiles(valor.round());
       await NotificacionesServicio.instance.showNotification(
         id: 1002,
         title: 'Contraoferta del conductor',
         body: 'Te proponen un nuevo valor: \$$valorTxt',
       );
     } catch (_) {}
+  }
+
+  static String _formatMiles(int value) {
+    final s = value.toString();
+    final buf = StringBuffer();
+    for (int i = 0; i < s.length; i++) {
+      final reverseIndex = s.length - i;
+      buf.write(s[i]);
+      if (reverseIndex > 1 && reverseIndex % 3 == 1) buf.write('.');
+    }
+    return buf.toString();
   }
 
   Future<bool> actualizarValorServicio(double nuevoValor) async {
@@ -352,10 +373,22 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
     _safeNotify();
 
     try {
-      await _firestore
-          .collection('solicitudes')
-          .doc(solicitudId)
-          .update({'contraofertas.$conductorId': FieldValue.delete()});
+      // Reject key = conductorId:valor so only THIS specific offer is blocked.
+      // A new offer from the same conductor at a different price will show again.
+      ContraofertaItem? oferta;
+      try {
+        oferta = _contraofertas.firstWhere((o) => o.conductorId == conductorId);
+      } catch (_) {}
+      final rejectKey = oferta != null
+          ? '$conductorId:${oferta.valor.toStringAsFixed(0)}'
+          : conductorId;
+      _rejectedContraIds.add(rejectKey);
+      await _firestore.collection('solicitudes').doc(solicitudId).update({
+        'contraofertas.$conductorId': FieldValue.delete(),
+        // Also update legacy field so the backward-compat path doesn't
+        // re-fire a notification when the next snapshot arrives.
+        'contraoferta.estado': 'rechazada_cliente',
+      });
       _contraofertas.removeWhere((o) => o.conductorId == conductorId);
       return true;
     } catch (_) {
