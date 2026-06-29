@@ -173,7 +173,7 @@ class HistorialConductorState extends State<HistorialConductor> {
                   ),
                   Expanded(
                     child: ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(12, 4, 12, 90),
+                      padding: EdgeInsets.fromLTRB(12, 4, 12, MediaQuery.of(context).padding.bottom + 90),
                       itemCount: viajes.length,
                       itemBuilder: (context, index) {
                         final data = viajes[index];

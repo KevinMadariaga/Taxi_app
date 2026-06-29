@@ -315,7 +315,7 @@ class _HistorialDetalleConductorState extends State<HistorialDetalleConductor> {
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 760),
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+                padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(context).padding.bottom + 32),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -604,6 +604,7 @@ class _ChartCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   titulo,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontWeight: FontWeight.w800,
                     fontSize: 15,
@@ -611,7 +612,7 @@ class _ChartCard extends StatelessWidget {
                   ),
                 ),
               ),
-              if (trailing != null) Flexible(child: trailing!),
+              if (trailing != null) trailing!,
             ],
           ),
           const SizedBox(height: 14),
@@ -639,14 +640,14 @@ class _SelectorSemana extends StatelessWidget {
         value: selected,
         isDense: true,
         borderRadius: BorderRadius.circular(12),
-        style: const TextStyle(fontSize: 12.5, color: AppColores.textPrimary),
+        style: const TextStyle(fontSize: 11.5, color: AppColores.textPrimary),
         items: List.generate(weekStarts.length, (i) {
           final ws = weekStarts[i];
           final we = ws.add(const Duration(days: 6));
           return DropdownMenuItem(
             value: i,
             child: Text(
-              'Semana ${i + 1}  (${DateFormat('d/MM').format(ws)}-${DateFormat('d/MM').format(we)})',
+              'Sem.${i + 1} (${DateFormat('d/MM').format(ws)}-${DateFormat('d/MM').format(we)})',
             ),
           );
         }),
