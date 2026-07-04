@@ -31,6 +31,9 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
   late MapapreviewViewModel _vm;
   BitmapDescriptor? _destIcon;
   VoidCallback? _vmListener;
+  // Origen editable: arranca en widget.origen pero el usuario puede
+  // cambiarlo desde la tarjeta "Tu ubicación actual", igual que el destino.
+  late LocationModel _origenActual;
   String? _origenDireccionActual;
   bool _resolviendoOrigenDireccion = false;
   bool _wasInBackground = false;
@@ -72,7 +75,7 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
 
     await navigator.pushReplacement(
       _buildSmoothRoute(
-        DestinoSeleccionView(currentLocation: widget.origen.position),
+        DestinoSeleccionView(currentLocation: _origenActual.position),
       ),
     );
   }
@@ -81,7 +84,8 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _vm = MapapreviewViewModel(origen: widget.origen, destino: widget.destino);
+    _origenActual = widget.origen;
+    _vm = MapapreviewViewModel(origen: _origenActual, destino: widget.destino);
     _vm.init();
     _vmListener = () {
       if (!mounted) return;
@@ -97,8 +101,8 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
   }
 
   Future<void> _resolverDireccionOrigen() async {
-    final origenPos = widget.origen.position;
-    final subtitle = widget.origen.subtitle?.trim() ?? '';
+    final origenPos = _origenActual.position;
+    final subtitle = _origenActual.subtitle?.trim() ?? '';
     if (subtitle.isNotEmpty) {
       if (!mounted) return;
       setState(() => _origenDireccionActual = subtitle);
@@ -424,11 +428,11 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     _buildLocationCard(context, vm),
-                    SizedBox(height: ResponsiveHelper.hp(context, 1)),
+                    SizedBox(height: ResponsiveHelper.hp(context, 0.6)),
                     _buildDestinationCard(context, vm),
-                    SizedBox(height: ResponsiveHelper.hp(context, 1)),
+                    SizedBox(height: ResponsiveHelper.hp(context, 0.6)),
                     _buildServiceValue(context, vm),
-                    SizedBox(height: ResponsiveHelper.hp(context, 1.2)),
+                    SizedBox(height: ResponsiveHelper.hp(context, 0.8)),
                     _buildSubmitButton(context, vm),
                   ],
                 ),
@@ -441,17 +445,90 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
   }
 
   Widget _buildLocationCard(BuildContext context, MapapreviewViewModel vm) {
-    return _buildLocationInfoCard(
-      context,
-      header: 'Tu ubicación actual',
-      value: _resolviendoOrigenDireccion
-          ? 'Buscando ubicación actual...'
-          : (_origenDireccionActual ?? vm.origen.title ?? 'Ubicación'),
-      icon: Icons.location_on_outlined,
-      iconColor: Colors.blue,
-      iconBorderColor: Colores.azul,
-      cardBorderColor: Colors.blue,
-      cardBorderRadius: ResponsiveHelper.wp(context, 4),
+    return GestureDetector(
+      onTap: () async {
+        final inicial = _origenActual.position;
+        final direccionInicial = _origenActual.title ?? _origenActual.subtitle;
+        final resultado = await Navigator.of(context)
+            .push<SeleccionUbicacionResult>(
+              _buildSmoothRoute(
+                SeleccionaUbicacionEnMapaView(
+                  ubicacionInicial: inicial,
+                  titulo: 'Ajusta tu ubicación en el mapa',
+                  direccionInicial: direccionInicial,
+                ),
+              ),
+            );
+
+        if (resultado is SeleccionUbicacionResult) {
+          if (!mounted) return;
+          final origenSeleccionado = resultado.position;
+          String resolved = resultado.direccion?.trim() ?? '';
+          if (resolved.isEmpty) {
+            resolved = _coordsText(origenSeleccionado);
+            try {
+              final placemarks = await placemarkFromCoordinates(
+                origenSeleccionado.latitude,
+                origenSeleccionado.longitude,
+              );
+              if (placemarks.isNotEmpty) {
+                final p = placemarks.first;
+                final direccion = [
+                  p.street,
+                  p.subLocality,
+                  p.locality,
+                  p.administrativeArea,
+                ].where((s) => s != null && s.isNotEmpty).join(', ');
+                if (direccion.isNotEmpty) resolved = direccion;
+              }
+            } catch (_) {}
+          }
+
+          // Recreate ViewModel with updated origen
+          if (_vmListener != null) _vm.removeListener(_vmListener!);
+          _controller?.dispose();
+          _vm.dispose();
+
+          final nuevoOrigen = LocationModel(
+            position: origenSeleccionado,
+            title: resolved,
+            subtitle: resolved,
+          );
+          setState(() {
+            _origenActual = nuevoOrigen;
+            _origenDireccionActual = resolved;
+            _vm = MapapreviewViewModel(
+              origen: nuevoOrigen,
+              destino: vm.destino,
+            );
+            _vm.init();
+            _vmListener = () {
+              if (!mounted) return;
+              WidgetsBinding.instance.addPostFrameCallback(
+                (_) => _applyPerspective(),
+              );
+            };
+            _vm.addListener(_vmListener!);
+          });
+          try {
+            _controller?.animateCamera(
+              CameraUpdate.newLatLng(origenSeleccionado),
+            );
+          } catch (_) {}
+        }
+      },
+      child: _buildLocationInfoCard(
+        context,
+        header: 'Tu ubicación actual',
+        value: _resolviendoOrigenDireccion
+            ? 'Buscando ubicación actual...'
+            : (_origenDireccionActual ?? vm.origen.title ?? 'Ubicación'),
+        icon: Icons.location_on_outlined,
+        iconColor: Colors.blue,
+        iconBorderColor: Colores.azul,
+        cardBorderColor: Colors.blue,
+        cardBorderRadius: ResponsiveHelper.wp(context, 4),
+      ),
     );
   }
 
@@ -509,7 +586,7 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
           );
           setState(() {
             _vm = MapapreviewViewModel(
-              origen: widget.origen,
+              origen: _origenActual,
               destino: nuevoDestino,
             );
             _vm.init();
@@ -553,7 +630,10 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
     required double cardBorderRadius,
   }) {
     return Container(
-      padding: EdgeInsets.all(ResponsiveHelper.wp(context, 2)),
+      padding: EdgeInsets.symmetric(
+        horizontal: ResponsiveHelper.wp(context, 2),
+        vertical: ResponsiveHelper.hp(context, 0.8),
+      ),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(cardBorderRadius),
         border: Border.all(color: cardBorderColor, width: 1.5),
@@ -562,7 +642,7 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
       child: Row(
         children: [
           Container(
-            padding: EdgeInsets.all(ResponsiveHelper.wp(context, 2)),
+            padding: EdgeInsets.all(ResponsiveHelper.wp(context, 1.6)),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(
@@ -675,127 +755,140 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
         ? Icons.two_wheeler
         : Icons.directions_car;
 
-    return Row(
-      children: [
-        // Cuadro valor del servicio
-        Expanded(
-          child: GestureDetector(
-            onTap: () => _abrirModalValorServicio(context, vm),
-            child: Container(
-              padding: EdgeInsets.all(ResponsiveHelper.wp(context, 2)),
-              decoration: BoxDecoration(
-                borderRadius:
-                    BorderRadius.circular(ResponsiveHelper.wp(context, 4)),
-                border: Border.all(color: Colors.green, width: 1.5),
-                color: AppColores.surface,
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding:
-                        EdgeInsets.all(ResponsiveHelper.wp(context, 2)),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(
-                        ResponsiveHelper.wp(context, 5),
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Cuadro valor del servicio
+          Expanded(
+            child: GestureDetector(
+              onTap: () => _abrirModalValorServicio(context, vm),
+              child: Container(
+                padding: EdgeInsets.symmetric(
+                  horizontal: ResponsiveHelper.wp(context, 2),
+                  vertical: ResponsiveHelper.hp(context, 0.8),
+                ),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(
+                    ResponsiveHelper.wp(context, 4),
+                  ),
+                  border: Border.all(color: Colors.green, width: 1.5),
+                  color: AppColores.surface,
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(
+                        ResponsiveHelper.wp(context, 1.6),
                       ),
-                      border: Border.all(color: Colors.green),
-                    ),
-                    child: const Icon(
-                      Icons.attach_money,
-                      color: Colors.green,
-                    ),
-                  ),
-                  SizedBox(width: ResponsiveHelper.wp(context, 3)),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Valor del servicio',
-                          style: TextStyle(
-                            fontSize: ResponsiveHelper.sp(context, 12),
-                            color: AppColores.textPrimary,
-                          ),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(
+                          ResponsiveHelper.wp(context, 5),
                         ),
-                        SizedBox(height: ResponsiveHelper.hp(context, 0.5)),
-                        Text(
-                          '\$${_formatCurrencyFromRaw(vm.valorServicio)}',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: ResponsiveHelper.sp(context, 14),
-                            color: AppColores.textPrimary,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
+                        border: Border.all(color: Colors.green),
+                      ),
+                      child: const Icon(
+                        Icons.attach_money,
+                        color: Colors.green,
+                      ),
                     ),
-                  ),
-                ],
+                    SizedBox(width: ResponsiveHelper.wp(context, 3)),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Valor',
+                            style: TextStyle(
+                              fontSize: ResponsiveHelper.sp(context, 12),
+                              color: AppColores.textPrimary,
+                            ),
+                          ),
+                          SizedBox(height: ResponsiveHelper.hp(context, 0.5)),
+                          Text(
+                            '\$${_formatCurrencyFromRaw(vm.valorServicio)}',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: ResponsiveHelper.sp(context, 14),
+                              color: AppColores.textPrimary,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
-        ),
-        SizedBox(width: ResponsiveHelper.wp(context, 2.5)),
-        // Cuadro selector de vehículo
-        Expanded(
-          child: GestureDetector(
-            onTap: () => _abrirModalTipoVehiculo(context, vm),
-            child: Container(
-              padding: EdgeInsets.all(ResponsiveHelper.wp(context, 2)),
-              decoration: BoxDecoration(
-                borderRadius:
-                    BorderRadius.circular(ResponsiveHelper.wp(context, 4)),
-                border: Border.all(color: Colores.amarillo, width: 1.5),
-                color: AppColores.surface,
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding:
-                        EdgeInsets.all(ResponsiveHelper.wp(context, 2)),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(
-                        ResponsiveHelper.wp(context, 5),
+          SizedBox(width: ResponsiveHelper.wp(context, 2.5)),
+          // Cuadro selector de vehículo
+          Expanded(
+            child: GestureDetector(
+              onTap: () => _abrirModalTipoVehiculo(context, vm),
+              child: Container(
+                padding: EdgeInsets.symmetric(
+                  horizontal: ResponsiveHelper.wp(context, 2),
+                  vertical: ResponsiveHelper.hp(context, 0.8),
+                ),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(
+                    ResponsiveHelper.wp(context, 4),
+                  ),
+                  border: Border.all(color: Colores.amarillo, width: 1.5),
+                  color: AppColores.surface,
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(
+                        ResponsiveHelper.wp(context, 1.6),
                       ),
-                      border: Border.all(color: Colors.black),
-                    ),
-                    child: Icon(vehicleIcon, color: Colors.black),
-                  ),
-                  SizedBox(width: ResponsiveHelper.wp(context, 3)),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Vehículo',
-                          style: TextStyle(
-                            fontSize: ResponsiveHelper.sp(context, 12),
-                            color: AppColores.textPrimary,
-                          ),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(
+                          ResponsiveHelper.wp(context, 5),
                         ),
-                        SizedBox(height: ResponsiveHelper.hp(context, 0.5)),
-                        Text(
-                          vm.tipoVehiculo.label,
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: ResponsiveHelper.sp(context, 14),
-                            color: AppColores.textPrimary,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
+                        border: Border.all(color: Colors.black),
+                      ),
+                      child: Icon(vehicleIcon, color: Colors.black),
                     ),
-                  ),
-                ],
+                    SizedBox(width: ResponsiveHelper.wp(context, 3)),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Vehículo',
+                            style: TextStyle(
+                              fontSize: ResponsiveHelper.sp(context, 12),
+                              color: AppColores.textPrimary,
+                            ),
+                          ),
+                          SizedBox(height: ResponsiveHelper.hp(context, 0.5)),
+                          Text(
+                            vm.tipoVehiculo.label,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: ResponsiveHelper.sp(context, 14),
+                              color: AppColores.textPrimary,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -857,9 +950,7 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
                               : Icons.directions_car;
                           return Expanded(
                             child: Padding(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: 6.w,
-                              ),
+                              padding: EdgeInsets.symmetric(horizontal: 6.w),
                               child: GestureDetector(
                                 onTap: () {
                                   setSheet(() => selected = tipo);
@@ -882,7 +973,9 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
                                   ),
                                   decoration: BoxDecoration(
                                     color: isSelected
-                                        ? Colores.amarillo.withValues(alpha: 0.14)
+                                        ? Colores.amarillo.withValues(
+                                            alpha: 0.14,
+                                          )
                                         : Colors.grey[50],
                                     borderRadius: BorderRadius.circular(14.r),
                                     border: Border.all(
@@ -907,8 +1000,9 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
                                     children: [
                                       AnimatedScale(
                                         scale: isSelected ? 1.1 : 1.0,
-                                        duration:
-                                            const Duration(milliseconds: 180),
+                                        duration: const Duration(
+                                          milliseconds: 180,
+                                        ),
                                         child: Icon(
                                           vehicleIcon,
                                           size: 44.sp,
@@ -937,8 +1031,9 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
                                       SizedBox(height: 10.h),
                                       AnimatedOpacity(
                                         opacity: isSelected ? 1.0 : 0.0,
-                                        duration:
-                                            const Duration(milliseconds: 180),
+                                        duration: const Duration(
+                                          milliseconds: 180,
+                                        ),
                                         child: Container(
                                           padding: EdgeInsets.symmetric(
                                             horizontal: 10.w,
@@ -1012,9 +1107,7 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
       return _formatCurrency(parsed);
     }
 
-    final controller = TextEditingController(
-      text: formatInput(initialDigits),
-    )
+    final controller = TextEditingController(text: formatInput(initialDigits))
       ..selection = TextSelection(
         baseOffset: 0,
         extentOffset: formatInput(initialDigits).length,
@@ -1139,11 +1232,7 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
   ) async {
     final controller = TextEditingController(text: vm.comentario);
     String draft = vm.comentario;
-    const sugerencias = <String>[
-      'Llevo mascota',
-      'Llevo maletas',
-      
-    ];
+    const sugerencias = <String>['Llevo mascota', 'Llevo maletas'];
 
     await showModalBottomSheet<void>(
       context: context,
@@ -1314,7 +1403,7 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
                           MaterialPageRoute(
                             builder: (_) => BuscandoTaxiView(
                               solicitudId: solicitudId,
-                              initialClientLocation: widget.origen.position,
+                              initialClientLocation: _origenActual.position,
                             ),
                           ),
                         );

@@ -627,7 +627,7 @@ exports.onNuevaSolicitudCreada = onDocumentCreated(
     cercanos.sort((a, b) => a.distancia - b.distancia);
     const tokens = cercanos.slice(0, 20).map((c) => c.token);
 
-    const title = "🚕 Solicitud entrante";
+    const title = "Solicitud entrante";
     const body = "Un cliente cerca de ti necesita servicio";
 
     const message = {
