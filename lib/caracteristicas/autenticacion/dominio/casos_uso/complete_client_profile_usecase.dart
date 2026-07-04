@@ -10,6 +10,7 @@ class CompleteClientProfileParams {
     required this.apellido,
     required this.telefono,
     this.profileImageFile,
+    this.email,
   });
 
   final String uid;
@@ -17,6 +18,7 @@ class CompleteClientProfileParams {
   final String apellido;
   final String telefono;
   final File? profileImageFile;
+  final String? email;
 }
 
 class CompleteClientProfileUseCase {
@@ -41,6 +43,7 @@ class CompleteClientProfileUseCase {
       apellido: params.apellido,
       telefono: params.telefono,
       fotoUrl: fotoUrl,
+      email: params.email,
     );
 
     final updated = await _repository.getClientUserById(params.uid);

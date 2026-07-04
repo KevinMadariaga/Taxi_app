@@ -7,6 +7,72 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 class MarkerIconHelper {
   const MarkerIconHelper._();
 
+  /// Punto azul como el indicador nativo "Mi ubicación" de Google Maps
+  /// (círculo azul sólido + anillo blanco + sombra suave), en vez del pin
+  /// con forma de gota que da `BitmapDescriptor.defaultMarkerWithHue`.
+  ///
+  /// Con [withHeadingCone] dibuja además el cono de dirección (el "haz" que
+  /// se ve en la navegación real de Google Maps) apuntando hacia arriba en
+  /// el propio bitmap — al usar este ícono en un `Marker` con `rotation:` y
+  /// `anchor: Offset(0.5, 0.5)`, el mapa rota el bitmap completo (punto +
+  /// cono) hacia el rumbo real, igual que el puck nativo.
+  static Future<BitmapDescriptor> dot({
+    double size = 44,
+    Color color = const Color(0xFF4285F4),
+    bool withHeadingCone = false,
+  }) async {
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    final center = Offset(size / 2, size / 2);
+    final radius = size * (withHeadingCone ? 0.14 : 0.28);
+
+    if (withHeadingCone) {
+      // Cono de dirección: abanico traslúcido apuntando "hacia arriba" en el
+      // bitmap (rotation del Marker lo orienta al rumbo real en el mapa).
+      // El ancla del Marker queda en el centro exacto del canvas (mismo
+      // punto que el dot), así que radius + coneLength no puede pasar de
+      // size/2 o la punta del cono queda cortada fuera del bitmap.
+      final coneLength = size * 0.28;
+      final coneHalfWidth = size * 0.18;
+      final tip = Offset(center.dx, center.dy - radius - coneLength);
+      final path = Path()
+        ..moveTo(center.dx, center.dy - radius * 0.3)
+        ..lineTo(tip.dx - coneHalfWidth, tip.dy)
+        ..quadraticBezierTo(
+          center.dx,
+          center.dy - radius - coneLength * 0.55,
+          tip.dx + coneHalfWidth,
+          tip.dy,
+        )
+        ..close();
+      canvas.drawPath(
+        path,
+        Paint()
+          ..shader = ui.Gradient.linear(
+            Offset(center.dx, center.dy),
+            tip,
+            [color.withValues(alpha: 0.55), color.withValues(alpha: 0.0)],
+          ),
+      );
+    }
+
+    canvas.drawCircle(
+      center,
+      radius + size * 0.05,
+      Paint()
+        ..color = Colors.black.withValues(alpha: 0.25)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2),
+    );
+    canvas.drawCircle(center, radius + size * 0.05, Paint()..color = Colors.white);
+    canvas.drawCircle(center, radius, Paint()..color = color);
+
+    final image = await recorder
+        .endRecording()
+        .toImage(size.toInt(), size.toInt());
+    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+    return BitmapDescriptor.bytes(bytes!.buffer.asUint8List());
+  }
+
   static Future<BitmapDescriptor?> fromAsset(
     String assetPath, {
     Size size = const Size(52, 52),
@@ -79,7 +145,13 @@ class MarkerIconHelper {
     }
   }
 
-  /// Renders a Material [IconData] as a circular map marker (white bg + primary border).
+  /// Renders a Material [IconData] as a map marker. With [circleBackground]
+  /// (default) it draws a badge behind the icon — [backgroundColor] +
+  /// [borderColor], sized as [backgroundScale] fraction of the full canvas
+  /// (1.0 = badge fills the canvas, like the original big-circle look; a
+  /// smaller value like 0.62 draws a tight, app-branded badge instead of a
+  /// large blank disc). Set `circleBackground` to `false` to render just the
+  /// icon's own shape (e.g. the car silhouette) on a transparent background.
   /// [mirrored] flips the icon horizontally — used for southward headings so the
   /// marker never appears upside-down on the map.
   static Future<BitmapDescriptor> fromIcon(
@@ -87,29 +159,47 @@ class MarkerIconHelper {
     double size,
     Color iconColor, {
     Color borderColor = const Color(0xFFFFCC00),
+    Color backgroundColor = Colors.white,
+    double backgroundScale = 1.0,
     bool mirrored = false,
+    bool circleBackground = true,
   }) async {
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
-    final radius = size / 2;
-    canvas.drawCircle(
-      Offset(radius, radius),
-      radius,
-      Paint()..color = Colors.white,
-    );
-    canvas.drawCircle(
-      Offset(radius, radius),
-      radius - size * 0.04,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = size * 0.07
-        ..color = borderColor,
-    );
+    final radius = (size / 2) * backgroundScale;
+    final center = Offset(size / 2, size / 2);
+    if (circleBackground) {
+      if (backgroundScale < 1.0) {
+        // Badge compacto: sombra suave para que se distinga del mapa sin
+        // necesitar un disco grande.
+        canvas.drawCircle(
+          center,
+          radius,
+          Paint()
+            ..color = Colors.black.withValues(alpha: 0.22)
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
+        );
+      }
+      canvas.drawCircle(center, radius, Paint()..color = backgroundColor);
+      canvas.drawCircle(
+        center,
+        radius - size * 0.04,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = size * 0.07
+          ..color = borderColor,
+      );
+    }
+    // Sin el disco de fondo, el ícono puede ocupar casi todo el lienzo y se
+    // lee como la silueta del vehículo, no como una insignia circular. Con
+    // badge, el ícono escala junto con el tamaño del badge (backgroundScale)
+    // para mantenerse proporcional dentro de él.
+    final fontFraction = circleBackground ? 0.56 * backgroundScale : 0.86;
     final tp = TextPainter(textDirection: TextDirection.ltr)
       ..text = TextSpan(
         text: String.fromCharCode(icon.codePoint),
         style: TextStyle(
-          fontSize: size * 0.56,
+          fontSize: size * fontFraction,
           fontFamily: icon.fontFamily,
           package: icon.fontPackage,
           color: iconColor,

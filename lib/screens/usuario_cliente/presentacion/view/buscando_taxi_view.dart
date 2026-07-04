@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart' hide DeviceType;
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
@@ -24,11 +25,16 @@ import 'package:taxi_app/widgets/intermediate_transition_view.dart';
 class BuscandoTaxiView extends StatefulWidget {
   final String? solicitudId;
   final double defaultMarkerHue;
+  // Ubicación de recogida elegida en DetailsSolicitud (widget.origen). Al
+  // llegar aquí ya no hace falta esperar GPS/caché para centrar el mapa: se
+  // usa directamente el punto que el cliente ya confirmó como su recogida.
+  final LatLng? initialClientLocation;
 
   const BuscandoTaxiView({
     Key? key,
     this.solicitudId,
     this.defaultMarkerHue = BitmapDescriptor.hueYellow,
+    this.initialClientLocation,
   }) : super(key: key);
 
   @override
@@ -97,8 +103,16 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
       duration: const Duration(milliseconds: 900),
     )..repeat();
 
+    // Centra de una vez con el punto de recogida ya elegido en
+    // DetailsSolicitud — no hay que esperar a caché/GPS para dibujar el mapa.
+    _clientLocation = widget.initialClientLocation;
+
     _startSearchTimer();
-    _initClientLocation();
+    if (widget.initialClientLocation == null) {
+      // Solo si no llegó ubicación desde DetailsSolicitud recurrimos a
+      // caché/GPS como respaldo (compatibilidad con navegación antigua).
+      _initClientLocation();
+    }
     _subscribeConductores();
     _subscribeConductoresConectados();
   }
@@ -175,10 +189,11 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
       final lat = prefs.getDouble('cli_last_lat');
       final lng = prefs.getDouble('cli_last_lng');
       if (lat != null && lng != null && mounted) {
+        // Recentrar queda a cargo de _SonarMapWidget.didUpdateWidget al
+        // recibir el nuevo clientLocation (ver _maybeRecenter) — así hay un
+        // solo lugar decidiendo cuándo mover la cámara, con el umbral de
+        // distancia mínima que evita el "salto" por ruido de GPS.
         setState(() => _clientLocation = LatLng(lat, lng));
-        _mapController?.animateCamera(
-          CameraUpdate.newLatLngZoom(_clientLocation!, 14),
-        );
       }
     } catch (_) {}
 
@@ -192,9 +207,6 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
       if (!mounted) return;
       final fresh = LatLng(position.latitude, position.longitude);
       setState(() => _clientLocation = fresh);
-      _mapController?.animateCamera(
-        CameraUpdate.newLatLngZoom(fresh, 14),
-      );
       final prefs = await SharedPreferences.getInstance();
       await prefs.setDouble('cli_last_lat', fresh.latitude);
       await prefs.setDouble('cli_last_lng', fresh.longitude);
@@ -390,7 +402,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
           padding: EdgeInsets.fromLTRB(12, 16, 12, bottomGap),
           child: Material(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(16.r),
             clipBehavior: Clip.antiAlias,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
@@ -398,14 +410,14 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Actualizar valor del servicio',
                     style: TextStyle(
                       fontWeight: FontWeight.w700,
-                      fontSize: 18,
+                      fontSize: 18.sp,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: 8.h),
                   TextField(
                     controller: controller,
                     keyboardType: TextInputType.number,
@@ -428,7 +440,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
                       border: OutlineInputBorder(),
                     ),
                   ),
-                  const SizedBox(height: 10),
+                  SizedBox(height: 10.h),
                   Wrap(
                     spacing: 6,
                     runSpacing: 6,
@@ -436,11 +448,11 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
                       return ActionChip(
                         label: Text(
                           '\$${_formatCurrency(value)}',
-                          style: const TextStyle(fontSize: 13),
+                          style: TextStyle(fontSize: 13.sp),
                         ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 3,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 10.w,
+                          vertical: 3.h,
                         ),
                         materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         onPressed: () {
@@ -455,7 +467,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
                       );
                     }).toList(),
                   ),
-                  const SizedBox(height: 12),
+                  SizedBox(height: 12.h),
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
@@ -486,9 +498,9 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
                               );
                             },
                       child: _vm.isUpdatingValor
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
+                          ? SizedBox(
+                              width: 18.w,
+                              height: 18.h,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
                               ),
@@ -571,14 +583,14 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
               child: Padding(
                 padding: EdgeInsets.symmetric(
                   horizontal: isTablet ? 32 : 16,
-                  vertical: 8,
+                  vertical: 8.h,
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const Spacer(),
                     _buildOfertaActual(isTablet),
-                    const SizedBox(height: 16),
+                    SizedBox(height: 16.h),
                     _SonarMapWidget(
                       clientLocation: _clientLocation,
                       conductoresPositions: _conductoresPositions,
@@ -587,12 +599,12 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
                       ampliarRango: _searchSeconds >= _segundosAviso5min,
                       mapHeight: mapHeight,
                       onMapCreated: (controller) {
+                        // El zoom/centro inicial ya lo fija Mapagoogle con
+                        // initialTarget/initialZoom; re-animar aquí a otro
+                        // zoom (14) lo deshacía apenas se creaba el mapa.
+                        // Los siguientes cambios de ubicación los recentra
+                        // el propio _SonarMapWidget (ver _maybeRecenter).
                         _mapController = controller;
-                        if (_clientLocation != null) {
-                          controller.animateCamera(
-                            CameraUpdate.newLatLngZoom(_clientLocation!, 14),
-                          );
-                        }
                       },
                     ),
                     const Spacer(),
@@ -617,7 +629,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
     return Row(
       children: [
         const Icon(Icons.search, color: AppColores.primary, size: 22),
-        const SizedBox(width: 8),
+        SizedBox(width: 8.w),
         Text(
           'Buscando...',
           style: TextStyle(
@@ -636,7 +648,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
       onTap: _vm.isUpdatingValor ? null : _abrirModalEditarValor,
       child: Container(
         padding: EdgeInsets.symmetric(
-          horizontal: 18,
+          horizontal: 18.w,
           vertical: isTablet ? 18 : 16,
         ),
         decoration: BoxDecoration(
@@ -645,7 +657,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(16.r),
           boxShadow: [
             BoxShadow(
               color: verde.withValues(alpha: 0.35),
@@ -657,8 +669,8 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
         child: Row(
           children: [
             Container(
-              width: 44,
-              height: 44,
+              width: 44.w,
+              height: 44.h,
               decoration: BoxDecoration(
                 color: Colors.white.withValues(alpha: 0.20),
                 shape: BoxShape.circle,
@@ -669,7 +681,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
                 size: 22,
               ),
             ),
-            const SizedBox(width: 14),
+            SizedBox(width: 14.w),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -683,7 +695,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
                       color: Colors.white.withValues(alpha: 0.9),
                     ),
                   ),
-                  const SizedBox(height: 2),
+                  SizedBox(height: 2.h),
                   Text(
                     '\$${_formatCurrency(_vm.valorServicioActual)}',
                     style: TextStyle(
@@ -697,9 +709,9 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
               ),
             ),
             if (_vm.isUpdatingValor)
-              const SizedBox(
-                width: 20,
-                height: 20,
+              SizedBox(
+                width: 20.w,
+                height: 20.h,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
                   color: Colors.white,
@@ -707,23 +719,23 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
               )
             else
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 6,
+                padding: EdgeInsets.symmetric(
+                  horizontal: 10.w,
+                  vertical: 6.h,
                 ),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.20),
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(20.r),
                 ),
-                child: const Row(
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(Icons.edit, size: 14, color: Colors.white),
-                    SizedBox(width: 4),
+                    SizedBox(width: 4.w),
                     Text(
                       'Editar',
                       style: TextStyle(
-                        fontSize: 12.5,
+                        fontSize: 12.5.sp,
                         fontWeight: FontWeight.w700,
                         color: Colors.white,
                       ),
@@ -746,14 +758,14 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
           textAlign: TextAlign.center,
           style: TextStyle(
             color: AppColores.textSecondary,
-            fontSize: isTablet ? 15 : 13,
-            fontWeight: FontWeight.w500,
-            height: 1.4,
+            fontSize: isTablet ? 17 : 15,
+            fontWeight: FontWeight.w600,
+            height: 1.4.h,
           ),
         ),
-        const SizedBox(height: 14),
+        SizedBox(height: 14.h),
         _buildSearchingDots(isTablet),
-        const SizedBox(height: 10),
+        SizedBox(height: 10.h),
         Text(
           _formatDuration(_searchSeconds),
           style: TextStyle(
@@ -811,10 +823,10 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
           });
         }
         return Dialog(
-          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
+          insetPadding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 40.h),
           backgroundColor: AppColores.surface,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(20.r),
           ),
           child: ConstrainedBox(
             constraints: BoxConstraints(
@@ -830,7 +842,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
                     children: [
                       const Icon(Icons.local_taxi,
                           color: AppColores.primary, size: 22),
-                      const SizedBox(width: 8),
+                      SizedBox(width: 8.w),
                       Expanded(
                         child: Text(
                           'Conductores que ofertaron (${ofertas.length})',
@@ -844,12 +856,12 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
                     ],
                   ),
                 ),
-                const Padding(
+                Padding(
                   padding: EdgeInsets.fromLTRB(18, 0, 18, 8),
                   child: Text(
                     'Elige la oferta que prefieras según valor y calificación.',
                     style: TextStyle(
-                      fontSize: 12.5,
+                      fontSize: 12.5.sp,
                       color: AppColores.textSecondary,
                     ),
                   ),
@@ -859,7 +871,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
                     shrinkWrap: true,
                     padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
                     itemCount: ofertas.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 10),
+                    separatorBuilder: (_, _) => SizedBox(height: 10.h),
                     itemBuilder: (_, i) =>
                         _buildContraofertaCard(ofertas[i], isTablet),
                   ),
@@ -875,9 +887,9 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
   /// Estrellas de calificación del conductor (promedio 0-5).
   Widget _buildEstrellas(double calif, int total) {
     if (total <= 0 && calif <= 0) {
-      return const Text(
+      return Text(
         'Conductor nuevo',
-        style: TextStyle(fontSize: 11.5, color: AppColores.textSecondary),
+        style: TextStyle(fontSize: 11.5.sp, color: AppColores.textSecondary),
       );
     }
     return Row(
@@ -894,11 +906,11 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
           }
           return Icon(icon, size: 15, color: AppColores.warning);
         }),
-        const SizedBox(width: 4),
+        SizedBox(width: 4.w),
         Text(
           '${calif.toStringAsFixed(1)} ($total)',
-          style: const TextStyle(
-            fontSize: 11.5,
+          style: TextStyle(
+            fontSize: 11.5.sp,
             fontWeight: FontWeight.w600,
             color: AppColores.textSecondary,
           ),
@@ -915,14 +927,14 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
     return Container(
       decoration: BoxDecoration(
         color: AppColores.cardBackground,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(14.r),
         border: Border.all(color: AppColores.buttonPrimary, width: 1.5),
         boxShadow: const [
           BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0, 2)),
         ],
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -941,7 +953,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
                         )
                       : null,
                 ),
-                const SizedBox(width: 10),
+                SizedBox(width: 10.w),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -965,12 +977,12 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
                             color: AppColores.textSecondary,
                           ),
                         ),
-                      const SizedBox(height: 4),
+                      SizedBox(height: 4.h),
                       _buildEstrellas(o.calificacion, o.totalCalificaciones),
                     ],
                   ),
                 ),
-                const SizedBox(width: 10),
+                SizedBox(width: 10.w),
                 Text(
                   '\$${_formatCurrency(o.valor)}',
                   style: TextStyle(
@@ -981,7 +993,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: 12.h),
             // Botones debajo de la calificación, ocupando el ancho.
             Row(
               children: [
@@ -994,7 +1006,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
                     onTap: () => _rechazarOferta(o.conductorId),
                   ),
                 ),
-                const SizedBox(width: 10),
+                SizedBox(width: 10.w),
                 Expanded(
                   child: _OfertaButton(
                     label: 'Aceptar',
@@ -1034,7 +1046,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
   Widget _buildCancelButton(bool isTablet) {
     return SizedBox(
       width: double.infinity,
-      height: 48,
+      height: 48.h,
       child: ElevatedButton(
         onPressed: _vm.isCancelling ? null : _cancelSolicitud,
         style: ElevatedButton.styleFrom(
@@ -1042,7 +1054,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
           foregroundColor: AppColores.textWhite,
           disabledBackgroundColor: AppColores.grey400,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(12.r),
           ),
           textStyle: TextStyle(
             fontSize: isTablet ? 16 : 14,
@@ -1050,9 +1062,9 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
           ),
         ),
         child: _vm.isCancelling
-            ? const SizedBox(
-                width: 18,
-                height: 18,
+            ? SizedBox(
+                width: 18.w,
+                height: 18.h,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
                   color: AppColores.textWhite,
@@ -1074,7 +1086,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
             final active = phase < 0.5;
             return AnimatedContainer(
               duration: const Duration(milliseconds: 180),
-              margin: const EdgeInsets.symmetric(horizontal: 5),
+              margin: EdgeInsets.symmetric(horizontal: 5.w),
               width: isTablet ? 12 : 10,
               height: isTablet ? 12 : 10,
               decoration: BoxDecoration(
@@ -1120,20 +1132,31 @@ class _SonarMapWidget extends StatefulWidget {
   State<_SonarMapWidget> createState() => _SonarMapWidgetState();
 }
 
-class _SonarMapWidgetState extends State<_SonarMapWidget> {
+class _SonarMapWidgetState extends State<_SonarMapWidget>
+    with SingleTickerProviderStateMixin {
   static const _defaultCenter = LatLng(8.2595534, -73.353469);
+  // Anillos concéntricos desfasados en el tiempo (estilo Uber/Didi): cada uno
+  // expande y se desvanece; al estar desfasados, nunca se ve un "salto" o
+  // reinicio brusco como con un único círculo que resetea su radio.
+  static const _ringCount = 3;
+  static const _ringCycleDuration = Duration(milliseconds: 2600);
+  // Recalcular qué conductores conectados caen dentro del radio a un ritmo
+  // bajo (no ligado a la animación visual, que corre a la frecuencia del
+  // vsync): las posiciones de los conductores no cambian tan rápido y así
+  // evitamos recomputar Sets de marcadores en cada frame.
+  static const _driverVisibilityInterval = Duration(milliseconds: 900);
+
+  GoogleMapController? _controller;
 
   BitmapDescriptor? _taxiIcon;
   BitmapDescriptor? _smallTaxiIcon;
   BitmapDescriptor? _bigTaxiIcon;
   BitmapDescriptor? _motoIcon;
 
-  double _sonarRadius = 220.0;
+  late final AnimationController _sonarController;
   // Radio máximo del sonar; se amplía tras 5 min sin encontrar conductor.
   double get _maxSonarRadius => widget.ampliarRango ? 1500.0 : 700.0;
-  Timer? _sonarTimer;
-  Set<Circle> _sonarCircles = {};
-  Set<Circle> _clientCircles = {};
+  Timer? _driverVisibilityTimer;
   Set<Marker> _taxiMarkers = {};
   Set<Marker> _conectadosMarkers = {};
   final Set<String> _visibleConectadosIds = {};
@@ -1144,16 +1167,29 @@ class _SonarMapWidgetState extends State<_SonarMapWidget> {
     _loadTaxiIcon();
     _loadSmallTaxiIcon();
     _loadMotoIcon();
-    _updateClientCircle();
-    _startSonarTimer();
+
+    _sonarController = AnimationController(
+      vsync: this,
+      duration: _ringCycleDuration,
+    )..repeat();
+
+    _updateVisibleConectadosMarkers();
+    _driverVisibilityTimer = Timer.periodic(_driverVisibilityInterval, (_) {
+      if (!mounted) return;
+      setState(_updateVisibleConectadosMarkers);
+    });
   }
 
   Future<void> _loadMotoIcon() async {
     try {
       _motoIcon = await MarkerIconHelper.fromIcon(
         Icons.two_wheeler_rounded,
-        60,
+        48,
         const Color(0xFF111111),
+        circleBackground: true,
+        backgroundColor: AppColores.primary,
+        backgroundScale: 0.64,
+        borderColor: Colors.white,
       );
       if (!mounted) return;
       _updateTaxiMarkers();
@@ -1166,7 +1202,10 @@ class _SonarMapWidgetState extends State<_SonarMapWidget> {
   void didUpdateWidget(_SonarMapWidget old) {
     super.didUpdateWidget(old);
     if (old.conductoresPositions != widget.conductoresPositions ||
+        old.conectadosPositions != widget.conectadosPositions ||
         old.isMoto != widget.isMoto) {
+      // _updateTaxiMarkers excluye los ids que ya están en conectadosPositions
+      // (evita el ícono duplicado), así que también depende de ese mapa.
       _updateTaxiMarkers();
     }
     if (old.conectadosPositions != widget.conectadosPositions ||
@@ -1174,56 +1213,39 @@ class _SonarMapWidgetState extends State<_SonarMapWidget> {
       _updateVisibleConectadosMarkers();
     }
     if (old.clientLocation != widget.clientLocation) {
-      _updateClientCircle();
+      _maybeRecenter(widget.clientLocation);
     }
+  }
+
+  // Última posición sobre la que se centró la cámara; evita re-centrar por
+  // el ruido normal del GPS (variaciones de 1-3 m aun estando quieto), que
+  // es justo lo que hacía parecer que "el sonar se mueve por todo el mapa":
+  // cada micro-corrección de ubicación desplazaba el mapa bajo el overlay
+  // fijo. El puntero del cliente debe verse clavado en su sitio.
+  LatLng? _lastCenteredAt;
+  static const _minRecenterMeters = 12.0;
+
+  void _maybeRecenter(LatLng? loc) {
+    if (loc == null) return;
+    final last = _lastCenteredAt;
+    if (last != null) {
+      final moved = Geolocator.distanceBetween(
+        last.latitude,
+        last.longitude,
+        loc.latitude,
+        loc.longitude,
+      );
+      if (moved < _minRecenterMeters) return;
+    }
+    _lastCenteredAt = loc;
+    _controller?.animateCamera(CameraUpdate.newLatLng(loc));
   }
 
   @override
   void dispose() {
-    _sonarTimer?.cancel();
+    _sonarController.dispose();
+    _driverVisibilityTimer?.cancel();
     super.dispose();
-  }
-
-  // ── Sonar ─────────────────────────────────────────────────────────────────
-
-  void _startSonarTimer() {
-    _sonarTimer?.cancel();
-    _sonarTimer = Timer.periodic(const Duration(milliseconds: 350), (_) {
-      if (!mounted) return;
-      setState(() {
-        _sonarRadius += 50;
-        if (_sonarRadius > _maxSonarRadius) _sonarRadius = 250;
-        _sonarCircles = {
-          Circle(
-            circleId: const CircleId('sonar'),
-            center: widget.clientLocation ?? _defaultCenter,
-            radius: _sonarRadius,
-            strokeColor: AppColores.primary,
-            strokeWidth: 2,
-            fillColor: AppColores.primary.withValues(alpha: 0.08),
-          ),
-        };
-        _updateVisibleConectadosMarkers();
-      });
-    });
-  }
-
-  void _updateClientCircle() {
-    final loc = widget.clientLocation;
-    if (loc == null) {
-      _clientCircles = {};
-      return;
-    }
-    _clientCircles = {
-      Circle(
-        circleId: const CircleId('client_point'),
-        center: loc,
-        radius: 30,
-        strokeColor: AppColores.primary,
-        strokeWidth: 2,
-        fillColor: AppColores.primary,
-      ),
-    };
   }
 
   // ── Marcadores de taxis disponibles ───────────────────────────────────────
@@ -1237,16 +1259,25 @@ class _SonarMapWidgetState extends State<_SonarMapWidget> {
     }
     final motoIcon = _motoIcon ??
         BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange);
-    final markers = widget.conductoresPositions.entries.map((e) {
-      return Marker(
-        markerId: MarkerId('taxi_${e.key}'),
-        position: e.value,
-        icon: isMoto ? motoIcon : _taxiIcon!,
-        infoWindow: InfoWindow(
-          title: isMoto ? 'Moto cercana' : 'Taxi cercano',
-        ),
-      );
-    }).toSet();
+    // `conductoresPositions` (usuarios/disponible) y `conectadosPositions`
+    // (conductores_conectados) suelen traer al mismo conductor por ser
+    // colecciones distintas para el mismo estado — sin este filtro salían
+    // dos íconos superpuestos para un solo conductor real. El de conectados
+    // ya se dibuja aparte (con animación de aparición), así que aquí se
+    // excluye para no duplicarlo.
+    final markers = widget.conductoresPositions.entries
+        .where((e) => !widget.conectadosPositions.containsKey(e.key))
+        .map((e) {
+          return Marker(
+            markerId: MarkerId('taxi_${e.key}'),
+            position: e.value,
+            icon: isMoto ? motoIcon : _taxiIcon!,
+            infoWindow: InfoWindow(
+              title: isMoto ? 'Moto cercana' : 'Taxi cercano',
+            ),
+          );
+        })
+        .toSet();
     setState(() => _taxiMarkers = markers);
   }
 
@@ -1267,7 +1298,10 @@ class _SonarMapWidgetState extends State<_SonarMapWidget> {
         pos.latitude,
         pos.longitude,
       );
-      if (distance > _sonarRadius) continue;
+      // El sonar visual barre en anillos hasta _maxSonarRadius; un conductor
+      // "cerca" es cualquiera dentro de ese radio máximo (los anillos son
+      // solo la animación, no un filtro de distancia variable en el tiempo).
+      if (distance > _maxSonarRadius) continue;
 
       newVisibleIds.add(id);
       final isNew = !_visibleConectadosIds.contains(id);
@@ -1354,8 +1388,12 @@ class _SonarMapWidgetState extends State<_SonarMapWidget> {
     try {
       _taxiIcon = await MarkerIconHelper.fromIcon(
         Icons.directions_car_rounded,
-        60,
+        48,
         const Color(0xFF111111),
+        circleBackground: true,
+        backgroundColor: AppColores.primary,
+        backgroundScale: 0.64,
+        borderColor: Colors.white,
       );
       if (!mounted) return;
       _updateTaxiMarkers();
@@ -1366,14 +1404,22 @@ class _SonarMapWidgetState extends State<_SonarMapWidget> {
     try {
       _smallTaxiIcon = await MarkerIconHelper.fromIcon(
         Icons.directions_car_rounded,
-        54,
+        42,
         const Color(0xFF111111),
+        circleBackground: true,
+        backgroundColor: AppColores.primary,
+        backgroundScale: 0.64,
+        borderColor: Colors.white,
       );
       if (!mounted) return;
       _bigTaxiIcon = await MarkerIconHelper.fromIcon(
         Icons.directions_car_rounded,
-        70,
+        56,
         const Color(0xFF111111),
+        circleBackground: true,
+        backgroundColor: AppColores.primary,
+        backgroundScale: 0.64,
+        borderColor: Colors.white,
       );
       if (!mounted) return;
       setState(() {});
@@ -1390,7 +1436,7 @@ class _SonarMapWidgetState extends State<_SonarMapWidget> {
       height: widget.mapHeight,
       decoration: BoxDecoration(
         color: AppColores.cardBackground,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(16.r),
         border: Border.all(color: AppColores.borderSubtle),
         boxShadow: const [
           BoxShadow(
@@ -1401,22 +1447,133 @@ class _SonarMapWidgetState extends State<_SonarMapWidget> {
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: Mapagoogle(
-          initialTarget: center,
-          initialZoom: 14,
-          markers: {..._taxiMarkers, ..._conectadosMarkers},
-          circles: {..._sonarCircles, ..._clientCircles},
-          onMapCreated: widget.onMapCreated,
-          zoomGesturesEnabled: false,
-          rotateGesturesEnabled: false,
-          tiltGesturesEnabled: false,
-          compassEnabled: false,
-          mapToolbarEnabled: false,
+        borderRadius: BorderRadius.circular(16.r),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // El mapa solo lleva los marcadores reales (posición geográfica
+            // de conductores). El radar NO se dibuja con Circle nativos:
+            // animarlos a 60fps manda un mensaje por canal de plataforma a
+            // Android/iOS en cada frame, y en Android eso es lo que causaba
+            // el trabado. El radar es un dibujo 100% Flutter encima del mapa.
+            Mapagoogle(
+              initialTarget: center,
+              initialZoom: 17.0,
+              markers: {..._taxiMarkers, ..._conectadosMarkers},
+              onMapCreated: (controller) {
+                _controller = controller;
+                _lastCenteredAt = center;
+                widget.onMapCreated(controller);
+              },
+              // Pantalla puramente informativa ("buscando cerca de ti"): el
+              // puntero no debe poder arrastrarse ni el mapa acercarse o
+              // rotarse por gesto — toda interacción queda deshabilitada.
+              zoomGesturesEnabled: false,
+              scrollGesturesEnabled: false,
+              rotateGesturesEnabled: false,
+              tiltGesturesEnabled: false,
+              compassEnabled: false,
+              mapToolbarEnabled: false,
+            ),
+            // La cámara siempre está centrada en el cliente (ver
+            // didUpdateWidget/onMapCreated), así que el overlay centrado en
+            // el contenedor coincide visualmente con su ubicación real.
+            IgnorePointer(
+              child: RepaintBoundary(
+                child: AnimatedBuilder(
+                  animation: _sonarController,
+                  builder: (context, _) {
+                    return CustomPaint(
+                      painter: _RadarPainter(
+                        progress: _sonarController.value,
+                        color: AppColores.primary,
+                        ringCount: _ringCount,
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
+}
+
+/// Dibuja el radar (anillos concéntricos que expanden y se desvanecen, más
+/// el punto "tu ubicación" en el centro) en un solo pase de Canvas. Es pura
+/// composición de Flutter/Skia — no pasa por el canal de plataforma del mapa,
+/// así que animar a 60fps no tiene costo nativo ni en Android ni en iOS.
+class _RadarPainter extends CustomPainter {
+  const _RadarPainter({
+    required this.progress,
+    required this.color,
+    required this.ringCount,
+  });
+
+  final double progress;
+  final Color color;
+  final int ringCount;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    final maxRadius = size.shortestSide * 0.42;
+
+    for (var i = 0; i < ringCount; i++) {
+      final phase = (progress + i / ringCount) % 1.0;
+      final eased = Curves.easeOut.transform(phase);
+      final radius = eased * maxRadius;
+      final fade = (1.0 - phase).clamp(0.0, 1.0);
+
+      canvas.drawCircle(
+        center,
+        radius,
+        Paint()
+          ..style = PaintingStyle.fill
+          ..color = color.withValues(alpha: fade * 0.10),
+      );
+      canvas.drawCircle(
+        center,
+        radius,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.5
+          ..color = color.withValues(alpha: fade * 0.6),
+      );
+    }
+
+    // Halo suave + punto sólido con borde blanco: "estás aquí".
+    canvas.drawCircle(
+      center,
+      22,
+      Paint()
+        ..style = PaintingStyle.fill
+        ..color = color.withValues(alpha: 0.14),
+    );
+    canvas.drawCircle(
+      center,
+      8,
+      Paint()
+        ..style = PaintingStyle.fill
+        ..color = color,
+    );
+    canvas.drawCircle(
+      center,
+      8,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.5
+        ..color = Colors.white,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _RadarPainter oldDelegate) =>
+      oldDelegate.progress != progress ||
+      oldDelegate.color != color ||
+      oldDelegate.ringCount != ringCount;
 }
 
 
@@ -1451,16 +1608,16 @@ class _OfertaButton extends StatelessWidget {
         child: Container(
           width: double.infinity,
           alignment: Alignment.center,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
           decoration: BoxDecoration(
             color: color,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(12.r),
           ),
           child: Text(
             label,
             textAlign: TextAlign.center,
             style: TextStyle(
-              fontSize: 14,
+              fontSize: 14.sp,
               fontWeight: FontWeight.w700,
               color: textColor,
             ),

@@ -3,6 +3,8 @@ import 'dart:math' as Math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -91,7 +93,6 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
   LatLng? _lastRawConductor;
   DateTime? _lastRawConductorAt;
   Set<Polyline> _polylines = {};
-  BitmapDescriptor? _conductorMarkerIcon;
   BitmapDescriptor? _destinoMarkerIcon;
   double _conductorRotation = 0;
   String _distancia = '';
@@ -231,8 +232,11 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
             _polylines = {
               Polyline(
                 polylineId: const PolylineId('ruta'),
-                color: AppColores.buttonPrimary,
-                width: 6,
+                color: AppColores.route,
+                width: 7,
+                jointType: JointType.round,
+                startCap: Cap.roundCap,
+                endCap: Cap.roundCap,
                 points: visibleRoute,
               ),
             };
@@ -269,8 +273,11 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
         _polylines = {
           Polyline(
             polylineId: const PolylineId('ruta'),
-            color: AppColores.buttonPrimary,
-            width: 6,
+            color: AppColores.route,
+            width: 7,
+            jointType: JointType.round,
+            startCap: Cap.roundCap,
+            endCap: Cap.roundCap,
             points: visibleRoute,
           ),
         };
@@ -296,51 +303,6 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
     }
   }
 
-  LatLngBounds _buildBounds(LatLng a, LatLng b) {
-    return LatLngBounds(
-      southwest: LatLng(
-        a.latitude < b.latitude ? a.latitude : b.latitude,
-        a.longitude < b.longitude ? a.longitude : b.longitude,
-      ),
-      northeast: LatLng(
-        a.latitude > b.latitude ? a.latitude : b.latitude,
-        a.longitude > b.longitude ? a.longitude : b.longitude,
-      ),
-    );
-  }
-
-  LatLngBounds _buildExpandedBounds(
-    LatLng a,
-    LatLng b, {
-    double expansionFactor = 0.2,
-    double minDelta = 0.001,
-  }) {
-    final base = _buildBounds(a, b);
-    final latDelta = (base.northeast.latitude - base.southwest.latitude).abs();
-    final lngDelta = (base.northeast.longitude - base.southwest.longitude)
-        .abs();
-
-    final extraLat = Math.max(latDelta * expansionFactor, minDelta);
-    final extraLng = Math.max(lngDelta * expansionFactor, minDelta);
-
-    return LatLngBounds(
-      southwest: LatLng(
-        base.southwest.latitude - extraLat,
-        base.southwest.longitude - extraLng,
-      ),
-      northeast: LatLng(
-        base.northeast.latitude + extraLat,
-        base.northeast.longitude + extraLng,
-      ),
-    );
-  }
-
-  double _cameraPaddingForDistance(double distanceMeters) {
-    if (distanceMeters < 400) return 130;
-    if (distanceMeters < 1500) return 110;
-    if (distanceMeters < 5000) return 96;
-    return 84;
-  }
 
   double _normalizeAngle(double angle) {
     final normalized = angle % 360;
@@ -516,8 +478,11 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
       _polylines = {
         Polyline(
           polylineId: const PolylineId('ruta'),
-          color: AppColores.buttonPrimary,
-          width: 6,
+          color: AppColores.route,
+          width: 7,
+          jointType: JointType.round,
+          startCap: Cap.roundCap,
+          endCap: Cap.roundCap,
           points: visibleRoute,
         ),
       };
@@ -525,9 +490,12 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
       _conductorRotation = nextRotation;
     });
 
-    // Camera follow suave: cada 40 ticks (2s) seguir al conductor
+    // Camera follow: cada 8 ticks (~400ms) recentra el mapa en el conductor,
+    // orientado en su dirección de avance por la calle — antes eran 40 ticks
+    // (2s), tan espaciado que el marcador se notaba "caminar" lejos del
+    // centro entre cada corrección en vez de verse siempre centrado.
     _cameraFollowTick++;
-    if (_cameraFollowTick >= 40 && !_mostrarSoloDestino && _mapController != null) {
+    if (_cameraFollowTick >= 8 && !_mostrarSoloDestino && _mapController != null) {
       _cameraFollowTick = 0;
       unawaited(
         _mapController!.animateCamera(
@@ -840,51 +808,23 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
     final controller = _mapController;
     if (controller == null || conductor == null || destino == null) return;
 
-    final vm = Provider.of<Rutaclientedestinoviewmodel>(context, listen: false);
-    final persp = vm.getCameraPerspective();
-
-    if (persp != null) {
-      try {
-        await controller.animateCamera(CameraUpdate.newCameraPosition(persp));
-        return;
-      } catch (_) {}
-    }
-
-    // Fallback to old logic if perspective fails or is null
-    final distanceMeters = _calculateDistance(
-      conductor.latitude,
-      conductor.longitude,
-      destino.latitude,
-      destino.longitude,
+    // Mismo patrón que RutaDestinoView._fitMarkers (pantalla del conductor):
+    // un solo newLatLngBounds con padding fijo. El SDK de Google Maps ya
+    // calcula el zoom que hace falta para que ambos puntos queden visibles,
+    // sin necesitar zoom manual por distancia ni bounds "expandidos" a mano.
+    final bounds = LatLngBounds(
+      southwest: LatLng(
+        Math.min(conductor.latitude, destino.latitude),
+        Math.min(conductor.longitude, destino.longitude),
+      ),
+      northeast: LatLng(
+        Math.max(conductor.latitude, destino.latitude),
+        Math.max(conductor.longitude, destino.longitude),
+      ),
     );
-    final bounds = _buildExpandedBounds(
-      conductor,
-      destino,
-      minDelta: distanceMeters < 500 ? 0.0012 : 0.0008,
-    );
-    final center = LatLng(
-      (conductor.latitude + destino.latitude) / 2,
-      (conductor.longitude + destino.longitude) / 2,
-    );
-    final dy = destino.latitude - conductor.latitude;
-    final dx = destino.longitude - conductor.longitude;
-    final bearing = (Math.atan2(dx, dy) * 180 / Math.pi + 360) % 360;
-    final targetZoom = _getZoomLevel(distanceMeters);
 
     try {
-      await controller.animateCamera(
-        CameraUpdate.newLatLngBounds(
-          bounds,
-          _cameraPaddingForDistance(distanceMeters),
-        ),
-      );
-      final currentZoom = await controller.getZoomLevel();
-      final regulatedZoom = currentZoom > targetZoom ? targetZoom : currentZoom;
-      await controller.animateCamera(
-        CameraUpdate.newCameraPosition(
-          CameraPosition(target: center, zoom: regulatedZoom, bearing: bearing),
-        ),
-      );
+      await controller.animateCamera(CameraUpdate.newLatLngBounds(bounds, 80));
     } catch (_) {}
   }
 
@@ -911,20 +851,6 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
             Math.sin(dLon / 2);
     final c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
-  }
-
-  // Devuelve un nivel de zoom adecuado según la distancia en metros
-  double _getZoomLevel(double distanceMeters) {
-    if (distanceMeters < 80) return 18.0;
-    if (distanceMeters < 180) return 17.3;
-    if (distanceMeters < 400) return 16.6;
-    if (distanceMeters < 900) return 15.9;
-    if (distanceMeters < 1800) return 15.2;
-    if (distanceMeters < 3500) return 14.5;
-    if (distanceMeters < 7000) return 13.8;
-    if (distanceMeters < 13000) return 13.1;
-    if (distanceMeters < 22000) return 12.4;
-    return 11.8;
   }
 
   @override
@@ -988,31 +914,31 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
         context: context,
         isScrollControlled: true,
         backgroundColor: Colors.white,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24.r)),
         ),
         builder: (context) {
           return SafeArea(
             child: Container(
-              padding: const EdgeInsets.all(24),
+              padding: EdgeInsets.all(24.w),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Container(
-                    width: 40,
-                    height: 4,
+                    width: 40.w,
+                    height: 4.h,
                     decoration: BoxDecoration(
                       color: Colors.grey.shade300,
-                      borderRadius: BorderRadius.circular(2),
+                      borderRadius: BorderRadius.circular(2.r),
                     ),
                   ),
-                  const SizedBox(height: 24),
-                  const Text(
+                  SizedBox(height: 24.h),
+                  Text(
                     'Compartir ubicación',
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                    style: TextStyle(fontSize: 22.sp, fontWeight: FontWeight.bold),
                   ),
-                  const SizedBox(height: 32),
+                  SizedBox(height: 32.h),
                   ElevatedButton.icon(
                     icon: const Icon(Icons.map, color: Colors.white),
                     label: const Text(
@@ -1023,14 +949,14 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
                       backgroundColor: AppColores.primary,
                       minimumSize: const Size(double.infinity, 50),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(12.r),
                       ),
                     ),
                     onPressed: () async {
                       await launchUrl(Uri.parse(url));
                     },
                   ),
-                  const SizedBox(height: 16),
+                  SizedBox(height: 16.h),
                   ElevatedButton.icon(
                     icon: const Icon(Icons.chat, color: Colors.white),
                     label: const Text(
@@ -1041,7 +967,7 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
                       backgroundColor: Colors.green,
                       minimumSize: const Size(double.infinity, 50),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(12.r),
                       ),
                     ),
                     onPressed: () async {
@@ -1078,28 +1004,28 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
       context: context,
       backgroundColor: Colors.white,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24.r)),
       ),
       builder: (ctx) {
         return SafeArea(
           child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 24.0,
-              vertical: 16.0,
+            padding: EdgeInsets.symmetric(
+              horizontal: 24.0.w,
+              vertical: 16.0.h,
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
-                  width: 40,
-                  height: 4,
+                  width: 40.w,
+                  height: 4.h,
                   decoration: BoxDecoration(
                     color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(2),
+                    borderRadius: BorderRadius.circular(2.r),
                   ),
                 ),
-                const SizedBox(height: 16),
+                SizedBox(height: 16.h),
                 Row(
                   children: [
                     CircleAvatar(
@@ -1116,28 +1042,28 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
                             )
                           : null,
                     ),
-                    const SizedBox(width: 12),
+                    SizedBox(width: 12.w),
                     Expanded(
                       child: Text(
                         vm.nombreConductor.isNotEmpty
                             ? vm.nombreConductor
                             : 'Conductor',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontWeight: FontWeight.bold,
-                          fontSize: 16,
+                          fontSize: 16.sp,
                           color: AppColores.textPrimary,
                         ),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 24),
-                const Divider(height: 1, color: Colors.black12),
+                SizedBox(height: 24.h),
+                Divider(height: 1.h, color: Colors.black12),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: const Text(
+                  title: Text(
                     '¿Cuál es el estado de mi solicitud?',
-                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15.sp),
                   ),
                   trailing: const Icon(
                     Icons.chevron_right,
@@ -1151,12 +1077,12 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
                     );
                   },
                 ),
-                const Divider(height: 1, color: Colors.black12),
+                Divider(height: 1.h, color: Colors.black12),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: const Text(
+                  title: Text(
                     'Problemas con el conductor',
-                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15.sp),
                   ),
                   trailing: const Icon(
                     Icons.chevron_right,
@@ -1194,8 +1120,8 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
       context: context,
       backgroundColor: Colors.white,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24.r)),
       ),
       builder: (ctx) {
         return SafeArea(
@@ -1212,24 +1138,24 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
                 children: [
                   Center(
                     child: Container(
-                      width: 44,
-                      height: 4,
+                      width: 44.w,
+                      height: 4.h,
                       decoration: BoxDecoration(
                         color: AppColores.grey300,
-                        borderRadius: BorderRadius.circular(2),
+                        borderRadius: BorderRadius.circular(2.r),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 18),
-                  const Text(
+                  SizedBox(height: 18.h),
+                  Text(
                     'Detalles del servicio',
                     style: TextStyle(
-                      fontSize: 20,
+                      fontSize: 20.sp,
                       fontWeight: FontWeight.w800,
                       color: AppColores.textPrimary,
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  SizedBox(height: 16.h),
                   // Conductor + vehículo asignado.
                   Row(
                     children: [
@@ -1247,57 +1173,57 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
                               )
                             : null,
                       ),
-                      const SizedBox(width: 14),
+                      SizedBox(width: 14.w),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
+                            Text(
                               'Conductor',
                               style: TextStyle(
                                 color: AppColores.textSecondary,
-                                fontSize: 12.5,
+                                fontSize: 12.5.sp,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
-                            const SizedBox(height: 2),
+                            SizedBox(height: 2.h),
                             Text(
                               nombre,
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontWeight: FontWeight.w800,
-                                fontSize: 17,
+                                fontSize: 17.sp,
                                 color: AppColores.textPrimary,
                               ),
                             ),
                           ],
                         ),
                       ),
-                      const SizedBox(width: 10),
+                      SizedBox(width: 10.w),
                       _DetalleVehiculoChip(
                         foto: vm.fotoVehiculo,
                         placa: vm.placaVehiculo,
                       ),
                     ],
                   ),
-                  const SizedBox(height: 18),
-                  const Divider(height: 1, color: AppColores.borderSubtle),
-                  const SizedBox(height: 14),
+                  SizedBox(height: 18.h),
+                  Divider(height: 1.h, color: AppColores.borderSubtle),
+                  SizedBox(height: 14.h),
                   _DetalleRow(
                     icon: Icons.location_on,
                     color: AppColores.error,
                     label: 'Ubicación destino',
                     value: destino,
                   ),
-                  const SizedBox(height: 12),
+                  SizedBox(height: 12.h),
                   _DetalleRow(
                     icon: Icons.attach_money_rounded,
                     color: AppColores.success,
                     label: 'Valor del servicio',
                     value: valor,
                   ),
-                  const SizedBox(height: 12),
+                  SizedBox(height: 12.h),
                   _DetalleRow(
                     icon: pagoIcon,
                     color: AppColores.secondary,
@@ -1330,13 +1256,6 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
             ? LatLng(vm.latConductor!, vm.lngConductor!)
             : null);
     final markers = <Marker>{
-      if (conductorLatLng != null)
-        Marker(
-          markerId: const MarkerId('conductor'),
-          position: conductorLatLng,
-          infoWindow: const InfoWindow(title: 'Conductor'),
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
-        ),
       if (destinoLatLng != null)
         Marker(
           markerId: const MarkerId('destino'),
@@ -1349,7 +1268,7 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
     };
 
     final mq = MediaQuery.of(context);
-    final safeBottom = mq.padding.bottom > 0 ? mq.padding.bottom : 20.0;
+    final safeBottom = mq.padding.bottom > 0 ? mq.padding.bottom: 20.0.h;
 
     return Stack(
       children: [
@@ -1366,7 +1285,7 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
 
         // Controles Inferiores — a la izquierda: FAB centrar + botón emergencia.
         Positioned(
-          left: 16,
+          left: 16.w,
           bottom: safeBottom + 16,
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1385,21 +1304,47 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
                   });
                   if (_mapController == null) return;
                   if (_mostrarSoloDestino && destinoLatLng != null) {
+                    // Alejar: vista del destino con más contexto alrededor.
                     await _mapController!.animateCamera(
                       CameraUpdate.newCameraPosition(
                         CameraPosition(
                           target: destinoLatLng,
-                          zoom: 15.8,
+                          zoom: 17,
                           tilt: 0,
                         ),
                       ),
                     );
                     return;
                   }
-                  await _fitConductorDestinoCamera(conductorLatLng, destinoLatLng);
+                  // Acercar: sin marcador propio de conductor en este mapa,
+                  // "centrar" en el segundo tap vuelve a la ubicación real
+                  // del cliente (el punto azul nativo de myLocationEnabled).
+                  // El propio mapa ya sigue esa posición en tiempo real para
+                  // dibujar el punto azul, así que primero se reusa la última
+                  // posición conocida por el SO (instantánea, sin gastar GPS
+                  // ni batería) en vez de pedir un fix nuevo en cada tap; solo
+                  // se solicita uno fresco si de verdad no hay nada en caché.
+                  try {
+                    Position? pos = await Geolocator.getLastKnownPosition();
+                    pos ??= await Geolocator.getCurrentPosition(
+                      locationSettings: const LocationSettings(
+                        accuracy: LocationAccuracy.high,
+                      ),
+                    );
+                    if (!mounted || _mapController == null) return;
+                    await _mapController!.animateCamera(
+                      CameraUpdate.newCameraPosition(
+                        CameraPosition(
+                          target: LatLng(pos.latitude, pos.longitude),
+                          zoom: 19,
+                          tilt: 0,
+                        ),
+                      ),
+                    );
+                  } catch (_) {}
                 },
               ),
-              const SizedBox(height: 10),
+              SizedBox(height: 10.h),
               const PanicButtonFab(),
             ],
           ),
@@ -1407,9 +1352,9 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
 
         // Tarjeta Superior Flotante
         Positioned(
-          top: 0,
-          left: 0,
-          right: 0,
+          top: 0.h,
+          left: 0.w,
+          right: 0.w,
           child: UserTripInfoCard(
             title: 'En camino al destino',
             isMoto: _isMoto,
@@ -1472,10 +1417,10 @@ class _MapWidget extends StatelessWidget {
           initialZoom: 15.0,
           markers: markers,
           polylines: polylines,
-          myLocationEnabled: false,
+          myLocationEnabled: true,
           myLocationButtonEnabled: false,
           // Shift visual center down below the top info card
-          padding: const EdgeInsets.only(top: 180, bottom: 20),
+          padding: EdgeInsets.only(top: 180.h, bottom: 20.h),
           onMapCreated: (controller) {
             mapControllerSetter(controller);
           },
@@ -1543,8 +1488,8 @@ class _DetalleRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          width: 32,
-          height: 32,
+          width: 32.w,
+          height: 32.h,
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: iconImage != null
@@ -1558,31 +1503,31 @@ class _DetalleRow extends StatelessWidget {
           child: iconImage != null
               ? Image.asset(
                   iconImage!,
-                  width: 20,
-                  height: 20,
+                  width: 20.w,
+                  height: 20.h,
                   errorBuilder: (_, _, _) => Icon(icon, color: color, size: 18),
                 )
               : Icon(icon, color: color, size: 18),
         ),
-        const SizedBox(width: 12),
+        SizedBox(width: 12.w),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 label,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColores.textSecondary,
-                  fontSize: 12.5,
+                  fontSize: 12.5.sp,
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              const SizedBox(height: 2),
+              SizedBox(height: 2.h),
               Text(
                 value,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColores.textPrimary,
-                  fontSize: 14.5,
+                  fontSize: 14.5.sp,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -1606,10 +1551,10 @@ class _DetalleVehiculoChip extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         ClipRRect(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(12.r),
           child: Container(
-            width: 72,
-            height: 54,
+            width: 72.w,
+            height: 54.h,
             color: AppColores.grey200,
             child: foto.isNotEmpty
                 ? Image.network(foto, fit: BoxFit.cover)
@@ -1617,19 +1562,19 @@ class _DetalleVehiculoChip extends StatelessWidget {
           ),
         ),
         if (placa.isNotEmpty) ...[
-          const SizedBox(height: 4),
+          SizedBox(height: 4.h),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 2.h),
             decoration: BoxDecoration(
               color: AppColores.textPrimary,
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(6.r),
             ),
             child: Text(
               placa.toUpperCase(),
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColores.textWhite,
                 fontWeight: FontWeight.w800,
-                fontSize: 12,
+                fontSize: 12.sp,
                 letterSpacing: 1,
               ),
             ),

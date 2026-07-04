@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -283,9 +284,9 @@ class _DriverTripScreenState extends State<DriverTripScreen>
                                 polylines: polylines,
                                 // Add higher top padding to shift the map's visual center
                                 // significantly downwards, avoiding the large expanded info card.
-                                padding: const EdgeInsets.only(
-                                  top: 350,
-                                  bottom: 20,
+                                padding: EdgeInsets.only(
+                                  top: 350.h,
+                                  bottom: 20.h,
                                 ),
                                 onMapCreated: (map) {
                                   _mapController = map;
@@ -294,7 +295,7 @@ class _DriverTripScreenState extends State<DriverTripScreen>
                               ),
                             ),
                             Positioned(
-                              left: 16,
+                              left: 16.w,
                               bottom: hasNavBar ? mq.padding.bottom + 16 : 32,
                               child: FloatingActionButton(
                                 heroTag: 'driver_trip_panic_btn',
@@ -307,7 +308,7 @@ class _DriverTripScreenState extends State<DriverTripScreen>
                               ),
                             ),
                             Positioned(
-                              left: 16,
+                              left: 16.w,
                               bottom: hasNavBar ? mq.padding.bottom + 88 : 104,
                               child: FloatingActionButton(
                                 heroTag: 'driver_map_focus_btn',
@@ -323,9 +324,9 @@ class _DriverTripScreenState extends State<DriverTripScreen>
                               ),
                             ),
                             Positioned(
-                              top: 0,
-                              left: 0,
-                              right: 0,
+                              top: 0.h,
+                              left: 0.w,
+                              right: 0.w,
                               child: DriverClientInfoCard(
                                 isMoto: controller.trip?.isMoto ?? false,
                                 clientName: controller.clientName,
@@ -341,7 +342,7 @@ class _DriverTripScreenState extends State<DriverTripScreen>
                                     controller.hasReportedArrival,
                                 arrivalButtonEnabled:
                                     controller.distanceMeters != null &&
-                                    controller.distanceMeters! <= 50,
+                                    controller.distanceMeters! <= 70,
                                 etaText: controller.etaText,
                                 distanceText: controller.distanceText,
                                 title: dynamicTitle,
@@ -356,19 +357,19 @@ class _DriverTripScreenState extends State<DriverTripScreen>
                           Positioned.fill(
                             child: Container(
                               color: Colors.white.withValues(alpha: 0.6),
-                              child: const Center(
+                              child: Center(
                                 child: Column(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     CircularProgressIndicator(
                                       color: AppColores.primary,
                                     ),
-                                    SizedBox(height: 12),
+                                    SizedBox(height: 12.h),
                                     Text(
                                       'Cargando viaje...',
                                       style: TextStyle(
                                         fontWeight: FontWeight.w700,
-                                        fontSize: 16,
+                                        fontSize: 16.sp,
                                         color: Colors.black87,
                                       ),
                                     ),
@@ -379,10 +380,10 @@ class _DriverTripScreenState extends State<DriverTripScreen>
                           ),
                         // Indicador sutil de refresco de ruta (no bloquea el mapa).
                         if (controller.isRouteLoading)
-                          const Positioned(
-                            top: 0,
-                            left: 0,
-                            right: 0,
+                          Positioned(
+                            top: 0.h,
+                            left: 0.w,
+                            right: 0.w,
                             child: LinearProgressIndicator(
                               color: AppColores.primary,
                               backgroundColor: Colors.transparent,
@@ -422,8 +423,8 @@ class _DriverTripScreenState extends State<DriverTripScreen>
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24.r)),
       ),
       builder: (_) => TripDetailsSheet(
         tituloPersona: 'Cliente',
@@ -502,8 +503,8 @@ class _DriverTripScreenState extends State<DriverTripScreen>
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24.r)),
       ),
       builder: (ctx) => _SecurityCenterSheet(
         tripId: widget.tripId,
@@ -755,30 +756,30 @@ class _SecurityCenterSheetState extends State<_SecurityCenterSheet> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.r)),
         title: Row(
           children: [
             Container(
-              width: 40,
-              height: 40,
+              width: 40.w,
+              height: 40.h,
               decoration: BoxDecoration(
                 color: AppColores.error.withValues(alpha: 0.12),
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.phone_in_talk_rounded, color: AppColores.error, size: 22),
             ),
-            const SizedBox(width: 12),
-            const Expanded(
+            SizedBox(width: 12.w),
+            Expanded(
               child: Text(
                 'Llamar a emergencias',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+                style: TextStyle(fontSize: 17.sp, fontWeight: FontWeight.w800),
               ),
             ),
           ],
         ),
-        content: const Text(
+        content: Text(
           '¿Deseas llamar al 123 (Policía Nacional de Colombia)?',
-          style: TextStyle(fontSize: 15),
+          style: TextStyle(fontSize: 15.sp),
         ),
         actions: [
           TextButton(
@@ -788,7 +789,7 @@ class _SecurityCenterSheetState extends State<_SecurityCenterSheet> {
           FilledButton(
             style: FilledButton.styleFrom(
               backgroundColor: AppColores.error,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
             ),
             onPressed: () => Navigator.of(ctx).pop(true),
             child: const Text(
@@ -834,44 +835,44 @@ class _SecurityCenterSheetState extends State<_SecurityCenterSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'Centro de seguridad',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+              style: TextStyle(fontSize: 20.sp, fontWeight: FontWeight.w800),
             ),
-            const SizedBox(height: 4),
+            SizedBox(height: 4.h),
             const Text(
               'Selecciona una opción de ayuda rápida.',
               style: TextStyle(color: AppColores.textSecondary),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16.h),
             // Emergencia
             ListTile(
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+              contentPadding: EdgeInsets.symmetric(horizontal: 12.w),
               leading: _callingEmergency
-                  ? const SizedBox(
-                      width: 24,
-                      height: 24,
+                  ? SizedBox(
+                      width: 24.w,
+                      height: 24.h,
                       child: CircularProgressIndicator(strokeWidth: 2, color: AppColores.error),
                     )
                   : const Icon(Icons.sos_rounded, color: AppColores.error, size: 28),
               title: const Text('Emergencia', style: TextStyle(fontWeight: FontWeight.w700)),
               subtitle: const Text('Llama al 123 — Policía Nacional.'),
               onTap: _callingEmergency ? null : _handleEmergency,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
               tileColor: AppColores.error.withValues(alpha: 0.06),
             ),
-            const SizedBox(height: 10),
+            SizedBox(height: 10.h),
             // Reportar problema
             ListTile(
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+              contentPadding: EdgeInsets.symmetric(horizontal: 12.w),
               leading: const Icon(Icons.report_problem_outlined, color: AppColores.warning),
               title: const Text('Reportar problema', style: TextStyle(fontWeight: FontWeight.w700)),
               subtitle: const Text('Reportar incidente durante el viaje.'),
               onTap: _handleReportar,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
               tileColor: AppColores.warning.withValues(alpha: 0.06),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8.h),
           ],
         ),
       ),

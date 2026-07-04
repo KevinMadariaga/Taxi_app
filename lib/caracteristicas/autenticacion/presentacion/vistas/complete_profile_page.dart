@@ -18,6 +18,7 @@ class CompleteProfilePage extends StatefulWidget {
     this.initialNombre,
     this.initialApellido,
     this.initialTelefono,
+    this.initialCorreo,
     this.fromOtpFlow = false,
   });
 
@@ -25,6 +26,7 @@ class CompleteProfilePage extends StatefulWidget {
   final String? initialNombre;
   final String? initialApellido;
   final String? initialTelefono;
+  final String? initialCorreo;
   final bool fromOtpFlow;
 
   @override
@@ -34,9 +36,11 @@ class CompleteProfilePage extends StatefulWidget {
 class _CompleteProfilePageState extends State<CompleteProfilePage> {
   late final TextEditingController _nombreController;
   late final TextEditingController _apellidoController;
+  late final TextEditingController _correoController;
   late final TextEditingController _telefonoController;
   late final FocusNode _nombreFocusNode;
   late final FocusNode _apellidoFocusNode;
+  late final FocusNode _correoFocusNode;
   late final FocusNode _telefonoFocusNode;
 
   bool _hydratedFromData = false;
@@ -48,11 +52,14 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
     _nombreController = TextEditingController(text: widget.initialNombre ?? '');
     _apellidoController =
         TextEditingController(text: widget.initialApellido ?? '');
+    _correoController =
+        TextEditingController(text: widget.initialCorreo ?? '');
     _telefonoController = TextEditingController(
       text: _normalizeToTenDigits(widget.initialTelefono),
     );
     _nombreFocusNode = FocusNode();
     _apellidoFocusNode = FocusNode();
+    _correoFocusNode = FocusNode();
     _telefonoFocusNode = FocusNode();
   }
 
@@ -60,9 +67,11 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
   void dispose() {
     _nombreController.dispose();
     _apellidoController.dispose();
+    _correoController.dispose();
     _telefonoController.dispose();
     _nombreFocusNode.dispose();
     _apellidoFocusNode.dispose();
+    _correoFocusNode.dispose();
     _telefonoFocusNode.dispose();
     super.dispose();
   }
@@ -203,6 +212,18 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
           hint: 'Tu apellido',
           textInputAction: TextInputAction.next,
           textCapitalization: TextCapitalization.words,
+          onSubmitted: (_) => _correoFocusNode.requestFocus(),
+        ),
+        const SizedBox(height: 16),
+        _LabeledField(
+          label: 'Correo electrónico',
+          controller: _correoController,
+          focusNode: _correoFocusNode,
+          enabled: !vm.saving,
+          icon: Icons.email_outlined,
+          hint: 'Tu correo',
+          keyboardType: TextInputType.emailAddress,
+          textInputAction: TextInputAction.next,
           onSubmitted: (_) => _telefonoFocusNode.requestFocus(),
         ),
         const SizedBox(height: 16),
@@ -291,6 +312,10 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
         user.apellido.trim().isNotEmpty) {
       _apellidoController.text = user.apellido.trim();
     }
+    if (_correoController.text.trim().isEmpty &&
+        (user.email ?? '').trim().isNotEmpty) {
+      _correoController.text = user.email!.trim();
+    }
     if (_telefonoController.text.trim().isEmpty &&
         user.telefono.trim().isNotEmpty) {
       _telefonoController.text = _normalizeToTenDigits(user.telefono);
@@ -309,6 +334,7 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
     final error = await vm.saveProfile(
       nombre: _nombreController.text,
       apellido: _apellidoController.text,
+      correo: _correoController.text,
       telefono: resolvedPhone,
       requireTelefono: true,
     );

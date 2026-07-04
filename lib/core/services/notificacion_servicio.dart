@@ -39,6 +39,9 @@ class NotificacionesServicio {
   static const String _adminChannelId = 'taxi_admin_channel';
   static const String _adminChannelName = 'Notificaciones del Administrador';
 
+  static const String _emergenciaChannelId = 'taxi_emergencia_channel';
+  static const String _emergenciaChannelName = 'Emergencias';
+
   /// Inicializa el servicio de notificaciones.
   /// Solo se inicializa una vez, llamadas subsecuentes son ignoradas.
   Future<void> init() async {
@@ -79,20 +82,56 @@ class NotificacionesServicio {
       );
     }
 
-    // Registrar canal de alta importancia para notificaciones de admin.
-    // Debe existir antes de que FCM intente usarlo con android_channel_id.
-    await _plugin
+    // Registrar de antemano todos los canales que un push remoto (FCM) puede
+    // referenciar por android_channel_id. Si el canal no existe cuando llega
+    // el push, Android lo descarta en silencio — deben existir desde el
+    // arranque, no solo cuando se dispara la primera notificación local.
+    final androidPlugin = _plugin
         .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(
-          const AndroidNotificationChannel(
-            _adminChannelId,
-            _adminChannelName,
-            importance: Importance.max,
-            playSound: true,
-            enableVibration: true,
-          ),
-        );
+            AndroidFlutterLocalNotificationsPlugin>();
+
+    await androidPlugin?.createNotificationChannel(
+      const AndroidNotificationChannel(
+        _adminChannelId,
+        _adminChannelName,
+        importance: Importance.max,
+        playSound: true,
+        enableVibration: true,
+      ),
+    );
+
+    await androidPlugin?.createNotificationChannel(
+      const AndroidNotificationChannel(
+        _tripChannelId,
+        _tripChannelName,
+        description: 'Notificaciones relacionadas con viajes',
+        importance: Importance.high,
+        playSound: true,
+        enableVibration: true,
+      ),
+    );
+
+    await androidPlugin?.createNotificationChannel(
+      const AndroidNotificationChannel(
+        _chatChannelId,
+        _chatChannelName,
+        description: 'Notificaciones de mensajes de chat',
+        importance: Importance.max,
+        playSound: true,
+        enableVibration: true,
+      ),
+    );
+
+    await androidPlugin?.createNotificationChannel(
+      const AndroidNotificationChannel(
+        _emergenciaChannelId,
+        _emergenciaChannelName,
+        description: 'Alertas del botón de pánico',
+        importance: Importance.max,
+        playSound: true,
+        enableVibration: true,
+      ),
+    );
 
     _initialized = true;
   }

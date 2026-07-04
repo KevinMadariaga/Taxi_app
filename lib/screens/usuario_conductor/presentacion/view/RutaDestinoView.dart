@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -100,6 +101,7 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
   LatLng? _conductorTarget;
   double _conductorRotation = 0;
   Timer? _movementTimer;
+  int _cameraFollowTick = 0;
   // Calcula los bounds de la polyline para ajustar la cámara
   LatLngBounds? _calcularBoundsPolyline(List<LatLng> points) {
     if (points.isEmpty) return null;
@@ -235,9 +237,33 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
     final dist = Geolocator.distanceBetween(
       newLat, newLng, target.latitude, target.longitude,
     );
+    final current = dist < 0.3 ? target : LatLng(newLat, newLng);
     setState(() {
-      _conductorSmooth = dist < 0.3 ? target : LatLng(newLat, newLng);
+      _conductorSmooth = current;
     });
+
+    // Cámara de navegación (estilo Google Maps al "iniciar ruta"): sigue al
+    // conductor centrado, con la vista rotada según el rumbo de avance (así
+    // se nota "coger la curva" al girar) y un tilt 3D en vez de plano cenital.
+    // Cada 10 ticks (~500ms): el costo real no es el tilt/rotación en sí
+    // (el SDK nativo ya está optimizado para eso, es lo mismo que hace la
+    // navegación real de Google Maps) sino la frecuencia de animateCamera —
+    // a más de ~2/seg empieza a notarse en Android de gama baja.
+    _cameraFollowTick++;
+    if (_cameraFollowTick >= 10 && _centraSoloConductor && _mapController != null) {
+      _cameraFollowTick = 0;
+      unawaited(
+        _mapController!.animateCamera(
+          CameraUpdate.newCameraPosition(
+            CameraPosition(
+              target: current,
+              bearing: _conductorRotation,
+              zoom: 17.5,
+            ),
+          ),
+        ),
+      );
+    }
   }
 
   double _lerpAngle(double current, double target, double t) {
@@ -516,23 +542,31 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
   }
 
   void _centerOnConductor() {
-    if (_mapController != null && _ubicacionConductor != null) {
+    final pos = _conductorSmooth ?? _ubicacionConductor;
+    if (_mapController != null && pos != null) {
       _mapController!.animateCamera(
-        CameraUpdate.newLatLngZoom(_ubicacionConductor!, 16),
+        CameraUpdate.newCameraPosition(
+          CameraPosition(
+            target: pos,
+            bearing: _conductorRotation,
+            zoom: 17.5,
+          ),
+        ),
       );
     }
   }
 
-  void _fitMarkers() {
-    if (_mapController == null) return;
+  Future<void> _fitMarkers() async {
+    final controller = _mapController;
+    if (controller == null) return;
 
     final vm = Provider.of<RutaDestinoViewModel>(context, listen: false);
     if (_ubicacionConductor == null ||
         vm.latDestino == null ||
-        vm.lngDestino == null)
+        vm.lngDestino == null) {
       return;
+    }
     final destino = LatLng(vm.latDestino!, vm.lngDestino!);
-    // Centrar ambos marcadores usando bounds
     final bounds = LatLngBounds(
       southwest: LatLng(
         Math.min(_ubicacionConductor!.latitude, destino.latitude),
@@ -543,7 +577,25 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
         Math.max(_ubicacionConductor!.longitude, destino.longitude),
       ),
     );
-    _mapController!.animateCamera(CameraUpdate.newLatLngBounds(bounds, 80));
+
+    // Reset a vista cenital antes del fit: si venía del modo navegación
+    // (tilt 3D + rumbo rotado), newLatLngBounds no encuadra bien con la
+    // cámara todavía inclinada/rotada.
+    final currentZoom = await controller.getZoomLevel();
+    await controller.animateCamera(
+      CameraUpdate.newCameraPosition(
+        CameraPosition(
+          target: LatLng(
+            (_ubicacionConductor!.latitude + destino.latitude) / 2,
+            (_ubicacionConductor!.longitude + destino.longitude) / 2,
+          ),
+          bearing: 0,
+          tilt: 0,
+          zoom: currentZoom,
+        ),
+      ),
+    );
+    await controller.animateCamera(CameraUpdate.newLatLngBounds(bounds, 80));
   }
 
   // Calcula la distancia real hacia el destino en metros.
@@ -640,15 +692,21 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
         Polyline(
           polylineId: const PolylineId('google_route'),
           points: vm.routePoints,
-          color: AppColores.primary,
-          width: 5,
+          color: AppColores.route,
+          width: 7,
+          jointType: JointType.round,
+          startCap: Cap.roundCap,
+          endCap: Cap.roundCap,
         )
       else if (_ubicacionConductor != null && destinoLatLng != null)
         Polyline(
           polylineId: const PolylineId('ruta_conductor_destino'),
           points: [_ubicacionConductor!, destinoLatLng],
-          color: AppColores.primary,
-          width: 5,
+          color: AppColores.route,
+          width: 7,
+          jointType: JointType.round,
+          startCap: Cap.roundCap,
+          endCap: Cap.roundCap,
         ),
     };
 
@@ -663,15 +721,15 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
           myLocationEnabled: true,
           myLocationButtonEnabled: false,
           // Shift visual center down
-          padding: const EdgeInsets.only(top: 180, bottom: 20),
+          padding: EdgeInsets.only(top: 180.h, bottom: 20.h),
           onMapCreated: (controller) {
             _mapController = controller;
           },
         ),
         Positioned(
-          top: 0,
-          left: 0,
-          right: 0,
+          top: 0.h,
+          left: 0.w,
+          right: 0.w,
           child: IgnorePointer(
             child: Container(
               height: MediaQuery.of(context).padding.top + 28,
@@ -694,12 +752,12 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const CircularProgressIndicator(color: AppColores.primary),
-                    const SizedBox(height: 12),
-                    const Text(
+                    SizedBox(height: 12.h),
+                    Text(
                       'Cargando ruta...',
                       style: TextStyle(
                         fontWeight: FontWeight.w700,
-                        fontSize: 16,
+                        fontSize: 16.sp,
                         color: Colors.black87,
                       ),
                     ),
@@ -723,8 +781,8 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24.r)),
       ),
       builder: (ctx) {
         return SafeArea(
@@ -741,24 +799,24 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
                 children: [
                   Center(
                     child: Container(
-                      width: 44,
-                      height: 4,
+                      width: 44.w,
+                      height: 4.h,
                       decoration: BoxDecoration(
                         color: AppColores.grey300,
-                        borderRadius: BorderRadius.circular(2),
+                        borderRadius: BorderRadius.circular(2.r),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 18),
-                  const Text(
+                  SizedBox(height: 18.h),
+                  Text(
                     'Detalles del servicio',
                     style: TextStyle(
-                      fontSize: 20,
+                      fontSize: 20.sp,
                       fontWeight: FontWeight.w800,
                       color: AppColores.textPrimary,
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  SizedBox(height: 16.h),
                   // Cliente.
                   Row(
                     children: [
@@ -776,27 +834,27 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
                               )
                             : null,
                       ),
-                      const SizedBox(width: 14),
+                      SizedBox(width: 14.w),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
+                            Text(
                               'Cliente',
                               style: TextStyle(
                                 color: AppColores.textSecondary,
-                                fontSize: 12.5,
+                                fontSize: 12.5.sp,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
-                            const SizedBox(height: 2),
+                            SizedBox(height: 2.h),
                             Text(
                               nombre,
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontWeight: FontWeight.w800,
-                                fontSize: 17,
+                                fontSize: 17.sp,
                                 color: AppColores.textPrimary,
                               ),
                             ),
@@ -805,23 +863,23 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
                       ),
                     ],
                   ),
-                  const SizedBox(height: 18),
-                  const Divider(height: 1, color: AppColores.borderSubtle),
-                  const SizedBox(height: 14),
+                  SizedBox(height: 18.h),
+                  Divider(height: 1.h, color: AppColores.borderSubtle),
+                  SizedBox(height: 14.h),
                   _DetalleRow(
                     icon: Icons.location_on,
                     color: AppColores.error,
                     label: 'Ubicación destino',
                     value: destino,
                   ),
-                  const SizedBox(height: 12),
+                  SizedBox(height: 12.h),
                   _DetalleRow(
                     icon: Icons.attach_money_rounded,
                     color: AppColores.success,
                     label: 'Valor del servicio',
                     value: valor,
                   ),
-                  const SizedBox(height: 12),
+                  SizedBox(height: 12.h),
                   _DetalleRow(
                     icon: pagoIcon,
                     color: AppColores.secondary,
@@ -831,7 +889,7 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
                         ? 'assets/img/nequi.png'
                         : null,
                   ),
-                  const SizedBox(height: 24),
+                  SizedBox(height: 24.h),
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
@@ -840,16 +898,16 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
                         backgroundColor: AppColores.grey200,
                         foregroundColor: AppColores.textPrimary,
                         elevation: 0,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        padding: EdgeInsets.symmetric(vertical: 16.h),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(16.r),
                         ),
                       ),
-                      child: const Text(
+                      child: Text(
                         'Cerrar',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
-                          fontSize: 16,
+                          fontSize: 16.sp,
                         ),
                       ),
                     ),
@@ -880,9 +938,9 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
             children: [
               Positioned.fill(child: _mapWidget(context)),
               Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
+                top: 0.h,
+                left: 0.w,
+                right: 0.w,
                 child: DriverClientInfoCard(
                   isMoto: _isMoto,
                   clientName: vm.nombreCliente.isNotEmpty
@@ -926,7 +984,7 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
                   arrivalButtonEnabled:
                       !_loadingUbicacion &&
                       _metersToDestino != null &&
-                      _metersToDestino <= 50,
+                      _metersToDestino <= 70,
                   etaText: _tiempoEstimadoLlegada().replaceFirst(
                     'Tiempo estimado: ',
                     '',
@@ -939,7 +997,7 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
                 ),
               ),
               Positioned(
-                left: 24,
+                left: 24.w,
                 bottom: MediaQuery.of(context).padding.bottom + 24,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -964,7 +1022,7 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
                         });
                       },
                     ),
-                    const SizedBox(height: 10),
+                    SizedBox(height: 10.h),
                     FloatingActionButton(
                       heroTag: "fab_problema",
                       backgroundColor: Colors.red.shade700,
@@ -1050,8 +1108,8 @@ class _DetalleRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          width: 32,
-          height: 32,
+          width: 32.w,
+          height: 32.h,
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: iconImage != null
@@ -1065,31 +1123,31 @@ class _DetalleRow extends StatelessWidget {
           child: iconImage != null
               ? Image.asset(
                   iconImage!,
-                  width: 20,
-                  height: 20,
+                  width: 20.w,
+                  height: 20.h,
                   errorBuilder: (_, _, _) => Icon(icon, color: color, size: 18),
                 )
               : Icon(icon, color: color, size: 18),
         ),
-        const SizedBox(width: 12),
+        SizedBox(width: 12.w),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 label,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColores.textSecondary,
-                  fontSize: 12.5,
+                  fontSize: 12.5.sp,
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              const SizedBox(height: 2),
+              SizedBox(height: 2.h),
               Text(
                 value,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColores.textPrimary,
-                  fontSize: 14.5,
+                  fontSize: 14.5.sp,
                   fontWeight: FontWeight.w600,
                 ),
               ),

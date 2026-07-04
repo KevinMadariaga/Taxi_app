@@ -590,6 +590,20 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
+  /// true si [timestamp] cae dentro del día calendario de hoy (hora local).
+  /// Se usa para no mostrar en el mapa a conductores cuya última ubicación
+  /// registrada es de ayer o antes (p. ej. quedó "disponible" pero no ha
+  /// enviado ubicación hoy) — solo cuentan como "activos ahora" los que
+  /// reportaron su posición en el día en curso.
+  bool _isFromToday(Timestamp? timestamp) {
+    if (timestamp == null) return false;
+    final date = timestamp.toDate();
+    final now = DateTime.now();
+    return date.year == now.year &&
+        date.month == now.month &&
+        date.day == now.day;
+  }
+
   Stream<Map<String, LatLng>> streamConductoresDisponibles() {
     return _firestore
         .collection('usuarios')
@@ -601,6 +615,9 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
           for (final doc in snap.docs) {
             final ubicacion = doc.data()['ubicacion'];
             if (ubicacion is! Map) continue;
+            if (!_isFromToday(ubicacion['lastUpdated'] as Timestamp?)) {
+              continue;
+            }
             final lat = ubicacion['lat'] ?? ubicacion['latitude'];
             final lng = ubicacion['lng'] ?? ubicacion['longitude'];
             if (lat == null || lng == null) continue;
@@ -620,7 +637,9 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
         .map((snap) {
           final positions = <String, LatLng>{};
           for (final doc in snap.docs) {
-            final ubicacion = doc.data()['ubicacion'];
+            final data = doc.data();
+            if (!_isFromToday(data['updatedAt'] as Timestamp?)) continue;
+            final ubicacion = data['ubicacion'];
             if (ubicacion is! Map) continue;
             final lat = ubicacion['lat'] ?? ubicacion['latitude'];
             final lng = ubicacion['lng'] ?? ubicacion['longitude'];

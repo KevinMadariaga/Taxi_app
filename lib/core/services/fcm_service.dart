@@ -246,6 +246,20 @@ class FcmService {
     await _saveCurrentToken();
   }
 
+  /// Tipos de push que ya tienen su propio aviso local en tiempo real
+  /// (disparado por un listener de Firestore mientras la pantalla relevante
+  /// está montada: SolicitudEstadoController, TripTrackingViewModel,
+  /// InicioConductorViewModel). Este canal FCM existe para cubrir background
+  /// y terminated — mostrarlo también en foreground duplicaría el aviso.
+  static const _tiposConAvisoLocalPropio = {
+    'trip_status_change',
+    'conductor_cerca',
+    'nueva_solicitud',
+    'trip_chat_message',
+    'soporte_chat_respuesta',
+    'contraoferta',
+  };
+
   /// Mensajes en primer plano.
   ///
   /// iOS: setForegroundNotificationPresentationOptions ya muestra el banner
@@ -254,10 +268,17 @@ class FcmService {
   /// en iOS, el OS ya lo muestra — mostrar otra local notification duplicaría.
   ///
   /// Android: FCM nunca muestra el banner en foreground por sí solo, así que
-  /// siempre delegamos a flutter_local_notifications.
+  /// siempre delegamos a flutter_local_notifications, salvo en los tipos que
+  /// ya tienen su propio listener en tiempo real (ver
+  /// [_tiposConAvisoLocalPropio]).
   void _onForegroundMessage(RemoteMessage message) {
     debugPrint('[FCM Foreground] ${message.notification?.title}');
     final notification = message.notification;
+    final type = message.data['type'] as String? ?? '';
+
+    if (_tiposConAvisoLocalPropio.contains(type)) {
+      return;
+    }
 
     if (Platform.isIOS && notification != null) {
       // iOS + notification block → el sistema ya lo muestra; no duplicar.
@@ -289,6 +310,33 @@ class FcmService {
     // Nueva solicitud de conductor → llevar al admin a su pantalla principal.
     if (type == 'solicitud_conductor') {
       nav.popUntil((route) => route.isFirst);
+      return;
+    }
+
+    // Nueva solicitud cercana → llevar al conductor a su pantalla de inicio,
+    // donde el listener en tiempo real ya muestra la solicitud entrante.
+    if (type == 'nueva_solicitud') {
+      nav.popUntil((route) => route.isFirst);
+      return;
+    }
+
+    // Mensaje de chat de viaje o respuesta de soporte → la pantalla relevante
+    // (tracking/chat de viaje, o chat de soporte del usuario) ya está
+    // restaurada por SessionHelper/AuthService si la app estaba cerrada, o
+    // sigue en el stack si solo estaba en background. No navegar aquí evita
+    // abrir por error una pantalla de administrador (ver comentario en el
+    // caso 'soporte_chat' más abajo, que es el sentido usuario→admin).
+    if (type == 'trip_chat_message' || type == 'soporte_chat_respuesta') {
+      return;
+    }
+
+    // Cambio de estado de viaje / proximidad del conductor → la pantalla de
+    // seguimiento activa ya está restaurada por SessionHelper al reabrir la
+    // app; si sigue en el stack (app solo en background), no hace falta
+    // navegar de nuevo.
+    if (type == 'trip_status_change' ||
+        type == 'conductor_cerca' ||
+        type == 'contraoferta') {
       return;
     }
 

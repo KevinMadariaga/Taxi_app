@@ -11,13 +11,92 @@
  * 4. Envía la notificación push vía FCM (que llega a APNs en iOS)
  */
 
-const { onDocumentUpdated } = require("firebase-functions/v2/firestore");
+const { onDocumentUpdated, onDocumentCreated } = require("firebase-functions/v2/firestore");
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
 const { onRequest } = require("firebase-functions/v2/https");
 
 initializeApp();
+
+/**
+ * Distancia en metros entre dos coordenadas (fórmula haversine).
+ */
+function haversineMeters(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const toRad = (v) => (v * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+/**
+ * Extrae {lat, lng} de un punto guardado como GeoPoint (con .latitude/.longitude)
+ * o como mapa plano {lat, lng}.
+ */
+function extractLatLng(value) {
+  if (!value || typeof value !== "object") return null;
+  if (typeof value.latitude === "number" && typeof value.longitude === "number") {
+    return { lat: value.latitude, lng: value.longitude };
+  }
+  if (typeof value.lat === "number" && typeof value.lng === "number") {
+    return { lat: value.lat, lng: value.lng };
+  }
+  return null;
+}
+
+/**
+ * Punto de recogida del cliente. Soporta las distintas formas en que la app
+ * lo guarda: ubicacion_inicial (GeoPoint), cliente.ubicacion, origen.
+ */
+function extractPickupPoint(data) {
+  return (
+    extractLatLng(data.ubicacion_inicial) ||
+    extractLatLng(data.cliente && data.cliente.ubicacion) ||
+    extractLatLng(data.origen) ||
+    null
+  );
+}
+
+/**
+ * Posición actual del conductor dentro de la solicitud.
+ */
+function extractConductorPoint(data) {
+  const conductor = data.conductor;
+  if (!conductor || typeof conductor !== "object") return null;
+  if (typeof conductor.lat === "number" && typeof conductor.lng === "number") {
+    return { lat: conductor.lat, lng: conductor.lng };
+  }
+  return extractLatLng(conductor.ubicacion);
+}
+
+/**
+ * Busca el token FCM de un cliente en `usuarios` (y como respaldo en `cliente`).
+ */
+async function getClienteFcmToken(db, clienteId) {
+  try {
+    const userDoc = await db.collection("usuarios").doc(clienteId).get();
+    if (userDoc.exists && userDoc.data().fcmToken) {
+      return userDoc.data().fcmToken;
+    }
+  } catch (err) {
+    console.error("Error buscando token en usuarios:", err);
+  }
+
+  try {
+    const clienteDoc = await db.collection("cliente").doc(clienteId).get();
+    if (clienteDoc.exists && clienteDoc.data().fcmToken) {
+      return clienteDoc.data().fcmToken;
+    }
+  } catch (err) {
+    console.error("Error buscando token en cliente:", err);
+  }
+
+  return null;
+}
 
 /**
  * Mapeo de estados a mensajes de notificación.
@@ -38,7 +117,7 @@ const ESTADO_MENSAJES = {
   },
   completado: {
     title: "✅ Viaje completado",
-    body: "Tu viaje ha finalizado. ¡Gracias por usar Taxi Ya!",
+    body: "Tu viaje ha finalizado. ¡Gracias por usar Ride!",
   },
   cancelado: {
     title: "❌ Viaje cancelado",
@@ -80,6 +159,128 @@ function extractClienteId(data) {
   // Campos planos
   return data.clienteId || data.userId || data.cliente_id || data.id_cliente || null;
 }
+
+/**
+ * Extrae el ID del conductor asignado desde el documento de la solicitud.
+ */
+function extractConductorId(data) {
+  if (data.conductor && typeof data.conductor === "object") {
+    const id = data.conductor.id || data.conductor.uid || data.conductor.conductorId;
+    if (id) return id;
+  }
+  return data.conductorId || null;
+}
+
+/**
+ * Busca el token FCM de un conductor. Los conductores viven en `usuarios`
+ * (mismo patrón que los clientes, distinguidos por `rol: 'conductor'`).
+ */
+async function getConductorFcmToken(db, conductorId) {
+  try {
+    const doc = await db.collection("usuarios").doc(conductorId).get();
+    if (doc.exists && doc.data().fcmToken) {
+      return doc.data().fcmToken;
+    }
+  } catch (err) {
+    console.error("Error buscando token de conductor en usuarios:", err);
+  }
+  return null;
+}
+
+/**
+ * Mensajes para el conductor cuando el CLIENTE provoca el cambio de estado
+ * (confirma que va en camino al vehículo, o cancela el viaje). El resto de
+ * estados los provoca el propio conductor desde su app, así que no necesita
+ * que se le reenvíe push de su propia acción.
+ */
+const ESTADO_MENSAJES_CONDUCTOR = {
+  "en camino": {
+    title: "🚶 Cliente en camino",
+    body: "El cliente confirmó que va en camino al vehículo.",
+  },
+  cancelado: {
+    title: "❌ Viaje cancelado",
+    body: "El cliente canceló el viaje.",
+  },
+};
+
+/**
+ * Cloud Function: Notifica por push al CONDUCTOR asignado cuando el cliente
+ * confirma que va en camino o cancela el viaje. Simétrico a
+ * [onSolicitudEstadoChange] (que notifica al cliente) — sin esto, el
+ * conductor solo se enteraba vía notificación local mientras su app seguía
+ * viva (foreground o los pocos segundos antes de que Android/iOS congelen
+ * el proceso en background).
+ */
+exports.onSolicitudEstadoChangeConductor = onDocumentUpdated(
+  {
+    document: "solicitudes/{solicitudId}",
+    region: "us-central1",
+  },
+  async (event) => {
+    const beforeData = event.data.before.data();
+    const afterData = event.data.after.data();
+    if (!beforeData || !afterData) return null;
+
+    const estadoAnterior = normalizeEstado(beforeData.estado || beforeData.status || "");
+    const estadoNuevo = normalizeEstado(afterData.estado || afterData.status || "");
+    if (estadoAnterior === estadoNuevo) return null;
+
+    const mensaje = ESTADO_MENSAJES_CONDUCTOR[estadoNuevo];
+    if (!mensaje) return null;
+
+    const conductorId = extractConductorId(afterData);
+    if (!conductorId) return null;
+
+    const db = getFirestore();
+    const fcmToken = await getConductorFcmToken(db, conductorId);
+    if (!fcmToken) {
+      console.log(`No se encontró token FCM para el conductor: ${conductorId}`);
+      return null;
+    }
+
+    const message = {
+      token: fcmToken,
+      notification: { title: mensaje.title, body: mensaje.body },
+      data: {
+        solicitudId: event.params.solicitudId,
+        estado: estadoNuevo,
+        type: "trip_status_change",
+        title: mensaje.title,
+        body: mensaje.body,
+      },
+      apns: {
+        payload: {
+          aps: {
+            alert: { title: mensaje.title, body: mensaje.body },
+            badge: 1,
+            sound: "default",
+            contentAvailable: true,
+            mutableContent: true,
+          },
+        },
+        headers: { "apns-priority": "10" },
+      },
+      android: {
+        priority: "high",
+        notification: {
+          channelId: "taxi_trip_channel",
+          sound: "default",
+          priority: "high",
+        },
+      },
+    };
+
+    try {
+      const response = await getMessaging().send(message);
+      console.log(`✅ Notificación enviada al conductor ${conductorId}: ${response}`);
+    } catch (err) {
+      console.error(`❌ Error enviando notificación a conductor: ${err.message}`);
+    }
+
+    return null;
+  }
+);
 
 /**
  * Cloud Function v2 — se dispara cuando un documento en /solicitudes cambia.
@@ -344,6 +545,574 @@ exports.onSolicitudConductorNueva = onDocumentUpdated(
       );
     } catch (err) {
       console.error(`❌ Error enviando notif. a admins: ${err.message}`);
+    }
+
+    return null;
+  }
+);
+
+/**
+ * Cloud Function: Notifica a los conductores cercanos cuando se crea una
+ * solicitud nueva (estado "buscando"). Es el equivalente push del listener
+ * en tiempo real de InicioConductorViewModel — ese listener solo funciona
+ * con la app abierta; esta función llega aunque el conductor tenga la app
+ * cerrada o esté usando otra app (Android/iOS), vía FCM/APNs.
+ */
+exports.onNuevaSolicitudCreada = onDocumentCreated(
+  {
+    document: "solicitudes/{solicitudId}",
+    region: "us-central1",
+  },
+  async (event) => {
+    const data = event.data.data();
+    if (!data) return null;
+
+    const estado = (data.estado || data.status || "").toString().toLowerCase().trim();
+    if (!["buscando", "pending", "pendiente"].includes(estado)) {
+      return null;
+    }
+
+    const pickup = extractPickupPoint(data);
+    if (!pickup) {
+      console.log("Solicitud sin ubicación de recogida, no se puede notificar.");
+      return null;
+    }
+
+    const tipoVehiculoSolicitado = (data.tipoVehiculo || "").toString().toLowerCase().trim();
+    const db = getFirestore();
+
+    // Buscamos conductores "conectado" y "disponible" por separado (son
+    // banderas equivalentes usadas indistintamente en distintas versiones
+    // de la app) y los unimos por id para no duplicar.
+    const candidatos = new Map();
+    for (const campo of ["disponible", "conectado"]) {
+      try {
+        const snap = await db
+          .collection("usuarios")
+          .where("rol", "==", "conductor")
+          .where(campo, "==", true)
+          .get();
+        snap.forEach((doc) => candidatos.set(doc.id, doc.data()));
+      } catch (err) {
+        console.error(`Error consultando conductores (${campo}):`, err);
+      }
+    }
+
+    if (candidatos.size === 0) {
+      console.log("No hay conductores conectados para notificar.");
+      return null;
+    }
+
+    const cercanos = [];
+    for (const [uid, conductorData] of candidatos) {
+      const tipoConductor = (conductorData.tipoVehiculo || "").toString().toLowerCase().trim();
+      if (tipoVehiculoSolicitado && tipoConductor && tipoConductor !== tipoVehiculoSolicitado) {
+        continue;
+      }
+      const ubicacion = extractLatLng(conductorData.ubicacion);
+      if (!ubicacion || !conductorData.fcmToken) continue;
+
+      const distancia = haversineMeters(pickup.lat, pickup.lng, ubicacion.lat, ubicacion.lng);
+      // Mismo radio que la lista visible en la app del conductor (3 km).
+      if (distancia <= 3000) {
+        cercanos.push({ uid, token: conductorData.fcmToken, distancia });
+      }
+    }
+
+    if (cercanos.length === 0) {
+      console.log("Ningún conductor conectado está dentro del radio de 3 km.");
+      return null;
+    }
+
+    cercanos.sort((a, b) => a.distancia - b.distancia);
+    const tokens = cercanos.slice(0, 20).map((c) => c.token);
+
+    const title = "🚕 Solicitud entrante";
+    const body = "Un cliente cerca de ti necesita servicio";
+
+    const message = {
+      tokens,
+      notification: { title, body },
+      data: {
+        type: "nueva_solicitud",
+        solicitudId: event.params.solicitudId,
+        title,
+        body,
+      },
+      apns: {
+        payload: {
+          aps: {
+            alert: { title, body },
+            badge: 1,
+            sound: "default",
+            contentAvailable: true,
+            mutableContent: true,
+          },
+        },
+        headers: { "apns-priority": "10" },
+      },
+      android: {
+        priority: "high",
+        notification: {
+          channelId: "taxi_trip_channel",
+          sound: "default",
+          priority: "high",
+        },
+      },
+    };
+
+    try {
+      const resp = await getMessaging().sendEachForMulticast(message);
+      console.log(
+        `✅ Notif. nueva solicitud: ${resp.successCount}/${tokens.length} conductores notificados.`
+      );
+    } catch (err) {
+      console.error(`❌ Error enviando notif. de nueva solicitud: ${err.message}`);
+    }
+
+    return null;
+  }
+);
+
+/**
+ * Cloud Function: Notifica al cliente por push cuando el conductor está a
+ * <= 70 m del punto de recogida, mientras la solicitud está en estado
+ * "asignado" (tramo en el que el conductor se dirige hacia el cliente).
+ * Complementa el aviso local de TripTrackingViewModel, que solo funciona
+ * con la app del cliente abierta y en esa pantalla.
+ */
+exports.onConductorProximidadCliente = onDocumentUpdated(
+  {
+    document: "solicitudes/{solicitudId}",
+    region: "us-central1",
+  },
+  async (event) => {
+    const before = event.data.before.data();
+    const after = event.data.after.data();
+    if (!before || !after) return null;
+
+    if (after.proximidadNotificada === true) return null;
+
+    const estado = (after.estado || after.status || "").toString().toLowerCase().trim();
+    if (estado !== "asignado") return null;
+
+    const conductorPos = extractConductorPoint(after);
+    const pickup = extractPickupPoint(after);
+    if (!conductorPos || !pickup) return null;
+
+    const distancia = haversineMeters(
+      conductorPos.lat,
+      conductorPos.lng,
+      pickup.lat,
+      pickup.lng
+    );
+    if (distancia > 70) return null;
+
+    const clienteId = extractClienteId(after);
+    if (!clienteId) return null;
+
+    const db = getFirestore();
+    const fcmToken = await getClienteFcmToken(db, clienteId);
+    if (!fcmToken) {
+      console.log(`No se encontró token FCM para el cliente: ${clienteId}`);
+      return null;
+    }
+
+    const title = "🚗 Tu conductor está cerca";
+    const body = "El conductor está por llegar. ¡Prepárate para abordar!";
+
+    const message = {
+      token: fcmToken,
+      notification: { title, body },
+      data: {
+        type: "conductor_cerca",
+        solicitudId: event.params.solicitudId,
+        title,
+        body,
+      },
+      apns: {
+        payload: {
+          aps: {
+            alert: { title, body },
+            badge: 1,
+            sound: "default",
+            contentAvailable: true,
+            mutableContent: true,
+          },
+        },
+        headers: { "apns-priority": "10" },
+      },
+      android: {
+        priority: "high",
+        notification: {
+          channelId: "taxi_trip_channel",
+          sound: "default",
+          priority: "high",
+        },
+      },
+    };
+
+    try {
+      await getMessaging().send(message);
+      console.log(`✅ Notif. proximidad enviada al cliente ${clienteId}`);
+      await event.data.after.ref.set(
+        { proximidadNotificada: true },
+        { merge: true }
+      );
+    } catch (err) {
+      console.error(`❌ Error enviando notif. de proximidad: ${err.message}`);
+    }
+
+    return null;
+  }
+);
+
+/**
+ * Extrae del mapa `contraofertas` de una solicitud las entradas en estado
+ * "pendiente_cliente", indexadas por clave `conductorId:valorRedondeado`
+ * (mismo criterio de deduplicación que usa BuscandoTaxiViewModel del lado
+ * del cliente): un mismo conductor con un valor distinto cuenta como una
+ * contraoferta nueva.
+ */
+function extractPendingContraofertas(data) {
+  const map = data && data.contraofertas;
+  const result = new Map();
+  if (!map || typeof map !== "object") return result;
+
+  for (const [key, raw] of Object.entries(map)) {
+    if (!raw || typeof raw !== "object") continue;
+    if (raw.estado !== "pendiente_cliente") continue;
+    const valor = typeof raw.valor === "number" ? raw.valor : null;
+    if (valor == null) continue;
+    const conductorId =
+      (raw.conductor && (raw.conductor.id || raw.conductor.uid)) ||
+      raw.conductorId ||
+      key;
+    const nombre =
+      (raw.conductor && raw.conductor.nombre) || raw.conductorNombre || "Un conductor";
+    result.set(`${conductorId}:${Math.round(valor)}`, { valor, nombre });
+  }
+  return result;
+}
+
+/**
+ * Cloud Function: notifica al cliente por push cuando un conductor envía o
+ * actualiza una contraoferta ("pendiente_cliente"). Antes esto solo se
+ * mostraba con una notificación local
+ * (BuscandoTaxiViewModel._mostrarNotificacionContraoferta), que no llega si
+ * el cliente tiene la app en background/cerrada mientras espera.
+ */
+exports.onContraofertaCreada = onDocumentUpdated(
+  {
+    document: "solicitudes/{solicitudId}",
+    region: "us-central1",
+  },
+  async (event) => {
+    const before = event.data.before.data();
+    const after = event.data.after.data();
+    if (!before || !after) return null;
+
+    const beforeOfertas = extractPendingContraofertas(before);
+    const afterOfertas = extractPendingContraofertas(after);
+
+    // Compat: formato legacy de contraoferta única (sin mapa `contraofertas`).
+    const beforeLegacy = before.contraoferta;
+    const afterLegacy = after.contraoferta;
+    const legacyEsNueva =
+      afterLegacy &&
+      afterLegacy.estado === "pendiente_cliente" &&
+      typeof afterLegacy.valor === "number" &&
+      !(
+        beforeLegacy &&
+        beforeLegacy.estado === "pendiente_cliente" &&
+        beforeLegacy.valor === afterLegacy.valor
+      );
+
+    const nuevas = [...afterOfertas.keys()].filter(
+      (key) => !beforeOfertas.has(key)
+    );
+
+    if (nuevas.length === 0 && !legacyEsNueva) return null;
+
+    const clienteId = extractClienteId(after);
+    if (!clienteId) return null;
+
+    const db = getFirestore();
+    const fcmToken = await getClienteFcmToken(db, clienteId);
+    if (!fcmToken) {
+      console.log(`No se encontró token FCM para el cliente: ${clienteId}`);
+      return null;
+    }
+
+    // Notificar la contraoferta más barata entre las nuevas (mismo orden que
+    // la lista que ve el cliente en su app).
+    let valor = legacyEsNueva ? afterLegacy.valor : null;
+    if (nuevas.length > 0) {
+      const valores = nuevas.map((key) => afterOfertas.get(key).valor);
+      const minNueva = Math.min(...valores);
+      valor = valor == null ? minNueva : Math.min(valor, minNueva);
+    }
+
+    const valorTexto = Math.round(valor).toLocaleString("es-CO");
+    const title = "💬 Contraoferta del conductor";
+    const body = `Te proponen un nuevo valor: $${valorTexto}`;
+
+    const message = buildFcmMessage({
+      token: fcmToken,
+      title,
+      body,
+      type: "contraoferta",
+      extraData: { solicitudId: event.params.solicitudId },
+    });
+
+    try {
+      await getMessaging().send(message);
+      console.log(`✅ Notif. contraoferta enviada al cliente ${clienteId}`);
+    } catch (err) {
+      console.error(`❌ Error enviando notif. de contraoferta: ${err.message}`);
+    }
+
+    return null;
+  }
+);
+
+/**
+ * Arma un mensaje FCM con la config estándar de la app (APNs + canal Android
+ * de alta prioridad). `token` puede ser un solo token (mensaje single-send)
+ * o un array (usar con sendEachForMulticast).
+ */
+function buildFcmMessage({ token, tokens, title, body, type, extraData = {} }) {
+  const base = {
+    notification: { title, body },
+    data: { type, title, body, ...extraData },
+    apns: {
+      payload: {
+        aps: {
+          alert: { title, body },
+          badge: 1,
+          sound: "default",
+          contentAvailable: true,
+          mutableContent: true,
+        },
+      },
+      headers: { "apns-priority": "10" },
+    },
+    android: {
+      priority: "high",
+      notification: {
+        channelId: "taxi_trip_channel",
+        sound: "default",
+        priority: "high",
+      },
+    },
+  };
+  return tokens ? { ...base, tokens } : { ...base, token };
+}
+
+/**
+ * Cloud Function: Notifica por push al destinatario de un mensaje de chat de
+ * viaje (cliente ↔ conductor). Antes esto solo se mostraba con
+ * flutter_local_notifications mientras la pantalla de chat/tracking del
+ * destinatario seguía montada — con la app en background o cerrada, el
+ * mensaje no se enteraba.
+ */
+exports.onTripChatMessageCreated = onDocumentCreated(
+  {
+    document: "solicitudes/{solicitudId}/mensajes/{mensajeId}",
+    region: "us-central1",
+  },
+  async (event) => {
+    const msg = event.data.data();
+    if (!msg) return null;
+
+    const senderId = msg.senderId;
+    const texto = (msg.texto || msg.text || "").toString().trim();
+    if (!senderId || !texto) return null;
+
+    const db = getFirestore();
+    const tripSnap = await db
+      .collection("solicitudes")
+      .doc(event.params.solicitudId)
+      .get();
+    if (!tripSnap.exists) return null;
+    const trip = tripSnap.data();
+
+    const clienteId = extractClienteId(trip);
+    const conductorId = extractConductorId(trip);
+
+    let recipientToken = null;
+    let recipientLabel = "";
+    if (senderId === clienteId && conductorId) {
+      recipientToken = await getConductorFcmToken(db, conductorId);
+      recipientLabel = "conductor";
+    } else if (senderId === conductorId && clienteId) {
+      recipientToken = await getClienteFcmToken(db, clienteId);
+      recipientLabel = "cliente";
+    } else {
+      return null;
+    }
+
+    if (!recipientToken) {
+      console.log(`Sin token FCM para notificar chat al ${recipientLabel}.`);
+      return null;
+    }
+
+    const senderName =
+      recipientLabel === "conductor" ? (trip.cliente?.nombre || "Cliente") : "Conductor";
+
+    const message = buildFcmMessage({
+      token: recipientToken,
+      title: `💬 ${senderName}`,
+      body: texto,
+      type: "trip_chat_message",
+      extraData: { solicitudId: event.params.solicitudId },
+    });
+
+    try {
+      await getMessaging().send(message);
+      console.log(`✅ Notif. chat de viaje enviada al ${recipientLabel}.`);
+    } catch (err) {
+      console.error(`❌ Error enviando notif. de chat: ${err.message}`);
+    }
+
+    return null;
+  }
+);
+
+/**
+ * Cloud Function: Notifica por push al usuario (cliente o conductor) cuando
+ * el admin responde en el chat de soporte. El sentido usuario→admin ya viaja
+ * por push (SoporteChatService llama a AdminFcmService directamente desde la
+ * app); a este le faltaba el equivalente en el sentido admin→usuario.
+ */
+exports.onSoporteChatMensajeCreado = onDocumentCreated(
+  {
+    document: "soporte_chats/{userId}/mensajes/{mensajeId}",
+    region: "us-central1",
+  },
+  async (event) => {
+    const msg = event.data.data();
+    if (!msg || msg.esAdmin !== true) return null;
+
+    const texto = (msg.texto || "").toString().trim();
+    if (!texto) return null;
+
+    const db = getFirestore();
+    const userId = event.params.userId;
+    let fcmToken = null;
+    try {
+      const userDoc = await db.collection("usuarios").doc(userId).get();
+      if (userDoc.exists) fcmToken = userDoc.data().fcmToken;
+    } catch (err) {
+      console.error("Error buscando token de usuario para soporte:", err);
+    }
+    if (!fcmToken) return null;
+
+    const message = buildFcmMessage({
+      token: fcmToken,
+      title: "🛟 Soporte — Respuesta recibida",
+      body: texto,
+      // OJO: distinto de "soporte_chat" (ese type es para el push
+      // usuario→admin y fcm_service.dart lo navega a AdminHubScreen). Este es
+      // el sentido admin→usuario; un cliente/conductor no debe abrir esa
+      // pantalla de admin al tocar la notificación.
+      type: "soporte_chat_respuesta",
+      extraData: { userId },
+    });
+
+    try {
+      await getMessaging().send(message);
+      console.log(`✅ Notif. respuesta de soporte enviada a ${userId}.`);
+    } catch (err) {
+      console.error(`❌ Error enviando notif. de soporte: ${err.message}`);
+    }
+
+    return null;
+  }
+);
+
+/**
+ * Cloud Function: Notifica por push a TODOS los administradores cuando un
+ * cliente activa el botón de pánico. Antes solo existía un listener local
+ * (SoporteNotificationService.iniciarEscuchaEmergencias) que requería la app
+ * del admin abierta — inaceptable para un evento de seguridad crítico.
+ */
+exports.onEmergenciaCreada = onDocumentCreated(
+  {
+    document: "emergencias/{emergenciaId}",
+    region: "us-central1",
+  },
+  async (event) => {
+    const data = event.data.data();
+    if (!data) return null;
+
+    const db = getFirestore();
+    const tokens = await getAdminTokens(db);
+    if (tokens.length === 0) return null;
+
+    const motivos = Array.isArray(data.motivos) ? data.motivos.join(", ") : "";
+    const body = motivos || "Un cliente activó el botón de pánico.";
+
+    const message = buildFcmMessage({
+      tokens,
+      title: "🚨 EMERGENCIA — cliente en peligro",
+      body,
+      type: "emergencia",
+      extraData: { emergenciaId: event.params.emergenciaId },
+    });
+    // Canal/urgencia máxima: una emergencia no debe sonar como una notificación normal.
+    message.android.notification.channelId = "taxi_emergencia_channel";
+    message.apns.headers["apns-priority"] = "10";
+
+    try {
+      const resp = await getMessaging().sendEachForMulticast(message);
+      console.log(
+        `✅ Notif. emergencia: ${resp.successCount}/${tokens.length} admins notificados.`
+      );
+    } catch (err) {
+      console.error(`❌ Error enviando notif. de emergencia: ${err.message}`);
+    }
+
+    return null;
+  }
+);
+
+/**
+ * Cloud Function: Notifica por push a TODOS los administradores cuando se
+ * crea un reporte sobre un conductor (problema reportado por el cliente).
+ */
+exports.onReporteCreado = onDocumentCreated(
+  {
+    document: "reportes/{reporteId}",
+    region: "us-central1",
+  },
+  async (event) => {
+    const data = event.data.data();
+    if (!data) return null;
+
+    const db = getFirestore();
+    const tokens = await getAdminTokens(db);
+    if (tokens.length === 0) return null;
+
+    const conductor = (data.conductor || "conductor").toString();
+    const motivos = Array.isArray(data.motivos) ? data.motivos.join(", ") : "";
+    const body = motivos || "Reporte enviado por un cliente.";
+
+    const message = buildFcmMessage({
+      tokens,
+      title: `⚠️ Nuevo reporte — ${conductor}`,
+      body,
+      type: "reporte",
+      extraData: { reporteId: event.params.reporteId },
+    });
+
+    try {
+      const resp = await getMessaging().sendEachForMulticast(message);
+      console.log(
+        `✅ Notif. reporte: ${resp.successCount}/${tokens.length} admins notificados.`
+      );
+    } catch (err) {
+      console.error(`❌ Error enviando notif. de reporte: ${err.message}`);
     }
 
     return null;

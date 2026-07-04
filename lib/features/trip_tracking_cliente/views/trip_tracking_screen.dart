@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:geolocator/geolocator.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:taxi_app/utils/marker_icon_helper.dart';
 
 import 'package:flutter/services.dart';
@@ -54,13 +54,7 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
   bool _rutaDestinoNavigationDone = false;
   TripTrackingViewModel? _vm;
 
-  // Smooth marker animation
   bool _isMoto = false;
-  LatLng? _conductorSmooth;
-  LatLng? _conductorTarget;
-  double _conductorRotation = 0;
-  Timer? _movementTimer;
-  TripTrackingViewModel? _vmRef;
 
   String? _lastEstadoProcesado;
   String? _lastPersistedStatus;
@@ -84,9 +78,6 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
     });
     _loadTipoVehiculoYIcono();
     _startCancelDisableTimer();
-    // _vmRef is wired in the Consumer builder the first time vm is available,
-    // because ChangeNotifierProvider lives inside build() and is not yet
-    // reachable via context here in initState.
     // Persist current screen so reload restores this exact view
     try {
       SessionHelper.setActiveSolicitudScreen('trip_tracking');
@@ -124,19 +115,20 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
           _handleSolicitudCanceladaIfNeeded(vm);
           _fitInitialCameraIfNeeded(vm);
           if (_vm != vm) {
-            _vmRef?.removeListener(_onConductorPosChanged);
             _vm = vm;
-            _vmRef = vm;
-            vm.addListener(_onConductorPosChanged);
             _startCameraFollowTimer(vm);
           }
 
-          final conductorPos = _conductorSmooth ?? vm.conductorLatLng;
+          // El ViewModel ya entrega la posición suavizada y snapeada a la ruta
+          // (misma lógica que RutaClienteDestinoView); no duplicar el suavizado
+          // aquí para evitar doble-lag / movimientos raros.
+          final conductorPos = vm.conductorLatLng;
           final markers = <Marker>{
             if (conductorPos != null)
               Marker(
                 markerId: const MarkerId('conductor'),
                 position: conductorPos,
+                rotation: vm.conductorHeading,
                 icon: _taxiMarkerIcon ??
                     BitmapDescriptor.defaultMarkerWithHue(
                         BitmapDescriptor.hueAzure),
@@ -213,16 +205,16 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
                                   top:
                                       mq.padding.top +
                                       280, // Debajo de la card superior
-                                  left: 20,
-                                  right: 20,
+                                  left: 20.w,
+                                  right: 20.w,
                                   child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 8,
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: 12.w,
+                                      vertical: 8.h,
                                     ),
                                     decoration: BoxDecoration(
                                       color: AppColores.warning,
-                                      borderRadius: BorderRadius.circular(10),
+                                      borderRadius: BorderRadius.circular(10.r),
                                       boxShadow: const [
                                         BoxShadow(
                                           color: AppColores.overlayLight,
@@ -231,21 +223,21 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
                                         ),
                                       ],
                                     ),
-                                    child: const Row(
+                                    child: Row(
                                       children: [
                                         Icon(
                                           Icons.wifi_off_rounded,
                                           color: AppColores.textWhite,
                                           size: 18,
                                         ),
-                                        SizedBox(width: 8),
+                                        SizedBox(width: 8.w),
                                         Expanded(
                                           child: Text(
                                             'Sin conexión. Mostrando datos guardados.',
                                             style: TextStyle(
                                               color: AppColores.textWhite,
                                               fontWeight: FontWeight.w600,
-                                              fontSize: 12,
+                                              fontSize: 12.sp,
                                             ),
                                           ),
                                         ),
@@ -255,7 +247,7 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
                                 ),
                               // FAB de enfoque — izquierda arriba
                               Positioned(
-                                left: 16,
+                                left: 16.w,
                                 bottom: safeBottom + 80,
                                 child: FloatingActionButton(
                                   heroTag: 'focus_trip_tracking',
@@ -272,7 +264,7 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
                               ),
                               // Botón de pánico — izquierda abajo
                               Positioned(
-                                left: 16,
+                                left: 16.w,
                                 bottom: safeBottom + 16,
                                 child: const PanicButtonFab(),
                               ),
@@ -282,9 +274,9 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
 
                         // Top Card (UserTripInfoCard con nuevo diseño)
                         Positioned(
-                          top: 0,
-                          left: 0,
-                          right: 0,
+                          top: 0.h,
+                          left: 0.w,
+                          right: 0.w,
                           child: UserTripInfoCard(
                             isMoto: _isMoto,
                             name: vm.nombreUsuarioCard,
@@ -303,31 +295,31 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
                                 context: context,
                                 backgroundColor: Colors.white,
                                 isScrollControlled: true,
-                                shape: const RoundedRectangleBorder(
+                                shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.vertical(
-                                    top: Radius.circular(24),
+                                    top: Radius.circular(24.r),
                                   ),
                                 ),
                                 builder: (ctx) {
                                   return SafeArea(
                                     child: Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 24.0,
-                                        vertical: 16.0,
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: 24.0.w,
+                                        vertical: 16.0.h,
                                       ),
                                       child: Column(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
                                           Container(
-                                            width: 40,
-                                            height: 4,
+                                            width: 40.w,
+                                            height: 4.h,
                                             decoration: BoxDecoration(
                                               color: Colors.grey.shade300,
                                               borderRadius:
-                                                  BorderRadius.circular(2),
+                                                  BorderRadius.circular(2.r),
                                             ),
                                           ),
-                                          const SizedBox(height: 16),
+                                          SizedBox(height: 16.h),
                                           Row(
                                             children: [
                                               CircleAvatar(
@@ -348,13 +340,13 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
                                                       )
                                                     : null,
                                               ),
-                                              const SizedBox(width: 12),
+                                              SizedBox(width: 12.w),
                                               Expanded(
                                                 child: Text(
                                                   vm.nombreUsuarioCard,
-                                                  style: const TextStyle(
+                                                  style: TextStyle(
                                                     fontWeight: FontWeight.bold,
-                                                    fontSize: 16,
+                                                    fontSize: 16.sp,
                                                     color:
                                                         AppColores.textPrimary,
                                                   ),
@@ -362,18 +354,18 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
                                               ),
                                             ],
                                           ),
-                                          const SizedBox(height: 24),
-                                          const Divider(
-                                            height: 1,
+                                          SizedBox(height: 24.h),
+                                          Divider(
+                                            height: 1.h,
                                             color: Colors.black12,
                                           ),
                                           ListTile(
                                             contentPadding: EdgeInsets.zero,
-                                            title: const Text(
+                                            title: Text(
                                               '¿Cuál es el estado de mi solicitud?',
                                               style: TextStyle(
                                                 fontWeight: FontWeight.w600,
-                                                fontSize: 15,
+                                                fontSize: 15.sp,
                                               ),
                                             ),
                                             trailing: const Icon(
@@ -390,17 +382,17 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
                                               );
                                             },
                                           ),
-                                          const Divider(
-                                            height: 1,
+                                          Divider(
+                                            height: 1.h,
                                             color: Colors.black12,
                                           ),
                                           ListTile(
                                             contentPadding: EdgeInsets.zero,
-                                            title: const Text(
+                                            title: Text(
                                               'Revisar o modificar mi pago',
                                               style: TextStyle(
                                                 fontWeight: FontWeight.w600,
-                                                fontSize: 15,
+                                                fontSize: 15.sp,
                                               ),
                                             ),
                                             trailing: const Icon(
@@ -418,17 +410,17 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
                                               );
                                             },
                                           ),
-                                          const Divider(
-                                            height: 1,
+                                          Divider(
+                                            height: 1.h,
                                             color: Colors.black12,
                                           ),
                                           ListTile(
                                             contentPadding: EdgeInsets.zero,
-                                            title: const Text(
+                                            title: Text(
                                               'Problemas con el conductor',
                                               style: TextStyle(
                                                 fontWeight: FontWeight.w600,
-                                                fontSize: 15,
+                                                fontSize: 15.sp,
                                               ),
                                             ),
                                             trailing: const Icon(
@@ -448,17 +440,17 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
                                               );
                                             },
                                           ),
-                                          const Divider(
-                                            height: 1,
+                                          Divider(
+                                            height: 1.h,
                                             color: Colors.black12,
                                           ),
                                           ListTile(
                                             contentPadding: EdgeInsets.zero,
-                                            title: const Text(
+                                            title: Text(
                                               '¿Puedo cancelar mi solicitud?',
                                               style: TextStyle(
                                                 fontWeight: FontWeight.w600,
-                                                fontSize: 15,
+                                                fontSize: 15.sp,
                                               ),
                                             ),
                                             trailing: const Icon(
@@ -482,9 +474,9 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
                               showModalBottomSheet(
                                 context: context,
                                 backgroundColor: Colors.white,
-                                shape: const RoundedRectangleBorder(
+                                shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.vertical(
-                                    top: Radius.circular(24),
+                                    top: Radius.circular(24.r),
                                   ),
                                 ),
                                 isScrollControlled: true,
@@ -520,12 +512,12 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
                                       color: AppColores.primary,
                                     ),
                                     if (vm.isUpdatingRoute) ...[
-                                      const SizedBox(height: 16),
-                                      const Text(
+                                      SizedBox(height: 16.h),
+                                      Text(
                                         'Cargando ruta...',
                                         style: TextStyle(
                                           color: AppColores.primary,
-                                          fontSize: 16,
+                                          fontSize: 16.sp,
                                           fontWeight: FontWeight.bold,
                                         ),
                                       ),
@@ -540,15 +532,15 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
                             child: IgnorePointer(
                               child: Center(
                                 child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 18,
-                                    vertical: 14,
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: 18.w,
+                                    vertical: 14.h,
                                   ),
                                   decoration: BoxDecoration(
                                     color: Colors.black.withValues(alpha: 0.78),
-                                    borderRadius: BorderRadius.circular(16),
+                                    borderRadius: BorderRadius.circular(16.r),
                                   ),
-                                  child: const Row(
+                                  child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       Icon(
@@ -556,7 +548,7 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
                                         color: Colors.white,
                                         size: 22,
                                       ),
-                                      SizedBox(width: 10),
+                                      SizedBox(width: 10.w),
                                       Column(
                                         mainAxisSize: MainAxisSize.min,
                                         crossAxisAlignment:
@@ -567,14 +559,14 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
                                             style: TextStyle(
                                               color: Colors.white,
                                               fontWeight: FontWeight.w800,
-                                              fontSize: 14,
+                                              fontSize: 14.sp,
                                             ),
                                           ),
                                           Text(
                                             'Esperando señal...',
                                             style: TextStyle(
                                               color: Colors.white70,
-                                              fontSize: 12,
+                                              fontSize: 12.sp,
                                             ),
                                           ),
                                         ],
@@ -650,56 +642,6 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
     setState(() => _taxiMarkerIcon = icon);
   }
 
-  void _onConductorPosChanged() {
-    if (!mounted) return;
-    final vm = _vmRef;
-    if (vm == null) return;
-    final loc = vm.conductorLatLng;
-    if (loc != null && loc != _conductorTarget) {
-      _conductorTarget = loc;
-      _ensureMovementTimer();
-    }
-  }
-
-  void _ensureMovementTimer() {
-    _movementTimer ??= Timer.periodic(
-      const Duration(milliseconds: 50),
-      _tickMovement,
-    );
-  }
-
-  void _tickMovement(Timer _) {
-    if (!mounted) {
-      _movementTimer?.cancel();
-      _movementTimer = null;
-      return;
-    }
-    final target = _conductorTarget;
-    if (target == null) return;
-    if (_conductorSmooth == null) {
-      setState(() => _conductorSmooth = target);
-      return;
-    }
-    const alpha = 0.15;
-    final newLat = _conductorSmooth!.latitude +
-        (target.latitude - _conductorSmooth!.latitude) * alpha;
-    final newLng = _conductorSmooth!.longitude +
-        (target.longitude - _conductorSmooth!.longitude) * alpha;
-    final dist = Geolocator.distanceBetween(
-      newLat, newLng, target.latitude, target.longitude,
-    );
-    final newPos = dist < 0.3 ? target : LatLng(newLat, newLng);
-    final vm = _vmRef;
-    if (vm == null) return;
-    _conductorRotation = _lerpAngle(_conductorRotation, vm.conductorHeading, alpha);
-    setState(() => _conductorSmooth = newPos);
-  }
-
-  double _lerpAngle(double current, double target, double t) {
-    final diff = (target - current + 540) % 360 - 180;
-    return (current + diff * t) % 360;
-  }
-
   void _syncSolicitudPersistence(TripTrackingViewModel vm) {
     final estado = vm.solicitud?.estado;
     if (estado == null || estado.trim().isEmpty) return;
@@ -768,16 +710,16 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
     final r = await showDialog<bool>(
       context: context,
       builder: (ctx) => Dialog(
-        insetPadding: const EdgeInsets.symmetric(horizontal: 32),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        insetPadding: EdgeInsets.symmetric(horizontal: 32.w),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24.r)),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(22, 24, 22, 18),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                width: 64,
-                height: 64,
+                width: 64.w,
+                height: 64.h,
                 decoration: BoxDecoration(
                   color: AppColores.error.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
@@ -788,27 +730,27 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
                   size: 34,
                 ),
               ),
-              const SizedBox(height: 16),
-              const Text(
+              SizedBox(height: 16.h),
+              Text(
                 '¿Seguro quieres cancelar?',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 19,
+                  fontSize: 19.sp,
                   fontWeight: FontWeight.w800,
                   color: AppColores.textPrimary,
                 ),
               ),
-              const SizedBox(height: 8),
-              const Text(
+              SizedBox(height: 8.h),
+              Text(
                 'Se cancelará tu solicitud de viaje. Esta acción no se puede deshacer.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: 14.sp,
                   color: AppColores.textSecondary,
-                  height: 1.35,
+                  height: 1.35.h,
                 ),
               ),
-              const SizedBox(height: 22),
+              SizedBox(height: 22.h),
               Row(
                 children: [
                   Expanded(
@@ -819,7 +761,7 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
                         side: const BorderSide(color: AppColores.borderSubtle),
                         minimumSize: const Size.fromHeight(48),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.circular(14.r),
                         ),
                       ),
                       child: const Text(
@@ -828,14 +770,14 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  SizedBox(width: 12.w),
                   Expanded(
                     child: FilledButton(
                       style: FilledButton.styleFrom(
                         backgroundColor: AppColores.error,
                         minimumSize: const Size.fromHeight(48),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.circular(14.r),
                         ),
                       ),
                       onPressed: () => Navigator.pop(ctx, true),
@@ -1067,8 +1009,6 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
 
   @override
   void dispose() {
-    _vmRef?.removeListener(_onConductorPosChanged);
-    _movementTimer?.cancel();
     _mapController?.dispose();
     _cameraFollowTimer?.cancel();
     try {

@@ -1,6 +1,6 @@
 {
   "name": "taxi-app-functions",
-  "description": "Cloud Functions para la app Taxi Ya — notificaciones push en cambio de estado",
+  "description": "Cloud Functions para la app Ride — notificaciones push en cambio de estado",
   "engines": {
     "node": "22"
   },

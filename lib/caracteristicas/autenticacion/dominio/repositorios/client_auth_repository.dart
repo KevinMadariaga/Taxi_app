@@ -42,5 +42,6 @@ abstract class ClientAuthRepository {
     required String apellido,
     required String telefono,
     required String? fotoUrl,
+    String? email,
   });
 }

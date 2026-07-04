@@ -79,6 +79,7 @@ class _HomeViewState extends State<HomeView> {
             initialNombre: result.user.nombre,
             initialApellido: result.user.apellido,
             initialTelefono: result.user.telefono,
+            initialCorreo: result.user.email,
           ),
         ),
         (route) => false,
@@ -158,10 +159,8 @@ class _HomeViewState extends State<HomeView> {
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   final double alturaViewport = constraints.maxHeight;
-                  final double espacioSuperior =
-                      (alturaViewport * 0.08).clamp(12.0, 72.0);
                   final double espacioEntreHeroYAcciones =
-                      (alturaViewport * 0.12).clamp(16.0, 96.0);
+                      (alturaViewport * 0.18).clamp(32.0, 140.0);
 
                   return SingleChildScrollView(
                     padding: const EdgeInsets.fromLTRB(24, 12, 24, 28),
@@ -171,9 +170,13 @@ class _HomeViewState extends State<HomeView> {
                         maxWidth: 460,
                       ),
                       child: Column(
+                        // Centra todo el bloque (logo + acciones) dentro del
+                        // viewport en vez de anclarlo arriba con espacio
+                        // muerto abajo — el wordmark nuevo es más bajo que el
+                        // logo anterior y dejaba la pantalla descompensada.
+                        mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          SizedBox(height: espacioSuperior),
                           _Hero(),
                           SizedBox(height: espacioEntreHeroYAcciones),
 
@@ -219,7 +222,6 @@ class _HomeViewState extends State<HomeView> {
                             onTap: () => _loginWithApple(authVm),
                           ),
 
-
                           const SizedBox(height: 8),
                           Text(
                             'Al continuar aceptas nuestros Términos y la\n'
@@ -255,33 +257,23 @@ class _HomeViewState extends State<HomeView> {
 class _Hero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    final h = MediaQuery.of(context).size.height;
+    final width = MediaQuery.of(context).size.width;
+    // El wordmark ya trae el ícono y "IDE" en un solo PNG (proporción ancha,
+    // ~3:1) — se dimensiona por ancho, no por alto como el logo anterior.
+    final logoWidth = (width * 0.62).clamp(180.0, 320.0);
     return Column(
       children: [
-        SizedBox(
-          height: (h * 0.22).clamp(140.0, 220.0),
-          child: Image.asset(
-            'assets/img/Ride_foreground.png',
-            fit: BoxFit.contain,
-            errorBuilder: (_, _, _) => Icon(
-              Icons.local_taxi_rounded,
-              size: 110,
-              color: AppColores.primary,
-            ),
+        Image.asset(
+          'assets/img/RIDE_transparent.png',
+          width: logoWidth,
+          fit: BoxFit.contain,
+          errorBuilder: (_, _, _) => Icon(
+            Icons.local_taxi_rounded,
+            size: logoWidth * 0.4,
+            color: AppColores.primary,
           ),
         ),
-        const SizedBox(height: 18),
-        const Text(
-          'Ride',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 34,
-            fontWeight: FontWeight.w900,
-            letterSpacing: -0.5,
-            color: AppColores.textPrimary,
-          ),
-        ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 20),
         Text(
           'Tu viaje, a un toque de distancia',
           textAlign: TextAlign.center,

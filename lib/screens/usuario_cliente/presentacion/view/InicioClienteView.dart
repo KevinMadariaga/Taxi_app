@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:geolocator/geolocator.dart';
@@ -381,24 +382,24 @@ class _InicioClienteViewState extends State<InicioClienteView>
   Future<void> _showMoreOptionsSheet() async {
     await showModalBottomSheet<void>(
       context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24.r)),
       ),
       builder: (ctx) {
         return SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const SizedBox(height: 10),
+              SizedBox(height: 10.h),
               Container(
-                width: 40,
-                height: 4,
+                width: 40.w,
+                height: 4.h,
                 decoration: BoxDecoration(
                   color: AppColores.grey300,
-                  borderRadius: BorderRadius.circular(2),
+                  borderRadius: BorderRadius.circular(2.r),
                 ),
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: 8.h),
               ListTile(
                 leading: const Icon(Icons.security),
                 title: const Text('Seguridad'),
@@ -439,7 +440,7 @@ class _InicioClienteViewState extends State<InicioClienteView>
                   await InicioClienteNavigation.irAHistorial(context);
                 },
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: 8.h),
             ],
           ),
         );
@@ -519,9 +520,9 @@ class _InicioClienteViewState extends State<InicioClienteView>
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 _buildHeader(isTablet),
-                                const SizedBox(height: 12),
+                                SizedBox(height: 12.h),
                                 _buildSearchBox(isTablet),
-                                const SizedBox(height: 16),
+                                SizedBox(height: 16.h),
                                 _buildFavoritos(isTablet),
                               ],
                             ),
@@ -543,7 +544,7 @@ class _InicioClienteViewState extends State<InicioClienteView>
                                     height: carouselHeight,
                                     child: _buildCarousel(),
                                   ),
-                                  const SizedBox(height: 18),
+                                  SizedBox(height: 18.h),
                                   Expanded(child: _buildMap()),
                                 ],
                               ),
@@ -587,7 +588,7 @@ class _InicioClienteViewState extends State<InicioClienteView>
       children: [
         Expanded(
           child: Padding(
-            padding: const EdgeInsets.only(left: 12),
+            padding: EdgeInsets.only(left: 12.w),
             child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -599,7 +600,7 @@ class _InicioClienteViewState extends State<InicioClienteView>
                   color: AppColores.textPrimary,
                 ),
               ),
-              const SizedBox(height: 2),
+              SizedBox(height: 2.h),
             ],
             ),
           ),
@@ -616,14 +617,14 @@ class _InicioClienteViewState extends State<InicioClienteView>
     return Material(
       color: AppColores.surface,
       elevation: 0,
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(18.r),
       child: InkWell(
         onTap: () => _navigateToDestinoSeleccion(),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(18.r),
         child: Ink(
           decoration: BoxDecoration(
             color: AppColores.surface,
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(18.r),
             border: Border.all(
               color: AppColores.primary.withValues(alpha: 0.35),
               width: 1.4,
@@ -636,16 +637,16 @@ class _InicioClienteViewState extends State<InicioClienteView>
               ),
             ],
           ),
-          padding: const EdgeInsets.all(12),
+          padding: EdgeInsets.all(12.w),
           child: Row(
             children: [
               // Lupa: señal universal de "campo de búsqueda / tocar para buscar".
               Container(
-                width: 46,
-                height: 46,
+                width: 46.w,
+                height: 46.h,
                 decoration: BoxDecoration(
                   color: AppColores.primary.withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(13),
+                  borderRadius: BorderRadius.circular(13.r),
                 ),
                 child: const Icon(
                   Icons.search_rounded,
@@ -653,7 +654,7 @@ class _InicioClienteViewState extends State<InicioClienteView>
                   color: Color(0xFFB38F00),
                 ),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12.w),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -667,19 +668,19 @@ class _InicioClienteViewState extends State<InicioClienteView>
                         fontWeight: FontWeight.w800,
                       ),
                     ),
-                    const SizedBox(height: 2),
-                    const Text(
+                    SizedBox(height: 2.h),
+                    Text(
                       'Toca para elegir tu destino',
                       style: TextStyle(
                         color: AppColores.textSecondary,
-                        fontSize: 12.5,
+                        fontSize: 12.5.sp,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: 8.w),
               const _NudgingArrow(),
             ],
           ),
@@ -705,10 +706,10 @@ class _InicioClienteViewState extends State<InicioClienteView>
             fontWeight: FontWeight.w500,
           ),
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: 8.h),
         if (vm.isLoadingFavoritos) ...[
           const LinearProgressIndicator(minHeight: 2),
-          const SizedBox(height: 8),
+          SizedBox(height: 8.h),
         ],
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
@@ -720,7 +721,7 @@ class _InicioClienteViewState extends State<InicioClienteView>
                       .toList(),
           ),
         ),
-        const SizedBox(height: 4),
+        SizedBox(height: 4.h),
       ],
     );
   }
@@ -732,14 +733,14 @@ class _InicioClienteViewState extends State<InicioClienteView>
         : Icons.star_rounded;
 
     return Padding(
-      padding: const EdgeInsets.only(right: 8),
+      padding: EdgeInsets.only(right: 8.w),
       child: GestureDetector(
         onTap: () => _onFavoriteSelected(f),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
           decoration: BoxDecoration(
             color: AppColores.surface,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(20.r),
             border: Border.all(color: AppColores.borderSubtle),
             boxShadow: [
               BoxShadow(
@@ -752,12 +753,12 @@ class _InicioClienteViewState extends State<InicioClienteView>
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(icon, size: 15, color: AppColores.primary),
-              const SizedBox(width: 6),
+              SizedBox(width: 6.w),
               Text(
                 label,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColores.textPrimary,
-                  fontSize: 13,
+                  fontSize: 13.sp,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -782,7 +783,7 @@ class _InicioClienteViewState extends State<InicioClienteView>
     }
 
     return Padding(
-      padding: const EdgeInsets.only(right: 8),
+      padding: EdgeInsets.only(right: 8.w),
       child: GestureDetector(
         onTap: () async {
           if (label == 'Casa') {
@@ -802,10 +803,10 @@ class _InicioClienteViewState extends State<InicioClienteView>
           _navigateToDestinoSeleccion();
         },
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
           decoration: BoxDecoration(
             color: AppColores.surface,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(20.r),
             border: Border.all(color: AppColores.borderSubtle),
             boxShadow: [
               BoxShadow(
@@ -818,12 +819,12 @@ class _InicioClienteViewState extends State<InicioClienteView>
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(icon, size: 15, color: AppColores.primary),
-              const SizedBox(width: 6),
+              SizedBox(width: 6.w),
               Text(
                 label,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColores.textPrimary,
-                  fontSize: 13,
+                  fontSize: 13.sp,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -859,7 +860,7 @@ class _InicioClienteViewState extends State<InicioClienteView>
                     child: Card(
                     elevation: 0,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(16.r),
                     ),
                     clipBehavior: Clip.hardEdge,
                     child: Stack(
@@ -876,8 +877,8 @@ class _InicioClienteViewState extends State<InicioClienteView>
                           right: -20,
                           top: -20,
                           child: Container(
-                            width: 110,
-                            height: 110,
+                            width: 110.w,
+                            height: 110.h,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               color: Colors.white.withValues(alpha: 0.12),
@@ -886,7 +887,7 @@ class _InicioClienteViewState extends State<InicioClienteView>
                         ),
                         // Contenido
                         Padding(
-                          padding: const EdgeInsets.all(16),
+                          padding: EdgeInsets.all(16.w),
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -898,20 +899,20 @@ class _InicioClienteViewState extends State<InicioClienteView>
                                   alpha: 0.85,
                                 ),
                               ),
-                              const SizedBox(height: 10),
+                              SizedBox(height: 10.h),
                               Text(
                                 item['title'].toString(),
-                                style: const TextStyle(
-                                  fontSize: 16,
+                                style: TextStyle(
+                                  fontSize: 16.sp,
                                   fontWeight: FontWeight.w700,
                                   color: AppColores.textPrimary,
                                 ),
                               ),
-                              const SizedBox(height: 4),
+                              SizedBox(height: 4.h),
                               Text(
                                 item['subtitle'].toString(),
                                 style: TextStyle(
-                                  fontSize: 12,
+                                  fontSize: 12.sp,
                                   color: AppColores.textPrimary.withValues(
                                     alpha: 0.7,
                                   ),
@@ -936,8 +937,8 @@ class _InicioClienteViewState extends State<InicioClienteView>
   Future<void> _mostrarPromoWhatsApp() async {
     await showModalBottomSheet<void>(
       context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24.r)),
       ),
       builder: (ctx) {
         return SafeArea(
@@ -947,17 +948,17 @@ class _InicioClienteViewState extends State<InicioClienteView>
               mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
-                  width: 40,
-                  height: 4,
+                  width: 40.w,
+                  height: 4.h,
                   decoration: BoxDecoration(
                     color: AppColores.grey300,
-                    borderRadius: BorderRadius.circular(2),
+                    borderRadius: BorderRadius.circular(2.r),
                   ),
                 ),
-                const SizedBox(height: 20),
+                SizedBox(height: 20.h),
                 Container(
-                  width: 64,
-                  height: 64,
+                  width: 64.w,
+                  height: 64.h,
                   decoration: BoxDecoration(
                     color: AppColores.primary.withValues(alpha: 0.18),
                     shape: BoxShape.circle,
@@ -968,26 +969,26 @@ class _InicioClienteViewState extends State<InicioClienteView>
                     size: 34,
                   ),
                 ),
-                const SizedBox(height: 16),
-                const Text(
+                SizedBox(height: 16.h),
+                Text(
                   '¿Quieres promocionar tu negocio?',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: 18,
+                    fontSize: 18.sp,
                     fontWeight: FontWeight.w800,
                     color: AppColores.textPrimary,
                   ),
                 ),
-                const SizedBox(height: 8),
-                const Text(
+                SizedBox(height: 8.h),
+                Text(
                   'Escríbenos por WhatsApp y te ayudamos a llegar a más clientes.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: 14.sp,
                     color: AppColores.textSecondary,
                   ),
                 ),
-                const SizedBox(height: 22),
+                SizedBox(height: 22.h),
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
@@ -996,16 +997,16 @@ class _InicioClienteViewState extends State<InicioClienteView>
                       _abrirWhatsAppPromo();
                     },
                     icon: const Icon(Icons.chat_rounded, size: 20),
-                    label: const Text(
+                    label: Text(
                       'Contactar por WhatsApp',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15.sp),
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF25D366),
                       foregroundColor: Colors.white,
                       minimumSize: const Size.fromHeight(52),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(16.r),
                       ),
                     ),
                   ),
@@ -1042,7 +1043,7 @@ class _InicioClienteViewState extends State<InicioClienteView>
   Widget _buildMap() {
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(18.r),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.08),
@@ -1052,7 +1053,7 @@ class _InicioClienteViewState extends State<InicioClienteView>
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(18.r),
         child: Stack(
           children: [
             RepaintBoundary(
@@ -1085,16 +1086,16 @@ class _InicioClienteViewState extends State<InicioClienteView>
             ),
             // Label "Estás aquí"
             Positioned(
-              top: 10,
-              left: 10,
+              top: 10.h,
+              left: 10.w,
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 5,
+                padding: EdgeInsets.symmetric(
+                  horizontal: 10.w,
+                  vertical: 5.h,
                 ),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.92),
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(20.r),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.08),
@@ -1110,11 +1111,11 @@ class _InicioClienteViewState extends State<InicioClienteView>
                       size: 12,
                       color: AppColores.primary,
                     ),
-                    const SizedBox(width: 4),
+                    SizedBox(width: 4.w),
                     Text(
                       'Estás aquí',
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 12.sp,
                         fontWeight: FontWeight.w600,
                         color: AppColores.textPrimary,
                       ),
@@ -1125,13 +1126,13 @@ class _InicioClienteViewState extends State<InicioClienteView>
             ),
             // Botón centrar mapa
             Positioned(
-              right: 8,
-              bottom: 8,
+              right: 8.w,
+              bottom: 8.h,
               child: Material(
                 color: Colors.transparent,
                 child: Container(
-                  width: 32,
-                  height: 32,
+                  width: 32.w,
+                  height: 32.h,
                   decoration: const BoxDecoration(
                     color: AppColores.surface,
                     shape: BoxShape.circle,
@@ -1139,7 +1140,7 @@ class _InicioClienteViewState extends State<InicioClienteView>
                   child: IconButton(
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
-                    iconSize: 21,
+                    iconSize: 21.sp,
                     onPressed: _centerOnMarker,
                     icon: const Icon(
                       Icons.my_location,
@@ -1175,11 +1176,11 @@ class _InicioClienteViewState extends State<InicioClienteView>
         unselectedItemColor: AppColores.textSecondary,
         currentIndex: _selectedIndex,
         onTap: _onBottomNavTap,
-        selectedLabelStyle: const TextStyle(
+        selectedLabelStyle: TextStyle(
           fontWeight: FontWeight.w700,
-          fontSize: 11,
+          fontSize: 11.sp,
         ),
-        unselectedLabelStyle: const TextStyle(fontSize: 11),
+        unselectedLabelStyle: TextStyle(fontSize: 11.sp),
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.menu_rounded),
@@ -1202,15 +1203,15 @@ class _InicioClienteViewState extends State<InicioClienteView>
     return Positioned.fill(
       child: Container(
         color: AppColores.overlayDark,
-        child: const Center(
+        child: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               CircularProgressIndicator(),
-              SizedBox(height: 12),
+              SizedBox(height: 12.h),
               Text(
                 'Obteniendo ubicación...',
-                style: TextStyle(color: AppColores.textWhite, fontSize: 16),
+                style: TextStyle(color: AppColores.textWhite, fontSize: 16.sp),
               ),
             ],
           ),
@@ -1223,15 +1224,15 @@ class _InicioClienteViewState extends State<InicioClienteView>
     return Positioned.fill(
       child: Container(
         color: AppColores.overlayDark,
-        child: const Center(
+        child: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               CircularProgressIndicator(),
-              SizedBox(height: 12),
+              SizedBox(height: 12.h),
               Text(
                 'Preparando destino...',
-                style: TextStyle(color: AppColores.textWhite, fontSize: 16),
+                style: TextStyle(color: AppColores.textWhite, fontSize: 16.sp),
               ),
             ],
           ),
@@ -1289,10 +1290,10 @@ class _NudgingArrowState extends State<_NudgingArrow>
       builder: (_, child) =>
           Transform.translate(offset: Offset(_dx.value, 0), child: child),
       child: Container(
-        padding: const EdgeInsets.all(11),
+        padding: EdgeInsets.all(11.w),
         decoration: BoxDecoration(
           color: AppColores.primary,
-          borderRadius: BorderRadius.circular(13),
+          borderRadius: BorderRadius.circular(13.r),
         ),
         child: const Icon(
           Icons.arrow_forward_rounded,
@@ -1312,9 +1313,9 @@ class _UbicacionOkBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Positioned(
-      top: 12,
-      left: 0,
-      right: 0,
+      top: 12.h,
+      left: 0.w,
+      right: 0.w,
       child: IgnorePointer(
         child: AnimatedSlide(
           duration: const Duration(milliseconds: 340),
@@ -1325,13 +1326,13 @@ class _UbicacionOkBanner extends StatelessWidget {
             opacity: visible ? 1 : 0,
             child: Center(
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 10,
+                padding: EdgeInsets.symmetric(
+                  horizontal: 16.w,
+                  vertical: 10.h,
                 ),
                 decoration: BoxDecoration(
                   color: AppColores.surface,
-                  borderRadius: BorderRadius.circular(30),
+                  borderRadius: BorderRadius.circular(30.r),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.12),
@@ -1344,8 +1345,8 @@ class _UbicacionOkBanner extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Container(
-                      width: 24,
-                      height: 24,
+                      width: 24.w,
+                      height: 24.h,
                       decoration: BoxDecoration(
                         color: AppColores.success.withValues(alpha: 0.15),
                         shape: BoxShape.circle,
@@ -1356,12 +1357,12 @@ class _UbicacionOkBanner extends StatelessWidget {
                         color: AppColores.success,
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    const Text(
+                    SizedBox(width: 10.w),
+                    Text(
                       'Ubicación encontrada',
                       style: TextStyle(
                         fontWeight: FontWeight.w700,
-                        fontSize: 13.5,
+                        fontSize: 13.5.sp,
                         color: AppColores.textPrimary,
                       ),
                     ),

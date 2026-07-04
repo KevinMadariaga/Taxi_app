@@ -150,10 +150,11 @@ class _SplashViewState extends State<SplashView>
 
   @override
   Widget build(BuildContext context) {
-    // Tamaño del logo proporcional a la pantalla (promedio), acotado para que
-    // no se vea ni muy pequeño ni desbordado en tablets.
-    final double logoSize =
-        (MediaQuery.of(context).size.width * 0.48).clamp(150.0, 210.0);
+    // El wordmark (ícono + "IDE" en un solo PNG, proporción ancha ~3:1) se
+    // dimensiona por ancho, acotado para que no se vea ni chico ni desbordado
+    // en tablets.
+    final double logoWidth =
+        (MediaQuery.of(context).size.width * 0.48).clamp(160.0, 260.0);
 
     return Scaffold(
       backgroundColor: _fondoSplash,
@@ -175,37 +176,24 @@ class _SplashViewState extends State<SplashView>
                           curve: Curves.easeInOut,
                         ),
                       ),
-                      child: SizedBox(
-                        width: logoSize,
-                        height: logoSize,
-                        child: Image.asset(
-                          'assets/img/Ride_foreground.png',
-                          fit: BoxFit.contain,
-                          errorBuilder: (_, _, _) => Icon(
-                            Icons.local_taxi_rounded,
-                            size: logoSize * 0.62,
-                            color: AppColores.primary,
-                          ),
+                      child: Image.asset(
+                        'assets/img/RIDE_transparent.png',
+                        width: logoWidth,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, _, _) => Icon(
+                          Icons.local_taxi_rounded,
+                          size: logoWidth * 0.4,
+                          color: AppColores.primary,
                         ),
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
                 FadeTransition(
                   opacity: _textoFade,
                   child: Column(
                     children: [
-                      const Text(
-                        'Ride',
-                        style: TextStyle(
-                          fontSize: 34,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: -0.5,
-                          color: AppColores.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
                       Text(
                         AppConstants.splashMessage,
                         textAlign: TextAlign.center,

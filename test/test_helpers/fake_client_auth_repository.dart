@@ -98,6 +98,7 @@ class FakeClientAuthRepository implements ClientAuthRepository {
     required String apellido,
     required String telefono,
     required String? fotoUrl,
+    String? email,
   }) async {
     return;
   }

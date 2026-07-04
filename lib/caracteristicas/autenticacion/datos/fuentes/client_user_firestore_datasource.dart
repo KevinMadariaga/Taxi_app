@@ -33,6 +33,16 @@ class ClientUserFirestoreDataSource {
       if (existing.fotoUrl.trim().isEmpty && foto.isNotEmpty) {
         patch['foto'] = foto;
       }
+      // Backfill nombre/apellido si el doc quedo vacio de un intento previo
+      // (p.ej. Apple solo entrega el nombre la primera vez que autoriza).
+      final fullName = (displayName ?? '').trim();
+      if (existing.nombre.trim().isEmpty && fullName.isNotEmpty) {
+        final partes = fullName.split(RegExp(r'\s+'));
+        patch['nombre'] = partes.first;
+        if (partes.length > 1) {
+          patch['apellido'] = partes.sublist(1).join(' ');
+        }
+      }
       if (patch.isNotEmpty) {
         patch['rol'] = 'cliente';
         await _firestore
@@ -134,8 +144,10 @@ class ClientUserFirestoreDataSource {
     required String apellido,
     required String telefono,
     required String? fotoUrl,
+    String? email,
   }) async {
     final safeFotoUrl = (fotoUrl ?? '').trim();
+    final safeEmail = (email ?? '').trim();
 
     await _firestore.collection('usuarios').doc(uid).set({
       'id': uid,
@@ -145,6 +157,7 @@ class ClientUserFirestoreDataSource {
       'telefono': telefono.trim(),
       'foto': safeFotoUrl,
       'fotoUrl': FieldValue.delete(),
+      if (safeEmail.isNotEmpty) 'email': safeEmail,
       'rol': 'cliente',
       'isProfileComplete': true,
       'updatedAt': FieldValue.serverTimestamp(),

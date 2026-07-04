@@ -15,6 +15,8 @@ class DriverLocationService {
   StreamSubscription<Position>? _syncSub;
   Stream<Position> get stream => _positionStream ?? const Stream.empty();
 
+  Position? _lastAcceptedPosition;
+
   Future<void> ensurePermission() async {
     final enabled = await Geolocator.isLocationServiceEnabled();
     if (!enabled) {
@@ -51,7 +53,23 @@ class DriverLocationService {
     );
 
     _syncSub?.cancel();
+    _lastAcceptedPosition = null;
     _syncSub = _positionStream!.listen((pos) {
+      // Descarta saltos de GPS poco realistas (glitch del sensor), igual que
+      // TrackingService (flujo legacy), para que el marcador del cliente no
+      // reciba un punto erróneo y haga un salto visual brusco.
+      final last = _lastAcceptedPosition;
+      if (last != null) {
+        final distancia = Geolocator.distanceBetween(
+          last.latitude,
+          last.longitude,
+          pos.latitude,
+          pos.longitude,
+        );
+        if (distancia > 200) return;
+      }
+      _lastAcceptedPosition = pos;
+
       _firestoreService.updateDriverLocation(
         tripId: tripId,
         position: LatLng(pos.latitude, pos.longitude),

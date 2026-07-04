@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show FilteringTextInputFormatter;
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -319,7 +320,7 @@ class _InicioConductorState extends State<InicioConductor>
             _navegarARutaConductor(vm, solicitudId);
           };
           if (_isPreparingLocation) {
-            return const Scaffold(
+            return Scaffold(
               backgroundColor: AppColores.background,
               body: SafeArea(
                 child: Center(
@@ -327,7 +328,7 @@ class _InicioConductorState extends State<InicioConductor>
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       CircularProgressIndicator(),
-                      SizedBox(height: 12),
+                      SizedBox(height: 12.h),
                       Text(
                         'Preparando ubicación...',
                         style: TextStyle(
@@ -343,7 +344,7 @@ class _InicioConductorState extends State<InicioConductor>
           }
 
           if (vm.isLoading) {
-            return const Scaffold(
+            return Scaffold(
               backgroundColor: AppColores.background,
               body: SafeArea(
                 child: Center(
@@ -351,7 +352,7 @@ class _InicioConductorState extends State<InicioConductor>
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       CircularProgressIndicator(),
-                      SizedBox(height: 12),
+                      SizedBox(height: 12.h),
                       Text(
                         'Cargando panel del conductor...',
                         style: TextStyle(
@@ -420,7 +421,7 @@ class _InicioConductorState extends State<InicioConductor>
                               constraints: const BoxConstraints(minHeight: 110),
                               decoration: BoxDecoration(
                                 color: AppColores.cardBackground,
-                                borderRadius: BorderRadius.circular(12.0),
+                                borderRadius: BorderRadius.circular(12.0.r),
                                 border: Border.all(
                                   color: AppColores.borderSubtle,
                                   width: 1.2,
@@ -434,9 +435,9 @@ class _InicioConductorState extends State<InicioConductor>
                                 ],
                               ),
 
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16.0,
-                                vertical: 14.0,
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 16.0.w,
+                                vertical: 14.0.h,
                               ),
                               child: Row(
                                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -448,14 +449,14 @@ class _InicioConductorState extends State<InicioConductor>
                                       children: [
                                         Text(
                                           vm.displayName.toUpperCase(),
-                                          style: const TextStyle(
-                                            fontSize: 20,
+                                          style: TextStyle(
+                                            fontSize: 20.sp,
                                             fontWeight: FontWeight.w900,
                                             color: AppColores.textPrimary,
                                           ),
                                         ),
 
-                                        const SizedBox(height: 10.0),
+                                        SizedBox(height: 10.0.h),
                                         // Estrellas de calificación desde el ViewModel
                                         Builder(
                                           builder: (ctx) {
@@ -485,8 +486,8 @@ class _InicioConductorState extends State<InicioConductor>
                                                                           .star_border);
                                                           return Padding(
                                                             padding:
-                                                                const EdgeInsets.only(
-                                                                  right: 4,
+                                                                EdgeInsets.only(
+                                                                  right: 4.w,
                                                                 ),
                                                             child: Icon(
                                                               icon,
@@ -503,8 +504,8 @@ class _InicioConductorState extends State<InicioConductor>
                                                           );
                                                         })
                                                         ..add(
-                                                          const SizedBox(
-                                                            width: 6,
+                                                          SizedBox(
+                                                            width: 6.w,
                                                           ),
                                                         )
                                                         ..add(
@@ -513,10 +514,10 @@ class _InicioConductorState extends State<InicioConductor>
                                                                 .toStringAsFixed(
                                                                   1,
                                                                 ),
-                                                            style: const TextStyle(
+                                                            style: TextStyle(
                                                               color: AppColores
                                                                   .textPrimary,
-                                                              fontSize: 16,
+                                                              fontSize: 16.sp,
                                                               fontWeight:
                                                                   FontWeight
                                                                       .w800,
@@ -524,12 +525,12 @@ class _InicioConductorState extends State<InicioConductor>
                                                           ),
                                                         )
                                                         ..add(
-                                                          const Text(
+                                                          Text(
                                                             '/5.0',
                                                             style: TextStyle(
                                                               color: AppColores
                                                                   .textSecondary,
-                                                              fontSize: 13,
+                                                              fontSize: 13.sp,
                                                               fontWeight:
                                                                   FontWeight
                                                                       .w600,
@@ -537,15 +538,15 @@ class _InicioConductorState extends State<InicioConductor>
                                                           ),
                                                         ),
                                                 ),
-                                                const SizedBox(height: 6),
+                                                SizedBox(height: 6.h),
                                                 Text(
                                                   vm.totalRatings > 0
                                                       ? 'Basado en ${vm.totalRatings} calificaciones de clientes'
                                                       : 'Aun sin calificaciones de clientes',
-                                                  style: const TextStyle(
+                                                  style: TextStyle(
                                                     color: AppColores
                                                         .textSecondary,
-                                                    fontSize: 13,
+                                                    fontSize: 13.sp,
                                                     fontWeight: FontWeight.w600,
                                                   ),
                                                 ),
@@ -556,7 +557,7 @@ class _InicioConductorState extends State<InicioConductor>
                                       ],
                                     ),
                                   ),
-                                  const SizedBox(width: 12.0),
+                                  SizedBox(width: 12.0.w),
                                   // Foto circular del conductor desde el ViewModel
                                   Builder(
                                     builder: (ctx) {
@@ -566,13 +567,13 @@ class _InicioConductorState extends State<InicioConductor>
                                         return ClipOval(
                                           child: Image.network(
                                             photoUrl,
-                                            width: 100,
-                                            height: 100,
+                                            width: 100.w,
+                                            height: 100.h,
                                             fit: BoxFit.cover,
                                             errorBuilder: (ctx2, error, stack) {
                                               return Container(
-                                                width: 100,
-                                                height: 100,
+                                                width: 100.w,
+                                                height: 100.h,
                                                 decoration: const BoxDecoration(
                                                   color: AppColores.grey200,
                                                   shape: BoxShape.circle,
@@ -584,8 +585,8 @@ class _InicioConductorState extends State<InicioConductor>
                                                             .trim()[0]
                                                             .toUpperCase()
                                                       : 'C',
-                                                  style: const TextStyle(
-                                                    fontSize: 40,
+                                                  style: TextStyle(
+                                                    fontSize: 40.sp,
                                                     fontWeight: FontWeight.bold,
                                                     color:
                                                         AppColores.textPrimary,
@@ -598,8 +599,8 @@ class _InicioConductorState extends State<InicioConductor>
                                       }
 
                                       return Container(
-                                        width: 100,
-                                        height: 100,
+                                        width: 100.w,
+                                        height: 100.h,
                                         decoration: const BoxDecoration(
                                           color: AppColores.grey200,
                                           shape: BoxShape.circle,
@@ -611,8 +612,8 @@ class _InicioConductorState extends State<InicioConductor>
                                                     .trim()[0]
                                                     .toUpperCase()
                                               : 'C',
-                                          style: const TextStyle(
-                                            fontSize: 40,
+                                          style: TextStyle(
+                                            fontSize: 40.sp,
                                             fontWeight: FontWeight.bold,
                                             color: AppColores.textPrimary,
                                           ),
@@ -626,14 +627,14 @@ class _InicioConductorState extends State<InicioConductor>
                           ),
 
                         // Espacio entre la tarjeta de información del conductor y el mapa
-                        const SizedBox(height: 12),
+                        SizedBox(height: 12.h),
 
                         // Mapa colocado justo bajo el contenedor de información y ocupa el espacio restante
                         Expanded(
                           child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10.0,
-                              vertical: 7.0,
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 10.0.w,
+                              vertical: 7.0.h,
                             ),
                             child: Container(
                               height: double.infinity,
@@ -643,7 +644,7 @@ class _InicioConductorState extends State<InicioConductor>
                                     ? AppColores.cardBackground
                                     : Colors.transparent,
                                 borderRadius: vm.selectedPreview == null
-                                    ? BorderRadius.circular(12)
+                                    ? BorderRadius.circular(12.r)
                                     : BorderRadius.zero,
                                 border: Border.all(
                                   color: AppColores.borderSubtle,
@@ -654,7 +655,7 @@ class _InicioConductorState extends State<InicioConductor>
                                 children: [
                                   ClipRRect(
                                     borderRadius: vm.selectedPreview == null
-                                        ? BorderRadius.circular(12)
+                                        ? BorderRadius.circular(12.r)
                                         : BorderRadius.zero,
                                     child: Builder(
                                       builder: (context) {
@@ -805,19 +806,19 @@ class _InicioConductorState extends State<InicioConductor>
                                     Positioned.fill(
                                       child: Container(
                                         color: Colors.white.withValues(alpha: 0.6),
-                                        child: const Center(
+                                        child: Center(
                                           child: Column(
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
                                               CircularProgressIndicator(
                                                 color: AppColores.primary,
                                               ),
-                                              SizedBox(height: 12),
+                                              SizedBox(height: 12.h),
                                               Text(
                                                 'Cargando ruta...',
                                                 style: TextStyle(
                                                   fontWeight: FontWeight.w700,
-                                                  fontSize: 16,
+                                                  fontSize: 16.sp,
                                                   color: Colors.black87,
                                                 ),
                                               ),
@@ -829,9 +830,9 @@ class _InicioConductorState extends State<InicioConductor>
 
                                   // Lista de solicitudes flotante encima del mapa (apiladas verticalmente)
                                   Positioned(
-                                    top: 12,
-                                    left: 12,
-                                    right: 12,
+                                    top: 12.h,
+                                    left: 12.w,
+                                    right: 12.w,
                                     child: Builder(
                                       builder: (context) {
                                         final sols = vm.solicitudes;
@@ -846,14 +847,14 @@ class _InicioConductorState extends State<InicioConductor>
                                               // Encabezado único
                                               Container(
                                                 padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 10,
-                                                      vertical: 6,
+                                                    EdgeInsets.symmetric(
+                                                      horizontal: 10.w,
+                                                      vertical: 6.h,
                                                     ),
                                                 decoration: BoxDecoration(
                                                   color: AppColores.error,
                                                   borderRadius:
-                                                      BorderRadius.circular(20),
+                                                      BorderRadius.circular(20.r),
                                                   boxShadow: [
                                                     BoxShadow(
                                                       color: AppColores
@@ -874,7 +875,7 @@ class _InicioConductorState extends State<InicioConductor>
                                                   ),
                                                 ),
                                               ),
-                                              const SizedBox(height: 8),
+                                              SizedBox(height: 8.h),
 
                                               // Contenedor desplazable con máximo alto para no tapar todo el mapa
                                               if (vm.isConnected &&
@@ -990,16 +991,16 @@ class _InicioConductorState extends State<InicioConductor>
                         // Botón de conexión colocado debajo del mapa, ancho completo
                         if (!vm.isMapExpanded && vm.selectedPreview == null)
                           Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12.0,
-                              vertical: 16.0,
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 12.0.w,
+                              vertical: 16.0.h,
                             ),
                             child: Builder(
                               builder: (ctx) {
                                 final connected = vm.isConnected;
                                 return SizedBox(
                                   width: double.infinity,
-                                  height: 56,
+                                  height: 56.h,
                                   child: ElevatedButton.icon(
                                     onPressed: vm.isTogglingConnection
                                         ? null
@@ -1009,13 +1010,13 @@ class _InicioConductorState extends State<InicioConductor>
                                           ? AppColores.buttonPrimary
                                           : AppColores.grey400,
                                       shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8),
+                                        borderRadius: BorderRadius.circular(8.r),
                                       ),
                                     ),
                                     icon: vm.isTogglingConnection
-                                        ? const SizedBox(
-                                            width: 18,
-                                            height: 18,
+                                        ? SizedBox(
+                                            width: 18.w,
+                                            height: 18.h,
                                             child: CircularProgressIndicator(
                                               strokeWidth: 2,
                                               color: AppColores.textWhite,
@@ -1029,8 +1030,8 @@ class _InicioConductorState extends State<InicioConductor>
                                           ),
                                     label: Text(
                                       connected ? 'Conectado' : 'Desconectado',
-                                      style: const TextStyle(
-                                        fontSize: 16,
+                                      style: TextStyle(
+                                        fontSize: 16.sp,
                                         fontWeight: FontWeight.bold,
                                       ),
                                     ),
@@ -1043,9 +1044,9 @@ class _InicioConductorState extends State<InicioConductor>
                     ),
                     // Preview card deslizable desde el fondo (patrón Uber/Bolt)
                     Positioned(
-                      bottom: 0,
-                      left: 0,
-                      right: 0,
+                      bottom: 0.h,
+                      left: 0.w,
+                      right: 0.w,
                       child: AnimatedSlide(
                         duration: const Duration(milliseconds: 280),
                         curve: Curves.easeOutCubic,
@@ -1269,14 +1270,14 @@ class _InicioConductorState extends State<InicioConductor>
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(20.r),
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 72,
-              height: 72,
+              width: 72.w,
+              height: 72.h,
               decoration: const BoxDecoration(
                 color: AppColores.primary,
                 shape: BoxShape.circle,
@@ -1287,43 +1288,43 @@ class _InicioConductorState extends State<InicioConductor>
                 color: AppColores.textPrimary,
               ),
             ),
-            const SizedBox(height: 16),
-            const Text(
+            SizedBox(height: 16.h),
+            Text(
               'Ubicación en segundo plano',
               style: TextStyle(
-                fontSize: 18,
+                fontSize: 18.sp,
                 fontWeight: FontWeight.w800,
                 color: AppColores.textPrimary,
               ),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 10),
+            SizedBox(height: 10.h),
             Text(
               'Para recibir solicitudes y compartir tu posición con los clientes '
               'mientras usas otras apps, necesitamos acceder a tu ubicación '
               'siempre, incluso en segundo plano.',
-              style: const TextStyle(
-                fontSize: 14,
+              style: TextStyle(
+                fontSize: 14.sp,
                 color: AppColores.textSecondary,
-                height: 1.4,
+                height: 1.4.h,
               ),
               textAlign: TextAlign.center,
             ),
             if (isIOS) ...[
-              const SizedBox(height: 12),
+              SizedBox(height: 12.h),
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: EdgeInsets.all(12.w),
                 decoration: BoxDecoration(
                   color: AppColores.grey100,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(10.r),
                 ),
-                child: const Text(
+                child: Text(
                   'En el diálogo que aparece a continuación, selecciona '
                   '"Siempre" para activar el seguimiento en segundo plano.',
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: 12.sp,
                     color: AppColores.textSecondary,
-                    height: 1.4,
+                    height: 1.4.h,
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -1345,27 +1346,27 @@ class _InicioConductorState extends State<InicioConductor>
                     foregroundColor: AppColores.textPrimary,
                     minimumSize: const Size.fromHeight(48),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(15),
+                      borderRadius: BorderRadius.circular(15.r),
                     ),
                     elevation: 0,
                   ),
                   onPressed: () => Navigator.of(ctx).pop(true),
-                  child: const Text(
+                  child: Text(
                     'Activar ubicación',
                     style: TextStyle(
                       fontWeight: FontWeight.w700,
-                      fontSize: 15,
+                      fontSize: 15.sp,
                     ),
                   ),
                 ),
               ),
               TextButton(
                 onPressed: () => Navigator.of(ctx).pop(false),
-                child: const Text(
+                child: Text(
                   'Recordar más tarde',
                   style: TextStyle(
                     color: AppColores.textSecondary,
-                    fontSize: 13,
+                    fontSize: 13.sp,
                   ),
                 ),
               ),
@@ -1388,13 +1389,13 @@ class _InicioConductorState extends State<InicioConductor>
       context: context,
       builder: (ctx) => AlertDialog(
         shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.r)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 72,
-              height: 72,
+              width: 72.w,
+              height: 72.h,
               decoration: const BoxDecoration(
                 color: AppColores.primary,
                 shape: BoxShape.circle,
@@ -1405,25 +1406,25 @@ class _InicioConductorState extends State<InicioConductor>
                 color: AppColores.textPrimary,
               ),
             ),
-            const SizedBox(height: 16),
-            const Text(
+            SizedBox(height: 16.h),
+            Text(
               'Permiso insuficiente',
               style: TextStyle(
-                fontSize: 18,
+                fontSize: 18.sp,
                 fontWeight: FontWeight.w800,
                 color: AppColores.textPrimary,
               ),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 10),
+            SizedBox(height: 10.h),
             Text(
               isIOS
                   ? 'Ve a Ajustes → Privacidad → Localización → Ride y selecciona "Siempre".'
                   : 'Ve a Ajustes → Aplicaciones → Ride → Permisos → Ubicación y selecciona "Permitir todo el tiempo".',
-              style: const TextStyle(
-                fontSize: 14,
+              style: TextStyle(
+                fontSize: 14.sp,
                 color: AppColores.textSecondary,
-                height: 1.4,
+                height: 1.4.h,
               ),
               textAlign: TextAlign.center,
             ),
@@ -1439,7 +1440,7 @@ class _InicioConductorState extends State<InicioConductor>
                 foregroundColor: AppColores.textPrimary,
                 minimumSize: const Size.fromHeight(48),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(15),
+                  borderRadius: BorderRadius.circular(15.r),
                 ),
                 elevation: 0,
               ),
@@ -1447,19 +1448,19 @@ class _InicioConductorState extends State<InicioConductor>
                 Navigator.of(ctx).pop();
                 await Geolocator.openAppSettings();
               },
-              child: const Text(
+              child: Text(
                 'Abrir Ajustes',
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15.sp),
               ),
             ),
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text(
+            child: Text(
               'Después',
               style: TextStyle(
                 color: AppColores.textSecondary,
-                fontSize: 13,
+                fontSize: 13.sp,
               ),
             ),
           ),
@@ -1474,21 +1475,21 @@ class _InicioConductorState extends State<InicioConductor>
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.r)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
-          children: const [
+          children: [
             Icon(Icons.verified, size: 64, color: AppColores.primary),
-            SizedBox(height: 16),
+            SizedBox(height: 16.h),
             Text(
               '¡Membresía activada!',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+              style: TextStyle(fontSize: 20.sp, fontWeight: FontWeight.w800),
               textAlign: TextAlign.center,
             ),
-            SizedBox(height: 10),
+            SizedBox(height: 10.h),
             Text(
               'Bienvenido como conductor activo. Ya puedes conectarte y recibir solicitudes de viaje.',
-              style: TextStyle(color: AppColores.textSecondary, height: 1.4),
+              style: TextStyle(color: AppColores.textSecondary, height: 1.4.h),
               textAlign: TextAlign.center,
             ),
           ],
@@ -1501,16 +1502,16 @@ class _InicioConductorState extends State<InicioConductor>
                 backgroundColor: AppColores.buttonPrimary,
                 foregroundColor: AppColores.textPrimary,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(12.r),
                 ),
               ),
               onPressed: () {
                 Navigator.of(ctx).pop();
                 _iniciarFlujoUbicacionSiNecesario();
               },
-              child: const Text(
+              child: Text(
                 '¡Comenzar!',
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15.sp),
               ),
             ),
           ),
@@ -1794,8 +1795,8 @@ class _InicioConductorState extends State<InicioConductor>
   Future<void> _showMoreOptionsSheet() async {
     await showModalBottomSheet<void>(
       context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24.r)),
       ),
       builder: (ctx) {
         return SafeArea(
@@ -1881,24 +1882,24 @@ class _InicioConductorState extends State<InicioConductor>
         });
         return AlertDialog(
           shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(18.r)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               const Icon(Icons.check_circle,
                   color: AppColores.success, size: 56),
-              const SizedBox(height: 12),
-              const Text(
+              SizedBox(height: 12.h),
+              Text(
                 'Contraoferta enviada',
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 17),
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 17.sp),
               ),
-              const SizedBox(height: 6),
+              SizedBox(height: 6.h),
               Text(
                 'Se hizo contraoferta de \$${_fmtMoneda(valor)}',
                 textAlign: TextAlign.center,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColores.textSecondary,
-                  fontSize: 14,
+                  fontSize: 14.sp,
                 ),
               ),
             ],
@@ -1944,7 +1945,7 @@ class _InicioConductorState extends State<InicioConductor>
           padding: EdgeInsets.fromLTRB(12, 16, 12, bottomGap),
           child: Material(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(16.r),
             clipBehavior: Clip.antiAlias,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
@@ -1952,16 +1953,16 @@ class _InicioConductorState extends State<InicioConductor>
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Enviar contraoferta',
-                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18.sp),
                   ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: 8.h),
                   Text(
                     'Oferta actual del cliente: \$${_fmtMoneda(valorBase)}',
                     style: const TextStyle(color: Colors.black54),
                   ),
-                  const SizedBox(height: 10),
+                  SizedBox(height: 10.h),
                   TextField(
                     controller: controller,
                     autofocus: true,
@@ -1973,7 +1974,7 @@ class _InicioConductorState extends State<InicioConductor>
                       border: OutlineInputBorder(),
                     ),
                   ),
-                  const SizedBox(height: 10),
+                  SizedBox(height: 10.h),
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
@@ -1986,7 +1987,7 @@ class _InicioConductorState extends State<InicioConductor>
                         )
                         .toList(),
                   ),
-                  const SizedBox(height: 12),
+                  SizedBox(height: 12.h),
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(

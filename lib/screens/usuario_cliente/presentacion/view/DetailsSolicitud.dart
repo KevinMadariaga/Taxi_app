@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 // import 'dart:io' show Platform; // unused here
+import 'package:flutter_screenutil/flutter_screenutil.dart' hide DeviceType;
 import 'package:geocoding/geocoding.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
@@ -285,7 +286,7 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const SizedBox(height: 8),
+                  SizedBox(height: 8.h),
                   Expanded(child: _buildMapFlexible(context)),
                   SizedBox(
                     height: bottomHeight,
@@ -312,7 +313,7 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
             // height left unconstrained so it fills the Expanded area
             decoration: BoxDecoration(
               border: Border.all(color: Colors.black, width: 1.5),
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(14.r),
               boxShadow: const [
                 BoxShadow(
                   color: Colors.black12,
@@ -327,7 +328,7 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
                 final origen = vm.origen.position;
                 final destino = vm.destino.position;
                 return ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(12.r),
                   child: Stack(
                     children: [
                       Mapagoogle(
@@ -371,19 +372,19 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
                         Positioned.fill(
                           child: Container(
                             color: Colors.white.withValues(alpha: 0.6),
-                            child: const Center(
+                            child: Center(
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   CircularProgressIndicator(
                                     color: AppColores.primary,
                                   ),
-                                  SizedBox(height: 12),
+                                  SizedBox(height: 12.h),
                                   Text(
                                     'Cargando ruta...',
                                     style: TextStyle(
                                       fontWeight: FontWeight.w700,
-                                      fontSize: 16,
+                                      fontSize: 16.sp,
                                       color: Colors.black87,
                                     ),
                                   ),
@@ -614,10 +615,10 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
         final bottomGap = media.viewPadding.bottom + 10;
 
         return Padding(
-          padding: EdgeInsets.fromLTRB(12, 0, 12, bottomGap),
+          padding: EdgeInsets.fromLTRB(12.w, 0, 12.w, bottomGap),
           child: Material(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(16.r),
             clipBehavior: Clip.antiAlias,
             child: SafeArea(
               top: false,
@@ -646,8 +647,8 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
                   ListTile(
                     leading: Image.asset(
                       'assets/img/nequi.png',
-                      width: 28,
-                      height: 28,
+                      width: 28.w,
+                      height: 28.h,
                       fit: BoxFit.cover,
                     ),
                     title: const Text('Nequi'),
@@ -811,43 +812,43 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
           builder: (ctx, setSheet) {
             return Padding(
               padding: EdgeInsets.fromLTRB(
-                12,
+                12.w,
                 0,
-                12,
+                12.w,
                 MediaQuery.of(ctx).viewPadding.bottom + 12,
               ),
               child: Material(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(20.r),
                 clipBehavior: Clip.antiAlias,
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+                  padding: EdgeInsets.fromLTRB(20.w, 20.h, 20.w, 24.h),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Container(
-                        width: 40,
-                        height: 4,
-                        margin: const EdgeInsets.only(bottom: 16),
+                        width: 40.w,
+                        height: 4.h,
+                        margin: EdgeInsets.only(bottom: 16.h),
                         decoration: BoxDecoration(
                           color: Colors.black12,
-                          borderRadius: BorderRadius.circular(2),
+                          borderRadius: BorderRadius.circular(2.r),
                         ),
                       ),
-                      const Text(
+                      Text(
                         'Tipo de vehículo',
                         style: TextStyle(
                           fontWeight: FontWeight.w800,
-                          fontSize: 18,
+                          fontSize: 18.sp,
                           color: Colors.black,
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      const Text(
+                      SizedBox(height: 4.h),
+                      Text(
                         'El precio varía según el vehículo',
-                        style: TextStyle(color: Colors.black, fontSize: 13),
+                        style: TextStyle(color: Colors.black, fontSize: 13.sp),
                       ),
-                      const SizedBox(height: 20),
+                      SizedBox(height: 20.h),
                       Row(
                         children: VehicleType.values.map((tipo) {
                           final isSelected = selected == tipo;
@@ -856,8 +857,8 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
                               : Icons.directions_car;
                           return Expanded(
                             child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 6.w,
                               ),
                               child: GestureDetector(
                                 onTap: () {
@@ -875,15 +876,15 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
                                 child: AnimatedContainer(
                                   duration: const Duration(milliseconds: 180),
                                   curve: Curves.easeOutCubic,
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 18,
-                                    horizontal: 10,
+                                  padding: EdgeInsets.symmetric(
+                                    vertical: 18.h,
+                                    horizontal: 10.w,
                                   ),
                                   decoration: BoxDecoration(
                                     color: isSelected
                                         ? Colores.amarillo.withValues(alpha: 0.14)
                                         : Colors.grey[50],
-                                    borderRadius: BorderRadius.circular(14),
+                                    borderRadius: BorderRadius.circular(14.r),
                                     border: Border.all(
                                       color: isSelected
                                           ? Colores.amarillo
@@ -910,50 +911,50 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
                                             const Duration(milliseconds: 180),
                                         child: Icon(
                                           vehicleIcon,
-                                          size: 44,
+                                          size: 44.sp,
                                           color: isSelected
                                               ? Colors.black87
                                               : Colors.black45,
                                         ),
                                       ),
-                                      const SizedBox(height: 10),
+                                      SizedBox(height: 10.h),
                                       Text(
                                         tipo.label,
                                         style: TextStyle(
                                           fontWeight: FontWeight.w700,
-                                          fontSize: 16,
+                                          fontSize: 16.sp,
                                           color: Colors.black,
                                         ),
                                       ),
-                                      const SizedBox(height: 4),
+                                      SizedBox(height: 4.h),
                                       Text(
                                         'Desde \$${_formatCurrency(tipo.basePriceDia)}',
                                         style: TextStyle(
-                                          fontSize: 12,
+                                          fontSize: 12.sp,
                                           color: Colors.black,
                                         ),
                                       ),
-                                      const SizedBox(height: 10),
+                                      SizedBox(height: 10.h),
                                       AnimatedOpacity(
                                         opacity: isSelected ? 1.0 : 0.0,
                                         duration:
                                             const Duration(milliseconds: 180),
                                         child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 10,
-                                            vertical: 4,
+                                          padding: EdgeInsets.symmetric(
+                                            horizontal: 10.w,
+                                            vertical: 4.h,
                                           ),
                                           decoration: BoxDecoration(
                                             color: Colores.amarillo,
                                             borderRadius: BorderRadius.circular(
-                                              20,
+                                              20.r,
                                             ),
                                           ),
-                                          child: const Text(
+                                          child: Text(
                                             'Seleccionado',
                                             style: TextStyle(
                                               color: Colors.black,
-                                              fontSize: 11,
+                                              fontSize: 11.sp,
                                               fontWeight: FontWeight.w700,
                                             ),
                                           ),
@@ -967,7 +968,7 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
                           );
                         }).toList(),
                       ),
-                      const SizedBox(height: 4),
+                      SizedBox(height: 4.h),
                     ],
                   ),
                 ),
@@ -1038,29 +1039,29 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
             final safePad = MediaQuery.of(ctx).viewPadding.bottom;
             return Padding(
               padding: EdgeInsets.fromLTRB(
-                12,
-                16,
-                12,
+                12.w,
+                16.h,
+                12.w,
                 bottomInset > 0 ? bottomInset + 8 : safePad + 12,
               ),
               child: Material(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(16.r),
                 clipBehavior: Clip.antiAlias,
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
+                  padding: EdgeInsets.fromLTRB(16.w, 20.h, 16.w, 16.h),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         '¿Cuánto ofreces por el servicio?',
                         style: TextStyle(
                           fontWeight: FontWeight.w700,
-                          fontSize: 18,
+                          fontSize: 18.sp,
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: 12.h),
                       TextField(
                         controller: controller,
                         focusNode: focusNode,
@@ -1094,21 +1095,21 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
                           focusedBorder: OutlineInputBorder(
                             borderSide: BorderSide(
                               color: Colores.amarillo,
-                              width: 2,
+                              width: 2.w,
                             ),
                           ),
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: 12.h),
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colores.amarillo,
                             foregroundColor: Colors.black,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            padding: EdgeInsets.symmetric(vertical: 14.h),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
+                              borderRadius: BorderRadius.circular(10.r),
                             ),
                           ),
                           onPressed: () => guardar(ctx),
@@ -1141,7 +1142,7 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
     const sugerencias = <String>[
       'Llevo mascota',
       'Llevo maletas',
-      'Taxi grande',
+      
     ];
 
     await showModalBottomSheet<void>(
@@ -1158,25 +1159,25 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
         return StatefulBuilder(
           builder: (ctx, setSheetState) {
             return Padding(
-              padding: EdgeInsets.fromLTRB(12, 16, 12, bottomGap),
+              padding: EdgeInsets.fromLTRB(12.w, 16.h, 12.w, bottomGap),
               child: Material(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(16.r),
                 clipBehavior: Clip.antiAlias,
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                  padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 16.h),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'Comentario para el conductor',
                         style: TextStyle(
                           fontWeight: FontWeight.w700,
-                          fontSize: 18,
+                          fontSize: 18.sp,
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      SizedBox(height: 4.h),
                       Text(
                         vm.comentario.isEmpty
                             ? 'Sin comentario guardado'
@@ -1185,7 +1186,7 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 10),
+                      SizedBox(height: 10.h),
                       Wrap(
                         spacing: 8,
                         children: sugerencias
@@ -1206,7 +1207,7 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
                             )
                             .toList(),
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: 12.h),
                       TextField(
                         controller: controller,
                         maxLines: 3,
@@ -1220,7 +1221,7 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
                           border: OutlineInputBorder(),
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: 12.h),
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
@@ -1269,14 +1270,14 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
                   if (metodo.contains('nequi')) {
                     return Image.asset(
                       'assets/img/nequi.png',
-                      width: 26,
-                      height: 26,
+                      width: 26.w,
+                      height: 26.h,
                       fit: BoxFit.cover,
                     );
                   }
 
                   if (metodo.contains('efectivo') || metodo.contains('cash')) {
-                    return const Icon(Icons.attach_money, size: 22);
+                    return Icon(Icons.attach_money, size: 22.sp);
                   }
 
                   // Default wallet/payment icon
@@ -1311,8 +1312,10 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
                       if (solicitudId != null) {
                         navigator.push(
                           MaterialPageRoute(
-                            builder: (_) =>
-                                BuscandoTaxiView(solicitudId: solicitudId),
+                            builder: (_) => BuscandoTaxiView(
+                              solicitudId: solicitudId,
+                              initialClientLocation: widget.origen.position,
+                            ),
                           ),
                         );
                       } else {

@@ -91,6 +91,7 @@ class ClientAuthRepositoryImpl implements ClientAuthRepository {
     required String apellido,
     required String telefono,
     required String? fotoUrl,
+    String? email,
   }) {
     return _userDataSource.completeProfile(
       uid: uid,
@@ -98,6 +99,7 @@ class ClientAuthRepositoryImpl implements ClientAuthRepository {
       apellido: apellido,
       telefono: telefono,
       fotoUrl: fotoUrl,
+      email: email,
     );
   }
 }

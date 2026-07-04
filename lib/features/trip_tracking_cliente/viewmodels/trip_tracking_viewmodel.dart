@@ -537,7 +537,10 @@ class TripTrackingViewModel extends ChangeNotifier {
     final client = clienteLatLng;
     if (client == null) return;
     final distancia = _mapService.distanceMeters(conductorPos, client);
-    if (distancia <= 50) {
+    // Mismo radio que la notificación push de respaldo (Cloud Function
+    // onConductorProximidadCliente) para que el aviso sea consistente sin
+    // importar si la app está en primer o segundo plano.
+    if (distancia <= 70) {
       _proximityNotified = true;
       NotificacionesServicio.instance.showNotification(
         id: 77701,

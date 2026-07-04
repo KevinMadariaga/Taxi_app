@@ -93,6 +93,7 @@ class CompleteProfileController extends ChangeNotifier {
     required String nombre,
     required String apellido,
     required String telefono,
+    String? correo,
     bool requireTelefono = true,
   }) async {
     final nombreError = NameValidator.validateRequired(
@@ -139,6 +140,7 @@ class CompleteProfileController extends ChangeNotifier {
           profileImageFile: _selectedImage != null
               ? File(_selectedImage!.path)
               : null,
+          email: correo?.trim().isNotEmpty == true ? correo!.trim() : null,
         ),
       );
 

@@ -38,7 +38,10 @@ class AppColores {
 
   // Errores
   static const Color error = Colores.rojo;
-  static const Color route = Color.fromARGB(255, 250, 204, 0);
+
+  // Trazado de ruta en el mapa: el amarillo de marca de la app, no el azul
+  // de navegación de Google Maps.
+  static const Color route = Colores.amarillo;
 
   // Estados
   static const Color success = Color(0xFF2E7D32); // verde éxito

@@ -48,22 +48,7 @@ class _ConfiguracionAplicacionViewState
     if (_isLoggingOut || _isDeletingAccount) return;
     final confirmar = await showDialog<bool>(
       context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          title: const Text('Cerrar sesión'),
-          content: const Text('¿Deseas cerrar sesión en esta cuenta?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(ctx).pop(true),
-              child: const Text('Cerrar sesión'),
-            ),
-          ],
-        );
-      },
+      builder: (ctx) => _ConfirmarCerrarSesionDialog(),
     );
 
     if (confirmar != true || !mounted) return;
@@ -200,6 +185,114 @@ class _ConfiguracionAplicacionViewState
             onTap: _eliminarCuenta,
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Modal de confirmación de cierre de sesión con el estilo de botón propio
+/// de la app (mismo radio/alto que los CTA del flujo de viaje) y las
+/// acciones centradas lado a lado, en vez de las acciones de un
+/// [AlertDialog] por defecto (que quedan alineadas a la derecha).
+class _ConfirmarCerrarSesionDialog extends StatelessWidget {
+  const _ConfirmarCerrarSesionDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: AppColores.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: AppColores.buttonCancel.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.logout_rounded,
+                color: AppColores.buttonCancel,
+                size: 28,
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Cerrar sesión',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: AppColores.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              '¿Deseas cerrar sesión en esta cuenta?',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 14, color: AppColores.textSecondary),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  child: SizedBox(
+                    height: 48,
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.of(context).pop(false),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColores.textPrimary,
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        side: const BorderSide(color: AppColores.divider),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          'Cancelar',
+                          maxLines: 1,
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: SizedBox(
+                    height: 48,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.of(context).pop(true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColores.buttonCancel,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          'Cerrar sesión',
+                          maxLines: 1,
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

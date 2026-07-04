@@ -27,6 +27,7 @@ class Mapagoogle extends StatelessWidget {
   final bool zoomGesturesEnabled;
   final bool rotateGesturesEnabled;
   final bool tiltGesturesEnabled;
+  final bool scrollGesturesEnabled;
   final bool compassEnabled;
   final bool mapToolbarEnabled;
   final bool trafficEnabled;
@@ -57,6 +58,7 @@ class Mapagoogle extends StatelessWidget {
     this.zoomGesturesEnabled = true,
     this.rotateGesturesEnabled = true,
     this.tiltGesturesEnabled = true,
+    this.scrollGesturesEnabled = true,
     this.compassEnabled = true,
     this.mapToolbarEnabled = true,
     this.trafficEnabled = false,
@@ -103,6 +105,7 @@ class Mapagoogle extends StatelessWidget {
         zoomGesturesEnabled: zoomGesturesEnabled,
         rotateGesturesEnabled: rotateGesturesEnabled,
         tiltGesturesEnabled: tiltGesturesEnabled,
+        scrollGesturesEnabled: scrollGesturesEnabled,
         compassEnabled: compassEnabled,
         mapToolbarEnabled: mapToolbarEnabled,
         trafficEnabled: trafficEnabled,

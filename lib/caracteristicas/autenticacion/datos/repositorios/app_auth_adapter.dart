@@ -94,6 +94,7 @@ class AppAuthAdapter extends LegacyAuthRepository
     required String apellido,
     required String telefono,
     required String? fotoUrl,
+    String? email,
   }) {
     return _clientRepo.completeClientProfile(
       uid: uid,
@@ -101,6 +102,7 @@ class AppAuthAdapter extends LegacyAuthRepository
       apellido: apellido,
       telefono: telefono,
       fotoUrl: fotoUrl,
+      email: email,
     );
   }
 }
