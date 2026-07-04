@@ -5,6 +5,9 @@ class AppColores {
   // Marca / primarios
   static const Color primary = Color(0xFFFACC00); // color principal (CTA)
   static const Color secondary = Colores.azul; // color secundario/acento
+  // Amarillo oscurecido: para iconos sobre fondos teñidos con `primary`,
+  // donde el amarillo puro pierde contraste.
+  static const Color primaryDark = Color(0xFFB38F00);
 
   // Superficies y fondos
   static const Color background = Color(0xFFF7F7F8);

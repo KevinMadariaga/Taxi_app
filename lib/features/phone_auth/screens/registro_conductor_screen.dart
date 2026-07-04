@@ -115,7 +115,7 @@ class _RegistroConductorScreenState extends State<RegistroConductorScreen> {
                               title: 'Tomar foto del conductor',
                               image: vm.fotoConductor,
                               circular: true,
-                              onTap: vm.pickFotoConductor,
+                              onTap: () => vm.pickFotoConductor(context),
                             ),
                             const SizedBox(height: 10),
                             ImagePickerTile(

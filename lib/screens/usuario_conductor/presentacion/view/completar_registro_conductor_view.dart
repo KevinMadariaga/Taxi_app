@@ -11,6 +11,7 @@ import 'package:taxi_app/core/helpers/session_helper.dart';
 import 'package:taxi_app/core/services/admin_fcm_service.dart';
 import 'package:taxi_app/core/services/image_cropper_service.dart';
 import 'package:taxi_app/widgets/boton.dart';
+import 'package:taxi_app/widgets/flip_preview_view.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/vehicle_type.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioConductorView.dart';
 
@@ -85,10 +86,18 @@ class _CompletarRegistroConductorViewState
       );
       if (picked == null) return;
 
+      File sourceFile = File(picked.path);
+      if (!esVehiculo) {
+        if (!mounted) return;
+        final flipped = await showFlipPreview(context, imageFile: sourceFile);
+        if (flipped == null) return;
+        sourceFile = flipped;
+      }
+
       // Abrir editor para recortar/mover la foto (mismo flujo que registro cliente).
       final cropped = esVehiculo
-          ? await _cropper.cropVehicleImage(sourcePath: picked.path)
-          : await _cropper.cropProfileImage(sourcePath: picked.path);
+          ? await _cropper.cropVehicleImage(sourcePath: sourceFile.path)
+          : await _cropper.cropProfileImage(sourcePath: sourceFile.path);
       if (cropped == null) return; // canceló el ajuste
 
       setState(() {

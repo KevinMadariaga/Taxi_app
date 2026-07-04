@@ -94,7 +94,7 @@ class _RegistroClientePhoneScreenState
                               title: 'Tomar foto de perfil',
                               image: vm.profileImage,
                               circular: true,
-                              onTap: vm.pickProfileImage,
+                              onTap: () => vm.pickProfileImage(context),
                             ),
                             const SizedBox(height: 16),
                             ElevatedButton(

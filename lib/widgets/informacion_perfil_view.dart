@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
 
@@ -57,6 +58,13 @@ class InformacionPerfilView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final avatarRadius = screenWidth * 0.145;
+    final nameFontSize = screenWidth * 0.05;
+    final sectionFontSize = screenWidth * 0.04;
+    final horizontalPadding = screenWidth * 0.04;
+
     final nombre = _str(['nombre']);
     final apellido = _str(['apellido']);
     final correo = _str(['correo', 'email'], 'Sin correo registrado');
@@ -66,53 +74,59 @@ class InformacionPerfilView extends StatelessWidget {
       nombre,
       apellido,
     ].where((p) => p.trim().isNotEmpty).join(' ').trim();
+    final vehiculos = esConductor ? _vehiculos() : const <_Vehiculo>[];
 
     return Scaffold(
       backgroundColor: AppColores.background,
       appBar: AppBar(
         title: const Text('Información del perfil'),
         backgroundColor: AppColores.primary,
-        foregroundColor: Colors.white,
+        foregroundColor: AppColores.textWhite,
       ),
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 640),
             child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(16, 20, 16, 28),
+              padding: EdgeInsets.fromLTRB(
+                horizontalPadding,
+                screenHeight * 0.024,
+                horizontalPadding,
+                screenHeight * 0.035,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Center(
                     child: CircleAvatar(
-                      radius: 56,
+                      radius: avatarRadius,
                       backgroundColor: AppColores.primary.withValues(
                         alpha: 0.18,
                       ),
                       backgroundImage: fotoUrl.isNotEmpty
-                          ? NetworkImage(fotoUrl)
+                          ? CachedNetworkImageProvider(fotoUrl)
                           : null,
                       child: fotoUrl.isEmpty
-                          ? const Icon(
+                          ? Icon(
                               Icons.person,
-                              size: 56,
-                              color: Color(0xFFB38F00),
+                              size: avatarRadius,
+                              color: AppColores.primaryDark,
                             )
                           : null,
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  SizedBox(height: screenHeight * 0.015),
                   Center(
                     child: Text(
                       nombreCompleto.isEmpty ? 'Usuario' : nombreCompleto,
-                      style: const TextStyle(
-                        fontSize: 20,
+                      style: TextStyle(
+                        fontSize: nameFontSize,
                         fontWeight: FontWeight.w800,
                         color: AppColores.textPrimary,
                       ),
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  SizedBox(height: screenHeight * 0.03),
                   _InfoTile(
                     icon: Icons.badge_rounded,
                     label: 'Nombre',
@@ -134,44 +148,44 @@ class InformacionPerfilView extends StatelessWidget {
                     value: telefono,
                   ),
                   if (esConductor) ...[
-                    const SizedBox(height: 20),
-                    const Text(
+                    SizedBox(height: screenHeight * 0.02),
+                    Text(
                       'Vehículos',
                       style: TextStyle(
-                        fontSize: 16,
+                        fontSize: sectionFontSize,
                         fontWeight: FontWeight.w800,
                         color: AppColores.textPrimary,
                       ),
                     ),
-                    const SizedBox(height: 10),
-                    ..._vehiculos().map((v) => _VehiculoCard(vehiculo: v)),
-                    if (_vehiculos().isEmpty)
+                    SizedBox(height: screenHeight * 0.012),
+                    ...vehiculos.map((v) => _VehiculoCard(vehiculo: v)),
+                    if (vehiculos.isEmpty)
                       const Text(
                         'Sin vehículos registrados.',
                         style: TextStyle(color: AppColores.textSecondary),
                       ),
                   ],
                   if (onEditar != null) ...[
-                    const SizedBox(height: 26),
+                    SizedBox(height: screenHeight * 0.03),
                     SizedBox(
                       width: double.infinity,
+                      height: screenHeight * 0.065,
                       child: ElevatedButton.icon(
                         onPressed: () {
                           Navigator.of(context).pop();
                           onEditar!();
                         },
                         icon: const Icon(Icons.edit_rounded, size: 20),
-                        label: const Text(
+                        label: Text(
                           'Editar datos',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
-                            fontSize: 16,
+                            fontSize: sectionFontSize,
                           ),
                         ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColores.primary,
                           foregroundColor: AppColores.textPrimary,
-                          minimumSize: const Size.fromHeight(52),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14),
                           ),
@@ -240,7 +254,7 @@ class _InfoTile extends StatelessWidget {
               color: AppColores.primary.withValues(alpha: 0.14),
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, size: 20, color: const Color(0xFFB38F00)),
+            child: Icon(icon, size: 20, color: AppColores.primaryDark),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -293,7 +307,34 @@ class _VehiculoCard extends StatelessWidget {
           SizedBox(
             height: 150,
             child: vehiculo.foto.isNotEmpty
-                ? Image.network(vehiculo.foto, fit: BoxFit.cover)
+                ? CachedNetworkImage(
+                    imageUrl: vehiculo.foto,
+                    fit: BoxFit.cover,
+                    fadeInDuration: const Duration(milliseconds: 150),
+                    placeholder: (_, _) => Container(
+                      color: AppColores.grey200,
+                      child: const Center(
+                        child: SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              AppColores.primaryDark,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    errorWidget: (_, _, _) => Container(
+                      color: AppColores.grey200,
+                      child: Icon(
+                        vehiculo.icon,
+                        size: 48,
+                        color: AppColores.grey400,
+                      ),
+                    ),
+                  )
                 : Container(
                     color: AppColores.grey200,
                     child: Icon(
@@ -307,7 +348,7 @@ class _VehiculoCard extends StatelessWidget {
             padding: const EdgeInsets.all(12),
             child: Row(
               children: [
-                Icon(vehiculo.icon, color: const Color(0xFFB38F00), size: 22),
+                Icon(vehiculo.icon, color: AppColores.primaryDark, size: 22),
                 const SizedBox(width: 10),
                 Text(
                   vehiculo.tipoLabel,

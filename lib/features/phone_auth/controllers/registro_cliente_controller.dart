@@ -1,8 +1,9 @@
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:taxi_app/core/services/image_cropper_service.dart';
+import 'package:taxi_app/widgets/flip_preview_view.dart';
 
 import '../services/storage_service.dart';
 import '../services/user_data_service.dart';
@@ -34,7 +35,7 @@ class RegistroClienteController extends ChangeNotifier {
   XFile? get profileImage => _profileImage;
   bool get saving => _saving;
 
-  Future<void> pickProfileImage() async {
+  Future<void> pickProfileImage(BuildContext context) async {
     final picked = await _imagePicker.pickImage(
       source: ImageSource.camera,
       imageQuality: 78,
@@ -42,8 +43,12 @@ class RegistroClienteController extends ChangeNotifier {
     );
     if (picked == null) return;
 
+    if (!context.mounted) return;
+    final flipped = await showFlipPreview(context, imageFile: File(picked.path));
+    if (flipped == null) return;
+
     final cropped = await _imageCropperService.cropProfileImage(
-      sourcePath: picked.path,
+      sourcePath: flipped.path,
     );
     if (cropped == null) return;
 

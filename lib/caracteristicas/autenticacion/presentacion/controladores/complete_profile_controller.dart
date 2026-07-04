@@ -1,10 +1,11 @@
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:taxi_app/core/validators/name_validator.dart';
 import 'package:taxi_app/core/validators/phone_validator.dart';
 import 'package:taxi_app/core/services/image_cropper_service.dart';
+import 'package:taxi_app/widgets/flip_preview_view.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/repositorios/client_auth_repository.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/datos/repositorios/client_auth_repository_impl.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/entidades/client_user_entity.dart';
@@ -70,7 +71,7 @@ class CompleteProfileController extends ChangeNotifier {
     }
   }
 
-  Future<void> pickProfileImage() async {
+  Future<void> pickProfileImage(BuildContext context) async {
     final picked = await _imagePicker.pickImage(
       source: ImageSource.camera,
       imageQuality: 100,
@@ -80,8 +81,12 @@ class CompleteProfileController extends ChangeNotifier {
 
     if (picked == null) return;
 
+    if (!context.mounted) return;
+    final flipped = await showFlipPreview(context, imageFile: File(picked.path));
+    if (flipped == null) return;
+
     final cropped = await _imageCropperService.cropProfileImage(
-      sourcePath: picked.path,
+      sourcePath: flipped.path,
     );
     if (cropped == null) return;
 

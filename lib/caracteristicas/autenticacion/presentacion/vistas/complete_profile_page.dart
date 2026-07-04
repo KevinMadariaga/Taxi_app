@@ -175,7 +175,7 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
             selectedFile: file,
             networkUrl: null,
             enabled: !vm.saving,
-            onTap: vm.pickProfileImage,
+            onTap: () => vm.pickProfileImage(context),
           ),
         ),
         const SizedBox(height: 8),

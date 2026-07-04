@@ -553,27 +553,32 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
       });
     } catch (e) {
       debugPrint('[BuscandoTaxiViewModel] update estado cancelado falló: $e');
-    }
-
-    try {
-      await Future<void>.delayed(const Duration(seconds: 5));
-      try {
-        await docRef.delete();
-        debugPrint(
-          '[BuscandoTaxiViewModel] Solicitud $solicitudId eliminada tras cancelación',
-        );
-      } catch (e) {
-        debugPrint(
-          '[BuscandoTaxiViewModel] Error eliminando solicitud tras cancelación: $e',
-        );
-      }
-    } catch (e) {
-      debugPrint(
-        '[BuscandoTaxiViewModel] Error en temporizador de borrado: $e',
-      );
     } finally {
       _isCancelling = false;
       _safeNotify();
+    }
+
+    // Borrado en segundo plano tras una breve gracia (da tiempo a que un
+    // conductor que ya estaba enviando su aceptación la complete antes de
+    // que el documento desaparezca). No debe bloquear la navegación de
+    // vuelta a Home: el cliente ya vio "solicitud cancelada" al instante.
+    unawaited(_borrarSolicitudTrasGracia(docRef, solicitudId));
+  }
+
+  Future<void> _borrarSolicitudTrasGracia(
+    DocumentReference<Map<String, dynamic>> docRef,
+    String solicitudId,
+  ) async {
+    try {
+      await Future<void>.delayed(const Duration(seconds: 5));
+      await docRef.delete();
+      debugPrint(
+        '[BuscandoTaxiViewModel] Solicitud $solicitudId eliminada tras cancelación',
+      );
+    } catch (e) {
+      debugPrint(
+        '[BuscandoTaxiViewModel] Error eliminando solicitud tras cancelación: $e',
+      );
     }
   }
 
