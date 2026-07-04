@@ -8,8 +8,6 @@ import 'package:taxi_app/routes/app_routes.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/presentacion/vistas/home_screen.dart';
 import 'package:taxi_app/core/services/services.dart';
 
-const String _iOSAppStoreId = String.fromEnvironment('IOS_APP_STORE_ID');
-
 /// Fondo del splash: blanco, en sintonía con el splash nativo para que NO
 /// haya salto de color ni pantalla negra entre el arranque nativo y el primer
 /// frame de Flutter.
@@ -71,8 +69,8 @@ class _SplashViewState extends State<SplashView>
     _remoteConfigService = AppRemoteConfigService.instance;
 
     _updateService = UpdateService.production(
-      androidId: 'com.taxiya.taxiapp',
-      iOSAppStoreId: _iOSAppStoreId.isEmpty ? null : _iOSAppStoreId,
+      androidId: AppConstants.androidPackageId,
+      iOSAppStoreId: AppConstants.iosAppStoreId,
       minimumRequiredVersionFetcher: _fetchMinimumRequiredVersion,
       latestVersionFetcher: _remoteConfigService.fetchLatestVersion,
     );

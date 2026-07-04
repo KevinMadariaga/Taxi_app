@@ -11,4 +11,14 @@ class AppConstants {
     'PHONE_AUTH_TEST_MODE',
     defaultValue: false,
   );
+
+  // Identificadores de la app en cada tienda, usados por UpdateService para
+  // consultar la versión publicada. No son secretos (son públicos en la
+  // ficha de cada tienda) ni cambian entre builds de la misma app, así que
+  // van fijos en vez de por --dart-define: un flag que se puede olvidar
+  // pasar en un build de release dejaría la verificación de actualización
+  // desactivada en silencio.
+  static const String androidPackageId = 'com.taxiya.taxiapp';
+  // apps.apple.com/.../id6761427773
+  static const String iosAppStoreId = '6761427773';
 }

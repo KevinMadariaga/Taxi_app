@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:taxi_app/core/constants/app_constants.dart';
 import 'package:taxi_app/core/services/services.dart';
 import 'package:taxi_app/presentation/widgets/update_available_dialog.dart';
-
-const String _iOSAppStoreId = String.fromEnvironment('IOS_APP_STORE_ID');
 
 /// Envuelve la app y vuelve a chequear si hay una nueva versión cada vez que la
 /// app regresa de segundo plano (además del chequeo de arranque en el splash).
@@ -34,8 +33,8 @@ class _AppUpdateGateState extends State<AppUpdateGate>
     WidgetsBinding.instance.addObserver(this);
     final rc = AppRemoteConfigService.instance;
     _updateService = UpdateService.production(
-      androidId: 'com.taxiya.taxiapp',
-      iOSAppStoreId: _iOSAppStoreId.isEmpty ? null : _iOSAppStoreId,
+      androidId: AppConstants.androidPackageId,
+      iOSAppStoreId: AppConstants.iosAppStoreId,
       minimumRequiredVersionFetcher: rc.fetchMinimumRequiredVersion,
       latestVersionFetcher: rc.fetchLatestVersion,
     );
