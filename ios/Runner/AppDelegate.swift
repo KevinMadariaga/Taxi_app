@@ -30,6 +30,15 @@ import UserNotifications
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
+  // Limpia el globo rojo del ícono cada vez que la app pasa a primer plano.
+  // Sin esto, el badge que llega en el payload de un push (badge: 1, fijo en
+  // cada notificación de functions/index.js) se queda pegado para siempre:
+  // iOS solo aplica el valor recibido, nunca lo resetea por su cuenta.
+  override func applicationDidBecomeActive(_ application: UIApplication) {
+    application.applicationIconBadgeNumber = 0
+    super.applicationDidBecomeActive(application)
+  }
+
   // Called when APNs token registration succeeds.
   override func application(
     _ application: UIApplication,
