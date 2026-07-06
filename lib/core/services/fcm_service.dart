@@ -72,10 +72,12 @@ class FcmService {
     // 1) Registrar handler de background antes que todo
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
-    // iOS: mostrar notificaciones FCM también cuando la app está en primer plano
+    // iOS: mostrar notificaciones FCM también cuando la app está en primer
+    // plano. badge:false — no se necesita el globo de pendientes en el
+    // ícono de la app.
     await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
       alert: true,
-      badge: true,
+      badge: false,
       sound: true,
     );
 

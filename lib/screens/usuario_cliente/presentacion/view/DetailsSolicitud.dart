@@ -176,19 +176,24 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
     WidgetsBinding.instance.addPostFrameCallback((_) => _applyPerspective());
   }
 
+  /// Ancla la cámara en la ubicación actual del cliente (origen) y la rota
+  /// para que apunte hacia el destino, con el zoom ajustado a la distancia
+  /// entre ambos — igual patrón de "perspectiva" usado en el tracking del
+  /// viaje, para que la trazabilidad (polyline) se vea orientada hacia
+  /// dónde va el cliente.
   Future<void> _applyPerspective() async {
     if (_controller == null) return;
-    final bounds = _vm.cameraBounds;
-    if (bounds == null) return;
+    final persp = _vm.cameraPerspective;
+    if (persp == null) return;
     try {
       await _controller!.animateCamera(
-        CameraUpdate.newLatLngBounds(bounds, 80),
+        CameraUpdate.newCameraPosition(persp),
       );
     } catch (_) {
       await Future.delayed(const Duration(milliseconds: 300));
       try {
         await _controller!.animateCamera(
-          CameraUpdate.newLatLngBounds(bounds, 80),
+          CameraUpdate.newCameraPosition(persp),
         );
       } catch (_) {}
     }

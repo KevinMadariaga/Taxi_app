@@ -45,6 +45,7 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
   GoogleMapController? _mapController;
   late final SolicitudEstadoController _estadoController;
   BitmapDescriptor? _taxiMarkerIcon;
+  BitmapDescriptor? _taxiMarkerIconMirrored;
   Timer? _cancelDisableTimer;
   Timer? _cameraFollowTimer;
   bool _cancelAllowed = true;
@@ -123,13 +124,16 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
           // (misma lógica que RutaClienteDestinoView); no duplicar el suavizado
           // aquí para evitar doble-lag / movimientos raros.
           final conductorPos = vm.conductorLatLng;
+          final (conductorIcon, conductorRotation) = _markerIconAndRotation(
+            vm.conductorHeading,
+          );
           final markers = <Marker>{
             if (conductorPos != null)
               Marker(
                 markerId: const MarkerId('conductor'),
                 position: conductorPos,
-                rotation: vm.conductorHeading,
-                icon: _taxiMarkerIcon ??
+                rotation: conductorRotation,
+                icon: conductorIcon ??
                     BitmapDescriptor.defaultMarkerWithHue(
                         BitmapDescriptor.hueAzure),
                 flat: true,
@@ -632,14 +636,40 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
   }
 
   Future<void> _loadTaxiMarkerIcon() async {
-    final iconData =
-        _isMoto ? Icons.two_wheeler_rounded : Icons.directions_car_rounded;
+    final assetPath = _isMoto
+        ? 'assets/img/icono_moto.png'
+        : 'assets/img/icono_carro.png';
     BitmapDescriptor? icon;
+    BitmapDescriptor? iconMirrored;
     try {
-      icon = await MarkerIconHelper.fromIcon(iconData, 60, const Color(0xFF111111));
+      icon = await MarkerIconHelper.fromAsset(
+        assetPath,
+        size: const Size(40, 40),
+      );
+      iconMirrored = await MarkerIconHelper.fromAsset(
+        assetPath,
+        size: const Size(40, 40),
+        mirrored: true,
+      );
     } catch (_) {}
     if (!mounted) return;
-    setState(() => _taxiMarkerIcon = icon);
+    setState(() {
+      _taxiMarkerIcon = icon;
+      _taxiMarkerIconMirrored = iconMirrored;
+    });
+  }
+
+  /// El glyph del ícono (persona/carro de perfil) no es simétrico arriba-abajo:
+  /// rotarlo más allá de 90°/270° lo deja "de cabeza". Para rumbos hacia el
+  /// sur se usa el bitmap espejado (izquierda-derecha) y se pliega la
+  /// rotación dentro de ±90°, así el ícono nunca se ve invertido.
+  (BitmapDescriptor?, double) _markerIconAndRotation(double heading) {
+    final mirror = heading > 90 && heading < 270;
+    final icon = mirror
+        ? (_taxiMarkerIconMirrored ?? _taxiMarkerIcon)
+        : _taxiMarkerIcon;
+    final rotation = mirror ? heading - 180 : heading;
+    return (icon, rotation);
   }
 
   void _syncSolicitudPersistence(TripTrackingViewModel vm) {
@@ -983,6 +1013,10 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
     });
   }
 
+  // Modo "clientOnly": la cámara queda anclada en la ubicación del cliente
+  // (su perspectiva) y solo se re-orienta/ajusta zoom hacia el conductor, para
+  // que se vea al conductor acercándose sobre el mapa sin perder el foco del
+  // cliente.
   void _startCameraFollowTimer(TripTrackingViewModel vm) {
     _cameraFollowTimer?.cancel();
     _cameraFollowTimer = Timer.periodic(const Duration(seconds: 2), (_) {
@@ -990,20 +1024,9 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
       final map = _mapController;
       if (map == null) return;
       if (vm.focusMode != MapFocusMode.clientOnly) return;
-      final conductor = vm.conductorLatLng;
-      if (conductor == null) return;
-      unawaited(
-        map.animateCamera(
-          CameraUpdate.newCameraPosition(
-            CameraPosition(
-              target: conductor,
-              bearing: vm.conductorHeading,
-              zoom: 16.5,
-              tilt: 0,
-            ),
-          ),
-        ),
-      );
+      final persp = vm.getCameraPerspective();
+      if (persp == null) return;
+      unawaited(map.animateCamera(CameraUpdate.newCameraPosition(persp)));
     });
   }
 

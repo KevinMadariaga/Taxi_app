@@ -255,6 +255,21 @@ class DriverTripController extends ChangeNotifier {
     try {
       await _locationService.syncOneShotToTrip(tripId: tripId);
     } catch (_) {}
+
+    // El listener en vivo puede haberse suspendido mientras la app estaba en
+    // background (pantalla bloqueada / otra app en primer plano) y perderse
+    // el evento de cancelación del cliente. Se reconcilia con una lectura
+    // puntual del estado real en Firestore para no quedar navegando a una
+    // pantalla obsoleta.
+    try {
+      final fresh = await _firestoreService.fetchTripOnce(tripId);
+      if (fresh == null || _disposed) return;
+      trip = fresh;
+      errorText = null;
+      _safeNotify();
+      _handleStatusTransition(fresh.status);
+      await _refreshRouteIfNeeded();
+    } catch (_) {}
   }
 
   Future<void> _bindTrip() async {

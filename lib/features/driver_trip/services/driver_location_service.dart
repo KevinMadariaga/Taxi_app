@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -43,13 +45,26 @@ class DriverLocationService {
   Future<void> startRealtimeSync({required String tripId}) async {
     await ensurePermission();
 
-    // In this foreground screen we avoid foreground-service location mode.
-    // Background tracking is handled separately by background_tracking_service.
+    // Android: background tracking is handled separately by
+    // background_tracking_service (foreground service + isolate).
+    // iOS: flutter_background_service cannot keep running reliably once the
+    // app is backgrounded/locked, so on iOS this same stream (native
+    // CoreLocation background delivery) is what keeps sending the driver's
+    // position — requires AppleSettings.allowBackgroundLocationUpdates (true
+    // by default) + "Always" location permission + UIBackgroundModes:
+    // "location" in Info.plist (already configured).
     _positionStream = Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 1,
-      ),
+      locationSettings: Platform.isIOS
+          ? AppleSettings(
+              accuracy: LocationAccuracy.high,
+              distanceFilter: 1,
+              pauseLocationUpdatesAutomatically: false,
+              showBackgroundLocationIndicator: true,
+            )
+          : const LocationSettings(
+              accuracy: LocationAccuracy.high,
+              distanceFilter: 1,
+            ),
     );
 
     _syncSub?.cancel();

@@ -219,7 +219,7 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
           label: 'Correo electrónico',
           controller: _correoController,
           focusNode: _correoFocusNode,
-          enabled: !vm.saving,
+          enabled: false,
           icon: Icons.email_outlined,
           hint: 'Tu correo',
           keyboardType: TextInputType.emailAddress,

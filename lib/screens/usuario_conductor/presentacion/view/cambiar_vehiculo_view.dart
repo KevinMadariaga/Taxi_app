@@ -45,6 +45,9 @@ class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
   bool _cargando = true;
   bool _guardando = false;
   bool _activando = false;
+  // Confirmación visual breve tras guardar, sobre el cuadro de la foto del
+  // tipo que se acaba de guardar (para validar que sí quedó en la BD).
+  VehicleType? _tipoGuardadoOk;
 
   @override
   void initState() {
@@ -165,15 +168,39 @@ class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
             'updatedAt': FieldValue.serverTimestamp(),
           }, SetOptions(merge: true));
 
+      // Confirma que el doc realmente quedó con estos datos antes de avisar
+      // "guardado" — evita mostrar éxito si Firestore rechazó el merge.
+      final verifyDoc = await FirebaseFirestore.instance
+          .collection('usuarios')
+          .doc(uid)
+          .get();
+      final verifyVehiculos = verifyDoc.data()?['vehiculos'];
+      final verifyEntry = verifyVehiculos is Map
+          ? verifyVehiculos[_tipo.firestoreKey]
+          : null;
+      final guardadoOk =
+          verifyEntry is Map &&
+          (verifyEntry['foto'] ?? '').toString() == fotoUrl &&
+          (verifyEntry['placa'] ?? '').toString() == placaUp;
+      if (!guardadoOk) {
+        throw StateError('La base de datos no reflejó los datos guardados.');
+      }
+
       if (!mounted) return;
+      final tipoGuardado = _tipo;
       setState(() {
         _fotosUrl[_tipo] = fotoUrl;
         _fotosNuevas[_tipo] = null;
         _placas[_tipo]!.text = placaUp;
+        _tipoGuardadoOk = tipoGuardado;
+      });
+      Future.delayed(const Duration(seconds: 3), () {
+        if (!mounted || _tipoGuardadoOk != tipoGuardado) return;
+        setState(() => _tipoGuardadoOk = null);
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Datos de ${_tipo.label} guardados.'),
+          content: Text('Datos de ${_tipo.label} guardados y verificados.'),
           backgroundColor: AppColores.success,
         ),
       );
@@ -212,7 +239,28 @@ class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
             'updatedAt': FieldValue.serverTimestamp(),
           }, SetOptions(merge: true));
 
+      // Confirma que el doc realmente quedó activo con estos datos antes de
+      // avisar éxito y cerrar la pantalla.
+      final verifyDoc = await FirebaseFirestore.instance
+          .collection('usuarios')
+          .doc(uid)
+          .get();
+      final verifyData = verifyDoc.data();
+      final activadoOk =
+          (verifyData?['tipoVehiculo'] ?? '').toString() ==
+              _tipo.firestoreKey &&
+          (verifyData?['fotoVehiculo'] ?? '').toString() == fotoUrl;
+      if (!activadoOk) {
+        throw StateError('La base de datos no reflejó la activación.');
+      }
+
       if (!mounted) return;
+      setState(() {
+        _tipoActivo = _tipo;
+        _fotosUrl[_tipo] = fotoUrl;
+        _fotosNuevas[_tipo] = null;
+        _placas[_tipo]!.text = placaUp;
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Vehículo activo: ${_tipo.label}.'),
@@ -368,7 +416,26 @@ class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
                               child: fotoNueva != null
                                   ? Image.file(File(fotoNueva.path), fit: BoxFit.cover)
                                   : fotoUrl.isNotEmpty
-                                      ? Image.network(fotoUrl, fit: BoxFit.cover)
+                                      ? Image.network(
+                                          fotoUrl,
+                                          fit: BoxFit.cover,
+                                          loadingBuilder: (context, child, progress) {
+                                            if (progress == null) return child;
+                                            return const Center(
+                                              child: CircularProgressIndicator(
+                                                color: AppColores.primary,
+                                              ),
+                                            );
+                                          },
+                                          errorBuilder: (context, error, stack) =>
+                                              const Center(
+                                                child: Icon(
+                                                  Icons.broken_image_outlined,
+                                                  size: 40,
+                                                  color: Colors.black38,
+                                                ),
+                                              ),
+                                        )
                                       : Column(
                                           mainAxisAlignment: MainAxisAlignment.center,
                                           children: [
@@ -401,6 +468,36 @@ class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
                               child: const Icon(Icons.camera_alt, color: AppColores.textPrimary),
                             ),
                           ),
+                          if (_tipoGuardadoOk == _tipo)
+                            Positioned(
+                              top: 8,
+                              left: 8,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 5,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColores.success,
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.check_circle, size: 14, color: Colors.white),
+                                    SizedBox(width: 4),
+                                    Text(
+                                      'Guardado en BD',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
                         ],
                       ),
                     ),

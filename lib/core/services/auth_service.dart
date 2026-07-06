@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -304,17 +306,23 @@ class AuthService {
       }
 
       // Si la solicitud quedó en 'buscando' (app fue cerrada/matada antes de
-      // que llegara un conductor), cancelarla automáticamente al reabrir.
+      // que llegara un conductor), cancelarla automáticamente al reabrir y
+      // borrarla a los 3 s (igual que una cancelación normal), para que
+      // desaparezca de la lista de solicitudes de los conductores.
       if (estado == 'buscando') {
+        final docRef =
+            FirebaseFirestore.instance.collection('solicitudes').doc(solicitudId);
         try {
-          await FirebaseFirestore.instance
-              .collection('solicitudes')
-              .doc(solicitudId)
-              .update({
+          await docRef.update({
             'estado': 'cancelado',
             'cancelledAt': FieldValue.serverTimestamp(),
             'cancelReason': 'inactividad',
           });
+          unawaited(Future<void>.delayed(const Duration(seconds: 3), () async {
+            try {
+              await docRef.delete();
+            } catch (_) {}
+          }));
         } catch (_) {}
         try {
           await SessionHelper.clearActiveSolicitud();

@@ -159,7 +159,7 @@ class NotificacionesServicio {
 
     const iosDetails = DarwinNotificationDetails(
       presentAlert: true,
-      presentBadge: true,
+      presentBadge: false,
       presentSound: true,
       threadIdentifier: 'sistema',
       interruptionLevel: InterruptionLevel.active,
@@ -201,7 +201,7 @@ class NotificacionesServicio {
 
     const iosDetails = DarwinNotificationDetails(
       presentAlert: true,
-      presentBadge: true,
+      presentBadge: false,
       presentSound: true,
       threadIdentifier: 'chat',
       interruptionLevel: InterruptionLevel.timeSensitive,
@@ -244,7 +244,7 @@ class NotificacionesServicio {
 
     final iosDetails = DarwinNotificationDetails(
       presentAlert: true,
-      presentBadge: true,
+      presentBadge: false,
       presentSound: playSound,
       threadIdentifier: 'viaje',
       interruptionLevel: InterruptionLevel.timeSensitive,

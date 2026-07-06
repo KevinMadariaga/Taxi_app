@@ -43,6 +43,13 @@ class _InicioConductorState extends State<InicioConductor>
   bool _isRequestingPermissions = false;
   bool _isPreparingLocation = false;
 
+  // ── Mini reload tras background prolongado ──────────────────────────────
+  // Si la app pasa más de 3 min en background, al volver puede mostrar
+  // ubicación/solicitudes desactualizadas si el conductor se desplazó a otro
+  // lugar. Se fuerza una recarga completa en vez del refresco liviano habitual.
+  DateTime? _backgroundedAt;
+  static const Duration _miniReloadThreshold = Duration(minutes: 3);
+
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _membresiaSub;
   Timer? _membresiaExpiryTimer;
   bool _expirandoMembresia = false;
@@ -232,29 +239,57 @@ class _InicioConductorState extends State<InicioConductor>
   }
 
   // Centrar la cámara en la perspectiva del conductor hacia el cliente al seleccionar una solicitud
+  /// Cámara con perspectiva: ancla en la ubicación del conductor y rota el
+  /// mapa para que apunte hacia el punto de recogida del cliente, con zoom
+  /// ajustado a la distancia real entre ambos (mismo patrón usado en
+  /// DetailsSolicitud y el tracking del viaje), para que el conductor vea
+  /// bien la trazabilidad hacia el cliente en vez de solo su posición a
+  /// zoom fijo.
   Future<void> _centerPreviewOnConductorToClient(
     InicioConductorViewmodel vm,
     PreviewSolicitud preview,
   ) async {
-    if (_mapController == null) return;
+    final map = _mapController;
+    if (map == null) return;
     final s = preview.solicitud;
     final client = LatLng(
       s.ubicacionInicial.latitude,
       s.ubicacionInicial.longitude,
     );
     final driver = vm.currentLocation;
-    if (driver != null) {
-      final bearing = vm.calculateBearing(driver, client);
-      await _mapController!.animateCamera(
-        CameraUpdate.newCameraPosition(
-          CameraPosition(target: driver, zoom: 16, bearing: bearing, tilt: 0),
-        ),
-      );
-    } else {
-      await _mapController?.animateCamera(
-        CameraUpdate.newLatLngZoom(client, 16),
-      );
+    if (driver == null) {
+      await map.animateCamera(CameraUpdate.newLatLngZoom(client, 16));
+      return;
     }
+
+    final bearing = vm.calculateBearing(driver, client);
+    final distance = Geolocator.distanceBetween(
+      driver.latitude,
+      driver.longitude,
+      client.latitude,
+      client.longitude,
+    );
+
+    await map.animateCamera(
+      CameraUpdate.newCameraPosition(
+        CameraPosition(
+          target: driver,
+          bearing: bearing,
+          tilt: 10.0,
+          zoom: _zoomForDistance(distance),
+        ),
+      ),
+    );
+  }
+
+  double _zoomForDistance(double meters) {
+    if (meters <= 150) return 17.5;
+    if (meters <= 300) return 16.8;
+    if (meters <= 600) return 16.0;
+    if (meters <= 1200) return 15.0;
+    if (meters <= 2500) return 14.0;
+    if (meters <= 5000) return 13.0;
+    return 12.0;
   }
 
   Future<void> _navegarARutaConductor(
@@ -1592,12 +1627,19 @@ class _InicioConductorState extends State<InicioConductor>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    if (state == AppLifecycleState.resumed) {
-      _handleAppResumed();
+    if (state == AppLifecycleState.paused) {
+      _backgroundedAt = DateTime.now();
+    } else if (state == AppLifecycleState.resumed) {
+      final backgroundedAt = _backgroundedAt;
+      _backgroundedAt = null;
+      final miniReload =
+          backgroundedAt != null &&
+          DateTime.now().difference(backgroundedAt) >= _miniReloadThreshold;
+      _handleAppResumed(miniReload: miniReload);
     }
   }
 
-  Future<void> _handleAppResumed() async {
+  Future<void> _handleAppResumed({bool miniReload = false}) async {
     if (!mounted) return;
 
     if (_isGpsDialogOpen && Navigator.of(context).canPop()) {
@@ -1635,12 +1677,21 @@ class _InicioConductorState extends State<InicioConductor>
     final ready = await _ensureLocationServiceAndPermission();
     if (!ready) return;
 
+    if (miniReload) {
+      // Background prolongado: fuerza que la cámara vuelva a centrarse (no
+      // dar por sentado que ya está centrada) antes de recargar todo.
+      _hasCentered = false;
+    }
+
     await _requestAndCenterCurrentLocation();
 
     // Reactivar suscripción de solicitudes si está conectado y no se estaba escuchando.
     try {
       final vm = Provider.of<InicioConductorViewmodel>(context, listen: false);
       vm.ensureSolicitudesSubscription();
+      if (miniReload) {
+        await vm.refreshLocation();
+      }
     } catch (_) {
       // ignore if no provider available.
     }

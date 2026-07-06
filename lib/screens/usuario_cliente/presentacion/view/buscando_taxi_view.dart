@@ -1334,9 +1334,13 @@ class _SonarMapWidgetState extends State<_SonarMapWidget>
       );
 
       // Después de un breve instante, reducir el ícono al tamaño pequeño
+      // (usa la posición MÁS RECIENTE del conductor al momento de disparar,
+      // no la capturada 420ms atrás, para no "regresar" el marcador a una
+      // posición vieja si el conductor ya se movió).
       if (isNew) {
         Timer(const Duration(milliseconds: 420), () {
           if (!mounted) return;
+          final latestPos = widget.conectadosPositions[id] ?? pos;
           final smallIcon = isMoto
               ? (_motoIcon ??
                   BitmapDescriptor.defaultMarkerWithHue(
@@ -1353,7 +1357,7 @@ class _SonarMapWidgetState extends State<_SonarMapWidget>
               ),
               Marker(
                 markerId: MarkerId('conectado_$id'),
-                position: pos,
+                position: latestPos,
                 icon: smallIcon,
                 infoWindow: InfoWindow(
                   title: isMoto
@@ -1371,15 +1375,14 @@ class _SonarMapWidgetState extends State<_SonarMapWidget>
       ..clear()
       ..addAll(newVisibleIds);
 
-    // Preservar marcadores transitorios (en medio de la animación de tamaño)
-    final transient = _conectadosMarkers
-        .where(
-          (m) => newVisibleIds.contains(
-            m.markerId.value.replaceFirst('conectado_', ''),
-          ),
-        )
-        .toSet();
-    _conectadosMarkers = {...visible, ...transient};
+    // Reemplaza el set completo por el recién calculado: un solo marcador
+    // por conductor (`markerId` = 'conectado_$id') en su posición ACTUAL.
+    // Antes se mezclaba con marcadores "transitorios" del estado anterior
+    // que, al tener distinta `position` pero el mismo `markerId`, Dart no
+    // deduplicaba (Marker.hashCode solo usa markerId, pero `==` compara
+    // también position) — quedaban ambos y el círculo del conductor se
+    // "acumulaba" en cada ubicación por la que pasó en vez de moverse.
+    _conectadosMarkers = visible;
   }
 
   // ── Carga de íconos ───────────────────────────────────────────────────────

@@ -251,19 +251,34 @@ class TripTrackingViewModel extends ChangeNotifier {
     _safeNotify();
   }
 
+  /// Cámara siempre anclada en la ubicación del cliente (foco principal),
+  /// rotada hacia el conductor y con zoom que se ajusta según la distancia
+  /// entre ambos: así se ve al conductor acercándose sobre el mapa sin
+  /// perder de vista la posición del cliente.
   CameraPosition? getCameraPerspective() {
     final client = clienteLatLng;
     final driver = conductorLatLng;
     if (client == null || driver == null) return null;
 
     final bearing = _mathService.bearingBetween(client, driver);
+    final distance = _mapService.distanceMeters(client, driver);
 
     return CameraPosition(
       target: client,
       bearing: bearing,
       tilt: 0.0,
-      zoom: 16.5,
+      zoom: _zoomForDistance(distance),
     );
+  }
+
+  double _zoomForDistance(double meters) {
+    if (meters <= 150) return 17.5;
+    if (meters <= 300) return 16.8;
+    if (meters <= 600) return 16.0;
+    if (meters <= 1200) return 15.0;
+    if (meters <= 2500) return 14.0;
+    if (meters <= 5000) return 13.0;
+    return 12.0;
   }
 
   Future<void> sendMessage(String text) {

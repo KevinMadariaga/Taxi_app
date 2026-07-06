@@ -253,7 +253,7 @@ exports.onSolicitudEstadoChangeConductor = onDocumentUpdated(
         payload: {
           aps: {
             alert: { title: mensaje.title, body: mensaje.body },
-            badge: 1,
+            badge: 0,
             sound: "default",
             contentAvailable: true,
             mutableContent: true,
@@ -388,7 +388,7 @@ exports.onSolicitudEstadoChange = onDocumentUpdated(
               title: mensaje.title,
               body: mensaje.body,
             },
-            badge: 1,
+            badge: 0,
             sound: "default",
             contentAvailable: true,
             mutableContent: true,
@@ -520,7 +520,7 @@ exports.onSolicitudConductorNueva = onDocumentUpdated(
         payload: {
           aps: {
             alert: { title, body },
-            badge: 1,
+            badge: 0,
             sound: "default",
             contentAvailable: true,
             mutableContent: true,
@@ -643,7 +643,7 @@ exports.onNuevaSolicitudCreada = onDocumentCreated(
         payload: {
           aps: {
             alert: { title, body },
-            badge: 1,
+            badge: 0,
             sound: "default",
             contentAvailable: true,
             mutableContent: true,
@@ -734,7 +734,7 @@ exports.onConductorProximidadCliente = onDocumentUpdated(
         payload: {
           aps: {
             alert: { title, body },
-            badge: 1,
+            badge: 0,
             sound: "default",
             contentAvailable: true,
             mutableContent: true,
@@ -889,7 +889,7 @@ function buildFcmMessage({ token, tokens, title, body, type, extraData = {} }) {
       payload: {
         aps: {
           alert: { title, body },
-          badge: 1,
+          badge: 0,
           sound: "default",
           contentAvailable: true,
           mutableContent: true,
@@ -1143,7 +1143,7 @@ exports.debugPush = onRequest({ region: "us-central1" }, async (req, res) => {
       payload: {
         aps: {
           sound: "default",
-          badge: 1,
+          badge: 0,
           contentAvailable: true,
         },
       },

@@ -42,6 +42,14 @@ class _InicioClienteViewState extends State<InicioClienteView>
   bool _mostrarUbicacionOk = false;
   bool _pendingCenter = false;
 
+  // ── Mini reload tras background prolongado ──────────────────────────────
+  // Si la app pasa más de 3 min en background, al volver puede mostrar la
+  // ubicación/mapa desactualizados si el usuario se desplazó a otro lugar.
+  // Se fuerza una recarga completa de ubicación + listeners en vez del
+  // refresco liviano habitual.
+  DateTime? _backgroundedAt;
+  static const Duration _miniReloadThreshold = Duration(minutes: 3);
+
   // ── Ciclo de vida ────────────────────────────────────────────────────────
 
   @override
@@ -96,7 +104,16 @@ class _InicioClienteViewState extends State<InicioClienteView>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    if (state == AppLifecycleState.resumed) _handleAppResumed();
+    if (state == AppLifecycleState.paused) {
+      _backgroundedAt = DateTime.now();
+    } else if (state == AppLifecycleState.resumed) {
+      final backgroundedAt = _backgroundedAt;
+      _backgroundedAt = null;
+      final miniReload =
+          backgroundedAt != null &&
+          DateTime.now().difference(backgroundedAt) >= _miniReloadThreshold;
+      _handleAppResumed(miniReload: miniReload);
+    }
   }
 
   // ── Lógica de ubicación / GPS ────────────────────────────────────────────
@@ -153,7 +170,7 @@ class _InicioClienteViewState extends State<InicioClienteView>
     }
   }
 
-  Future<void> _handleAppResumed() async {
+  Future<void> _handleAppResumed({bool miniReload = false}) async {
     if (!mounted) return;
     if (_isGpsDialogOpen && Navigator.of(context).canPop()) {
       Navigator.of(context).pop();
@@ -182,7 +199,33 @@ class _InicioClienteViewState extends State<InicioClienteView>
     }
     _gpsPromptShown = false;
     await _ensureLocationServiceAndPermission();
-    await _loadCurrentLocation();
+    if (miniReload) {
+      await _performMiniReload();
+    } else {
+      await _loadCurrentLocation();
+    }
+  }
+
+  /// Mini reload tras background prolongado (>3 min): fuerza GPS fresco,
+  /// reinicia el listener de conductores conectados y recentra el mapa,
+  /// para que no queden marcador/ubicación desactualizados si el usuario se
+  /// desplazó mientras la app estaba en background.
+  Future<void> _performMiniReload() async {
+    await vm.forzarRecargaUbicacion();
+    unawaited(vm.reiniciarConductoresConectados());
+    if (!mounted) return;
+    final loc = vm.currentLocation;
+    if (loc != null) {
+      if (_mapController != null) {
+        _pendingCenter = false;
+        await _mapController!.animateCamera(
+          CameraUpdate.newLatLngZoom(loc, 16),
+        );
+      } else {
+        _pendingCenter = true;
+      }
+      _mostrarBannerUbicacionEncontrada();
+    }
   }
 
   Future<bool> _showGpsDisabledDialog() async {

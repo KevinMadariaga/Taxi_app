@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -113,6 +115,11 @@ class _DriverTripScreenState extends State<DriverTripScreen>
   }
 
   Future<void> _startBackgroundTrackingIfNeeded() async {
+    // iOS no usa flutter_background_service para esto: el tracking en
+    // background lo hace directamente el stream nativo de CoreLocation
+    // (ver DriverLocationService.startRealtimeSync con AppleSettings), que
+    // sigue entregando ubicación con pantalla bloqueada/otra app abierta.
+    if (Platform.isIOS) return;
     if (_backgroundTrackingEnabled || _backgroundTrackingStarting) return;
 
     final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -142,6 +149,7 @@ class _DriverTripScreenState extends State<DriverTripScreen>
   }
 
   Future<void> _stopBackgroundTrackingIfNeeded() async {
+    if (Platform.isIOS) return;
     try {
       final service = FlutterBackgroundService();
       service.invoke('stop');

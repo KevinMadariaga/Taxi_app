@@ -332,29 +332,32 @@ class MapapreviewViewModel extends ChangeNotifier {
     return (brng * 180 / math.pi + 360) % 360;
   }
 
-  /// Bounds de cámara que abarcan origen, destino y la ruta.
-  LatLngBounds? get cameraBounds {
-    final points = <LatLng>[];
-    points.add(origen.position);
-    points.add(destino.position);
-    for (final poly in polylines) {
-      points.addAll(poly.points);
-    }
-    if (points.isEmpty) return null;
-    return _mapService.computeBoundsFromPoints(points);
-  }
-
-  /// Cámara con perspectiva 3D desde el origen hacia el destino.
+  /// Cámara con perspectiva 3D desde el origen (ubicación actual del
+  /// cliente) hacia el destino: ancla en el origen y rota el mapa para que
+  /// "arriba" apunte hacia el destino. El zoom se ajusta según la distancia
+  /// real entre ambos puntos para no cortar el destino fuera de pantalla
+  /// cuando está lejos.
   CameraPosition? get cameraPerspective {
     final ori = origen.position;
     final dest = destino.position;
     final bearing = calculateBearing(ori, dest);
+    final distance = MapHelper.distanceMeters(ori, dest);
     return CameraPosition(
       target: ori,
       bearing: bearing,
       tilt: 10.0,
-      zoom: 15.5,
+      zoom: _zoomForDistance(distance),
     );
+  }
+
+  double _zoomForDistance(double meters) {
+    if (meters <= 150) return 17.5;
+    if (meters <= 300) return 16.8;
+    if (meters <= 600) return 16.0;
+    if (meters <= 1200) return 15.0;
+    if (meters <= 2500) return 14.0;
+    if (meters <= 5000) return 13.0;
+    return 12.0;
   }
 
   /// Intenta trazar la ruta real por calles; si falla, usa un fallback matematico.
@@ -506,15 +509,19 @@ class MapapreviewViewModel extends ChangeNotifier {
       final origenAddress = await _resolveOrigenAddressForSolicitud();
       final destinoAddress = _resolveDestinoAddressForSolicitud();
 
-      // intentar obtener foto de perfil del usuario (Auth) o desde doc 'cliente'
-      String? clientePhotoUrl = user?.photoURL;
+      // Prioriza la foto que el cliente subió en su perfil (Firestore
+      // 'usuarios/{uid}') sobre la del proveedor de Auth (Google/Apple):
+      // si el cliente completó su perfil con una foto propia, esa es la que
+      // debe verse en la preview del conductor, no la del Gmail cacheada en
+      // FirebaseAuth.currentUser.photoURL.
+      String? clientePhotoUrl = _firstNonEmptyValue(clienteDocData, const [
+        'foto',
+        'fotoUrl',
+        'photo',
+        'photoUrl',
+      ]);
       if (clientePhotoUrl == null || clientePhotoUrl.trim().isEmpty) {
-        clientePhotoUrl = _firstNonEmptyValue(clienteDocData, const [
-          'foto',
-          'fotoUrl',
-          'photo',
-          'photoUrl',
-        ]);
+        clientePhotoUrl = user?.photoURL;
       }
 
       final resolvedClienteNombre =

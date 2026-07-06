@@ -1316,14 +1316,19 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
                     );
                     return;
                   }
-                  // Acercar: sin marcador propio de conductor en este mapa,
-                  // "centrar" en el segundo tap vuelve a la ubicación real
-                  // del cliente (el punto azul nativo de myLocationEnabled).
-                  // El propio mapa ya sigue esa posición en tiempo real para
-                  // dibujar el punto azul, así que primero se reusa la última
-                  // posición conocida por el SO (instantánea, sin gastar GPS
-                  // ni batería) en vez de pedir un fix nuevo en cada tap; solo
-                  // se solicita uno fresco si de verdad no hay nada en caché.
+                  // Acercar: perspectiva anclada en la ubicación actual del
+                  // cliente, rotada hacia el destino (igual patrón que
+                  // RutaDestinoView / getCameraPerspective), en vez de solo
+                  // centrar norte-arriba en el punto azul nativo.
+                  final persp = vm.getCameraPerspective();
+                  if (persp != null) {
+                    await _mapController!.animateCamera(
+                      CameraUpdate.newCameraPosition(persp),
+                    );
+                    return;
+                  }
+                  // Sin datos suficientes para la perspectiva (fallback):
+                  // centrar en la última ubicación conocida del cliente.
                   try {
                     Position? pos = await Geolocator.getLastKnownPosition();
                     pos ??= await Geolocator.getCurrentPosition(

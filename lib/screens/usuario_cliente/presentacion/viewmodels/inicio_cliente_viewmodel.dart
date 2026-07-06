@@ -90,6 +90,40 @@ class InicioClienteViewModel extends ChangeNotifier {
     });
   }
 
+  /// Reinicia el listener de conductores conectados (marcadores del mapa).
+  /// Se usa tras un "mini reload" por background prolongado, para descartar
+  /// cualquier suscripción de Firestore que haya quedado inactiva.
+  Future<void> reiniciarConductoresConectados() =>
+      _inicializarConductoresConectados();
+
+  /// Fuerza una recarga de la ubicación actual del GPS, ignorando el umbral
+  /// de "¿es una ubicación nueva?" (a diferencia de [cargarUbicacionActual]).
+  /// Se usa tras volver de background prolongado, donde el usuario pudo
+  /// desplazarse y la última posición cacheada/mostrada ya no es válida.
+  Future<void> forzarRecargaUbicacion() async {
+    LatLng? loc;
+    try {
+      loc = await _ubicacionService.obtenerUbicacionActual();
+    } catch (e) {
+      debugPrint('Error obteniendo ubicación actual: $e');
+    }
+    if (loc == null) return;
+
+    _isLoadingLocation = true;
+    if (!_disposed) notifyListeners();
+    try {
+      _currentLocation = loc;
+      await _guardarUbicacionCliente(loc);
+      await _guardarUbicacionCache(loc);
+      _ubicacionNueva = true;
+    } catch (e) {
+      debugPrint('Error guardando ubicación: $e');
+    } finally {
+      _isLoadingLocation = false;
+      if (!_disposed) notifyListeners();
+    }
+  }
+
   Future<void> _inicializarConductoresConectados() async {
     try {
       _taxiIcon = await MapHelper.loadMarkerIcon(

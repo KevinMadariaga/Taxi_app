@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'dart:math' as Math;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -102,6 +103,13 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
   double _conductorRotation = 0;
   Timer? _movementTimer;
   int _cameraFollowTick = 0;
+
+  // Posición del conductor al momento del último fetch de polyline. Se usa
+  // para volver a pedir la ruta cada ~20 m de avance (igual que en
+  // DriverTripController), y así la línea amarilla se va "acortando" en
+  // tiempo real siguiendo al conductor en vez de quedar fija mientras no se
+  // desvíe del trazado original.
+  LatLng? _lastPolylineOrigin;
   // Calcula los bounds de la polyline para ajustar la cámara
   LatLngBounds? _calcularBoundsPolyline(List<LatLng> points) {
     if (points.isEmpty) return null;
@@ -302,6 +310,9 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
   }
 
   Future<void> _iniciarTrackingBackground() async {
+    // iOS no usa flutter_background_service para esto: ver nota en
+    // _escucharMovimientoConductor (stream nativo con AppleSettings).
+    if (Platform.isIOS) return;
     if (_backgroundServiceRunning || _backgroundServiceStarting) return;
     _backgroundServiceStarting = true;
     try {
@@ -331,6 +342,7 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
   }
 
   Future<void> _detenerTrackingBackground() async {
+    if (Platform.isIOS) return;
     if (!_backgroundServiceRunning && !_backgroundServiceStarting) return;
     try {
       final service = FlutterBackgroundService();
@@ -392,6 +404,7 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
           vm.lngDestino != null) {
         if (!mounted) return;
         try {
+          _lastPolylineOrigin = _ubicacionConductor;
           await vm.fetchRoute(
             _ubicacionConductor!,
             LatLng(vm.latDestino!, vm.lngDestino!),
@@ -423,12 +436,25 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
 
   void _escucharMovimientoConductor() {
     final vm = Provider.of<RutaDestinoViewModel>(context, listen: false);
+    // Android: tracking en background lo cubre background_tracking_service
+    // (foreground service + isolate). iOS: ese servicio no puede seguir
+    // corriendo con la app bloqueada/en otra app, así que este mismo stream
+    // (entrega nativa de CoreLocation) es el que mantiene la ubicación
+    // llegando — requiere AppleSettings.allowBackgroundLocationUpdates
+    // (true por default) + permiso "Always" + UIBackgroundModes: "location".
     _positionStream =
         Geolocator.getPositionStream(
-          locationSettings: const LocationSettings(
-            accuracy: LocationAccuracy.high,
-            distanceFilter: 5,
-          ),
+          locationSettings: Platform.isIOS
+              ? AppleSettings(
+                  accuracy: LocationAccuracy.high,
+                  distanceFilter: 5,
+                  pauseLocationUpdatesAutomatically: false,
+                  showBackgroundLocationIndicator: true,
+                )
+              : const LocationSettings(
+                  accuracy: LocationAccuracy.high,
+                  distanceFilter: 5,
+                ),
         ).listen((Position position) async {
           final nuevaUbicacion = LatLng(position.latitude, position.longitude);
 
@@ -460,7 +486,12 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
             );
           }
 
-          // Si el conductor se desvía más de 50 metros de la polyline, solicita nueva ruta
+          // Re-solicita la polyline si: (a) el conductor se desvía >50 m del
+          // trazado, o (b) avanzó >20 m desde el último fetch (igual que
+          // DriverTripController) — esto último es lo que hace que la línea
+          // amarilla se vaya "acortando" en tiempo real siguiendo al
+          // conductor mientras avanza por la ruta correcta, no solo cuando
+          // se desvía.
           if (vm.routePoints.isNotEmpty && _ubicacionConductor != null) {
             double minDist = double.infinity;
             for (final p in vm.routePoints) {
@@ -472,7 +503,19 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
               );
               if (dist < minDist) minDist = dist;
             }
-            if (minDist > 50) {
+
+            final origin = _lastPolylineOrigin;
+            final avanzo =
+                origin == null ||
+                Geolocator.distanceBetween(
+                      origin.latitude,
+                      origin.longitude,
+                      _ubicacionConductor!.latitude,
+                      _ubicacionConductor!.longitude,
+                    ) >
+                    20;
+
+            if (minDist > 50 || avanzo) {
               _solicitarNuevaPolyline();
             }
           }
@@ -530,9 +573,11 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
 
   Future<void> _solicitarNuevaPolyline() async {
     final vm = Provider.of<RutaDestinoViewModel>(context, listen: false);
+    if (vm.isLoadingRoute) return;
     if (_ubicacionConductor != null &&
         vm.latDestino != null &&
         vm.lngDestino != null) {
+      _lastPolylineOrigin = _ubicacionConductor;
       await vm.fetchRoute(
         _ubicacionConductor!,
         LatLng(vm.latDestino!, vm.lngDestino!),
@@ -541,16 +586,22 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
     }
   }
 
+  /// Centra en la perspectiva del conductor apuntando hacia el destino
+  /// (igual patrón que RutaClienteDestinoView / getCameraPerspective):
+  /// ancla en la posición del conductor y rota el mapa hacia el destino.
   void _centerOnConductor() {
+    if (_mapController == null) return;
+    final vm = Provider.of<RutaDestinoViewModel>(context, listen: false);
+    final persp = vm.getCameraPerspective();
+    if (persp != null) {
+      _mapController!.animateCamera(CameraUpdate.newCameraPosition(persp));
+      return;
+    }
     final pos = _conductorSmooth ?? _ubicacionConductor;
-    if (_mapController != null && pos != null) {
+    if (pos != null) {
       _mapController!.animateCamera(
         CameraUpdate.newCameraPosition(
-          CameraPosition(
-            target: pos,
-            bearing: _conductorRotation,
-            zoom: 17.5,
-          ),
+          CameraPosition(target: pos, bearing: _conductorRotation, zoom: 17.5),
         ),
       );
     }

@@ -9,29 +9,7 @@ class PanicButtonFab extends StatefulWidget {
   State<PanicButtonFab> createState() => _PanicButtonFabState();
 }
 
-class _PanicButtonFabState extends State<PanicButtonFab>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _pulseCtrl;
-  late final Animation<double> _pulse;
-
-  @override
-  void initState() {
-    super.initState();
-    _pulseCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 900),
-    )..repeat(reverse: true);
-    _pulse = Tween<double>(begin: 1.0, end: 1.14).animate(
-      CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut),
-    );
-  }
-
-  @override
-  void dispose() {
-    _pulseCtrl.dispose();
-    super.dispose();
-  }
-
+class _PanicButtonFabState extends State<PanicButtonFab> {
   Future<void> _confirmarLlamada() async {
     final confirmar = await showDialog<bool>(
       context: context,
@@ -100,15 +78,12 @@ class _PanicButtonFabState extends State<PanicButtonFab>
 
   @override
   Widget build(BuildContext context) {
-    return ScaleTransition(
-      scale: _pulse,
-      child: FloatingActionButton(
-        heroTag: 'panic_button',
-        backgroundColor: AppColores.error,
-        onPressed: _confirmarLlamada,
-        tooltip: 'Llamar al 123 — Emergencias',
-        child: const Icon(Icons.phone_in_talk_rounded, color: Colors.white, size: 26),
-      ),
+    return FloatingActionButton(
+      heroTag: 'panic_button',
+      backgroundColor: AppColores.error,
+      onPressed: _confirmarLlamada,
+      tooltip: 'Llamar al 123 — Emergencias',
+      child: const Icon(Icons.phone_in_talk_rounded, color: Colors.white, size: 26),
     );
   }
 }

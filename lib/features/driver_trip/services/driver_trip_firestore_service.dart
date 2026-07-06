@@ -27,6 +27,23 @@ class DriverTripFirestoreService {
     });
   }
 
+  /// Lectura puntual (no-stream) del viaje, forzando servidor cuando hay red.
+  /// Se usa al volver de background: el listener en vivo puede haberse
+  /// suspendido con la app (pantalla bloqueada u otra app en primer plano) y
+  /// perder el evento de cancelación; esto reconcilia el estado real aunque
+  /// el stream no haya entregado el cambio.
+  Future<DriverTripModel?> fetchTripOnce(String tripId) async {
+    try {
+      final doc = await _tripRef(
+        tripId,
+      ).get(const GetOptions(source: Source.serverAndCache));
+      if (!doc.exists) return null;
+      return DriverTripModel.fromDoc(doc);
+    } catch (_) {
+      return null;
+    }
+  }
+
   Stream<List<DriverChatMessage>> watchMessages(String tripId) {
     return _messagesRef(tripId)
         .orderBy('timestamp', descending: false)

@@ -521,17 +521,25 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
   }
 
   /// Cancela por inactividad/abandono (app cerrada o en segundo plano demasiado
-  /// tiempo). Solo marca estado=cancelado, sin borrar (la app puede no seguir
-  /// viva para hacer cleanup). Best-effort.
+  /// tiempo). Marca estado=cancelado y, si la app sigue viva para completar
+  /// este método, agenda el borrado a los 3 s (igual que [cancelarSolicitud]),
+  /// para que desaparezca de la lista de solicitudes tanto del cliente como
+  /// de los conductores. Best-effort.
   Future<void> marcarCanceladaPorInactividad() async {
     final solicitudId = _solicitudId;
     if (solicitudId == null || solicitudId.isEmpty) return;
+    final docRef = _firestore.collection('solicitudes').doc(solicitudId);
     try {
-      await _firestore.collection('solicitudes').doc(solicitudId).update({
+      await docRef.update({
         'estado': 'cancelado',
         'cancelledAt': FieldValue.serverTimestamp(),
         'cancelReason': 'inactividad',
       });
+      unawaited(_borrarSolicitudTrasGracia(
+        docRef,
+        solicitudId,
+        gracia: const Duration(seconds: 3),
+      ));
     } catch (_) {}
     SessionHelper.clearActiveSolicitud().ignore();
   }
@@ -567,10 +575,11 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
 
   Future<void> _borrarSolicitudTrasGracia(
     DocumentReference<Map<String, dynamic>> docRef,
-    String solicitudId,
-  ) async {
+    String solicitudId, {
+    Duration gracia = const Duration(seconds: 5),
+  }) async {
     try {
-      await Future<void>.delayed(const Duration(seconds: 5));
+      await Future<void>.delayed(gracia);
       await docRef.delete();
       debugPrint(
         '[BuscandoTaxiViewModel] Solicitud $solicitudId eliminada tras cancelación',

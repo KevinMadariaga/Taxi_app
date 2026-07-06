@@ -79,6 +79,7 @@ class MarkerIconHelper {
     double devicePixelRatio = 1.0,
     bool trimTransparentPadding = true,
     BoxFit fit = BoxFit.contain,
+    bool mirrored = false,
   }) async {
     try {
       int width = (size.width * devicePixelRatio).round();
@@ -118,6 +119,11 @@ class MarkerIconHelper {
 
       final recorder = ui.PictureRecorder();
       final canvas = Canvas(recorder);
+      if (mirrored) {
+        canvas.save();
+        canvas.translate(width.toDouble(), 0);
+        canvas.scale(-1, 1);
+      }
       canvas.drawImageRect(
         image,
         srcRect,
@@ -126,6 +132,7 @@ class MarkerIconHelper {
           ..isAntiAlias = true
           ..filterQuality = FilterQuality.high,
       );
+      if (mirrored) canvas.restore();
 
       final picture = recorder.endRecording();
       final outImage = await picture.toImage(width, height);
