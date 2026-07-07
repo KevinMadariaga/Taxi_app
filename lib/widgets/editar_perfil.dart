@@ -4,15 +4,14 @@ import 'package:image_picker/image_picker.dart';
 import 'package:animated_snack_bar/animated_snack_bar.dart';
 import 'package:firebase_storage/firebase_storage.dart' as firebase_storage;
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:taxi_app/widgets/boton.dart';
 import 'package:taxi_app/widgets/flip_preview_view.dart';
-import 'dart:ui' as ui;
 
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/services/image_cropper_service.dart';
+import 'package:taxi_app/core/services/image_processing_service.dart';
+import 'package:taxi_app/core/services/face_detection_service.dart';
 
 class EditarPerfilScreen extends StatefulWidget {
   final TextEditingController nombreController;
@@ -46,20 +45,17 @@ class EditarPerfilScreen extends StatefulWidget {
 
 class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
   bool get _hasChanges {
-    final nombreChanged =
-        widget.selectedImage != null &&
-        widget.nombreController.text.trim() != widget.selectedImage?.path;
+    final nombreChanged = widget.nombreController.text.trim() != _origNombre;
+    final apellidoChanged =
+        widget.apellidoController.text.trim() != _origApellido;
     final telefonoChanged =
-        widget.selectedVehicleImage != null &&
-        widget.telefonoController.text.trim() !=
-            widget.selectedVehicleImage?.path;
+        widget.telefonoController.text.trim() != _origTelefono;
     final placaChanged =
-        widget.esConductor &&
-        widget.placaController.text.trim() !=
-            (widget.placaController.value.text.trim());
+        widget.esConductor && widget.placaController.text.trim() != _origPlaca;
     final imageChanged = _imageChangedByUser;
     final vehicleChanged = widget.esConductor && _vehicleChangedByUser;
     return nombreChanged ||
+        apellidoChanged ||
         telefonoChanged ||
         placaChanged ||
         imageChanged ||
@@ -71,14 +67,32 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
   bool _imageChangedByUser = false;
   bool _vehicleChangedByUser = false;
   bool _isUploading = false;
+  bool _isValidatingFace = false;
+  late final String _origNombre;
+  late final String _origApellido;
+  late final String _origTelefono;
+  late final String _origPlaca;
   final ImagePicker _picker = ImagePicker();
   final ImageCropperService _imageCropperService = const ImageCropperService();
+  final ImageProcessingService _imageProcessingService =
+      const ImageProcessingService();
+  final FaceDetectionService _faceDetectionService = FaceDetectionService();
 
   @override
   void initState() {
     super.initState();
     _image = widget.selectedImage;
     _vehicleImage = widget.selectedVehicleImage;
+    _origNombre = widget.nombreController.text.trim();
+    _origApellido = widget.apellidoController.text.trim();
+    _origTelefono = widget.telefonoController.text.trim();
+    _origPlaca = widget.placaController.text.trim();
+  }
+
+  @override
+  void dispose() {
+    _faceDetectionService.dispose();
+    super.dispose();
   }
 
   Future<void> _pickImage(bool isVehicle) async {
@@ -91,7 +105,26 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
       if (picked == null) return;
 
       File sourceFile = File(picked.path);
+
+      // Foto de perfil: debe ser un rostro real, no cualquier objeto/escena.
+      // Se valida ANTES del flip/crop para no hacerle perder tiempo al
+      // usuario ajustando un recorte que de todas formas se va a rechazar.
       if (!isVehicle) {
+        setState(() => _isValidatingFace = true);
+        final tieneRostro = await _faceDetectionService.hasFace(
+          sourceFile.path,
+        );
+        if (mounted) setState(() => _isValidatingFace = false);
+        if (!tieneRostro) {
+          if (!mounted) return;
+          AnimatedSnackBar.material(
+            'No se detectó un rostro claro en la foto. Asegúrate de mirar '
+            'a la cámara con buena luz e inténtalo de nuevo.',
+            type: AnimatedSnackBarType.warning,
+          ).show(context);
+          return;
+        }
+
         if (!mounted) return;
         final flipped = await showFlipPreview(context, imageFile: sourceFile);
         if (flipped == null) return;
@@ -107,12 +140,18 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
             );
       if (cropped == null) return;
 
-      final pickedFile = cropped;
-      final compressed = await _compressFile(pickedFile, maxBytes: 100 * 1024);
+      final compressed = isVehicle
+          ? await _imageProcessingService.compressVehiclePhoto(cropped)
+          : await _imageProcessingService.compressProfilePhoto(cropped);
+
+      final maxBytes = isVehicle
+          ? ImageProcessingService.vehicle16x9.maxBytes
+          : ImageProcessingService.profile.maxBytes;
       final fileSize = await compressed.length();
-      if (fileSize > 100 * 1024) {
+      if (fileSize > maxBytes) {
+        if (!mounted) return;
         AnimatedSnackBar.material(
-          'La imagen seleccionada es mayor a 100KB. Selecciona una más pequeña.',
+          'No se pudo comprimir la imagen al peso permitido. Intenta con otra foto.',
           type: AnimatedSnackBarType.warning,
         ).show(context);
         return;
@@ -131,45 +170,6 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
         'Error seleccionando imagen: $e',
         type: AnimatedSnackBarType.error,
       ).show(context);
-    }
-  }
-
-  Future<File> _compressFile(File file, {required int maxBytes}) async {
-    try {
-      final dir = await getTemporaryDirectory();
-      final outPath =
-          '${dir.path}/${DateTime.now().millisecondsSinceEpoch}_comp.webp';
-      final bytes = await file.readAsBytes();
-      final codec = await ui.instantiateImageCodec(bytes);
-      final frame = await codec.getNextFrame();
-      final ui.Image original = frame.image;
-      final int origW = original.width;
-      final int origH = original.height;
-      final qualities = [80, 70, 60, 50, 45, 40, 35, 30, 25];
-      final scales = [1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4];
-      File? best;
-      for (final s in scales) {
-        final targetW = (origW * s).toInt();
-        final targetH = (origH * s).toInt();
-        for (final q in qualities) {
-          final result = await FlutterImageCompress.compressAndGetFile(
-            file.absolute.path,
-            outPath,
-            quality: q,
-            minWidth: targetW,
-            minHeight: targetH,
-            format: CompressFormat.webp,
-          );
-          if (result == null) continue;
-          final len = await result.length();
-          final wrapped = File(result.path);
-          best = wrapped;
-          if (len <= maxBytes) return wrapped;
-        }
-      }
-      return best ?? file;
-    } catch (_) {
-      return file;
     }
   }
 
@@ -316,15 +316,24 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                     right: cameraButtonRadius * 0.4,
                     child: InkWell(
                       borderRadius: BorderRadius.circular(cameraButtonRadius),
-                      onTap: () => _pickImage(false),
+                      onTap: _isValidatingFace ? null : () => _pickImage(false),
                       child: CircleAvatar(
                         radius: cameraButtonRadius,
                         backgroundColor: AppColores.primary,
-                        child: Icon(
-                          Icons.camera_alt,
-                          size: cameraIconSize,
-                          color: AppColores.textPrimary,
-                        ),
+                        child: _isValidatingFace
+                            ? SizedBox(
+                                width: cameraIconSize,
+                                height: cameraIconSize,
+                                child: const CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppColores.textPrimary,
+                                ),
+                              )
+                            : Icon(
+                                Icons.camera_alt,
+                                size: cameraIconSize,
+                                color: AppColores.textPrimary,
+                              ),
                       ),
                     ),
                   ),
@@ -489,19 +498,9 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                               if (_imageChangedByUser &&
                                   _image != null &&
                                   uid != null) {
-                                final profileToUpload = await _compressFile(
-                                  _image!,
-                                  maxBytes: 100 * 1024,
-                                );
-                                final fileSize = await profileToUpload.length();
-                                if (fileSize > 100 * 1024) {
-                                  AnimatedSnackBar.material(
-                                    'La imagen de perfil es mayor a 100KB. Selecciona una más pequeña.',
-                                    type: AnimatedSnackBarType.warning,
-                                  ).show(context);
-                                  setState(() => _isUploading = false);
-                                  return;
-                                }
+                                // Ya se comprimió al tomar la foto (_pickImage);
+                                // no recomprimir aquí para no gastar CPU de más.
+                                final profileToUpload = _image!;
                                 final prevDoc = await FirebaseFirestore.instance
                                     .collection('usuarios')
                                     .doc(uid)
@@ -534,19 +533,9 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                                   _vehicleChangedByUser &&
                                   _vehicleImage != null &&
                                   uid != null) {
-                                final vehicleToUpload = await _compressFile(
-                                  _vehicleImage!,
-                                  maxBytes: 100 * 1024,
-                                );
-                                final fileSize = await vehicleToUpload.length();
-                                if (fileSize > 100 * 1024) {
-                                  AnimatedSnackBar.material(
-                                    'La imagen del vehículo es mayor a 100KB. Selecciona una más pequeña.',
-                                    type: AnimatedSnackBarType.warning,
-                                  ).show(context);
-                                  setState(() => _isUploading = false);
-                                  return;
-                                }
+                                // Ya se comprimió al tomar la foto (_pickImage);
+                                // no recomprimir aquí para no gastar CPU de más.
+                                final vehicleToUpload = _vehicleImage!;
                                 final prevDoc = await FirebaseFirestore.instance
                                     .collection('usuarios')
                                     .doc(uid)

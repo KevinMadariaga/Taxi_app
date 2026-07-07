@@ -14,6 +14,7 @@ import 'package:taxi_app/screens/usuario_cliente/presentacion/model/chat_message
 import 'package:taxi_app/core/services/chat_service_adapter.dart';
 import 'package:taxi_app/core/services/services.dart';
 import 'package:taxi_app/core/services/map_service_adapter.dart' as adapter;
+import 'package:taxi_app/core/constants/solicitud_estado.dart';
 
 class RutaDestinoViewModel extends ChangeNotifier {
   late final FirebaseService _firebaseService;
@@ -158,9 +159,10 @@ class RutaDestinoViewModel extends ChangeNotifier {
         .listen((doc) async {
           if (!doc.exists) return;
           final data = doc.data();
-          final estado = data?['estado']?.toString().toLowerCase() ?? '';
-          if ((estado == 'completado' || estado == 'completada') &&
-              !_completionHandled) {
+          final estado = SolicitudEstado.normalize(
+            (data?['estado'] ?? '').toString(),
+          );
+          if (estado == SolicitudEstado.completado && !_completionHandled) {
             _completionHandled = true;
             await finalizarSolicitud(solicitudId);
             if (onSolicitudCompletada != null) {
@@ -259,8 +261,10 @@ class RutaDestinoViewModel extends ChangeNotifier {
             .get();
         if (doc.exists) {
           final data = doc.data();
-          final estado = data?['estado'] ?? '';
-          if (estado == 'asignado') {
+          final estado = SolicitudEstado.normalize(
+            (data?['estado'] ?? '').toString(),
+          );
+          if (estado == SolicitudEstado.asignado) {
             return true;
           }
         }

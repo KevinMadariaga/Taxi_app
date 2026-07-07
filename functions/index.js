@@ -13,9 +13,15 @@
 
 const { onDocumentUpdated, onDocumentCreated } = require("firebase-functions/v2/firestore");
 const { initializeApp } = require("firebase-admin/app");
-const { getFirestore } = require("firebase-admin/firestore");
+const { getFirestore, Timestamp, FieldValue } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
-const { onRequest } = require("firebase-functions/v2/https");
+const { onRequest, onCall, HttpsError } = require("firebase-functions/v2/https");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
+const { defineSecret } = require("firebase-functions/params");
+
+// Key de Google Directions: vive solo en Secret Manager, nunca se compila en
+// el cliente. Configurar con: firebase functions:secrets:set GOOGLE_DIRECTIONS_KEY
+const googleDirectionsKey = defineSecret("GOOGLE_DIRECTIONS_KEY");
 
 initializeApp();
 
@@ -1157,3 +1163,299 @@ exports.debugPush = onRequest({ region: "us-central1" }, async (req, res) => {
     res.status(500).send(`❌ Error: ${err.message}`);
   }
 });
+
+/**
+ * Cloud Function programada: cancela automáticamente solicitudes que llevan
+ * demasiado tiempo en estado 'buscando' sin que ningún conductor las tome.
+ *
+ * Necesaria porque la cancelación por inactividad del lado del cliente (ver
+ * buscando_taxi_view.dart) es un Timer en memoria de la app: si el usuario
+ * mata la app desde el selector de apps recientes de Android antes de que
+ * ese timer corra, el proceso Dart muere con él y nadie cancela la
+ * solicitud — queda huérfana en Firestore hasta que el cliente reabra la
+ * app (y auth_service.dart la cancele al detectarla). Este barrido corre
+ * server-side sin depender en absoluto de que la app vuelva a abrirse.
+ */
+const SOLICITUD_BUSCANDO_TIMEOUT_MS = 3 * 60 * 1000; // 3 min sin conductor
+const CANCELADA_DELETE_GRACE_MS = 5000; // deja tiempo a un accept en curso
+
+/**
+ * Cloud Function HTTP: cancela una solicitud en estado 'buscando' cuando el
+ * cliente cierra la app por completo (swipe en el selector de apps
+ * recientes de Android).
+ *
+ * Se invoca desde un job de WorkManager encolado nativamente en
+ * MainActivity.onTaskRemoved (ver android/app/.../MainActivity.kt +
+ * CancelSolicitudWorker.kt). WorkManager persiste el job en su propia base
+ * de datos y lo ejecuta aunque el proceso Android muera justo después —
+ * a diferencia de cualquier Timer/callback en Dart, que muere con el
+ * proceso sin llegar a escribir en Firestore.
+ *
+ * Validación: solo cancela si `clienteId` coincide con el dueño real de la
+ * solicitud y si sigue en estado 'buscando' (evita tocar viajes ya
+ * asignados/en curso ante una llamada tardía, duplicada o manipulada).
+ */
+exports.cancelarSolicitudPorCierreApp = onRequest(
+  { region: "us-central1" },
+  async (req, res) => {
+    const solicitudId = (
+      req.query.solicitudId ||
+      (req.body && req.body.solicitudId) ||
+      ""
+    ).toString();
+    const clienteId = (
+      req.query.clienteId ||
+      (req.body && req.body.clienteId) ||
+      ""
+    ).toString();
+
+    if (!solicitudId || !clienteId) {
+      res.status(400).send("Faltan parámetros solicitudId/clienteId");
+      return;
+    }
+
+    try {
+      const db = getFirestore();
+      const docRef = db.collection("solicitudes").doc(solicitudId);
+      const doc = await docRef.get();
+
+      if (!doc.exists) {
+        res.status(200).send("no-op: solicitud no existe");
+        return;
+      }
+
+      const data = doc.data();
+      const estado = (data.estado || data.status || "").toString().toLowerCase();
+      const rawCliente = data.cliente;
+      const docClienteId = (
+        (rawCliente && typeof rawCliente === "object"
+          ? rawCliente.id || rawCliente.uid
+          : null) ||
+        data.clienteId ||
+        data.userId ||
+        ""
+      ).toString();
+
+      if (docClienteId !== clienteId) {
+        res.status(403).send("no-op: cliente no coincide");
+        return;
+      }
+
+      if (estado !== "buscando") {
+        res.status(200).send(`no-op: estado actual '${estado}'`);
+        return;
+      }
+
+      await docRef.update({
+        estado: "cancelado",
+        cancelledAt: FieldValue.serverTimestamp(),
+        cancelReason: "app_cerrada",
+      });
+      console.log(
+        `🛑 Solicitud ${solicitudId} cancelada por cierre de app (cliente ${clienteId}).`
+      );
+
+      // Borrado tras una breve gracia, igual que el resto de flujos de
+      // cancelación (da tiempo a un accept en curso de un conductor).
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      await docRef.delete();
+
+      res.status(200).send("ok: cancelada");
+    } catch (err) {
+      console.error("❌ Error en cancelarSolicitudPorCierreApp:", err.message);
+      res.status(500).send(`error: ${err.message}`);
+    }
+  }
+);
+
+exports.cancelarSolicitudesBuscandoInactivas = onSchedule(
+  {
+    schedule: "every 2 minutes",
+    region: "us-central1",
+    timeoutSeconds: 60,
+  },
+  async () => {
+    const db = getFirestore();
+    const cutoff = Timestamp.fromMillis(
+      Date.now() - SOLICITUD_BUSCANDO_TIMEOUT_MS
+    );
+
+    let snap;
+    try {
+      snap = await db
+        .collection("solicitudes")
+        .where("estado", "==", "buscando")
+        .where("createdAt", "<=", cutoff)
+        .get();
+    } catch (err) {
+      console.error(
+        "❌ Error consultando solicitudes 'buscando' vencidas:",
+        err.message
+      );
+      return null;
+    }
+
+    if (snap.empty) return null;
+
+    const batch = db.batch();
+    snap.docs.forEach((doc) => {
+      batch.update(doc.ref, {
+        estado: "cancelado",
+        cancelledAt: FieldValue.serverTimestamp(),
+        cancelReason: "inactividad_timeout",
+      });
+    });
+
+    try {
+      await batch.commit();
+      console.log(
+        `🛑 ${snap.size} solicitud(es) 'buscando' canceladas por inactividad.`
+      );
+    } catch (err) {
+      console.error("❌ Error cancelando solicitudes vencidas:", err.message);
+      return null;
+    }
+
+    // Borrado tras una breve gracia, igual que la cancelación manual del
+    // cliente: da tiempo a que un conductor que ya estaba aceptando termine.
+    await new Promise((resolve) => setTimeout(resolve, CANCELADA_DELETE_GRACE_MS));
+
+    const deleteBatch = db.batch();
+    snap.docs.forEach((doc) => deleteBatch.delete(doc.ref));
+    try {
+      await deleteBatch.commit();
+      console.log(`🗑️ ${snap.size} solicitud(es) vencidas eliminadas.`);
+    } catch (err) {
+      console.error("❌ Error eliminando solicitudes vencidas:", err.message);
+    }
+
+    return null;
+  }
+);
+
+// Corte server-side de membresías de conductor vencidas. Antes de esto, el
+// único mecanismo era un Timer en InicioConductorView.dart que solo corre si
+// el conductor tiene la app abierta: si el proceso muere en background (común
+// en gama baja), `membresia` quedaba en 'activa' indefinidamente y
+// `aceptarSolicitud()` no revalidaba vencimiento, dejando aceptar viajes gratis.
+// Mismos campos que revoca el admin manualmente (`admin_home_screen.dart`) y
+// que el propio corte local (`_expirarMembresia` en InicioConductorView.dart),
+// para que cualquiera de los tres caminos deje al conductor en el mismo estado.
+exports.expirarMembresiasVencidas = onSchedule(
+  {
+    schedule: "every 30 minutes",
+    region: "us-central1",
+    timeoutSeconds: 60,
+  },
+  async () => {
+    const db = getFirestore();
+    const ahora = Timestamp.now();
+
+    let snap;
+    try {
+      snap = await db
+        .collection("usuarios")
+        .where("membresia", "==", "activa")
+        .where("membresiaVence", "<=", ahora)
+        .get();
+    } catch (err) {
+      console.error(
+        "❌ Error consultando membresías vencidas:",
+        err.message
+      );
+      return null;
+    }
+
+    if (snap.empty) return null;
+
+    const batch = db.batch();
+    snap.docs.forEach((doc) => {
+      batch.update(doc.ref, {
+        membresia: "",
+        servicioActivo: false,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    });
+
+    try {
+      await batch.commit();
+      console.log(
+        `🛑 ${snap.size} membresía(s) de conductor expiradas por vencimiento.`
+      );
+    } catch (err) {
+      console.error("❌ Error expirando membresías vencidas:", err.message);
+    }
+
+    return null;
+  }
+);
+
+/**
+ * Callable: proxy server-side de Google Directions API.
+ *
+ * Reemplaza la key hardcodeada que antes vivía en
+ * lib/features/trip_tracking_cliente/services/map_service.dart (extraíble
+ * del APK/IPA por cualquiera vía reversing). Acá la key nunca se compila en
+ * el cliente: se guarda en Secret Manager y solo existe en memoria del
+ * proceso de la función.
+ *
+ * Requiere sesión de Firebase Auth (cliente o conductor) para evitar que un
+ * tercero use este proxy como Directions API gratis a costa de tu cuota.
+ */
+exports.getDirectionsRoute = onCall(
+  { region: "us-central1", secrets: [googleDirectionsKey], timeoutSeconds: 10 },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Se requiere sesión iniciada.");
+    }
+
+    const { originLat, originLng, destLat, destLng } = request.data || {};
+    if (
+      typeof originLat !== "number" ||
+      typeof originLng !== "number" ||
+      typeof destLat !== "number" ||
+      typeof destLng !== "number"
+    ) {
+      throw new HttpsError(
+        "invalid-argument",
+        "originLat/originLng/destLat/destLng son requeridos y deben ser numéricos."
+      );
+    }
+
+    const url = new URL(
+      "https://maps.googleapis.com/maps/api/directions/json"
+    );
+    url.searchParams.set("origin", `${originLat},${originLng}`);
+    url.searchParams.set("destination", `${destLat},${destLng}`);
+    url.searchParams.set("mode", "driving");
+    url.searchParams.set("units", "metric");
+    url.searchParams.set("alternatives", "false");
+    url.searchParams.set("key", googleDirectionsKey.value());
+
+    let resp;
+    try {
+      resp = await fetch(url, { signal: AbortSignal.timeout(6000) });
+    } catch (err) {
+      throw new HttpsError(
+        "unavailable",
+        `No se pudo contactar Directions API: ${err.message}`
+      );
+    }
+
+    if (!resp.ok) {
+      throw new HttpsError(
+        "unavailable",
+        `Directions API respondió ${resp.status}`
+      );
+    }
+
+    const body = await resp.json();
+    const route = body.routes && body.routes[0];
+    const encoded = route && route.overview_polyline && route.overview_polyline.points;
+    if (!encoded) {
+      throw new HttpsError("not-found", "No se encontró una ruta.");
+    }
+
+    return { encodedPolyline: encoded };
+  }
+);

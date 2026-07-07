@@ -6,6 +6,8 @@ import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:google_maps_flutter_android/google_maps_flutter_android.dart';
+import 'package:google_maps_flutter_platform_interface/google_maps_flutter_platform_interface.dart';
 import 'package:taxi_app/core/helpers/firebase_helper.dart';
 import 'package:taxi_app/core/helpers/permisos_helper.dart';
 import 'package:taxi_app/core/constants/app_constants.dart';
@@ -23,8 +25,6 @@ import 'package:taxi_app/features/client/data/firebaseDB.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/datos/repositorios/app_auth_adapter.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/repositorios/client_auth_repository.dart';
 import 'package:taxi_app/models/AuthModel.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/RutaClienteViewModel.dart';
-import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodels/RutaConductorViewModel.dart';
 import 'package:taxi_app/core/services/background_tracking_service.dart';
 import 'package:taxi_app/core/services/notificacion_servicio.dart';
 import 'package:taxi_app/core/services/tracking_service.dart';
@@ -91,6 +91,16 @@ Future<void> main() async {
     if (_esErrorBenignoMapas(error)) return true; // tragado
     return false; // no manejado → comportamiento por defecto
   };
+
+  // Fuerza hybrid composition (TextureLayer) en el GoogleMap de Android en vez
+  // del SurfaceView por defecto. El SurfaceView pierde su superficie nativa
+  // cuando el sistema recrea la Activity tras estar mucho tiempo en segundo
+  // plano, dejando la pantalla en negro hasta forzar cierre. Debe fijarse
+  // antes de montar cualquier GoogleMap.
+  final mapsImplementation = GoogleMapsFlutterPlatform.instance;
+  if (mapsImplementation is GoogleMapsFlutterAndroid) {
+    mapsImplementation.useAndroidViewSurface = true;
+  }
 
   // Solo lo imprescindible antes del primer frame: Firebase es requerido por
   // los providers (AppAuthAdapter). Todo lo demás (permisos, notificaciones,
@@ -192,8 +202,6 @@ class MyApp extends StatelessWidget {
             ),
 
             ChangeNotifierProvider(create: (_) => AuthViewModel(_authAdapter)),
-            ChangeNotifierProvider(create: (_) => RutaConductorViewModel()),
-            ChangeNotifierProvider(create: (_) => Rutaclienteviewmodel()),
           ],
           child: MaterialApp(
             debugShowCheckedModeBanner: false,

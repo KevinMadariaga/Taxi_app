@@ -358,7 +358,9 @@ class _DirectionalBar extends StatelessWidget {
                   color: AppColores.buttonPrimary, // Color verde tracker visual
                 ),
                 child: Icon(
-                  isMoto ? Icons.two_wheeler_rounded : Icons.local_taxi_rounded,
+                  isMoto
+                      ? Icons.two_wheeler_rounded
+                      : Icons.directions_car_filled_rounded,
                   color: Colors.white,
                   size: 24,
                 ),

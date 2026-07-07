@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/services/image_cropper_service.dart';
+import 'package:taxi_app/core/services/image_processing_service.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/vehicle_type.dart';
 import 'package:taxi_app/widgets/boton.dart';
 
@@ -25,6 +26,8 @@ class CambiarVehiculoView extends StatefulWidget {
 class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
   final ImagePicker _picker = ImagePicker();
   final ImageCropperService _cropper = const ImageCropperService();
+  final ImageProcessingService _imageProcessingService =
+      const ImageProcessingService();
 
   VehicleType _tipo = VehicleType.carro;
   VehicleType? _tipoActivo; // tipo activo guardado en Firestore
@@ -120,19 +123,46 @@ class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
       if (picked == null) return;
       final cropped = await _cropper.cropVehicleImage(sourcePath: picked.path);
       if (cropped == null) return;
-      setState(() => _fotosNuevas[_tipo] = XFile(cropped.path));
+
+      final compressed = await _imageProcessingService.compressVehiclePhoto(
+        cropped,
+      );
+      final fileSize = await compressed.length();
+      if (fileSize > ImageProcessingService.vehicle16x9.maxBytes) {
+        if (!mounted) return;
+        _mostrarError(
+          'No se pudo comprimir la imagen al peso permitido. Intenta con otra foto.',
+        );
+        return;
+      }
+
+      setState(() => _fotosNuevas[_tipo] = XFile(compressed.path));
     } catch (e) {
       if (!mounted) return;
       _mostrarError('Error seleccionando imagen: $e');
     }
   }
 
+  /// Sube la foto del tipo actual y borra la anterior de Storage (si había),
+  /// para no acumular fotos huérfanas cada vez que el conductor cambia la
+  /// foto de un mismo vehículo.
   Future<String> _subirImagen(XFile file, String uid) async {
+    final previousUrl = _fotosUrl[_tipo];
     final path =
-        'usuarios/$uid/fotoVehiculo_${_tipo.firestoreKey}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+        'usuarios/$uid/fotoVehiculo_${_tipo.firestoreKey}_${DateTime.now().millisecondsSinceEpoch}.webp';
     final ref = fb_storage.FirebaseStorage.instance.ref().child(path);
     await ref.putFile(File(file.path));
-    return ref.getDownloadURL();
+    final url = await ref.getDownloadURL();
+
+    if (previousUrl != null && previousUrl.isNotEmpty && previousUrl != url) {
+      try {
+        await fb_storage.FirebaseStorage.instance
+            .refFromURL(previousUrl)
+            .delete();
+      } catch (_) {}
+    }
+
+    return url;
   }
 
   bool _tieneDataCompleta(VehicleType t) =>

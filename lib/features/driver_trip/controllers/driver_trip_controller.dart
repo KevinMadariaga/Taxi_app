@@ -210,7 +210,7 @@ class DriverTripController extends ChangeNotifier {
     try {
       await _firestoreService.updateTripStatus(
         tripId: tripId,
-        status: 'en espera',
+        status: SolicitudEstado.enEspera,
       );
       _hasReportedArrival = true;
       _openWaitingModal();
@@ -224,7 +224,8 @@ class DriverTripController extends ChangeNotifier {
 
   Future<bool> beginTripAfterClientConfirm() async {
     final statusActual = normalizeStatus(trip?.status ?? '');
-    final puedeIniciar = waitingCanStartTrip || statusActual == 'en_camino';
+    final puedeIniciar =
+        waitingCanStartTrip || statusActual == SolicitudEstado.enCamino;
     if (!puedeIniciar || isWaitingActionLoading) return false;
 
     isWaitingActionLoading = true;
@@ -233,7 +234,7 @@ class DriverTripController extends ChangeNotifier {
     try {
       await _firestoreService.updateTripStatus(
         tripId: tripId,
-        status: 'en ruta',
+        status: SolicitudEstado.enRuta,
       );
       _closeWaitingModal();
       _setPendingNavigation(DriverPendingNavigation.rutaDestino);
@@ -336,14 +337,14 @@ class DriverTripController extends ChangeNotifier {
     if (_lastStatus == status) return;
     _lastStatus = status;
 
-    if (status == 'cancelado') {
+    if (status == SolicitudEstado.cancelado) {
       _closeWaitingModal();
       unawaited(_notify('Viaje cancelado', 'Viaje cancelado.'));
       _setPendingNavigation(DriverPendingNavigation.inicioConductor);
       return;
     }
 
-    if (status == 'sin_respuesta') {
+    if (status == SolicitudEstado.sinRespuesta) {
       _closeWaitingModal();
       _pendingInfoMessage =
           'El cliente no respondio a tiempo. La solicitud fue cancelada por sin respuesta.';
@@ -361,20 +362,20 @@ class DriverTripController extends ChangeNotifier {
       return;
     }
 
-    if (status == 'en_ruta') {
+    if (status == SolicitudEstado.enRuta) {
       _closeWaitingModal();
       _setPendingNavigation(DriverPendingNavigation.rutaDestino);
       return;
     }
 
-    if (status == 'en_espera') {
+    if (status == SolicitudEstado.enEspera) {
       _openWaitingModal();
       waitingCanStartTrip = false;
       _safeNotify();
       return;
     }
 
-    if (status == 'en_camino') {
+    if (status == SolicitudEstado.enCamino) {
       if (!waitingModalVisible) {
         _openWaitingModal();
       }
@@ -524,10 +525,10 @@ class DriverTripController extends ChangeNotifier {
   Future<void> _handleWaitingTimeoutNoResponse() async {
     if (_timeoutStatusUpdating) return;
     final statusActual = normalizeStatus(trip?.status ?? '');
-    if (statusActual == 'en_camino' ||
-        statusActual == 'en_ruta' ||
-        statusActual == 'cancelado' ||
-        statusActual == 'sin_respuesta') {
+    if (statusActual == SolicitudEstado.enCamino ||
+        statusActual == SolicitudEstado.enRuta ||
+        statusActual == SolicitudEstado.cancelado ||
+        statusActual == SolicitudEstado.sinRespuesta) {
       return;
     }
 
@@ -545,24 +546,7 @@ class DriverTripController extends ChangeNotifier {
     }
   }
 
-  static String normalizeStatus(String raw) {
-    final value = raw
-        .toLowerCase()
-        .trim()
-        .replaceAll('_', ' ')
-        .replaceAll('-', ' ');
-
-    if (value.contains('cancel')) return 'cancelado';
-    if (value.contains('sin respuesta') || value.contains('sinrespuesta')) {
-      return 'sin_respuesta';
-    }
-    if (value.contains('en ruta') || value.contains('enruta')) return 'en_ruta';
-    if (value.contains('en camino') || value.contains('encam'))
-      return 'en_camino';
-    if (value.contains('en espera') || value.contains('enespera'))
-      return 'en_espera';
-    return value;
-  }
+  static String normalizeStatus(String raw) => SolicitudEstado.normalize(raw);
 
   void _safeNotify() {
     if (!_disposed) notifyListeners();

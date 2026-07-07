@@ -80,8 +80,8 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
 
   // 6 min en segundo plano sin volver → cancelar solicitud.
   static const Duration _umbralBackgroundCancel = Duration(minutes: 6);
-  // 5 s tras destrucción del motor → cancelar solicitud.
-  static const Duration _umbralDetachedCancel = Duration(seconds: 5);
+  // 2 s tras destrucción del motor → cancelar solicitud.
+  static const Duration _umbralDetachedCancel = Duration(seconds: 2);
   static const int _segundosAviso5min = 300;
 
   // Estado UI-only: qué conductores están siendo respondidos
@@ -124,7 +124,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
 
     if (state == AppLifecycleState.detached) {
       // Motor Flutter destruido (app cerrada por completo).
-      // Esperar 5 s para dar tiempo al SDK a enviar la escritura a Firestore.
+      // Esperar 2 s para dar tiempo al SDK a enviar la escritura a Firestore.
       _detachedCancelTimer?.cancel();
       _detachedCancelTimer = Timer(_umbralDetachedCancel, () {
         if (!_flujoTerminado) _vm.marcarCanceladaPorInactividad();

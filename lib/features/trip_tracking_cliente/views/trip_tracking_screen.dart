@@ -600,7 +600,8 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
     final normalizado = SolicitudEstadoController.normalizeEstado(estado);
     // Avoid triggering navigation on initial load when status is 'asignado'.
     // This prevents reload from immediately replacing this screen.
-    if (_lastEstadoProcesado == null && normalizado == 'asignado') {
+    if (_lastEstadoProcesado == null &&
+        normalizado == SolicitudEstado.asignado) {
       _lastEstadoProcesado = normalizado;
       return;
     }

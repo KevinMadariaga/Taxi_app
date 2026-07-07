@@ -141,4 +141,8 @@ dependencies {
     // Required for core library desugaring
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
     implementation("org.apache.httpcomponents:httpclient:4.5.13")
+    // WorkManager: encola la cancelación server-side de la solicitud desde
+    // MainActivity.onTaskRemoved. Persiste el job en su propia base de datos,
+    // así que sobrevive a que Android mate el proceso justo después.
+    implementation("androidx.work:work-runtime-ktx:2.9.1")
 }

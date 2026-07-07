@@ -5,10 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:io';
-import 'package:firebase_storage/firebase_storage.dart' as firebase_storage;
 import 'package:path_provider/path_provider.dart';
-import 'package:flutter_image_compress/flutter_image_compress.dart';
-import 'dart:ui' as ui;
 import 'dart:math' as math;
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/helpers/responsive_helper.dart';
@@ -131,49 +128,6 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
     setState(() => _guardando = false);
   }
 
-  Future<File> _compressFile(File file, {required int maxBytes}) async {
-    try {
-      final dir = await getTemporaryDirectory();
-      final outPath =
-          '${dir.path}/${DateTime.now().millisecondsSinceEpoch}_comp.webp';
-
-      // get original dimensions
-      final bytes = await file.readAsBytes();
-      final codec = await ui.instantiateImageCodec(bytes);
-      final frame = await codec.getNextFrame();
-      final ui.Image original = frame.image;
-      final int origW = original.width;
-      final int origH = original.height;
-
-      final qualities = [80, 70, 60, 50, 45, 40, 35, 30, 25];
-      final scales = [1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4];
-
-      File? best;
-      for (final s in scales) {
-        final targetW = (origW * s).toInt();
-        final targetH = (origH * s).toInt();
-        for (final q in qualities) {
-          final result = await FlutterImageCompress.compressAndGetFile(
-            file.absolute.path,
-            outPath,
-            quality: q,
-            minWidth: targetW,
-            minHeight: targetH,
-            format: CompressFormat.webp,
-          );
-          if (result == null) continue;
-          final len = await result.length();
-          final wrapped = File(result.path);
-          best = wrapped;
-          if (len <= maxBytes) return wrapped;
-        }
-      }
-      return best ?? file;
-    } catch (_) {
-      return file;
-    }
-  }
-
   Future<File> _cacheFileForUid(String uid) async {
     final dir = await getApplicationDocumentsDirectory();
     final path = '${dir.path}/profile_$uid.jpg';
@@ -282,193 +236,6 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
     } catch (_) {}
   }
 
-  // ignore: unused_element
-  Future<void> _uploadFile(File file) async {
-    final uid = _auth.currentUser?.uid;
-    if (uid == null) return;
-
-    // obtener url anterior para borrarla luego
-    String? previousUrl;
-    try {
-      final doc = await _firestore.collection('usuarios').doc(uid).get();
-      previousUrl = doc.data()?['foto'] as String?;
-    } catch (_) {}
-
-    setState(() {
-      _isUploading = true;
-      _uploadProgress = 0.0;
-    });
-
-    try {
-      final compressed = await _compressFile(file, maxBytes: 100 * 1024);
-      final path =
-          'usuarios/$uid/profile_${DateTime.now().millisecondsSinceEpoch}.webp';
-      final ref = firebase_storage.FirebaseStorage.instance.ref().child(path);
-
-      final uploadTask = ref.putFile(compressed);
-
-      uploadTask.snapshotEvents.listen((event) {
-        if (event.totalBytes > 0) {
-          final progress = event.bytesTransferred / event.totalBytes;
-          if (mounted) {
-            setState(() {
-              _uploadProgress = progress;
-            });
-          }
-        }
-      });
-
-      final snapshot = await uploadTask;
-      final downloadUrl = await snapshot.ref.getDownloadURL();
-
-      await _firestore.collection('usuarios').doc(uid).set({
-        'foto': downloadUrl,
-      }, SetOptions(merge: true));
-
-      // Intentar eliminar la foto anterior en Storage para no acumular archivos
-      if (previousUrl != null &&
-          previousUrl.isNotEmpty &&
-          previousUrl != downloadUrl) {
-        try {
-          final oldRef = firebase_storage.FirebaseStorage.instance.refFromURL(
-            previousUrl,
-          );
-          await oldRef.delete();
-        } catch (_) {}
-      }
-
-      // Actualizar caché local con la nueva imagen
-      try {
-        await _downloadAndSaveImage(downloadUrl, uid);
-      } catch (_) {}
-      await _cargarDatos();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: const [
-                Icon(Icons.check_circle),
-                SizedBox(width: 8),
-                Expanded(child: Text('Foto de perfil actualizada')),
-              ],
-            ),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error subiendo imagen: $e')));
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isUploading = false;
-          _uploadProgress = 0.0;
-        });
-      }
-    }
-  }
-
-  // Variante que sube un archivo y actualiza un campo arbitrario en Firestore
-  // ignore: unused_element
-  Future<void> _uploadFileForField(File file, String fieldName) async {
-    final uid = _auth.currentUser?.uid;
-    if (uid == null) return;
-
-    // obtener url anterior para borrarla luego
-    String? previousUrl;
-    try {
-      final doc = await _firestore.collection('usuarios').doc(uid).get();
-      previousUrl = doc.data()?[fieldName] as String?;
-    } catch (_) {}
-
-    setState(() {
-      _isUploading = true;
-      _uploadProgress = 0.0;
-    });
-
-    try {
-      final compressed = await _compressFile(file, maxBytes: 100 * 1024);
-      final path =
-          'usuarios/$uid/${fieldName}_${DateTime.now().millisecondsSinceEpoch}.webp';
-      final ref = firebase_storage.FirebaseStorage.instance.ref().child(path);
-
-      final uploadTask = ref.putFile(compressed);
-
-      uploadTask.snapshotEvents.listen((event) {
-        if (event.totalBytes > 0) {
-          final progress = event.bytesTransferred / event.totalBytes;
-          if (mounted) {
-            setState(() {
-              _uploadProgress = progress;
-            });
-          }
-        }
-      });
-
-      final snapshot = await uploadTask;
-      final downloadUrl = await snapshot.ref.getDownloadURL();
-
-      await _firestore.collection('usuarios').doc(uid).set({
-        fieldName: downloadUrl,
-      }, SetOptions(merge: true));
-
-      // Intentar eliminar la foto anterior en Storage
-      if (previousUrl != null &&
-          previousUrl.isNotEmpty &&
-          previousUrl != downloadUrl) {
-        try {
-          final oldRef = firebase_storage.FirebaseStorage.instance.refFromURL(
-            previousUrl,
-          );
-          await oldRef.delete();
-        } catch (_) {}
-      }
-
-      // Borrar/actualizar caché local para foto del vehículo si corresponde
-      if (fieldName == 'fotoVehiculo') {
-        try {
-          await _deleteCachedVehicleFile(uid);
-        } catch (_) {}
-        try {
-          await _downloadAndSaveVehicleImage(downloadUrl, uid);
-        } catch (_) {}
-      }
-
-      await _cargarDatos();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: const [
-                Icon(Icons.check_circle),
-                SizedBox(width: 8),
-                Expanded(child: Text('Imagen subida')),
-              ],
-            ),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error subiendo imagen: $e')));
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isUploading = false;
-          _uploadProgress = 0.0;
-        });
-      }
-    }
-  }
-
   void _mostrarDialogoEditar() {
     final nombreController = TextEditingController(
       text: userData?['nombre'] ?? '',
@@ -499,6 +266,9 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
             if (uid != null && file != null) {
               final cacheFile = await _cacheFileForUid(uid);
               await file.copy(cacheFile.path);
+              try {
+                await FileImage(cacheFile).evict();
+              } catch (_) {}
               setState(() {
                 _cachedImageFile = cacheFile;
               });
@@ -509,46 +279,19 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
             if (uid != null && file != null) {
               final cacheFile = await _vehicleCacheFileForUid(uid);
               await file.copy(cacheFile.path);
+              try {
+                await FileImage(cacheFile).evict();
+              } catch (_) {}
               setState(() {
                 _cachedVehicleFile = cacheFile;
               });
             }
           },
           onSave: (datos) async {
+            // El caché local ya quedó actualizado (copia + evict) en
+            // onImageChanged/onVehicleImageChanged con los bytes recién
+            // subidos; no hace falta borrar y volver a descargar de Storage.
             await _guardarCambios(datos);
-            final uid = _auth.currentUser?.uid;
-            if (uid != null) {
-              // Eliminar imagen de perfil anterior del caché local si hay nueva URL
-              final fotoUrl = datos['foto'] as String?;
-              if (fotoUrl != null && fotoUrl.isNotEmpty) {
-                final cacheFile = await _cacheFileForUid(uid);
-                if (cacheFile.existsSync()) {
-                  if (mounted) {
-                    setState(() => _cachedImageFile = null);
-                  }
-                  try {
-                    await FileImage(cacheFile).evict();
-                  } catch (_) {}
-                  await cacheFile.delete();
-                }
-                await _downloadAndSaveImage(fotoUrl, uid);
-              }
-              // Eliminar imagen del vehículo anterior del caché local si hay nueva URL
-              final vehUrl = datos['fotoVehiculo'] as String?;
-              if (vehUrl != null && vehUrl.isNotEmpty) {
-                final cacheFile = await _vehicleCacheFileForUid(uid);
-                if (cacheFile.existsSync()) {
-                  if (mounted) {
-                    setState(() => _cachedVehicleFile = null);
-                  }
-                  try {
-                    await FileImage(cacheFile).evict();
-                  } catch (_) {}
-                  await cacheFile.delete();
-                }
-                await _downloadAndSaveVehicleImage(vehUrl, uid);
-              }
-            }
           },
         ),
       ),
@@ -1002,33 +745,6 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
                           ],
                         ],
                         SizedBox(height: ResponsiveHelper.hp(context, 1.4)),
-                        // NOTE: Buttons moved to bottom fixed area
-                        // SizedBox(height: ResponsiveHelper.hp(context, 1)),
-                        // OutlinedButton.icon(
-                        //   onPressed: () {
-                        //     Navigator.of(context).push(
-                        //       MaterialPageRoute(
-                        //         builder: (_) => const CambiarContrasenaScreen(),
-                        //       ),
-                        //     );
-                        //   },
-                        //   icon: const Icon(
-                        //     Icons.lock_outline,
-                        //     size: buttonIconSize,
-                        //   ),
-                        //   label: const Text(
-                        //     'Cambiar contraseña',
-                        //     style: TextStyle(fontSize: buttonFontSize),
-                        //   ),
-                        //   style: OutlinedButton.styleFrom(
-                        //     foregroundColor: AppColores.textPrimary,
-                        //     side: const BorderSide(color: AppColores.borderSubtle),
-                        //     padding: EdgeInsets.symmetric(
-                        //       vertical: ResponsiveHelper.hp(context, 1.5),
-                        //       horizontal: ResponsiveHelper.wp(context, 2),
-                        //     ),
-                        //   ),
-                        // ),
                       ],
                     ),
                   ),

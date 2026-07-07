@@ -18,6 +18,11 @@ class DriverLocationService {
   Stream<Position> get stream => _positionStream ?? const Stream.empty();
 
   Position? _lastAcceptedPosition;
+  DateTime? _lastSentTime;
+  // Mismo throttle que TrackingService (flujo legacy): sin esto, cada jitter
+  // de GPS >1m dispara una escritura a Firestore y un rebuild del mapa del
+  // cliente, congelando la UI en gama baja durante el viaje activo.
+  static const Duration _minInterval = Duration(seconds: 5);
 
   Future<void> ensurePermission() async {
     final enabled = await Geolocator.isLocationServiceEnabled();
@@ -57,18 +62,19 @@ class DriverLocationService {
       locationSettings: Platform.isIOS
           ? AppleSettings(
               accuracy: LocationAccuracy.high,
-              distanceFilter: 1,
+              distanceFilter: 15,
               pauseLocationUpdatesAutomatically: false,
               showBackgroundLocationIndicator: true,
             )
           : const LocationSettings(
               accuracy: LocationAccuracy.high,
-              distanceFilter: 1,
+              distanceFilter: 15,
             ),
     );
 
     _syncSub?.cancel();
     _lastAcceptedPosition = null;
+    _lastSentTime = null;
     _syncSub = _positionStream!.listen((pos) {
       // Descarta saltos de GPS poco realistas (glitch del sensor), igual que
       // TrackingService (flujo legacy), para que el marcador del cliente no
@@ -83,7 +89,14 @@ class DriverLocationService {
         );
         if (distancia > 200) return;
       }
+
+      final lastSent = _lastSentTime;
+      if (lastSent != null && DateTime.now().difference(lastSent) < _minInterval) {
+        return;
+      }
+
       _lastAcceptedPosition = pos;
+      _lastSentTime = DateTime.now();
 
       _firestoreService.updateDriverLocation(
         tripId: tripId,
@@ -106,5 +119,7 @@ class DriverLocationService {
     await _syncSub?.cancel();
     _syncSub = null;
     _positionStream = null;
+    _lastAcceptedPosition = null;
+    _lastSentTime = null;
   }
 }

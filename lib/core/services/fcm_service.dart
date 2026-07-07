@@ -18,22 +18,30 @@ import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioCondu
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   debugPrint('[FCM Background] Mensaje recibido: ${message.messageId}');
 
-  // En Android/iOS, si el mensaje trae un bloque 'notification', el OS lo muestra.
-  // Sin embargo, si es solo 'data' o queremos asegurar que sea visible:
   final data = message.data;
   final notification = message.notification;
 
-  if (data.containsKey('title') ||
-      data.containsKey('body') ||
-      notification != null) {
-    final String title = data['title'] ?? notification?.title ?? 'Ride';
-    final String body =
-        data['body'] ?? notification?.body ?? 'Actualización de servicio';
+  // Si el mensaje trae bloque 'notification', el OS (Android/iOS) YA la
+  // muestra automáticamente en background/terminated — mostrarla también
+  // aquí duplicaba el aviso (dos notificaciones para el mismo evento).
+  // Solo mostramos manualmente los mensajes puramente data-only.
+  if (notification != null) return;
+
+  if (data.containsKey('title') || data.containsKey('body')) {
+    final String title = data['title'] ?? 'Ride';
+    final String body = data['body'] ?? 'Actualización de servicio';
+
+    // Id determinístico por solicitud (no por messageId): si FCM reenvía el
+    // mismo mensaje, el SO reemplaza la notificación en vez de apilarla.
+    final solicitudId = data['solicitudId'] as String?;
+    final id = (solicitudId != null && solicitudId.isNotEmpty)
+        ? solicitudId.hashCode
+        : message.messageId.hashCode;
 
     // Importante: No llamar a init() aquí si no es necesario,
     // showNotification ya lo hace con _ensureInitialized().
     await NotificacionesServicio.instance.showNotification(
-      id: message.messageId.hashCode,
+      id: id,
       title: title,
       body: body,
     );

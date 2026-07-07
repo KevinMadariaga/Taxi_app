@@ -16,6 +16,7 @@ import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioCondu
 import 'package:taxi_app/widgets/intermediate_transition_view.dart';
 import 'package:taxi_app/features/trip_tracking_cliente/widgets/trip_details_sheet.dart';
 import 'package:taxi_app/core/services/services.dart';
+import 'package:taxi_app/core/constants/solicitud_estado.dart';
 
 import '../controllers/driver_trip_controller.dart';
 import '../widgets/driver_client_info_card.dart';
@@ -171,7 +172,7 @@ class _DriverTripScreenState extends State<DriverTripScreen>
             final status = DriverTripController.normalizeStatus(rawStatus);
             if (_lastPersistedStatus == status) return;
             _lastPersistedStatus = status;
-            if (status == 'cancelado') {
+            if (status == SolicitudEstado.cancelado) {
               try {
                 await NotificacionesServicio.instance.showTripNotification(
                   title: 'Servicio cancelado',
@@ -249,13 +250,15 @@ class _DriverTripScreenState extends State<DriverTripScreen>
           final initialTarget =
               controller.clientLatLng ?? controller.driverLatLng ?? fallback;
 
-          final currStatus = controller.trip?.status ?? '';
+          final currStatus = SolicitudEstado.normalize(
+            controller.trip?.status ?? '',
+          );
           String dynamicTitle = 'Conectando...';
-          if (currStatus.contains('asignado') ||
-              currStatus.contains('en_espera') ||
-              currStatus.contains('en_camino')) {
+          if (currStatus == SolicitudEstado.asignado ||
+              currStatus == SolicitudEstado.enEspera ||
+              currStatus == SolicitudEstado.enCamino) {
             dynamicTitle = 'Dirigiéndote al cliente';
-          } else if (currStatus.contains('en_ruta')) {
+          } else if (currStatus == SolicitudEstado.enRuta) {
             dynamicTitle = 'En viaje hacia el destino';
           } else {
             dynamicTitle = 'Viaje Activo';
@@ -557,17 +560,11 @@ class _DriverTripScreenState extends State<DriverTripScreen>
   }
 
   bool _shouldPersistSolicitud(String status) {
-    return status == 'asignado' ||
-        status == 'en_espera' ||
-        status == 'en_camino' ||
-        status == 'en_ruta';
+    return SolicitudEstado.isSesionActiva(status);
   }
 
   bool _shouldClearSolicitud(String status) {
-    return status == 'cancelado' ||
-        status.contains('sin_respu') ||
-        status.contains('complet') ||
-        status.contains('finaliz');
+    return SolicitudEstado.isTerminal(status);
   }
 
   void _handlePendingNavigation(DriverTripController controller) {

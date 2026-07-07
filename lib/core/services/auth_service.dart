@@ -16,6 +16,7 @@ import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioCondu
 import 'package:taxi_app/features/driver_trip/screens/driver_trip_screen.dart';
 
 import 'package:taxi_app/core/services/services.dart';
+import 'package:taxi_app/core/constants/solicitud_estado.dart';
 
 /// Servicio que maneja la verificación de sesión y redirección
 /// a la pantalla correspondiente según el estado del usuario
@@ -144,28 +145,43 @@ class AuthService {
       final currentUid = currentUser?.uid;
 
       // --- PATCH: Forzar restauración correcta para clientes ---
-      // Respect the explicit saved screen for an active solicitud (if any).
+      // Respect the explicit saved screen for an active solicitud (if any),
+      // pero SOLO si la solicitud sigue viva en Firestore. Este flag de
+      // SharedPreferences puede quedar obsoleto (viaje anterior completado,
+      // o solicitud nueva que quedó en 'buscando' y nunca se canceló porque
+      // el proceso fue matado desde recientes antes de que corriera el timer
+      // de inactividad del cliente) — confiar en él a ciegas reenganchaba a
+      // pantallas de viaje (ruta_cliente_destino, etc.) para solicitudes ya
+      // terminadas o abandonadas. Si no es restaurable, se limpia el flag y
+      // se cae al flujo normal de abajo, que sí valida el estado real y
+      // cancela por inactividad si corresponde.
       final savedActiveScreen = await SessionHelper.getActiveSolicitudScreen();
       if (savedActiveScreen != null &&
           savedActiveScreen.isNotEmpty &&
           candidateSolicitudId != null &&
           candidateSolicitudId.isNotEmpty) {
-        // If the user had a specific view open (client or driver), restore it.
-        if (savedActiveScreen == 'trip_tracking') {
-          return TripTrackingScreen(
-            solicitudId: candidateSolicitudId,
-            currentUserId: currentUid ?? '',
-            cancelledBy: 'cliente',
-          );
-        }
-        if (savedActiveScreen == 'ruta_cliente_destino') {
-          return RutaClienteDestino(idSolicitud: candidateSolicitudId);
-        }
-        if (savedActiveScreen == 'driver_trip') {
-          return DriverTripScreen(tripId: candidateSolicitudId);
-        }
-        if (savedActiveScreen == 'ruta_destino') {
-          return RutaDestino(idSolicitud: candidateSolicitudId);
+        if (await _isSolicitudRestaurable(candidateSolicitudId)) {
+          // If the user had a specific view open (client or driver), restore it.
+          if (savedActiveScreen == 'trip_tracking') {
+            return TripTrackingScreen(
+              solicitudId: candidateSolicitudId,
+              currentUserId: currentUid ?? '',
+              cancelledBy: 'cliente',
+            );
+          }
+          if (savedActiveScreen == 'ruta_cliente_destino') {
+            return RutaClienteDestino(idSolicitud: candidateSolicitudId);
+          }
+          if (savedActiveScreen == 'driver_trip') {
+            return DriverTripScreen(tripId: candidateSolicitudId);
+          }
+          if (savedActiveScreen == 'ruta_destino') {
+            return RutaDestino(idSolicitud: candidateSolicitudId);
+          }
+        } else {
+          try {
+            await SessionHelper.clearActiveSolicitudScreen();
+          } catch (_) {}
         }
       }
 
@@ -270,6 +286,40 @@ class AuthService {
     }
   }
 
+  /// Verifica en Firestore si `solicitudId` sigue en un estado que amerite
+  /// restaurar la pantalla de viaje guardada (`active_solicitud_screen`).
+  /// Devuelve `false` para solicitudes terminadas (completada/cancelada/
+  /// finalizada) o huérfanas en `'buscando'` (app matada antes de que un
+  /// conductor la tomara), que es exactamente el estado en el que queda una
+  /// solicitud si el proceso se mató desde recientes y el timer de
+  /// inactividad del cliente no llegó a correr.
+  Future<bool> _isSolicitudRestaurable(String solicitudId) async {
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('solicitudes')
+          .doc(solicitudId)
+          .get();
+      if (!doc.exists) return false;
+
+      final data = doc.data();
+      if (data == null) return false;
+
+      final estado = SolicitudEstado.normalize(
+        (data['status'] ?? data['estado'] ?? '').toString(),
+      );
+
+      if (SolicitudEstado.isTerminal(estado)) {
+        return false;
+      }
+
+      return estado != SolicitudEstado.buscando;
+    } catch (_) {
+      // Si no se puede verificar (sin red, etc.), preferir no bloquear la
+      // restauración antes que dejar al usuario varado sin contexto.
+      return true;
+    }
+  }
+
   /// Construye la pantalla de ruta correspondiente si la solicitud está activa y asignada
   Future<Widget?> _buildScreenForActiveSolicitud({
     required String solicitudId,
@@ -291,14 +341,15 @@ class AuthService {
       final data = doc.data();
       if (data == null) return null;
 
-      final estado = (data['status'] ?? data['estado'] ?? '')
-          .toString()
-          .toLowerCase();
+      final estado = SolicitudEstado.normalize(
+        (data['status'] ?? data['estado'] ?? '').toString(),
+      );
 
-      // No restaurar si está completada o cancelada
-      if (estado.contains('complet') ||
-          estado.contains('cancel') ||
-          estado.contains('finaliz')) {
+      // No restaurar si está completada, cancelada o sin respuesta (terminal).
+      // Antes esto solo miraba complet/cancel/finaliz y se saltaba 'sin
+      // respuesta', dejando que una solicitud ya cerrada por timeout se
+      // tratara como activa/restaurable más abajo.
+      if (SolicitudEstado.isTerminal(estado)) {
         try {
           await SessionHelper.clearActiveSolicitud();
         } catch (_) {}
@@ -309,12 +360,12 @@ class AuthService {
       // que llegara un conductor), cancelarla automáticamente al reabrir y
       // borrarla a los 3 s (igual que una cancelación normal), para que
       // desaparezca de la lista de solicitudes de los conductores.
-      if (estado == 'buscando') {
+      if (estado == SolicitudEstado.buscando) {
         final docRef =
             FirebaseFirestore.instance.collection('solicitudes').doc(solicitudId);
         try {
           await docRef.update({
-            'estado': 'cancelado',
+            'estado': SolicitudEstado.cancelado,
             'cancelledAt': FieldValue.serverTimestamp(),
             'cancelReason': 'inactividad',
           });
@@ -409,8 +460,8 @@ class AuthService {
 
       // Cliente: rol explícito, rol desconocido o coincide con el cliente
       if (role == 'cliente' || role == null || isCurrentClient) {
-        final estadoNormalizado = _normalizeEstadoCliente(estado);
-        if (_isSolicitudActivaCliente(estadoNormalizado)) {
+        final estadoNormalizado = SolicitudEstado.normalize(estado);
+        if (SolicitudEstado.isSesionActiva(estadoNormalizado)) {
           await _notifyActiveSolicitudOnAppOpen();
         }
 
@@ -598,35 +649,6 @@ class AuthService {
     }
   }
 
-  String _normalizeEstadoCliente(String rawEstado) {
-    final raw = rawEstado.toLowerCase().trim();
-    final compact = raw.replaceAll('_', ' ').replaceAll('-', ' ');
-
-    if (compact.contains('en ruta') || compact.contains('enruta')) {
-      return 'en_ruta';
-    }
-    if (compact.contains('en camino') || compact.contains('encam')) {
-      return 'en_camino';
-    }
-    if (compact.contains('en espera') || compact.contains('enespera')) {
-      return 'en_espera';
-    }
-    if (compact.contains('cancel') || compact.contains('complet')) {
-      return 'cerrada';
-    }
-    if (compact.contains('asignado') || compact.contains('assigned')) {
-      return 'asignado';
-    }
-    return compact;
-  }
-
-  bool _isSolicitudActivaCliente(String estadoNormalizado) {
-    return estadoNormalizado == 'asignado' ||
-        estadoNormalizado == 'en_espera' ||
-        estadoNormalizado == 'en_camino' ||
-        estadoNormalizado == 'en_ruta';
-  }
-
   Future<String?> _findActiveSolicitudIdForUser({
     required String uid,
     required String? role,
@@ -687,11 +709,11 @@ class AuthService {
 
       for (final doc in snapshot.docs) {
         final data = doc.data();
-        final estado = (data['status'] ?? data['estado'] ?? '')
-            .toString()
-            .toLowerCase();
+        final estado = SolicitudEstado.normalize(
+          (data['status'] ?? data['estado'] ?? '').toString(),
+        );
 
-        if (_isEstadoSolicitudCerrado(estado)) {
+        if (SolicitudEstado.isTerminal(estado)) {
           continue;
         }
 
@@ -700,12 +722,6 @@ class AuthService {
     } catch (_) {}
 
     return null;
-  }
-
-  bool _isEstadoSolicitudCerrado(String estado) {
-    return estado.contains('complet') ||
-        estado.contains('cancel') ||
-        estado.contains('finaliz');
   }
 
   Future<void> _notifyActiveSolicitudOnAppOpen() async {

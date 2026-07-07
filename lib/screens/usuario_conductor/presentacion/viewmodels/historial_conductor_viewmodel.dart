@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:geocoding/geocoding.dart';
+import 'package:taxi_app/core/constants/solicitud_estado.dart';
 
 class HistorialConductorViewModel extends ChangeNotifier {
   String get conductorId => FirebaseAuth.instance.currentUser?.uid ?? '';
@@ -15,10 +16,10 @@ class HistorialConductorViewModel extends ChangeNotifier {
         .get();
 
     final completados = snap.docs.where((doc) {
-      final estado = (doc.data()['estado'] ?? doc.data()['status'] ?? '')
-          .toString()
-          .toLowerCase();
-      return estado == 'completado' || estado.contains('complet');
+      final estado = SolicitudEstado.normalize(
+        (doc.data()['estado'] ?? doc.data()['status'] ?? '').toString(),
+      );
+      return estado == SolicitudEstado.completado;
     }).map((doc) => {'id': doc.id, ...doc.data()}).toList();
 
     completados.sort((a, b) {

@@ -66,6 +66,12 @@
             android:exported="false"
             android:foregroundServiceType="location"
             tools:replace="android:exported" />
+        <!-- Detecta swipe-kill (app cerrada desde recientes) vía
+             Service.onTaskRemoved para cancelar en el servidor la solicitud
+             'buscando' que quedó activa. Ver TaskRemovedWatcherService.kt. -->
+        <service
+            android:name=".TaskRemovedWatcherService"
+            android:exported="false" />
         </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

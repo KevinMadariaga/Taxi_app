@@ -12,6 +12,7 @@ import 'package:taxi_app/screens/usuario_cliente/presentacion/view/RutaClienteDe
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/ResumenClienteView.dart';
 import 'package:taxi_app/widgets/intermediate_transition_view.dart';
 import 'package:taxi_app/core/services/services.dart';
+import 'package:taxi_app/core/constants/solicitud_estado.dart';
 
 class Rutaclientedestinoviewmodel extends ChangeNotifier {
   bool _disposed = false;
@@ -189,10 +190,12 @@ class Rutaclientedestinoviewmodel extends ChangeNotifier {
         .listen((doc) async {
           if (!doc.exists) return;
           final data = doc.data();
-          final estado = data?['estado']?.toString().toLowerCase() ?? '';
+          final estado = SolicitudEstado.normalize(
+            (data?['estado'] ?? '').toString(),
+          );
           debugPrint('[RutaClienteViewModel] Estado escuchado: $estado');
           if (ultimoEstado != estado &&
-              estado == 'completado' &&
+              estado == SolicitudEstado.completado &&
               !_navegandoAResumen) {
             debugPrint(
               '[RutaClienteViewModel] Cambio detectado a "completado". Navegando a ResumenClienteView...',
@@ -243,8 +246,10 @@ class Rutaclientedestinoviewmodel extends ChangeNotifier {
             .get();
         if (doc.exists) {
           final data = doc.data();
-          final estado = data?['estado'] ?? '';
-          if (estado == 'en camino') {
+          final estado = SolicitudEstado.normalize(
+            (data?['estado'] ?? '').toString(),
+          );
+          if (estado == SolicitudEstado.enCamino) {
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(
                 builder: (_) => RutaClienteDestino(idSolicitud: id),

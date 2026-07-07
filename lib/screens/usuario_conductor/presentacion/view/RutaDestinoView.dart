@@ -343,11 +343,12 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
 
   Future<void> _detenerTrackingBackground() async {
     if (Platform.isIOS) return;
-    if (!_backgroundServiceRunning && !_backgroundServiceStarting) return;
     try {
-      final service = FlutterBackgroundService();
-      service.invoke('stop');
-      _backgroundServiceRunning = false;
+      // No confiar solo en _backgroundServiceRunning: ese flag únicamente se
+      // activa cuando la app pasó por onPaused. Si el conductor nunca
+      // minimizó la app, el flag queda en false y este stop se saltaba,
+      // dejando el servicio corriendo tras completar el viaje.
+      await stopBackgroundTrackingService();
       debugPrint('🛑 [LOG] Background service detenido');
     } catch (e) {
       debugPrint('Error deteniendo background service: $e');

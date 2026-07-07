@@ -28,10 +28,16 @@ class SolicitudEstado {
     if (compact.contains('asignado') || compact.contains('assigned')) {
       return asignado;
     }
-    if (compact.contains('buscand')) {
+    // 'pending'/'pendiente' son sinónimos de 'buscando' usados en algunas
+    // queries legacy (ver whereIn en InicioConductorViewModel._subscribeSolicitudes).
+    // Match exacto (no `.contains`) para no confundir con 'pendiente_cliente'
+    // de contraoferta, que es un dominio de estado distinto.
+    if (compact.contains('buscand') ||
+        compact == 'pending' ||
+        compact == 'pendiente') {
       return buscando;
     }
-    if (compact.contains('cancel')) {
+    if (compact.contains('cancel') || compact.contains('anulad')) {
       return cancelado;
     }
     if (compact.contains('sin respuesta') ||

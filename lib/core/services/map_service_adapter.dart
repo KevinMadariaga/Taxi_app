@@ -9,12 +9,18 @@ import 'package:taxi_app/features/trip_tracking_cliente/services/map_service.dar
 class MapService {
   const MapService();
 
+  // Instancia compartida: el caché de ruta de 8s de feature_map.MapService
+  // vive en el objeto, no en la clase. Crear una nueva por cada llamada (como
+  // se hacía antes) anulaba ese caché y disparaba una petición HTTP nueva a
+  // Directions/OSRM en cada tick de tracking aunque el punto casi no se
+  // hubiera movido.
+  static final feature_map.MapService _f = feature_map.MapService();
+
   Future<int?> calcularTiempoEstimado(LatLng origin, LatLng destination) async {
     try {
-      final feature_map.MapService f = feature_map.MapService();
-      final pts = await f.fetchRoadPolyline(from: origin, to: destination);
-      final dist = f.routeDistanceMeters(pts);
-      final dur = f.etaFromDistance(dist);
+      final pts = await _f.fetchRoadPolyline(from: origin, to: destination);
+      final dist = _f.routeDistanceMeters(pts);
+      final dur = _f.etaFromDistance(dist);
       return dur.inSeconds;
     } catch (_) {
       return null;
@@ -25,13 +31,11 @@ class MapService {
     LatLng origin,
     LatLng destination,
   ) async {
-    final feature_map.MapService f = feature_map.MapService();
-    return await f.fetchRoadPolyline(from: origin, to: destination);
+    return await _f.fetchRoadPolyline(from: origin, to: destination);
   }
 
   double calcularDistanciaPolyline(List<LatLng> polyline) {
-    final feature_map.MapService f = feature_map.MapService();
-    return f.routeDistanceMeters(polyline);
+    return _f.routeDistanceMeters(polyline);
   }
 
   Stream<String?> escucharEstadoSolicitudStream(String solicitudId) {
@@ -157,8 +161,7 @@ class MapService {
     int width = 4,
     bool geodesic = true,
   }) async {
-    final feature_map.MapService f = feature_map.MapService();
-    final pts = await f.fetchRoadPolyline(from: origin, to: destination);
+    final pts = await _f.fetchRoadPolyline(from: origin, to: destination);
     if (pts.isEmpty) return null;
     return createPolyline(
       id: id,

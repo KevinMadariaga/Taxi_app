@@ -6,6 +6,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import 'package:taxi_app/core/services/services.dart';
 import 'package:taxi_app/core/helpers/session_helper.dart';
+import 'package:taxi_app/core/constants/solicitud_estado.dart';
 
 /// Contraoferta individual de un conductor.
 class ContraofertaItem {
@@ -104,10 +105,10 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
 
           if (_asignadaHandled) return;
 
-          final estado = (data['estado'] ?? data['status'])
-              ?.toString()
-              .toLowerCase();
-          if (estado == 'asignado') {
+          final estado = SolicitudEstado.normalize(
+            (data['estado'] ?? data['status'] ?? '').toString(),
+          );
+          if (estado == SolicitudEstado.asignado) {
             await mostrarNotificacionSolicitudEntrante();
             _asignadaHandled = true;
             try {
@@ -310,7 +311,10 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
     if (solicitudId == null || solicitudId.isEmpty) return false;
     if (_isRespondingCounteroffer) return false;
 
-    final oferta = _contraofertas.firstWhere(
+    // Solo para validar que la oferta exista localmente antes de abrir la
+    // transacción; el valor/payload que realmente se escribe se relee del doc
+    // fresco dentro de la transacción (ver abajo), nunca de esta variable.
+    _contraofertas.firstWhere(
       (o) => o.conductorId == conductorId,
       orElse: () => throw StateError('Oferta no encontrada'),
     );
@@ -324,29 +328,55 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
         final snap = await tx.get(ref);
         if (!snap.exists) throw StateError('Solicitud no existe');
         final data = snap.data() ?? <String, dynamic>{};
-        final estado = (data['estado'] ?? data['status'])
-            ?.toString()
-            .toLowerCase();
-        if (estado == 'asignado' || estado == 'cancelado') {
+        final estado = SolicitudEstado.normalize(
+          (data['estado'] ?? data['status'] ?? '').toString(),
+        );
+        if (estado == SolicitudEstado.asignado ||
+            estado == SolicitudEstado.cancelado) {
           throw StateError('La solicitud ya no está disponible');
         }
 
+        // Revalidar la oferta contra el doc FRESCO leído dentro de la
+        // transacción, no contra `_contraofertas` (snapshot local que puede
+        // estar desactualizado si el conductor retiró o cambió su oferta justo
+        // antes de que el cliente confirmara).
+        final contMap = data['contraofertas'];
+        final rawEntry = contMap is Map ? contMap[conductorId] : null;
+        if (rawEntry is! Map) {
+          throw StateError(
+            'Esa oferta ya no está disponible, el conductor la retiró.',
+          );
+        }
+        final entry = Map<String, dynamic>.from(rawEntry);
+        if (entry['estado']?.toString() != 'pendiente_cliente') {
+          throw StateError(
+            'Esa oferta ya no está disponible, el conductor la retiró.',
+          );
+        }
+        final valorFresco = _toDouble(entry['valor']);
+        if (valorFresco == null) {
+          throw StateError('Esa oferta ya no es válida.');
+        }
+        final conductorPayloadFresco = entry['conductor'] is Map
+            ? Map<String, dynamic>.from(entry['conductor'] as Map)
+            : <String, dynamic>{'id': conductorId};
+
         tx.set(ref, {
           'estado': 'asignado',
-          'conductor': oferta.conductorPayload,
-          'valorServicioPropuesto': oferta.valor,
+          'conductor': conductorPayloadFresco,
+          'valorServicioPropuesto': valorFresco,
           'estadoContraoferta': 'aceptada_cliente',
           'updatedAt': FieldValue.serverTimestamp(),
           'fechaAceptacionContraoferta': FieldValue.serverTimestamp(),
           'tarifa': {
-            'total': oferta.valor,
-            'propuestaCliente': oferta.valor,
+            'total': valorFresco,
+            'propuestaCliente': valorFresco,
             'updatedAt': FieldValue.serverTimestamp(),
           },
           'contraoferta': {
             'estado': 'aceptada_cliente',
-            'valor': oferta.valor,
-            'conductor': oferta.conductorPayload,
+            'valor': valorFresco,
+            'conductor': conductorPayloadFresco,
             'respondedAt': FieldValue.serverTimestamp(),
             'updatedAt': FieldValue.serverTimestamp(),
           },
@@ -542,6 +572,7 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
       ));
     } catch (_) {}
     SessionHelper.clearActiveSolicitud().ignore();
+    SessionHelper.clearActiveSolicitudScreen().ignore();
   }
 
   Future<void> cancelarSolicitud() async {
@@ -565,6 +596,8 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
       _isCancelling = false;
       _safeNotify();
     }
+    SessionHelper.clearActiveSolicitud().ignore();
+    SessionHelper.clearActiveSolicitudScreen().ignore();
 
     // Borrado en segundo plano tras una breve gracia (da tiempo a que un
     // conductor que ya estaba enviando su aceptación la complete antes de
@@ -645,8 +678,18 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
   }
 
   Stream<Map<String, LatLng>> streamConductoresConectados() {
+    // La colección nunca borra el doc de un conductor al desconectarse, solo
+    // se sobrescribe su updatedAt/ubicacion. Sin este filtro server-side el
+    // listener descarga TODOS los conductores que alguna vez se conectaron
+    // (crece sin límite). Se acota a "hoy" igual que ya hacía _isFromToday,
+    // pero antes de bajar la data en vez de después.
+    final inicioHoy = DateTime.now();
+    final desde = Timestamp.fromDate(
+      DateTime(inicioHoy.year, inicioHoy.month, inicioHoy.day),
+    );
     return _firestore
         .collection('conductores_conectados')
+        .where('updatedAt', isGreaterThanOrEqualTo: desde)
         .snapshots()
         .map((snap) {
           final positions = <String, LatLng>{};

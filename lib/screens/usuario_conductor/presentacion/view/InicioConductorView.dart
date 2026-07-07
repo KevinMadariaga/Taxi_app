@@ -1692,6 +1692,16 @@ class _InicioConductorState extends State<InicioConductor>
       if (miniReload) {
         await vm.refreshLocation();
       }
+
+      // La preview abierta (si la hay) guarda una referencia fija a la
+      // solicitud del momento en que se seleccionó: tras un background
+      // prolongado, `currentLocation` ya se refrescó arriba pero la card
+      // de la preview seguía mostrando distancia y cámara viejas.
+      final preview = vm.selectedPreview;
+      if (preview != null) {
+        vm.refreshSelectedPreviewDistance();
+        unawaited(_centerPreviewOnConductorToClient(vm, preview));
+      }
     } catch (_) {
       // ignore if no provider available.
     }

@@ -268,6 +268,7 @@ class _ResumenViajeBodyState extends State<_ResumenViajeBody> {
 
       try {
         await SessionHelper.clearActiveSolicitud();
+        await SessionHelper.clearActiveSolicitudScreen();
       } catch (_) {}
 
       if (!context.mounted) return;

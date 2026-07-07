@@ -15,6 +15,7 @@ import 'package:taxi_app/core/services/tracking_service.dart';
 import 'package:taxi_app/core/services/services.dart';
 import 'package:taxi_app/core/services/map_service_adapter.dart';
 import 'package:taxi_app/core/services/soporte_notification_service.dart';
+import 'package:taxi_app/core/constants/solicitud_estado.dart';
 
 class InicioConductorViewmodel extends ChangeNotifier {
   // Variables de estado y colecciones faltantes
@@ -74,12 +75,20 @@ class InicioConductorViewmodel extends ChangeNotifier {
   bool loadingLocation = true;
   final List<SolicitudItem> solicitudes = [];
   StreamSubscription<QuerySnapshot>? _sub;
+  // Último snapshot recibido del listener de solicitudes. Permite re-filtrar
+  // localmente (sin round-trip a Firestore) cuando cambia tipoVehiculoConductor,
+  // por ejemplo al cambiar de moto a carro desde el perfil.
+  QuerySnapshot? _lastSolicitudesSnapshot;
 
   // Método de inicialización principal
   Future<void> init() async {
     isLoading = true;
     loadingLocation = true;
     _safeNotify();
+    // Red de seguridad: si el flujo de viaje anterior falló al detener el
+    // tracking en background (ver RutaDestinoView/resumen_viaje), no debe
+    // seguir corriendo una vez el conductor está de vuelta en el home.
+    unawaited(stopBackgroundTrackingService());
     _listenCachedName();
     // Kick off async startup tasks but do not await them so UI can render fast.
     _loadProfile();
@@ -209,6 +218,10 @@ class InicioConductorViewmodel extends ChangeNotifier {
     // para asegurar que la lista de solicitudes se reevalúe con la distancia correcta.
     if (currentLocation != null && isConnected) {
       ensureSolicitudesSubscription();
+      // La resubscripción reconstruye SolicitudItem nuevos, pero si ya había
+      // una preview abierta (referencia al item viejo, con distanciaKm null
+      // por falta de GPS en ese momento) esta no se actualiza sola.
+      refreshSelectedPreviewDistance();
     }
   }
 
@@ -222,12 +235,37 @@ class InicioConductorViewmodel extends ChangeNotifier {
     await _loadLocation();
   }
 
+  /// Recalcula la distancia de la preview abierta contra `currentLocation`.
+  ///
+  /// `selectedPreview` guarda una referencia fija al `SolicitudItem` del
+  /// momento en que se abrió: cada snapshot nuevo de `solicitudes` crea
+  /// objetos `SolicitudItem` nuevos, así que la distancia de la preview
+  /// abierta jamás se actualizaba sola. Necesario tras volver de un
+  /// background prolongado (la ubicación se refresca pero la preview no).
+  void refreshSelectedPreviewDistance() {
+    final preview = selectedPreview;
+    final loc = currentLocation;
+    if (preview == null || loc == null) return;
+    preview.solicitud.distanciaKm = _distanceKm(
+      loc.latitude,
+      loc.longitude,
+      preview.solicitud.ubicacionInicial.latitude,
+      preview.solicitud.ubicacionInicial.longitude,
+    );
+    _safeNotify();
+  }
+
   // ===== UI state helpers =====
 
   void selectPreview(PreviewSolicitud preview) {
     selectedPreview = preview;
     isMapExpanded = false;
     unawaited(preloadClientePhoto(preview.solicitud.clienteId));
+    // Si el item se armó antes de tener currentLocation (p. ej. justo tras un
+    // cambio de rol, cuando el GPS aún no resolvía), su distanciaKm quedó en
+    // null. Recalcularla aquí evita que la preview muestre "Solicitud cercana"
+    // genérico en vez de la distancia real.
+    refreshSelectedPreviewDistance();
     _safeNotify();
   }
 
@@ -333,14 +371,10 @@ class InicioConductorViewmodel extends ChangeNotifier {
         .listen((snap) {
           for (final doc in snap.docs) {
             final data = doc.data() as Map<String, dynamic>?;
-            final estado = (data?['estado'] ?? data?['status'] ?? '')
-                .toString()
-                .toLowerCase();
-            final activo =
-                estado.contains('asignado') ||
-                estado.contains('espera') ||
-                estado.contains('camino') ||
-                estado.contains('ruta');
+            final estado = SolicitudEstado.normalize(
+              (data?['estado'] ?? data?['status'] ?? '').toString(),
+            );
+            final activo = SolicitudEstado.isSesionActiva(estado);
             if (activo && !_handledAssigned.contains(doc.id)) {
               _handledAssigned.add(doc.id);
               try {
@@ -356,6 +390,7 @@ class InicioConductorViewmodel extends ChangeNotifier {
     if (!isConnected) {
       return;
     }
+    _lastSolicitudesSnapshot = snap;
 
     try {
       final currentPendingIds = <String>{};
@@ -396,17 +431,16 @@ class InicioConductorViewmodel extends ChangeNotifier {
         ..addAll(parsedSolicitudes);
 
       try {
+        // No se muestra notificación local aquí: la notificación de "nueva
+        // solicitud" ya la maneja FCM (ver fcm_service.dart), que la
+        // suprime correctamente en foreground (la UI ya la muestra en esta
+        // misma lista) y la deja en manos del OS/handler de background para
+        // que aparezca una sola vez. Disparar otra aquí duplicaba el aviso
+        // y además ignoraba si la app estaba en foreground.
         for (final id in currentPendingIds) {
           if (!_knownPendingIds.contains(id)) {
             try {
               _newSolicitudController.add(id);
-            } catch (_) {}
-            try {
-              NotificacionesServicio.instance.showNotification(
-                id: id.hashCode & 0x7fffffff,
-                title: 'Solicitud entrante',
-                body: 'Un cliente cerca de ti necesita servicio',
-              );
             } catch (_) {}
           }
         }
@@ -455,10 +489,8 @@ class InicioConductorViewmodel extends ChangeNotifier {
 
   bool _isPendingStatus(dynamic status) {
     if (status == null) return false;
-    final normalized = status.toString().toLowerCase().trim();
-    return normalized == 'buscando' ||
-        normalized == 'pending' ||
-        normalized == 'pendiente';
+    return SolicitudEstado.normalize(status.toString()) ==
+        SolicitudEstado.buscando;
   }
 
   Future<void> _ensureFriendlyAddress(SolicitudItem item) async {
@@ -517,8 +549,17 @@ class InicioConductorViewmodel extends ChangeNotifier {
           }
 
           final docTipo = data['tipoVehiculo']?.toString().trim().toLowerCase();
-          if (docTipo != null && docTipo.isNotEmpty) {
+          if (docTipo != null &&
+              docTipo.isNotEmpty &&
+              docTipo != tipoVehiculoConductor) {
             tipoVehiculoConductor = docTipo;
+            // Re-filtrar localmente las solicitudes ya cacheadas con el nuevo
+            // tipo de vehículo, sin esperar un nuevo evento de Firestore ni
+            // recargar la app (ver cambiar_vehiculo_view.dart).
+            final cached = _lastSolicitudesSnapshot;
+            if (cached != null) {
+              _handleSolicitudesQuerySnapshot(cached);
+            }
           }
 
           final p = data['foto'] ?? data['fotoUrl'] ?? data['photoUrl'];
@@ -604,10 +645,9 @@ class InicioConductorViewmodel extends ChangeNotifier {
             for (var doc in snap.docs) {
               try {
                 final data = doc.data();
-                final estado = (data['estado'] ?? data['status'] ?? '')
-                    .toString()
-                    .toLowerCase()
-                    .trim();
+                final estado = SolicitudEstado.normalize(
+                  (data['estado'] ?? data['status'] ?? '').toString(),
+                );
                 if (!_isCompletedStatus(estado)) continue;
 
                 completedCount++;
@@ -655,7 +695,7 @@ class InicioConductorViewmodel extends ChangeNotifier {
 
   bool _isCompletedStatus(String status) {
     if (status.isEmpty) return false;
-    return status == 'completado' || status.contains('complet');
+    return status == SolicitudEstado.completado;
   }
 
   double _extractServiceValue(Map<String, dynamic> data) {
@@ -735,19 +775,38 @@ class InicioConductorViewmodel extends ChangeNotifier {
 
     final conductorPayload = _buildConductorPayload(uid);
     final ref = _firestore.collection('solicitudes').doc(solicitudId);
+    final conductorRef = _firestore.collection('usuarios').doc(uid);
 
     await _firestore.runTransaction((tx) async {
+      // Leer primero el doc del conductor: si la membresía ya venció (el
+      // Timer local en InicioConductorView solo corta si la app sigue
+      // abierta), no debe poder tomar viajes aunque su UI todavía no se haya
+      // refrescado a "inactivo".
+      final conductorSnap = await tx.get(conductorRef);
+      final conductorData = conductorSnap.data() ?? <String, dynamic>{};
+      final membresiaActiva =
+          (conductorData['membresia'] ?? '').toString().toLowerCase() ==
+          'activa';
+      final vence = conductorData['membresiaVence'];
+      final vencida =
+          vence is Timestamp && vence.toDate().isBefore(DateTime.now());
+      if (!membresiaActiva || vencida) {
+        throw StateError('Tu membresía no está activa. Actívala para aceptar viajes.');
+      }
+
       final snap = await tx.get(ref);
       if (!snap.exists) {
         throw StateError('La solicitud ya no existe.');
       }
       final data = snap.data() ?? <String, dynamic>{};
-      final estado = (data['estado'] ?? data['status'])?.toString().toLowerCase();
-      if (estado != 'buscando') {
+      final estado = SolicitudEstado.normalize(
+        (data['estado'] ?? data['status'] ?? '').toString(),
+      );
+      if (estado != SolicitudEstado.buscando) {
         throw StateError('Esta solicitud ya fue tomada por otro conductor.');
       }
       tx.update(ref, {
-        'estado': 'asignado',
+        'estado': SolicitudEstado.asignado,
         'conductor': conductorPayload,
         'estadoContraoferta': 'sin_contraoferta',
         'contraoferta': {
@@ -777,10 +836,11 @@ class InicioConductorViewmodel extends ChangeNotifier {
       }
 
       final data = snap.data() ?? <String, dynamic>{};
-      final estado = (data['estado'] ?? data['status'])
-          ?.toString()
-          .toLowerCase();
-      if (estado == 'asignado' || estado == 'cancelado') {
+      final estado = SolicitudEstado.normalize(
+        (data['estado'] ?? data['status'] ?? '').toString(),
+      );
+      if (estado == SolicitudEstado.asignado ||
+          estado == SolicitudEstado.cancelado) {
         throw StateError('La solicitud ya no permite contraoferta.');
       }
 
@@ -793,7 +853,7 @@ class InicioConductorViewmodel extends ChangeNotifier {
       };
 
       tx.set(ref, {
-        'estado': 'buscando',
+        'estado': SolicitudEstado.buscando,
         'estadoContraoferta': 'pendiente_cliente',
         'updatedAt': FieldValue.serverTimestamp(),
         // Legacy: un solo campo para compatibilidad
@@ -845,14 +905,14 @@ class InicioConductorViewmodel extends ChangeNotifier {
             final status = data?['estado'] ?? data?['status'];
             if (status is! String) return;
 
-            final sLower = status.toLowerCase();
-            if (sLower.contains('cancelado') || sLower.contains('anulad')) {
+            final normalizado = SolicitudEstado.normalize(status);
+            if (normalizado == SolicitudEstado.cancelado) {
               _previewStatusHandled = true;
               await onCanceladoOrRemoved();
               return;
             }
 
-            if (sLower.contains('asignado')) {
+            if (normalizado == SolicitudEstado.asignado) {
               _previewStatusHandled = true;
               await onAsignado();
               return;

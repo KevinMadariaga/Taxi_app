@@ -288,16 +288,16 @@ class _DriverClientInfoCardState extends State<DriverClientInfoCard>
             alignment: Alignment.center,
             padding: const EdgeInsets.symmetric(vertical: 11),
             decoration: BoxDecoration(
-              color: AppColores.buttonPrimary.withValues(alpha: 0.12),
+              color: AppColores.buttonPrimary.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppColores.buttonPrimary, width: 1.4),
+              border: Border.all(color: AppColores.buttonPrimary, width: 1.5),
             ),
             child: const Row(
               mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(
-                  Icons.chat_bubble_rounded,
+                  Icons.chat_bubble_outline,
                   size: 18,
                   color: AppColores.buttonPrimary,
                 ),
@@ -306,7 +306,7 @@ class _DriverClientInfoCardState extends State<DriverClientInfoCard>
                   'Chat',
                   style: TextStyle(
                     fontWeight: FontWeight.w700,
-                    fontSize: 13,
+                    fontSize: 14,
                     color: AppColores.buttonPrimary,
                   ),
                 ),
@@ -413,10 +413,20 @@ class _DirectionalBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(
-          isMoto ? Icons.two_wheeler_rounded : Icons.directions_car,
-          size: 18,
-          color: AppColores.buttonPrimary,
+        Container(
+          width: 44,
+          height: 44,
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            color: AppColores.buttonPrimary,
+          ),
+          child: Icon(
+            isMoto
+                ? Icons.two_wheeler_rounded
+                : Icons.directions_car_filled_rounded,
+            color: Colors.white,
+            size: 24,
+          ),
         ),
         const SizedBox(width: 6),
         Expanded(
