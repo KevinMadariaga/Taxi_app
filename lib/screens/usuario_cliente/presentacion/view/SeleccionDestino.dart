@@ -4,10 +4,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:geocoding/geocoding.dart';
+import 'package:taxi_app/core/services/places_search_service.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/MapaClienteModel.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/location_model.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/DetailsSolicitud.dart';
@@ -29,10 +31,19 @@ class DestinoSeleccionView extends StatefulWidget {
   State<DestinoSeleccionView> createState() => _DestinoSeleccionViewState();
 }
 
+// Centro y radio de Ocaña (Norte de Santander) usados para filtrar
+// resultados: mismo círculo que restringe la búsqueda en el servidor (ver
+// functions/index.js → OCANA_CENTER/OCANA_RADIUS_METERS), aplicado acá
+// también a los favoritos guardados en Firestore para que nunca se cuele
+// una ubicación de otra ciudad y confunda al usuario.
+const LatLng _kOcanaCenter = LatLng(8.2488503, -73.3471543);
+const double _kOcanaRadioMetros = 9000;
+
 class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
   bool _isPreparingNavigation = false;
   String _navigationMessage = 'Preparando vista...';
   final Map<String, String> _direccionPrecargadaCache = <String, String>{};
+  final PlacesSearchService _placesService = const PlacesSearchService();
 
   LatLng? _origenSeleccionado;
 
@@ -1229,18 +1240,85 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
       setState(() => _sugerencias = []);
       return;
     }
-    // Espera 350ms tras la última tecla antes de consultar: teclado fluido.
+    // Espera 350ms tras la última tecla antes de consultar: teclado fluido y
+    // evita una llamada a Places por cada tecla (esa API tiene costo).
     _debounce = Timer(const Duration(milliseconds: 350), () async {
-      final results = await _buscarUbicacionesHelper(query);
+      final results = await _buscarSugerenciasCombinadas(query);
       if (!mounted) return;
       setState(() => _sugerencias = results);
     });
   }
 
+  /// Combina resultados de dos fuentes para darle al usuario varias formas
+  /// de encontrar su destino:
+  /// - Sus propias ubicaciones guardadas (`ubicaciones` en Firestore).
+  /// - Direcciones reales vía Google Places, acotadas al radio de Ocaña.
+  /// Ambas se filtran al radio de Ocaña para no confundir con otra ciudad.
+  Future<List<UbicacionResultado>> _buscarSugerenciasCombinadas(
+    String query,
+  ) async {
+    final resultados = await Future.wait([
+      _buscarUbicacionesHelper(query),
+      _placesService.buscar(query),
+    ]);
+
+    final guardadas = (resultados[0] as List<UbicacionResultado>)
+        .where((r) => r.location == null || _dentroDeOcana(r.location!))
+        .toList();
+
+    final dePlaces = (resultados[1] as List)
+        .cast<PlacePrediction>()
+        .map(
+          (p) => UbicacionResultado(
+            location: null,
+            nombre: p.mainText,
+            direccion: p.secondaryText.isNotEmpty
+                ? p.secondaryText
+                : p.mainText,
+            placeId: p.placeId,
+          ),
+        )
+        .toList();
+
+    return [...guardadas, ...dePlaces];
+  }
+
+  bool _dentroDeOcana(LatLng punto) {
+    final distancia = Geolocator.distanceBetween(
+      _kOcanaCenter.latitude,
+      _kOcanaCenter.longitude,
+      punto.latitude,
+      punto.longitude,
+    );
+    return distancia <= _kOcanaRadioMetros;
+  }
+
   Future<void> _abrirPreviewDesdeSugerencia(
     UbicacionResultado sugerencia,
   ) async {
-    final destinoInicial = sugerencia.location;
+    var destinoInicial = sugerencia.location;
+    var direccion = sugerencia.direccion;
+
+    // Sugerencia de Google Places: solo se conoce el placeId hasta acá, hay
+    // que resolver sus coordenadas con Place Details antes de continuar.
+    if (destinoInicial == null && sugerencia.placeId != null) {
+      final detalles = await _runPreparedNavigation<PlaceDetails>(
+        message: 'Buscando dirección...',
+        action: () => _placesService.obtenerDetalles(sugerencia.placeId!),
+      );
+      if (detalles == null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No se pudo abrir esta ubicación.')),
+        );
+        return;
+      }
+      destinoInicial = detalles.location;
+      if (detalles.formattedAddress.isNotEmpty) {
+        direccion = detalles.formattedAddress;
+      }
+    }
+
     if (destinoInicial == null) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1254,7 +1332,7 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
       tituloDestino: sugerencia.nombre.isNotEmpty
           ? sugerencia.nombre
           : 'Destino seleccionado',
-      direccionDestino: sugerencia.direccion,
+      direccionDestino: direccion,
     );
   }
 
@@ -1465,7 +1543,7 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
         onPressed: _manejarBackConFlecha,
       ),
       title: const Text(
-        '¿A dónde vamos?',
+        '¿A dónde vamoss?',
         style: TextStyle(
           fontSize: 17,
           fontWeight: FontWeight.w700,

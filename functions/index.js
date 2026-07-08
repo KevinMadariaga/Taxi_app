@@ -1459,3 +1459,138 @@ exports.getDirectionsRoute = onCall(
     return { encodedPolyline: encoded };
   }
 );
+
+// Centro aproximado de Ocaña (Norte de Santander) + radio en metros que cubre
+// el casco urbano y alrededores cercanos (Libano al norte, Apartaderos al
+// sur, El Hatillo/Venadillo al este) según el mapa de referencia del cliente.
+const OCANA_CENTER = { lat: 8.2488503, lng: -73.3471543 };
+const OCANA_RADIUS_METERS = 9000;
+
+/**
+ * Callable: Google Places Autocomplete restringido al radio de Ocaña.
+ *
+ * Evita que el buscador de destino sugiera direcciones de otra ciudad (lo
+ * que confunde al usuario en una app de alcance local). `strictbounds=true`
+ * hace que Google descarte resultados fuera del círculo en vez de solo
+ * "preferirlos" (locationBias sin strict permitiría igual resultados
+ * lejanos si no hay nada cerca que calce con el texto).
+ *
+ * Solo devuelve descripción + placeId (no coordenadas): pedir Place Details
+ * por cada sugerencia mientras el usuario todavía escribe multiplicaría el
+ * costo por nada; los detalles se piden una sola vez, cuando toca una.
+ */
+exports.searchPlacesOcana = onCall(
+  { region: "us-central1", secrets: [googleDirectionsKey], timeoutSeconds: 10 },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Se requiere sesión iniciada.");
+    }
+
+    const query = ((request.data || {}).query || "").toString().trim();
+    if (query.length < 2) {
+      return { predictions: [] };
+    }
+
+    const url = new URL(
+      "https://maps.googleapis.com/maps/api/place/autocomplete/json"
+    );
+    url.searchParams.set("input", query);
+    url.searchParams.set("location", `${OCANA_CENTER.lat},${OCANA_CENTER.lng}`);
+    url.searchParams.set("radius", String(OCANA_RADIUS_METERS));
+    url.searchParams.set("strictbounds", "true");
+    url.searchParams.set("components", "country:co");
+    url.searchParams.set("language", "es");
+    url.searchParams.set("key", googleDirectionsKey.value());
+
+    let resp;
+    try {
+      resp = await fetch(url, { signal: AbortSignal.timeout(6000) });
+    } catch (err) {
+      throw new HttpsError(
+        "unavailable",
+        `No se pudo contactar Places API: ${err.message}`
+      );
+    }
+
+    if (!resp.ok) {
+      throw new HttpsError("unavailable", `Places API respondió ${resp.status}`);
+    }
+
+    const body = await resp.json();
+    if (body.status !== "OK" && body.status !== "ZERO_RESULTS") {
+      throw new HttpsError(
+        "internal",
+        `Places API status ${body.status}: ${body.error_message || ""}`
+      );
+    }
+
+    const predictions = (body.predictions || []).map((p) => ({
+      placeId: p.place_id,
+      description: p.description,
+      mainText: (p.structured_formatting || {}).main_text || p.description,
+      secondaryText: (p.structured_formatting || {}).secondary_text || "",
+    }));
+
+    return { predictions };
+  }
+);
+
+/**
+ * Callable: Place Details — resuelve lat/lng + dirección formateada de un
+ * placeId devuelto por searchPlacesOcana. Se llama solo cuando el usuario
+ * toca una sugerencia, no en cada tecla.
+ */
+exports.getPlaceDetails = onCall(
+  { region: "us-central1", secrets: [googleDirectionsKey], timeoutSeconds: 10 },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Se requiere sesión iniciada.");
+    }
+
+    const placeId = ((request.data || {}).placeId || "").toString().trim();
+    if (!placeId) {
+      throw new HttpsError("invalid-argument", "placeId es requerido.");
+    }
+
+    const url = new URL("https://maps.googleapis.com/maps/api/place/details/json");
+    url.searchParams.set("place_id", placeId);
+    url.searchParams.set("fields", "geometry,formatted_address,name");
+    url.searchParams.set("language", "es");
+    url.searchParams.set("key", googleDirectionsKey.value());
+
+    let resp;
+    try {
+      resp = await fetch(url, { signal: AbortSignal.timeout(6000) });
+    } catch (err) {
+      throw new HttpsError(
+        "unavailable",
+        `No se pudo contactar Places API: ${err.message}`
+      );
+    }
+
+    if (!resp.ok) {
+      throw new HttpsError("unavailable", `Places API respondió ${resp.status}`);
+    }
+
+    const body = await resp.json();
+    if (body.status !== "OK") {
+      throw new HttpsError(
+        "not-found",
+        `Places API status ${body.status}: ${body.error_message || ""}`
+      );
+    }
+
+    const result = body.result || {};
+    const location = (result.geometry || {}).location;
+    if (!location) {
+      throw new HttpsError("not-found", "El lugar no tiene coordenadas.");
+    }
+
+    return {
+      lat: location.lat,
+      lng: location.lng,
+      formattedAddress: result.formatted_address || "",
+      name: result.name || "",
+    };
+  }
+);
