@@ -4,6 +4,7 @@ import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:flutter/foundation.dart';
 import 'package:taxi_app/firebase_options.dart';
+import 'dart:io' show Platform;
 
 class FirebaseHelper {
   /// Inicializa Firebase, Crashlytics y App Check.
@@ -23,12 +24,17 @@ class FirebaseHelper {
         );
       }
 
-      // App Check: solo activar en producción con AppAttest.
+      // App Check: solo activar en producción con AppAttest (iOS).
+      // En Android NO se activa: activate() trae androidProvider con default
+      // AndroidProvider.playIntegrity, y Play Integrity no está configurado
+      // (huella SHA-256 release en Play Console/Firebase). Con enforcement
+      // activo en Firestore/Cloud Functions, las peticiones sin token válido
+      // se rechazan con 403 en silencio → fcmToken nunca se persiste → no
+      // llegan notificaciones FCM en Android. iOS sí funciona porque AppAttest
+      // está bien configurado.
       // En modo debug, omitir App Check para no bloquear FCM con errores 403
       // (el token debug debe registrarse primero en Firebase Console).
-      // Para habilitar en producción, configura App Attest en Apple Developer Portal
-      // y activa App Check en la consola de Firebase.
-      if (!kDebugMode) {
+      if (!kDebugMode && !kIsWeb && Platform.isIOS) {
         await FirebaseAppCheck.instance.activate(
           providerApple: const AppleAppAttestProvider(),
         );
