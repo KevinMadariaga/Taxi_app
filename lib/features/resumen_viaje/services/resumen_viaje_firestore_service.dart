@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 
 import '../models/resumen_viaje_model.dart';
 
@@ -92,6 +93,12 @@ class ResumenViajeFirebaseService {
           'totalCalificaciones': nuevoTotal,
         }, SetOptions(merge: true));
       });
-    } catch (_) {}
+    } catch (e, st) {
+      FirebaseCrashlytics.instance.recordError(
+        e,
+        st,
+        reason: 'ResumenViajeFirestoreService: fallo al acumular calificación del conductor $conductorId',
+      );
+    }
   }
 }

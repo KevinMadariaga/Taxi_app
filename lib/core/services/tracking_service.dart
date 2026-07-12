@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:developer' as developer;
 
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -167,11 +168,16 @@ class TrackingService {
 
               onLocationUpdate?.call(position);
             },
-            onError: (error) {
+            onError: (error, stackTrace) {
               developer.log(
                 '❌ Error en tracking GPS: $error',
                 name: _loggerName,
                 level: 1000,
+              );
+              FirebaseCrashlytics.instance.recordError(
+                error,
+                stackTrace,
+                reason: 'TrackingService: GPS stream error',
               );
             },
           );
@@ -183,11 +189,16 @@ class TrackingService {
         level: 800,
       );
       return true;
-    } catch (e) {
+    } catch (e, st) {
       developer.log(
         '❌ Error al iniciar tracking GPS: $e',
         name: _loggerName,
         level: 1000,
+      );
+      FirebaseCrashlytics.instance.recordError(
+        e,
+        st,
+        reason: 'TrackingService: fallo al iniciar tracking GPS',
       );
       return false;
     }
@@ -387,11 +398,16 @@ class TrackingService {
         name: _loggerName,
         level: 800,
       );
-    } catch (e) {
+    } catch (e, st) {
       developer.log(
         '❌ Error al enviar ubicación: $e',
         name: _loggerName,
         level: 1000,
+      );
+      FirebaseCrashlytics.instance.recordError(
+        e,
+        st,
+        reason: 'TrackingService: fallo al enviar ubicación a Firestore',
       );
     }
   }

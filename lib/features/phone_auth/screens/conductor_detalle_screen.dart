@@ -218,10 +218,18 @@ class ConductorDetalleScreen extends StatelessWidget {
       },
     );
 
-    if (confirm != true || !context.mounted) return;
+    if (confirm != true || !context.mounted) {
+      nombreController.dispose();
+      telefonoController.dispose();
+      placaController.dispose();
+      return;
+    }
     final nombre = nombreController.text.trim();
     final telefono = telefonoController.text.replaceAll(RegExp(r'[^0-9]'), '');
     final placa = placaController.text.trim().toUpperCase();
+    nombreController.dispose();
+    telefonoController.dispose();
+    placaController.dispose();
 
     if (nombre.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -391,10 +399,16 @@ class ConductorDetalleScreen extends StatelessWidget {
       },
     );
 
-    if (confirm != true || !context.mounted) return;
+    if (confirm != true || !context.mounted) {
+      emailController.dispose();
+      passController.dispose();
+      return;
+    }
 
     final correo = emailController.text.trim();
     final password = passController.text.trim();
+    emailController.dispose();
+    passController.dispose();
     if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(correo)) {
       ScaffoldMessenger.of(
         context,

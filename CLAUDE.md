@@ -131,11 +131,11 @@ flutter build ios --release
 
 ---
 
-## Archivos de configuración sensibles (NO en git)
+## Archivos de configuración sensibles
 
-- `lib/firebase_options.dart` — credenciales Firebase.
-- `android/key.properties` — firma release Android (basado en `key.properties.example`).
-- `android/local.properties` / `android/gradle.properties` — `MAPS_API_KEY`.
+- `lib/firebase_options.dart` — **SÍ está en git** (generado por `flutterfire configure`). Contiene claves cliente de Firebase (Web/Android), que no son secretas por diseño: el acceso real está protegido por Firestore Security Rules y App Check, no por ocultar este archivo. Mantenerlo trackeado es intencional para que cualquier clone/CI pueda compilar sin pasos extra.
+- `android/key.properties` — firma release Android (basado en `key.properties.example`). NO en git.
+- `android/local.properties` / `android/gradle.properties` — `MAPS_API_KEY`. NO en git.
 
 ---
 

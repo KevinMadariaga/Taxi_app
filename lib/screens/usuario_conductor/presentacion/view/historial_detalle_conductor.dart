@@ -24,10 +24,15 @@ class _HistorialDetalleConductorState extends State<HistorialDetalleConductor> {
     'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
     'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic',
   ];
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _solicitudesStream;
 
   @override
   void initState() {
     super.initState();
+    _solicitudesStream = FirebaseFirestore.instance
+        .collection('solicitudes')
+        .where('conductor.id', isEqualTo: widget.conductorId)
+        .snapshots();
     initializeDateFormatting('es').then((_) {
       if (mounted) setState(() {});
     });
@@ -132,11 +137,8 @@ class _HistorialDetalleConductorState extends State<HistorialDetalleConductor> {
         foregroundColor: Colors.white,
         elevation: 0,
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('solicitudes')
-            .where('conductor.id', isEqualTo: widget.conductorId)
-            .snapshots(),
+      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream: _solicitudesStream,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(
@@ -154,7 +156,7 @@ class _HistorialDetalleConductorState extends State<HistorialDetalleConductor> {
           final Map<String, int> countByDay = {};
           for (var d in docs) {
             try {
-              final data = d.data() as Map<String, dynamic>;
+              final data = d.data();
               final valor = _valorDe(data);
               final ts =
                   (data['completedAt'] ?? data['fecha de terminacion'])
@@ -224,7 +226,7 @@ class _HistorialDetalleConductorState extends State<HistorialDetalleConductor> {
 
           for (var d in docs) {
             try {
-              final data = d.data() as Map<String, dynamic>;
+              final data = d.data();
               final ts =
                   (data['completedAt'] ?? data['fecha de terminacion'])
                       as Timestamp?;

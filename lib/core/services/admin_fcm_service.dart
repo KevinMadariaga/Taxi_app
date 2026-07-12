@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
@@ -24,7 +25,14 @@ class AdminFcmService {
     String? serverKey;
     try {
       serverKey = await AppRemoteConfigService.instance.fetchFcmServerKey();
-    } catch (_) {}
+    } catch (e, st) {
+      debugPrint('[AdminFcm] Error obteniendo fcm_server_key: $e');
+      FirebaseCrashlytics.instance.recordError(
+        e,
+        st,
+        reason: 'AdminFcmService: fallo al obtener fcm_server_key desde Remote Config (sendToAllAdmins)',
+      );
+    }
 
     if (serverKey == null || serverKey.isEmpty) {
       debugPrint('[AdminFcm] fcm_server_key no configurado en Remote Config');
@@ -108,7 +116,14 @@ class AdminFcmService {
     String? serverKey;
     try {
       serverKey = await AppRemoteConfigService.instance.fetchFcmServerKey();
-    } catch (_) {}
+    } catch (e, st) {
+      debugPrint('[AdminFcm] Error obteniendo fcm_server_key: $e');
+      FirebaseCrashlytics.instance.recordError(
+        e,
+        st,
+        reason: 'AdminFcmService: fallo al obtener fcm_server_key desde Remote Config (sendToToken)',
+      );
+    }
 
     if (serverKey == null || serverKey.isEmpty) {
       debugPrint('[AdminFcm] fcm_server_key no configurado en Remote Config');

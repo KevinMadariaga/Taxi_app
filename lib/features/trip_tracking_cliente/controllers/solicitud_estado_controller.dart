@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/constants/solicitud_estado.dart';
 import 'package:taxi_app/core/services/services.dart';
@@ -210,7 +212,17 @@ class SolicitudEstadoController {
         title: title,
         body: body,
       );
-    } catch (_) {}
+    } catch (e, st) {
+      developer.log(
+        'Error al mostrar notificación local: $e',
+        name: 'SolicitudEstadoController',
+      );
+      FirebaseCrashlytics.instance.recordError(
+        e,
+        st,
+        reason: 'SolicitudEstadoController: fallo al mostrar notificación local ($title)',
+      );
+    }
   }
 
   static String normalizeEstado(String value) {

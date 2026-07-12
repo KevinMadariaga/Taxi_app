@@ -1,6 +1,8 @@
+import 'dart:developer' as developer;
 import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:taxi_app/firebase_options.dart';
@@ -320,7 +322,17 @@ class UserDataService {
             password: oldPass,
           );
           authUser = signIn.user;
-        } catch (_) {}
+        } catch (e, st) {
+          developer.log(
+            'No se pudo autenticar con credenciales anteriores del conductor: $e',
+            name: 'UserDataService',
+          );
+          FirebaseCrashlytics.instance.recordError(
+            e,
+            st,
+            reason: 'UserDataService: fallo al re-autenticar con credenciales previas en actualizarCredencialesConductor',
+          );
+        }
       }
 
       if (authUser != null) {
@@ -386,7 +398,17 @@ class UserDataService {
     if (resolvedConductorId != conductorId) {
       try {
         await _firestore.collection('usuarios').doc(conductorId).delete();
-      } catch (_) {}
+      } catch (e, st) {
+        developer.log(
+          'No se pudo eliminar el documento de conductor anterior ($conductorId): $e',
+          name: 'UserDataService',
+        );
+        FirebaseCrashlytics.instance.recordError(
+          e,
+          st,
+          reason: 'UserDataService: fallo al eliminar documento de conductor con id anterior tras cambio de correo',
+        );
+      }
     }
 
     return UpdateConductorCredentialsResult(

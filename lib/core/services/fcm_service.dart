@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_navigator.dart';
@@ -103,9 +104,10 @@ class FcmService {
     debugPrint('[FCM] Authorization status: ${settings.authorizationStatus}');
 
     if (settings.authorizationStatus == AuthorizationStatus.denied) {
+      // No mostrar alertas nativas, pero seguir registrando token y handlers:
+      // FCM puede seguir entregando mensajes data-only sin permiso de alerta,
+      // y el usuario puede otorgar el permiso más tarde desde ajustes del SO.
       debugPrint('[FCM] Permisos de notificación denegados por el usuario');
-      _initialized = true;
-      return;
     }
 
     // 3) En iOS: esperar a que el token APNs esté disponible.
@@ -202,8 +204,13 @@ class FcmService {
       }
 
       await _persistToken(token);
-    } catch (e) {
+    } catch (e, st) {
       debugPrint('[FCM] Error obteniendo token: $e');
+      FirebaseCrashlytics.instance.recordError(
+        e,
+        st,
+        reason: 'FcmService: fallo al obtener token FCM',
+      );
     }
   }
 
@@ -233,8 +240,13 @@ class FcmService {
         'fcmTokenUpdatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
       debugPrint('[FCM] ✅ Token guardado en usuarios/$uid');
-    } catch (e) {
+    } catch (e, st) {
       debugPrint('[FCM] Error guardando token en usuarios: $e');
+      FirebaseCrashlytics.instance.recordError(
+        e,
+        st,
+        reason: 'FcmService: fallo al guardar token en usuarios/$uid',
+      );
     }
 
 
@@ -247,7 +259,14 @@ class FcmService {
         }, SetOptions(merge: true));
         debugPrint('[FCM] ✅ Token guardado en administradores/$uid');
       }
-    } catch (_) {}
+    } catch (e, st) {
+      debugPrint('[FCM] Error guardando token en administradores: $e');
+      FirebaseCrashlytics.instance.recordError(
+        e,
+        st,
+        reason: 'FcmService: fallo al guardar token en administradores/$uid',
+      );
+    }
   }
 
   /// Fuerza la actualización del token en Firestore.

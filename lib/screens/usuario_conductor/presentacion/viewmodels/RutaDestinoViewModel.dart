@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
@@ -423,15 +424,19 @@ class RutaDestinoViewModel extends ChangeNotifier {
             : null;
         direccionDestino = destino['direccion'] ?? '';
         tituloDestino = destino['title'] ?? '';
-        print(
-          '[RutaDestinoViewModel] Coordenadas destino: lat=$latDestino, lng=$lngDestino',
+        developer.log(
+          'Coordenadas destino: lat=$latDestino, lng=$lngDestino',
+          name: 'RutaDestinoViewModel',
         );
       } else {
         latDestino = null;
         lngDestino = null;
         direccionDestino = '';
         tituloDestino = '';
-        print('[RutaDestinoViewModel] No se encontró destino en la solicitud');
+        developer.log(
+          'No se encontró destino en la solicitud',
+          name: 'RutaDestinoViewModel',
+        );
       }
 
       // Valor del servicio y método de pago.

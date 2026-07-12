@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:taxi_app/core/constants/solicitud_estado.dart';
@@ -255,7 +257,17 @@ class DriverTripController extends ChangeNotifier {
   Future<void> onAppResumed() async {
     try {
       await _locationService.syncOneShotToTrip(tripId: tripId);
-    } catch (_) {}
+    } catch (e, st) {
+      developer.log(
+        'Error al sincronizar ubicación al reanudar la app: $e',
+        name: 'DriverTripController',
+      );
+      FirebaseCrashlytics.instance.recordError(
+        e,
+        st,
+        reason: 'DriverTripController: fallo al sincronizar ubicación en onAppResumed',
+      );
+    }
 
     // El listener en vivo puede haberse suspendido mientras la app estaba en
     // background (pantalla bloqueada / otra app en primer plano) y perderse
@@ -270,7 +282,17 @@ class DriverTripController extends ChangeNotifier {
       _safeNotify();
       _handleStatusTransition(fresh.status);
       await _refreshRouteIfNeeded();
-    } catch (_) {}
+    } catch (e, st) {
+      developer.log(
+        'Error al reconciliar estado del viaje al reanudar la app: $e',
+        name: 'DriverTripController',
+      );
+      FirebaseCrashlytics.instance.recordError(
+        e,
+        st,
+        reason: 'DriverTripController: fallo al reconciliar estado del viaje en onAppResumed',
+      );
+    }
   }
 
   Future<void> _bindTrip() async {
@@ -312,7 +334,17 @@ class DriverTripController extends ChangeNotifier {
               senderName: '💬 Nuevo mensaje del cliente',
               message: msg.text,
             );
-          } catch (_) {}
+          } catch (e, st) {
+            developer.log(
+              'Error al mostrar notificación de chat: $e',
+              name: 'DriverTripController',
+            );
+            FirebaseCrashlytics.instance.recordError(
+              e,
+              st,
+              reason: 'DriverTripController: fallo al mostrar notificación local de nuevo mensaje de chat',
+            );
+          }
         }
       } else {
         _messageBootstrapComplete = true;
@@ -513,7 +545,14 @@ class DriverTripController extends ChangeNotifier {
         title: title,
         body: body,
       );
-    } catch (_) {}
+    } catch (e, st) {
+      developer.log('Error al mostrar notificación local: $e', name: 'DriverTripController');
+      FirebaseCrashlytics.instance.recordError(
+        e,
+        st,
+        reason: 'DriverTripController: fallo al mostrar notificación local ($title)',
+      );
+    }
   }
 
   void _setPendingNavigation(DriverPendingNavigation target) {

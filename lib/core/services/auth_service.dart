@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -123,7 +124,14 @@ class AuthService {
               role = 'cliente';
             }
           }
-        } catch (_) {}
+        } catch (e, st) {
+          debugPrint('Error al resolver rol de usuario desde Firestore: $e');
+          FirebaseCrashlytics.instance.recordError(
+            e,
+            st,
+            reason: 'AuthService: fallo al resolver rol de usuario desde Firestore',
+          );
+        }
       }
 
       // Determinar id de solicitud candidata (SessionHelper tiene prioridad)
@@ -374,7 +382,14 @@ class AuthService {
               await docRef.delete();
             } catch (_) {}
           }));
-        } catch (_) {}
+        } catch (e, st) {
+          debugPrint('Error al cancelar solicitud huérfana en buscando: $e');
+          FirebaseCrashlytics.instance.recordError(
+            e,
+            st,
+            reason: 'AuthService: fallo al auto-cancelar solicitud huérfana en estado buscando',
+          );
+        }
         try {
           await SessionHelper.clearActiveSolicitud();
         } catch (_) {}
@@ -480,7 +495,14 @@ class AuthService {
           cancelledBy: 'cliente',
         );
       }
-    } catch (_) {}
+    } catch (e, st) {
+      debugPrint('Error al construir pantalla para solicitud activa: $e');
+      FirebaseCrashlytics.instance.recordError(
+        e,
+        st,
+        reason: 'AuthService: fallo al construir pantalla para solicitud activa',
+      );
+    }
 
     return null;
   }
@@ -554,7 +576,14 @@ class AuthService {
       // Actualizar token FCM para que quede vinculado al usuario correcto
       try {
         await FcmService.instance.refreshToken();
-      } catch (_) {}
+      } catch (e, st) {
+        debugPrint('Error al refrescar token FCM tras guardar sesión: $e');
+        FirebaseCrashlytics.instance.recordError(
+          e,
+          st,
+          reason: 'AuthService: fallo al refrescar token FCM en saveUserSession',
+        );
+      }
     } catch (e) {
       debugPrint('Error al guardar sesión: $e');
     }
@@ -587,7 +616,14 @@ class AuthService {
         // Registrar/actualizar token FCM para el nuevo usuario
         try {
           await FcmService.instance.refreshToken();
-        } catch (_) {}
+        } catch (e, st) {
+          debugPrint('Error al refrescar token FCM tras login: $e');
+          FirebaseCrashlytics.instance.recordError(
+            e,
+            st,
+            reason: 'AuthService: fallo al refrescar token FCM en loginWithEmailAndPassword',
+          );
+        }
       }
 
       return credential;
@@ -719,7 +755,14 @@ class AuthService {
 
         return doc.id;
       }
-    } catch (_) {}
+    } catch (e, st) {
+      debugPrint('Error al buscar solicitud activa por campo "$field": $e');
+      FirebaseCrashlytics.instance.recordError(
+        e,
+        st,
+        reason: 'AuthService: fallo al buscar solicitud activa por campo "$field"',
+      );
+    }
 
     return null;
   }
@@ -735,6 +778,13 @@ class AuthService {
         title: 'Solicitud activa',
         body: 'Tienes una solicitud activa en curso.',
       );
-    } catch (_) {}
+    } catch (e, st) {
+      debugPrint('Error al notificar solicitud activa al abrir la app: $e');
+      FirebaseCrashlytics.instance.recordError(
+        e,
+        st,
+        reason: 'AuthService: fallo al mostrar notificación de solicitud activa al abrir la app',
+      );
+    }
   }
 }

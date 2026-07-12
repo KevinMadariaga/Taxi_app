@@ -72,6 +72,7 @@ class _SeguridadViewState extends State<SeguridadView> {
               );
 
               if (value == null || value.isEmpty) return;
+              if (!mounted) return;
 
               setState(() => _emergencyContacts.add(value));
               setModalState(() {});

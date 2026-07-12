@@ -6,9 +6,14 @@ import 'package:taxi_app/core/constants/solicitud_estado.dart';
 /// Muestra el estado actual de la solicitud en tiempo real con una línea de
 /// tiempo (timeline). Escucha el documento `solicitudes/{id}` en Firestore.
 class EstadoSolicitudView extends StatelessWidget {
-  const EstadoSolicitudView({super.key, required this.solicitudId});
+  EstadoSolicitudView({super.key, required this.solicitudId})
+    : _stream = FirebaseFirestore.instance
+          .collection('solicitudes')
+          .doc(solicitudId)
+          .snapshots();
 
   final String solicitudId;
+  final Stream<DocumentSnapshot<Map<String, dynamic>>> _stream;
 
   static const List<_PasoEstado> _pasos = [
     _PasoEstado(
@@ -63,10 +68,7 @@ class EstadoSolicitudView extends StatelessWidget {
         ),
       ),
       body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-        stream: FirebaseFirestore.instance
-            .collection('solicitudes')
-            .doc(solicitudId)
-            .snapshots(),
+        stream: _stream,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(

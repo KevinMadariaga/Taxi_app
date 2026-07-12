@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'package:taxi_app/core/constants/solicitud_estado.dart';
+
 import 'usuario_model.dart';
 
 class SolicitudModel {
@@ -36,7 +38,7 @@ class SolicitudModel {
 
     return SolicitudModel(
       id: doc.id,
-      estado: (rawEstado ?? '').toString().toLowerCase(),
+      estado: SolicitudEstado.normalize((rawEstado ?? '').toString()),
       cliente: UsuarioModel.fromMap(clienteMap),
       conductor: UsuarioModel.fromMap(conductorMap),
       updatedAt: updatedTs is Timestamp ? updatedTs.toDate() : null,
@@ -67,7 +69,7 @@ class SolicitudModel {
     final conductorMap = _asStringMap(map['conductor']);
     return SolicitudModel(
       id: (map['id'] ?? '').toString(),
-      estado: (map['estado'] ?? '').toString().toLowerCase(),
+      estado: SolicitudEstado.normalize((map['estado'] ?? '').toString()),
       cliente: UsuarioModel.fromMap(clienteMap),
       conductor: UsuarioModel.fromMap(conductorMap),
       updatedAt: updated is int
