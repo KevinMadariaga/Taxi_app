@@ -29,11 +29,10 @@ if (localPropertiesFile.exists()) {
 
 fun resolveStoreFile(path: String?): java.io.File? {
     if (path.isNullOrBlank()) return null
-    val candidate = file(path)
-    if (candidate.isAbsolute) return candidate
+    if (File(path).isAbsolute) return file(path)
 
     val fromRoot = rootProject.file(path)
-    return if (fromRoot.exists()) fromRoot else candidate
+    return if (fromRoot.exists()) fromRoot else file(path)
 }
 
 val releaseStoreFile = resolveStoreFile(keystoreProperties.getProperty("storeFile"))
