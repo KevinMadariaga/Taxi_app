@@ -1,12 +1,12 @@
 import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:taxi_app/firebase_options.dart';
 
 import 'tracking_service.dart';
+import 'package:taxi_app/core/utils/error_reporter.dart';
 
 Future<void> initializeBackgroundService() async {
   final service = FlutterBackgroundService();
@@ -50,10 +50,11 @@ Future<void> stopBackgroundTrackingService() async {
     }
   } catch (e, st) {
     developer.log('❌ Error al detener servicio de tracking: $e');
-    FirebaseCrashlytics.instance.recordError(
+    ErrorReporter.report(
       e,
       st,
-      reason: 'BackgroundTrackingService: fallo al detener el servicio de tracking en segundo plano',
+      reason:
+          'BackgroundTrackingService: fallo al detener el servicio de tracking en segundo plano',
     );
   }
 }
@@ -97,7 +98,9 @@ void onStart(ServiceInstance service) async {
               ? 'Recolectando ubicación en segundo plano'
               : '',
         );
-      } catch (_) {}
+      } catch (e, st) {
+        ErrorReporter.report(e, st, reason: 'background_tracking_service');
+      }
     }
 
     await tracking.iniciarTrackingConEnvio(

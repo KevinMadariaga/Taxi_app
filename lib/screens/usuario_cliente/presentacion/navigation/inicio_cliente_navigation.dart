@@ -10,7 +10,7 @@ import 'package:taxi_app/screens/usuario_cliente/presentacion/view/historial_via
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/notificaciones_view.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/seguridad_view.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/soporte_view.dart';
-import 'package:taxi_app/widgets/perfil.dart';
+import 'package:taxi_app/screens/perfil/perfil.dart';
 
 class InicioClienteNavigation {
   static PageRouteBuilder<T> _buildSmoothRoute<T>(Widget page) {

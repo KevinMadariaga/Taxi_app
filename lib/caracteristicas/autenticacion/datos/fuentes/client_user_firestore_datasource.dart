@@ -16,6 +16,27 @@ class ClientUserFirestoreDataSource {
     );
   }
 
+  /// Resuelve el rol crudo del documento `usuarios/{uid}`, aceptando los alias
+  /// legacy `tipoUsuario`/`rol`/`role` (usados por el login por
+  /// correo/contraseña). Devuelve 'cliente' si no se pudo determinar.
+  Future<String> resolveRole(String uid) async {
+    final doc = await _firestore.collection('usuarios').doc(uid).get();
+    final data = doc.data() ?? <String, dynamic>{};
+    final raw = (data['tipoUsuario'] ?? data['rol'] ?? data['role'] ?? '')
+        .toString()
+        .toLowerCase();
+    if (raw == 'conductor') return 'conductor';
+    if (raw == 'admin' || raw == 'administrador') return 'administrador';
+    return 'cliente';
+  }
+
+  /// Indica si [uid] tiene documento propio en `administradores`. Antes esta
+  /// lectura vivía inline en `HomeView._navegarTrasLogin`.
+  Future<bool> isRegisteredAdmin(String uid) async {
+    final doc = await _firestore.collection('administradores').doc(uid).get();
+    return doc.exists;
+  }
+
   Future<ClientUserModel> ensureForGoogle({
     required String uid,
     required String? displayName,

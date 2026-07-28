@@ -3,6 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:taxi_app/data/solicitud_repository.dart';
+import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodels/historial_detalle_conductor_viewmodel.dart';
 
 const Color _amberDark = Color(0xFFB38F00);
 
@@ -16,65 +18,49 @@ class HistorialDetalleConductor extends StatefulWidget {
 }
 
 class _HistorialDetalleConductorState extends State<HistorialDetalleConductor> {
+  final HistorialDetalleConductorViewModel _viewModel =
+      HistorialDetalleConductorViewModel();
   int selectedMonth = DateTime.now().month;
   String viewMode = 'dia'; // 'mes' | 'semana' | 'dia'
   int selectedWeekIndex = 0;
   DateTime selectedDate = DateTime.now();
   final List<String> monthNames = const [
-    'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
-    'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic',
+    'Ene',
+    'Feb',
+    'Mar',
+    'Abr',
+    'May',
+    'Jun',
+    'Jul',
+    'Ago',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dic',
   ];
   late final Stream<QuerySnapshot<Map<String, dynamic>>> _solicitudesStream;
 
   @override
   void initState() {
     super.initState();
-    _solicitudesStream = FirebaseFirestore.instance
-        .collection('solicitudes')
-        .where('conductor.id', isEqualTo: widget.conductorId)
-        .snapshots();
+    _solicitudesStream = SolicitudRepositoryImpl().historialConductorStream(
+      widget.conductorId,
+    );
     initializeDateFormatting('es').then((_) {
       if (mounted) setState(() {});
     });
     final DateTime now = DateTime.now();
-    final int year = now.year;
-    final DateTime firstDayOfMonth = DateTime(year, selectedMonth, 1);
-    final DateTime lastDayOfMonth = (selectedMonth == 12)
-        ? DateTime(year + 1, 1, 1).subtract(const Duration(days: 1))
-        : DateTime(
-            year,
-            selectedMonth + 1,
-            1,
-          ).subtract(const Duration(days: 1));
-    DateTime weekStart = firstDayOfMonth.subtract(
-      Duration(days: firstDayOfMonth.weekday - 1),
+    final List<DateTime> weekStarts = _viewModel.computeWeekStarts(
+      selectedMonth,
+      now.year,
     );
-    final List<DateTime> weekStarts = [];
-    while (weekStart.isBefore(lastDayOfMonth) ||
-        weekStart.isAtSameMomentAs(lastDayOfMonth)) {
-      weekStarts.add(weekStart);
-      weekStart = weekStart.add(const Duration(days: 7));
+    final int? currentWeekIndex = _viewModel.findWeekIndexForDate(
+      weekStarts,
+      now,
+    );
+    if (currentWeekIndex != null) {
+      selectedWeekIndex = currentWeekIndex;
     }
-    for (var i = 0; i < weekStarts.length; i++) {
-      final ws = weekStarts[i];
-      if (!now.isBefore(ws) && now.isBefore(ws.add(const Duration(days: 7)))) {
-        selectedWeekIndex = i;
-        break;
-      }
-    }
-  }
-
-  double _valorDe(Map<String, dynamic> data) {
-    final tarifa = data['tarifa'];
-    if (tarifa is Map && tarifa['total'] != null) {
-      final t = tarifa['total'];
-      return t is num ? t.toDouble() : (double.tryParse(t.toString()) ?? 0.0);
-    }
-    if (data['valor'] != null) {
-      final v = data['valor'];
-      return v is num ? v.toDouble() : (double.tryParse(v.toString()) ?? 0.0);
-    }
-    return 0.0;
   }
 
   void _showDayDetail(
@@ -85,9 +71,11 @@ class _HistorialDetalleConductorState extends State<HistorialDetalleConductor> {
     NumberFormat integerFmt,
     NumberFormat twoDecFmt,
   ) {
-    final String formatted = (earnings % 1 == 0)
-        ? integerFmt.format(earnings.toInt())
-        : twoDecFmt.format(earnings);
+    final String formatted = _viewModel.formatEarnings(
+      earnings,
+      integerFmt,
+      twoDecFmt,
+    );
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
@@ -150,174 +138,43 @@ class _HistorialDetalleConductorState extends State<HistorialDetalleConductor> {
           }
 
           final docs = snapshot.data?.docs ?? [];
-
-          // ── Agregación por día (para "hoy") ──────────────────────────────
-          final Map<String, double> earningsByDay = {};
-          final Map<String, int> countByDay = {};
-          for (var d in docs) {
-            try {
-              final data = d.data();
-              final valor = _valorDe(data);
-              final ts =
-                  (data['completedAt'] ?? data['fecha de terminacion'])
-                      as Timestamp?;
-              final key = ts != null
-                  ? ts.toDate().toLocal().toIso8601String().split('T').first
-                  : 'Sin fecha';
-              earningsByDay[key] = (earningsByDay[key] ?? 0.0) + valor;
-              countByDay[key] = (countByDay[key] ?? 0) + 1;
-            } catch (_) {}
-          }
-
-          final NumberFormat integerFmt = NumberFormat.decimalPattern('es');
-          final NumberFormat twoDecFmt = NumberFormat('#,##0.00', 'es');
-
           final now = DateTime.now();
-          final String weekdayAbbrevRaw = DateFormat('E', 'es').format(now);
-          final String weekdayAbbrev = weekdayAbbrevRaw.replaceAll('.', '');
-          final String weekdayCapital = weekdayAbbrev.isNotEmpty
-              ? weekdayAbbrev[0].toUpperCase() + weekdayAbbrev.substring(1)
-              : weekdayAbbrev;
-          final String headerDate = '$weekdayCapital ${now.day} de hoy';
-          final todayKey = now.toLocal().toIso8601String().split('T').first;
-          final int todaysRequests = countByDay[todayKey] ?? 0;
-          final double todaysEarnings = earningsByDay[todayKey] ?? 0.0;
-          final String formattedTodaysEarnings = (todaysEarnings % 1 == 0)
-              ? integerFmt.format(todaysEarnings.toInt())
-              : twoDecFmt.format(todaysEarnings);
 
-          final int year = now.year;
-          final DateTime firstDayOfMonth = DateTime(year, selectedMonth, 1);
-          final DateTime lastDayOfMonth = (selectedMonth == 12)
-              ? DateTime(year + 1, 1, 1).subtract(const Duration(days: 1))
-              : DateTime(
-                  year,
-                  selectedMonth + 1,
-                  1,
-                ).subtract(const Duration(days: 1));
-
-          DateTime weekStart = firstDayOfMonth.subtract(
-            Duration(days: firstDayOfMonth.weekday - 1),
+          final aggregation = _viewModel.computeAggregation(
+            docs: docs,
+            selectedMonth: selectedMonth,
+            selectedWeekIndex: selectedWeekIndex,
+            selectedDate: selectedDate,
+            viewMode: viewMode,
+            now: now,
           );
-          final List<DateTime> weekStarts = [];
-          while (weekStart.isBefore(lastDayOfMonth) ||
-              weekStart.isAtSameMomentAs(lastDayOfMonth)) {
-            weekStarts.add(weekStart);
-            weekStart = weekStart.add(const Duration(days: 7));
-          }
 
-          final List<int> weekCounts = List.filled(weekStarts.length, 0);
-          final List<double> weekEarnings = List.filled(weekStarts.length, 0.0);
-          int monthTotalRequests = 0;
-          double monthTotalEarnings = 0.0;
-
-          // Conteos y montos por día dentro de cada semana del mes.
-          final List<List<int>> weekDayCounts = List.generate(
-            weekStarts.length,
-            (_) => List.filled(7, 0),
-          );
-          final List<List<double>> weekDaySegments = List.generate(
-            weekStarts.length,
-            (_) => List.filled(7, 0.0),
-          );
-          // Por hora para el día seleccionado.
-          final List<double> hourlyEarnings = List.filled(24, 0.0);
-          final List<int> hourlyRequests = List.filled(24, 0);
-
-          for (var d in docs) {
-            try {
-              final data = d.data();
-              final ts =
-                  (data['completedAt'] ?? data['fecha de terminacion'])
-                      as Timestamp?;
-              if (ts == null) continue;
-              final dt = ts.toDate().toLocal();
-              final valor = _valorDe(data);
-
-              if (dt.month == selectedMonth && dt.year == year) {
-                monthTotalRequests += 1;
-                monthTotalEarnings += valor;
-                for (var i = 0; i < weekStarts.length; i++) {
-                  final ws = weekStarts[i];
-                  if (!dt.isBefore(ws) && dt.isBefore(ws.add(const Duration(days: 7)))) {
-                    weekCounts[i] += 1;
-                    weekEarnings[i] += valor;
-                    final dayIndex = dt.difference(ws).inDays.clamp(0, 6);
-                    weekDayCounts[i][dayIndex] += 1;
-                    weekDaySegments[i][dayIndex] += valor;
-                    break;
-                  }
-                }
-              }
-
-              if (dt.year == selectedDate.year &&
-                  dt.month == selectedDate.month &&
-                  dt.day == selectedDate.day) {
-                hourlyEarnings[dt.hour] += valor;
-                hourlyRequests[dt.hour] += 1;
-              }
-            } catch (_) {}
-          }
-
-          final String formattedMonthEarnings = (monthTotalEarnings % 1 == 0)
-              ? integerFmt.format(monthTotalEarnings.toInt())
-              : twoDecFmt.format(monthTotalEarnings);
-
-          List<double> selectedWeekDayEarnings = List.filled(7, 0.0);
-          List<int> selectedWeekDayCounts = List.filled(7, 0);
-          if (weekStarts.isNotEmpty &&
-              selectedWeekIndex >= 0 &&
-              selectedWeekIndex < weekStarts.length) {
-            selectedWeekDayEarnings = List.from(
-              weekDaySegments[selectedWeekIndex],
-            );
-            selectedWeekDayCounts = List.from(weekDayCounts[selectedWeekIndex]);
-          }
-
-          final int weekTotalRequests =
-              selectedWeekDayCounts.fold(0, (p, e) => p + e);
-          final double weekTotalEarnings =
-              selectedWeekDayEarnings.fold(0.0, (p, e) => p + e);
-          final String formattedWeekEarnings = (weekTotalEarnings % 1 == 0)
-              ? integerFmt.format(weekTotalEarnings.toInt())
-              : twoDecFmt.format(weekTotalEarnings);
-
-          final String selectedDateKey =
-              selectedDate.toLocal().toIso8601String().split('T').first;
-          final int selectedDateRequests = countByDay[selectedDateKey] ?? 0;
-          final double selectedDateEarnings =
-              earningsByDay[selectedDateKey] ?? 0.0;
-          final String formattedSelectedDateEarnings =
-              (selectedDateEarnings % 1 == 0)
-                  ? integerFmt.format(selectedDateEarnings.toInt())
-                  : twoDecFmt.format(selectedDateEarnings);
-
-          final String statLabel1 = viewMode == 'dia'
-              ? 'Solicitudes día'
-              : viewMode == 'semana'
-                  ? 'Solicitudes semana'
-                  : 'Solicitudes mes';
-          final int statCount1 = viewMode == 'dia'
-              ? selectedDateRequests
-              : viewMode == 'semana'
-                  ? weekTotalRequests
-                  : monthTotalRequests;
-          final String statLabel2 = viewMode == 'dia'
-              ? 'Ganado día'
-              : viewMode == 'semana'
-                  ? 'Ganado semana'
-                  : 'Ganado mes';
-          final String statEarnings = viewMode == 'dia'
-              ? formattedSelectedDateEarnings
-              : viewMode == 'semana'
-                  ? formattedWeekEarnings
-                  : formattedMonthEarnings;
+          final headerDate = aggregation.headerDate;
+          final todaysRequests = aggregation.todaysRequests;
+          final formattedTodaysEarnings = aggregation.formattedTodaysEarnings;
+          final weekStarts = aggregation.weekStarts;
+          final weekCounts = aggregation.weekCounts;
+          final integerFmt = aggregation.integerFmt;
+          final twoDecFmt = aggregation.twoDecFmt;
+          final selectedWeekDayEarnings = aggregation.selectedWeekDayEarnings;
+          final selectedWeekDayCounts = aggregation.selectedWeekDayCounts;
+          final hourlyEarnings = aggregation.hourlyEarnings;
+          final hourlyRequests = aggregation.hourlyRequests;
+          final statLabel1 = aggregation.statLabel1;
+          final statCount1 = aggregation.statCount1;
+          final statLabel2 = aggregation.statLabel2;
+          final statEarnings = aggregation.statEarnings;
 
           return Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 760),
               child: SingleChildScrollView(
-                padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(context).padding.bottom + 32),
+                padding: EdgeInsets.fromLTRB(
+                  16,
+                  16,
+                  16,
+                  MediaQuery.of(context).padding.bottom + 32,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -331,15 +188,11 @@ class _HistorialDetalleConductorState extends State<HistorialDetalleConductor> {
                       modo: viewMode,
                       onChanged: (v) {
                         if (v == 'semana' && weekStarts.isNotEmpty) {
-                          final int todayWeekIndex = weekStarts.indexWhere((
-                            ws,
-                          ) {
-                            return !now.isBefore(ws) &&
-                                now.isBefore(ws.add(const Duration(days: 7)));
-                          });
+                          final int? todayWeekIndex = _viewModel
+                              .findWeekIndexForDate(weekStarts, now);
                           setState(() {
                             viewMode = v;
-                            if (todayWeekIndex != -1) {
+                            if (todayWeekIndex != null) {
                               selectedWeekIndex = todayWeekIndex;
                             }
                           });
@@ -399,7 +252,10 @@ class _HistorialDetalleConductorState extends State<HistorialDetalleConductor> {
                               setState(() => selectedDate = picked);
                             }
                           },
-                          icon: const Icon(Icons.calendar_today_rounded, size: 16),
+                          icon: const Icon(
+                            Icons.calendar_today_rounded,
+                            size: 16,
+                          ),
                           label: Text(
                             DateFormat('d/MM/yyyy').format(selectedDate),
                           ),
@@ -571,7 +427,9 @@ class _SelectorModo extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
-                    color: sel ? AppColores.textPrimary : AppColores.textSecondary,
+                    color: sel
+                        ? AppColores.textPrimary
+                        : AppColores.textSecondary,
                   ),
                 ),
               ),
@@ -879,10 +737,34 @@ class _GraficoDia extends StatelessWidget {
   final List<int> hourlyRequests;
 
   static const _turnos = [
-    (name: 'Mañana', icon: Icons.wb_sunny_rounded, color: Color(0xFFFB8C00), start: 6, end: 12),
-    (name: 'Tarde', icon: Icons.light_mode_rounded, color: AppColores.primary, start: 12, end: 18),
-    (name: 'Noche', icon: Icons.nightlight_round, color: Color(0xFF1565C0), start: 18, end: 24),
-    (name: 'Madrugada', icon: Icons.bedtime_rounded, color: Color(0xFF6A1B9A), start: 0, end: 6),
+    (
+      name: 'Mañana',
+      icon: Icons.wb_sunny_rounded,
+      color: Color(0xFFFB8C00),
+      start: 6,
+      end: 12,
+    ),
+    (
+      name: 'Tarde',
+      icon: Icons.light_mode_rounded,
+      color: AppColores.primary,
+      start: 12,
+      end: 18,
+    ),
+    (
+      name: 'Noche',
+      icon: Icons.nightlight_round,
+      color: Color(0xFF1565C0),
+      start: 18,
+      end: 24,
+    ),
+    (
+      name: 'Madrugada',
+      icon: Icons.bedtime_rounded,
+      color: Color(0xFF6A1B9A),
+      start: 0,
+      end: 6,
+    ),
   ];
 
   @override
@@ -946,7 +828,11 @@ class _GraficoDia extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.emoji_events_rounded, color: AppColores.primary, size: 15),
+              const Icon(
+                Icons.emoji_events_rounded,
+                color: AppColores.primary,
+                size: 15,
+              ),
               const SizedBox(width: 6),
               Text(
                 'Mejor hora: ${bestHour}:00 – ${(bestHour + 1) % 24}:00',
@@ -962,17 +848,49 @@ class _GraficoDia extends StatelessWidget {
         // 2x2 turno grid
         Row(
           children: [
-            Expanded(child: _buildTurnoCard(0, turnoEarnings, turnoCounts, maxEarnings, fmtEarnings)),
+            Expanded(
+              child: _buildTurnoCard(
+                0,
+                turnoEarnings,
+                turnoCounts,
+                maxEarnings,
+                fmtEarnings,
+              ),
+            ),
             const SizedBox(width: 10),
-            Expanded(child: _buildTurnoCard(1, turnoEarnings, turnoCounts, maxEarnings, fmtEarnings)),
+            Expanded(
+              child: _buildTurnoCard(
+                1,
+                turnoEarnings,
+                turnoCounts,
+                maxEarnings,
+                fmtEarnings,
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 10),
         Row(
           children: [
-            Expanded(child: _buildTurnoCard(2, turnoEarnings, turnoCounts, maxEarnings, fmtEarnings)),
+            Expanded(
+              child: _buildTurnoCard(
+                2,
+                turnoEarnings,
+                turnoCounts,
+                maxEarnings,
+                fmtEarnings,
+              ),
+            ),
             const SizedBox(width: 10),
-            Expanded(child: _buildTurnoCard(3, turnoEarnings, turnoCounts, maxEarnings, fmtEarnings)),
+            Expanded(
+              child: _buildTurnoCard(
+                3,
+                turnoEarnings,
+                turnoCounts,
+                maxEarnings,
+                fmtEarnings,
+              ),
+            ),
           ],
         ),
       ],

@@ -4,10 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:taxi_app/core/app_colores.dart';
-import 'package:taxi_app/core/services/admin_fcm_service.dart';
 import 'package:taxi_app/core/services/soporte_notification_service.dart';
 import 'package:taxi_app/features/admin/admin_configuracion_screen.dart';
 import 'package:taxi_app/features/phone_auth/screens/admin_hub_screen.dart';
+import 'package:taxi_app/features/phone_auth/services/user_data_service.dart';
 
 class AdminHomeScreen extends StatefulWidget {
   const AdminHomeScreen({super.key, required this.adminId});
@@ -20,6 +20,33 @@ class AdminHomeScreen extends StatefulWidget {
 
 class _AdminHomeScreenState extends State<AdminHomeScreen> {
   String _query = '';
+  final UserDataService _userDataService = UserDataService();
+
+  Future<void> _aprobarMembresia({
+    required String uid,
+    required int dias,
+    required String nombre,
+    String? fcmToken,
+  }) {
+    return _userDataService.aprobarMembresiaConductor(
+      uid: uid,
+      dias: dias,
+      nombre: nombre,
+      fcmToken: fcmToken,
+    );
+  }
+
+  Future<void> _revocarMembresia(String uid) {
+    return _userDataService.revocarMembresiaConductor(uid);
+  }
+
+  Future<void> _quitarConductor(String uid) {
+    return _userDataService.quitarRolConductorComoAdmin(uid);
+  }
+
+  Future<void> _eliminarUsuario(String uid) {
+    return _userDataService.eliminarUsuario(uid);
+  }
 
   @override
   void initState() {
@@ -151,8 +178,17 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
 
                     return TabBarView(
                       children: [
-                        _ListaConductores(docs: conductores),
-                        _ListaClientes(docs: clientes),
+                        _ListaConductores(
+                          docs: conductores,
+                          onAprobar: _aprobarMembresia,
+                          onRevocar: _revocarMembresia,
+                          onQuitar: _quitarConductor,
+                          onEliminar: _eliminarUsuario,
+                        ),
+                        _ListaClientes(
+                          docs: clientes,
+                          onEliminar: _eliminarUsuario,
+                        ),
                       ],
                     );
                   },
@@ -270,9 +306,26 @@ void _verDetalles(BuildContext context, Map<String, dynamic> data) {
   );
 }
 
+typedef _AprobarMembresiaCallback = Future<void> Function({
+  required String uid,
+  required int dias,
+  required String nombre,
+  String? fcmToken,
+});
+
 class _ListaConductores extends StatelessWidget {
-  const _ListaConductores({required this.docs});
+  const _ListaConductores({
+    required this.docs,
+    required this.onAprobar,
+    required this.onRevocar,
+    required this.onQuitar,
+    required this.onEliminar,
+  });
   final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs;
+  final _AprobarMembresiaCallback onAprobar;
+  final Future<void> Function(String uid) onRevocar;
+  final Future<void> Function(String uid) onQuitar;
+  final Future<void> Function(String uid) onEliminar;
 
   @override
   Widget build(BuildContext context) {
@@ -288,12 +341,11 @@ class _ListaConductores extends StatelessWidget {
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 600),
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        child: Column(
           children: [
             if (pendientes > 0)
               Container(
-                margin: const EdgeInsets.only(bottom: 12),
+                margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: AppColores.error.withValues(alpha: 0.12),
@@ -320,7 +372,19 @@ class _ListaConductores extends StatelessWidget {
                   ],
                 ),
               ),
-            ...docs.map((d) => _ConductorCard(doc: d)),
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                itemCount: docs.length,
+                itemBuilder: (context, i) => _ConductorCard(
+                  doc: docs[i],
+                  onAprobar: onAprobar,
+                  onRevocar: onRevocar,
+                  onQuitar: onQuitar,
+                  onEliminar: onEliminar,
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -329,8 +393,9 @@ class _ListaConductores extends StatelessWidget {
 }
 
 class _ListaClientes extends StatelessWidget {
-  const _ListaClientes({required this.docs});
+  const _ListaClientes({required this.docs, required this.onEliminar});
   final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs;
+  final Future<void> Function(String uid) onEliminar;
 
   @override
   Widget build(BuildContext context) {
@@ -340,9 +405,11 @@ class _ListaClientes extends StatelessWidget {
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 600),
-        child: ListView(
+        child: ListView.builder(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-          children: docs.map((d) => _ClienteCard(doc: d)).toList(),
+          itemCount: docs.length,
+          itemBuilder: (context, i) =>
+              _ClienteCard(doc: docs[i], onEliminar: onEliminar),
         ),
       ),
     );
@@ -368,8 +435,9 @@ class _EmptyTile extends StatelessWidget {
 }
 
 class _ClienteCard extends StatelessWidget {
-  const _ClienteCard({required this.doc});
+  const _ClienteCard({required this.doc, required this.onEliminar});
   final QueryDocumentSnapshot<Map<String, dynamic>> doc;
+  final Future<void> Function(String uid) onEliminar;
 
   Future<void> _eliminar(BuildContext context, String nombre) async {
     final ok = await _confirmar(
@@ -380,7 +448,7 @@ class _ClienteCard extends StatelessWidget {
       peligro: true,
     );
     if (!ok) return;
-    await doc.reference.delete();
+    await onEliminar(doc.id);
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('$nombre eliminado.')),
@@ -423,8 +491,18 @@ class _ClienteCard extends StatelessWidget {
 }
 
 class _ConductorCard extends StatelessWidget {
-  const _ConductorCard({required this.doc});
+  const _ConductorCard({
+    required this.doc,
+    required this.onAprobar,
+    required this.onRevocar,
+    required this.onQuitar,
+    required this.onEliminar,
+  });
   final QueryDocumentSnapshot<Map<String, dynamic>> doc;
+  final _AprobarMembresiaCallback onAprobar;
+  final Future<void> Function(String uid) onRevocar;
+  final Future<void> Function(String uid) onQuitar;
+  final Future<void> Function(String uid) onEliminar;
 
   Future<int?> _pedirDias(BuildContext context) {
     final controller = TextEditingController(text: '30');
@@ -475,24 +553,13 @@ class _ConductorCard extends StatelessWidget {
   Future<void> _aprobar(BuildContext context, String nombre) async {
     final dias = await _pedirDias(context);
     if (dias == null) return;
-    final inicio = DateTime.now();
-    await doc.reference.update({
-      'membresia': 'activa',
-      'membresiaDias': dias,
-      'membresiaInicio': Timestamp.fromDate(inicio),
-      'membresiaVence': Timestamp.fromDate(inicio.add(Duration(days: dias))),
-      'servicioActivo': true,
-      'solicitudConductor': false,
-    });
-
-    // Notificar al conductor por FCM (funciona en primer, segundo plano y apagado).
-    final conductorToken = (doc.data()?['fcmToken'] as String?) ?? '';
-    AdminFcmService.instance.sendToToken(
-      token: conductorToken,
-      title: '¡Membresía activada!',
-      body: 'Hola $nombre, tu membresía de conductor ya está activa por $dias días.',
-      type: 'membresia_activada',
-    ).ignore();
+    final conductorToken = (doc.data()['fcmToken'] as String?) ?? '';
+    await onAprobar(
+      uid: doc.id,
+      dias: dias,
+      nombre: nombre,
+      fcmToken: conductorToken,
+    );
 
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -513,10 +580,7 @@ class _ConductorCard extends StatelessWidget {
       peligro: true,
     );
     if (!ok) return;
-    await doc.reference.update({
-      'membresia': '',
-      'servicioActivo': false,
-    });
+    await onRevocar(doc.id);
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Membresía de $nombre revocada.')),
@@ -533,12 +597,7 @@ class _ConductorCard extends StatelessWidget {
       peligro: true,
     );
     if (!ok) return;
-    await doc.reference.update({
-      'rol': 'cliente',
-      'solicitudConductor': false,
-      'membresia': '',
-      'servicioActivo': false,
-    });
+    await onQuitar(doc.id);
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('$nombre pasó a cliente.')),
@@ -555,7 +614,7 @@ class _ConductorCard extends StatelessWidget {
       peligro: true,
     );
     if (!ok) return;
-    await doc.reference.delete();
+    await onEliminar(doc.id);
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('$nombre eliminado.')),
@@ -739,14 +798,12 @@ class _AdminBellIconState extends State<_AdminBellIcon> {
   int _chats = 0;
   int _reportes = 0;
   int _conductores = 0;
-  int _emergencias = 0;
 
   StreamSubscription<QuerySnapshot>? _chatsSub;
   StreamSubscription<QuerySnapshot>? _reportesSub;
   StreamSubscription<QuerySnapshot>? _conductoresSub;
-  StreamSubscription<QuerySnapshot>? _emergenciasSub;
 
-  int get _total => _chats + _reportes + _conductores + _emergencias;
+  int get _total => _chats + _reportes + _conductores;
 
   @override
   void initState() {
@@ -776,12 +833,6 @@ class _AdminBellIconState extends State<_AdminBellIcon> {
       }).length;
       setState(() => _conductores = pendientes);
     });
-
-    _emergenciasSub = fs
-        .collection('emergencias')
-        .where('atendido', isEqualTo: false)
-        .snapshots()
-        .listen((snap) => setState(() => _emergencias = snap.docs.length));
   }
 
   @override
@@ -789,7 +840,6 @@ class _AdminBellIconState extends State<_AdminBellIcon> {
     _chatsSub?.cancel();
     _reportesSub?.cancel();
     _conductoresSub?.cancel();
-    _emergenciasSub?.cancel();
     super.dispose();
   }
 

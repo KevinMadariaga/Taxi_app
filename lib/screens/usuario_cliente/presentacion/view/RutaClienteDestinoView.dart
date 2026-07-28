@@ -13,12 +13,16 @@ import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/RutaCli
 import 'package:taxi_app/widgets/MapaGoogle.dart';
 
 import 'package:taxi_app/core/app_colores.dart';
-import 'package:taxi_app/utils/marker_icon_helper.dart';
+import 'package:taxi_app/core/helpers/map_helper.dart';
+import 'package:taxi_app/core/utils/marker_icon_helper.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:taxi_app/features/trip_tracking_cliente/controllers/conductor_movement_simulator.dart';
+import 'package:taxi_app/features/trip_tracking_cliente/services/trip_route_math_service.dart';
 import 'package:taxi_app/features/trip_tracking_cliente/services/trip_tracking_firestore_service.dart';
 import 'package:taxi_app/features/trip_tracking_cliente/widgets/user_trip_info_card.dart';
 import 'package:taxi_app/features/trip_tracking_cliente/widgets/panic_button_fab.dart';
 import 'package:taxi_app/routes/app_routes.dart';
+import 'package:taxi_app/core/utils/error_reporter.dart';
 
 class RutaClienteDestino extends StatelessWidget {
   final String idSolicitud;
@@ -76,22 +80,22 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
   // =====================
   Rutaclientedestinoviewmodel? _viewModel;
   GoogleMapController? _mapController;
-  Timer? _animacionMarcadorTimer;
   StreamSubscription<LatLng?>? _conductorLocationSub;
   StreamSubscription? _conductorLocationFirestoreSub;
 
   // =====================
   // Map & Route State
   // =====================
+  /// Motor compartido de animación/smoothing + snap-to-route + heading del
+  /// conductor — el mismo que usa `TripTrackingViewModel`. Antes esta vista
+  /// tenía su propia copia casi idéntica de este algoritmo (timer 50ms,
+  /// backlog, snap-to-route, bearing) directamente en el State; ver
+  /// `features/trip_tracking_cliente/controllers/conductor_movement_simulator.dart`.
+  final ConductorMovementSimulator _movementEngine =
+      ConductorMovementSimulator();
+  final TripRouteMathService _mathService = const TripRouteMathService();
+
   LatLng? _conductorLatLng;
-  List<LatLng> _fullRoutePoints = const [];
-  final List<LatLng> _pendingConductorTargets = <LatLng>[];
-  List<LatLng> _activePathPoints = const [];
-  int _activePathIndex = 0;
-  int _routeProgressIndex = 0;
-  double _movementSpeedMps = 8.0;
-  LatLng? _lastRawConductor;
-  DateTime? _lastRawConductorAt;
   Set<Polyline> _polylines = {};
   BitmapDescriptor? _destinoMarkerIcon;
   double _conductorRotation = 0;
@@ -117,6 +121,10 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
       context,
       listen: false,
     );
+    _movementEngine.onTick = _onMovementTick;
+    _movementEngine.remainingRoutePointsNotifier.addListener(
+      _onRemainingRouteChanged,
+    );
     debugPrint(
       '[RutaClienteDestinoView] Escuchando ubicación del conductor para solicitud: ${widget.idSolicitud}',
     );
@@ -126,7 +134,9 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
       await SessionHelper.setActiveSolicitud(widget.idSolicitud);
       try {
         await SessionHelper.setActiveSolicitudScreen('ruta_cliente_destino');
-      } catch (_) {}
+      } catch (e, st) {
+        ErrorReporter.report(e, st, reason: 'RutaClienteDestinoView');
+      }
       _viewModel!.inicializarNotificaciones();
       if (!mounted) return;
       await _viewModel!.cargarDatosConductorYUbicacionDestino(
@@ -171,6 +181,59 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
     });
   }
 
+  /// Se dispara cada 50ms mientras el motor está animando al conductor.
+  /// Antes vivía inline dentro de `_tickMovement`, junto con el recálculo de
+  /// la ruta restante y la etiqueta de distancia en cada tick — eso viajaba
+  /// a `_onRemainingRouteChanged` (throttleado a 200ms dentro del motor), acá
+  /// solo queda posición/rotación/cámara.
+  void _onMovementTick() {
+    if (!mounted) return;
+    setState(() {
+      _conductorLatLng = _movementEngine.currentPosition;
+      _conductorRotation = _movementEngine.headingNotifier.value;
+
+      _cameraFollowTick++;
+      if (_cameraFollowTick >= 8 &&
+          !_mostrarSoloDestino &&
+          _mapController != null &&
+          _conductorLatLng != null) {
+        _cameraFollowTick = 0;
+        unawaited(
+          _mapController!.animateCamera(
+            CameraUpdate.newCameraPosition(
+              CameraPosition(
+                target: _conductorLatLng!,
+                bearing: _conductorRotation,
+                zoom: 16.5,
+                tilt: 0,
+              ),
+            ),
+          ),
+        );
+      }
+    });
+  }
+
+  /// Ruta restante recalculada por el motor (throttleada a 200ms internamente).
+  void _onRemainingRouteChanged() {
+    if (!mounted) return;
+    final visibleRoute = _movementEngine.remainingRoutePointsNotifier.value;
+    setState(() {
+      _polylines = {
+        Polyline(
+          polylineId: const PolylineId('ruta'),
+          color: AppColores.route,
+          width: 7,
+          jointType: JointType.round,
+          startCap: Cap.roundCap,
+          endCap: Cap.roundCap,
+          points: visibleRoute,
+        ),
+      };
+      _distancia = _distanceToLabel(_polylineDistance(visibleRoute));
+    });
+  }
+
   Future<void> _loadTipoVehiculo() async {
     try {
       final doc = await FirebaseFirestore.instance
@@ -179,16 +242,14 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
           .get();
       final tipo = (doc.data()?['tipoVehiculo'] ?? '').toString().toLowerCase();
       if (mounted) setState(() => _isMoto = tipo == 'moto');
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'RutaClienteDestinoView');
+    }
   }
 
   Future<void> _cargarMarcadoresPersonalizados() async {
-    final dpr = WidgetsBinding
-        .instance
-        .platformDispatcher
-        .views
-        .first
-        .devicePixelRatio;
+    final dpr =
+        WidgetsBinding.instance.platformDispatcher.views.first.devicePixelRatio;
     final destinoIcon = await MarkerIconHelper.fromAsset(
       'assets/img/map_pin_red.png',
       size: const Size(48, 48),
@@ -225,64 +286,19 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
 
       if (puntos.isEmpty) {
         // Mantener la ultima ruta valida evita saltos visuales cuando la API
-        // devuelve vacio temporalmente.
-        if (_fullRoutePoints.isNotEmpty && _conductorLatLng != null) {
-          final visibleRoute = _buildRemainingRoutePoints(_conductorLatLng!);
-          setState(() {
-            _polylines = {
-              Polyline(
-                polylineId: const PolylineId('ruta'),
-                color: AppColores.route,
-                width: 7,
-                jointType: JointType.round,
-                startCap: Cap.roundCap,
-                endCap: Cap.roundCap,
-                points: visibleRoute,
-              ),
-            };
-            _distancia = _distanceToLabel(_polylineDistance(visibleRoute));
-          });
-        }
+        // devuelve vacio temporalmente: no tocar `_polylines`/`_distancia`.
         return;
       }
 
-      final newDense = _densifyPolyline(puntos);
-      final isFirstLoad = _fullRoutePoints.isEmpty;
-      if (isFirstLoad) {
-        _fullRoutePoints = newDense;
-        _routeProgressIndex = _conductorLatLng != null
-            ? _nearestIndexRaw(_conductorLatLng!, _fullRoutePoints)
-            : 0;
-      } else {
-        // Preservar progreso al refrescar ruta — no resetear a 0
-        final savedMarker = _conductorLatLng;
-        _fullRoutePoints = newDense;
-        if (savedMarker != null) {
-          _routeProgressIndex = _nearestIndexRaw(savedMarker, newDense);
-        }
+      // `setFullRoute` + `publishRemainingRoute(force: true)` resuelve solo
+      // el progreso correcto sobre la ruta nueva (nearest-point completo,
+      // sin ventana) — no hace falta preservar `_routeProgressIndex` a mano
+      // como antes.
+      _movementEngine.setFullRoute(_mathService.densifyPolyline(puntos));
+      final currentMarker = _movementEngine.currentPosition ?? conductorLatLng;
+      if (currentMarker != null) {
+        _movementEngine.publishRemainingRoute(currentMarker, force: true);
       }
-
-      final currentMarker = _conductorLatLng ?? conductorLatLng;
-      final visibleRoute = currentMarker != null
-          ? _buildRemainingRoutePoints(currentMarker)
-          : _fullRoutePoints;
-
-      final distanciaStr = _distanceToLabel(_polylineDistance(visibleRoute));
-
-      setState(() {
-        _polylines = {
-          Polyline(
-            polylineId: const PolylineId('ruta'),
-            color: AppColores.route,
-            width: 7,
-            jointType: JointType.round,
-            startCap: Cap.roundCap,
-            endCap: Cap.roundCap,
-            points: visibleRoute,
-          ),
-        };
-        _distancia = distanciaStr;
-      });
 
       final segundos = await vm.calcularTiempoEstimado();
       if (segundos != null) {
@@ -290,8 +306,11 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
         vm.setTiempoEstimado('$minutos min');
       }
 
-      // Ajustar cámara solo en la primera carga (no en cada refresco)
-      if (isFirstLoad && !_hasInitialCameraApplied) {
+      // Ajustar cámara solo en la primera carga (no en cada refresco). Como
+      // `_actualizarRuta` solo se llama una vez desde `initState`, la guarda
+      // de `_hasInitialCameraApplied` ya basta (antes se combinaba con
+      // `isFirstLoad`, derivado de `_fullRoutePoints`, que dejó de existir).
+      if (!_hasInitialCameraApplied) {
         _hasInitialCameraApplied = true;
         await _fitConductorDestinoCamera(
           _conductorLatLng ?? conductorLatLng,
@@ -303,439 +322,29 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
     }
   }
 
-
-  double _normalizeAngle(double angle) {
-    final normalized = angle % 360;
-    return normalized < 0 ? normalized + 360 : normalized;
-  }
-
-  double _bearingBetween(LatLng from, LatLng to) {
-    final dy = to.latitude - from.latitude;
-    final dx = to.longitude - from.longitude;
-    return _normalizeAngle(Math.atan2(dx, dy) * 180 / Math.pi);
-  }
-
-  double _lerpAngle(double from, double to, double t) {
-    final diff = ((to - from + 540) % 360) - 180;
-    return _normalizeAngle(from + diff * t);
-  }
-
+  /// Encola cada ubicación cruda del conductor en el motor compartido
+  /// (interpolación + snap-to-route + heading) y dispara re-cálculo de ruta
+  /// si se desvía >50m (cooldown 15s) — la parte de "cuándo re-rutear" es
+  /// propia de esta pantalla (la del cliente en `TripTrackingViewModel` usa
+  /// 40m/8s), el resto queda delegado en `_movementEngine`.
   void _enqueueConductorTarget(LatLng target) {
+    final desvio = _movementEngine.distanceToRoute(target);
     final now = DateTime.now();
-    if (_lastRawConductor != null && _lastRawConductorAt != null) {
-      final elapsedMs = now.difference(_lastRawConductorAt!).inMilliseconds;
-      if (elapsedMs > 0) {
-        final moved = _calculateDistance(
-          _lastRawConductor!.latitude,
-          _lastRawConductor!.longitude,
-          target.latitude,
-          target.longitude,
-        );
-        final speed = moved / (elapsedMs / 1000.0);
-        _movementSpeedMps = speed.clamp(3.0, 18.0);
-      }
-    }
-    _lastRawConductor = target;
-    _lastRawConductorAt = now;
-
-    if (_conductorLatLng == null) {
-      final initialRotation = _computeConductorHeading(
-        target,
-        _conductorRotation,
-      );
-      setState(() {
-        _conductorLatLng = target;
-        _conductorRotation = initialRotation;
-      });
-      return;
+    final cooldownOk =
+        _lastRouteCalcAt == null ||
+        now.difference(_lastRouteCalcAt!).inSeconds >= 15;
+    if (desvio != null && desvio > 50 && cooldownOk) {
+      _lastRouteCalcAt = now;
+      unawaited(_refreshRouteOnly());
     }
 
-    final snappedTarget = _snapTargetToRouteForward(target);
-
-    // Evita agregar duplicados casi iguales que solo meten ruido al movimiento.
-    if (_pendingConductorTargets.isNotEmpty) {
-      final lastQueued = _pendingConductorTargets.last;
-      final delta = _calculateDistance(
-        lastQueued.latitude,
-        lastQueued.longitude,
-        snappedTarget.latitude,
-        snappedTarget.longitude,
-      );
-      if (delta < 1.2) {
-        return;
-      }
-    }
-
-    if (_pendingConductorTargets.isEmpty && _conductorLatLng != null) {
-      final deltaFromCurrent = _calculateDistance(
-        _conductorLatLng!.latitude,
-        _conductorLatLng!.longitude,
-        snappedTarget.latitude,
-        snappedTarget.longitude,
-      );
-      if (deltaFromCurrent < 1.2) {
-        return;
-      }
-    }
-
-    // Encola cada ubicacion escuchada para reproducir el recorrido completo.
-    _pendingConductorTargets.add(snappedTarget);
-
-    // Refresca ruta si el conductor se desvía (con cooldown de 15s)
-    if (_fullRoutePoints.isNotEmpty) {
-      final desvio = _distanceToNearestRoutePoint(snappedTarget);
-      final now = DateTime.now();
-      final cooldownOk = _lastRouteCalcAt == null ||
-          now.difference(_lastRouteCalcAt!).inSeconds >= 15;
-      if (desvio > 50 && cooldownOk) {
-        _lastRouteCalcAt = now;
-        unawaited(_refreshRouteOnly());
-      }
-    }
-
-    _ensureMovementTimer();
-  }
-
-  void _ensureMovementTimer() {
-    if (_animacionMarcadorTimer != null) return;
-    _animacionMarcadorTimer = Timer.periodic(
-      const Duration(milliseconds: 50),
-      (_) => _tickMovement(),
-    );
-  }
-
-  void _tickMovement() {
-    final currentMarker = _conductorLatLng;
-    if (currentMarker == null) {
-      _stopMovement();
-      return;
-    }
-
-    if (_activePathPoints.isEmpty) {
-      if (_pendingConductorTargets.isEmpty) {
-        _stopMovement();
-        return;
-      }
-      _prepareActivePath(currentMarker, _pendingConductorTargets.first);
-    }
-
-    final effectiveSpeed = _effectiveSpeedForBacklog(currentMarker);
-    final stepMeters = effectiveSpeed * 0.05;
-    var remaining = stepMeters;
-    var current = currentMarker;
-
-    while (remaining > 0 && _activePathIndex < _activePathPoints.length) {
-      final next = _activePathPoints[_activePathIndex];
-      final segmentDistance = _calculateDistance(
-        current.latitude,
-        current.longitude,
-        next.latitude,
-        next.longitude,
-      );
-
-      if (segmentDistance <= 0.1) {
-        current = next;
-        _activePathIndex += 1;
-        continue;
-      }
-
-      if (remaining >= segmentDistance) {
-        current = next;
-        remaining -= segmentDistance;
-        _activePathIndex += 1;
-      } else {
-        final t = remaining / segmentDistance;
-        current = LatLng(
-          current.latitude + (next.latitude - current.latitude) * t,
-          current.longitude + (next.longitude - current.longitude) * t,
-        );
-        remaining = 0;
-      }
-    }
-
-    final visibleRoute = _buildRemainingRoutePoints(current);
-    final distance = _polylineDistance(visibleRoute);
-    LatLng? headingTarget;
-    if (_activePathIndex < _activePathPoints.length) {
-      final lookAheadIndex = (_activePathIndex + 2) < _activePathPoints.length
-          ? (_activePathIndex + 2)
-          : (_activePathPoints.length - 1);
-      headingTarget = _activePathPoints[lookAheadIndex];
-    } else if (visibleRoute.length >= 2) {
-      headingTarget = visibleRoute[1];
-    }
-
-    var nextRotation = _conductorRotation;
-    if (headingTarget != null) {
-      final heading = _bearingBetween(current, headingTarget);
-      nextRotation = _lerpAngle(_conductorRotation, heading, 0.55);
-    } else {
-      nextRotation = _computeConductorHeading(current, _conductorRotation);
-    }
-
+    _movementEngine.enqueueTarget(target);
+    _movementEngine.refreshHeading();
+    if (!mounted) return;
     setState(() {
-      _conductorLatLng = current;
-      _polylines = {
-        Polyline(
-          polylineId: const PolylineId('ruta'),
-          color: AppColores.route,
-          width: 7,
-          jointType: JointType.round,
-          startCap: Cap.roundCap,
-          endCap: Cap.roundCap,
-          points: visibleRoute,
-        ),
-      };
-      _distancia = _distanceToLabel(distance);
-      _conductorRotation = nextRotation;
+      _conductorLatLng = _movementEngine.currentPosition;
+      _conductorRotation = _movementEngine.headingNotifier.value;
     });
-
-    // Camera follow: cada 8 ticks (~400ms) recentra el mapa en el conductor,
-    // orientado en su dirección de avance por la calle — antes eran 40 ticks
-    // (2s), tan espaciado que el marcador se notaba "caminar" lejos del
-    // centro entre cada corrección en vez de verse siempre centrado.
-    _cameraFollowTick++;
-    if (_cameraFollowTick >= 8 && !_mostrarSoloDestino && _mapController != null) {
-      _cameraFollowTick = 0;
-      unawaited(
-        _mapController!.animateCamera(
-          CameraUpdate.newCameraPosition(
-            CameraPosition(
-              target: current,
-              bearing: nextRotation,
-              zoom: 16.5,
-              tilt: 0,
-            ),
-          ),
-        ),
-      );
-    }
-
-    if (_activePathIndex >= _activePathPoints.length) {
-      if (_pendingConductorTargets.isNotEmpty) {
-        _pendingConductorTargets.removeAt(0);
-      }
-      _activePathPoints = const [];
-      _activePathIndex = 0;
-    }
-  }
-
-  double _effectiveSpeedForBacklog(LatLng currentMarker) {
-    var speed = _movementSpeedMps;
-    final backlog = _pendingConductorTargets.length;
-
-    // Si ya hay 2+ updates pendientes, acelera para no quedar atras.
-    if (backlog >= 2) {
-      speed *= (1.0 + (backlog - 1) * 0.35).clamp(1.0, 2.8);
-    }
-
-    if (backlog > 0) {
-      final next = _pendingConductorTargets.first;
-      final lagDistance = _calculateDistance(
-        currentMarker.latitude,
-        currentMarker.longitude,
-        next.latitude,
-        next.longitude,
-      );
-
-      if (lagDistance > 70) {
-        speed *= 1.5;
-      } else if (lagDistance > 40) {
-        speed *= 1.3;
-      } else if (lagDistance > 20) {
-        speed *= 1.15;
-      }
-    }
-
-    return speed.clamp(3.0, 28.0);
-  }
-
-  void _prepareActivePath(LatLng from, LatLng to) {
-    final source = _fullRoutePoints;
-    if (source.length < 2) {
-      _activePathPoints = <LatLng>[to];
-      _activePathIndex = 0;
-      return;
-    }
-
-    final startIdx = _nearestForwardIndex(from, source);
-    var endIdx = _nearestForwardIndex(to, source);
-    if (endIdx < startIdx) {
-      endIdx = startIdx;
-    }
-
-    if (startIdx <= endIdx) {
-      final segment = source.sublist(startIdx, endIdx + 1);
-      _activePathPoints = <LatLng>[...segment, to];
-    } else {
-      final segment = source.sublist(endIdx, startIdx + 1).reversed;
-      _activePathPoints = <LatLng>[...segment, to];
-    }
-    _activePathIndex = 0;
-  }
-
-  void _stopMovement() {
-    _animacionMarcadorTimer?.cancel();
-    _animacionMarcadorTimer = null;
-  }
-
-  double _computeConductorHeading(LatLng current, double currentRotation) {
-    final source = _fullRoutePoints;
-    if (source.length < 2) return currentRotation;
-
-    final nearest = _nearestForwardIndex(current, source);
-    final lookAhead = nearest + 4;
-
-    LatLng? target;
-    if (lookAhead < source.length) {
-      target = source[lookAhead];
-    } else if (nearest < source.length - 1) {
-      target = source[nearest + 1];
-    } else if (nearest > 0) {
-      target = source[nearest];
-    }
-
-    if (target == null) return currentRotation;
-    final heading = _bearingBetween(current, target);
-    return _lerpAngle(currentRotation, heading, 0.5);
-  }
-
-  LatLng _snapTargetToRouteForward(LatLng target) {
-    final source = _fullRoutePoints;
-    if (source.length < 2 || _conductorLatLng == null) {
-      return target;
-    }
-
-    final start = _routeProgressIndex;
-    final end = Math.min(source.length - 1, start + 240);
-    var nearest = start;
-    var best = double.infinity;
-
-    for (var i = start; i <= end; i++) {
-      final p = source[i];
-      final dist = _calculateDistance(
-        target.latitude,
-        target.longitude,
-        p.latitude,
-        p.longitude,
-      );
-      if (dist < best) {
-        best = dist;
-        nearest = i;
-      }
-    }
-
-    // Si el GPS cae muy lejos de la ruta, dejamos el punto original para
-    // permitir recuperación de ruta sin bloquear el marcador.
-    if (best > 80) {
-      return target;
-    }
-
-    if (nearest > _routeProgressIndex) {
-      _routeProgressIndex = nearest;
-    }
-    return source[_routeProgressIndex];
-  }
-
-  List<LatLng> _buildRemainingRoutePoints(LatLng current) {
-    final source = _fullRoutePoints;
-    if (source.length < 2) {
-      return source;
-    }
-
-    final nearest = _nearestForwardIndex(current, source);
-    if (nearest >= source.length - 1) {
-      return <LatLng>[current, source.last];
-    }
-
-    final tail = source.sublist(nearest + 1);
-    return <LatLng>[current, ...tail];
-  }
-
-  int _nearestForwardIndex(LatLng current, List<LatLng> source) {
-    if (source.isEmpty) return 0;
-
-    var nearest = _routeProgressIndex.clamp(0, source.length - 1);
-    var best = double.infinity;
-    final start = _routeProgressIndex.clamp(0, source.length - 1);
-    final end = Math.min(source.length - 1, start + 260);
-    for (var i = start; i <= end; i++) {
-      final p = source[i];
-      final dist = _calculateDistance(
-        current.latitude,
-        current.longitude,
-        p.latitude,
-        p.longitude,
-      );
-      if (dist < best) {
-        best = dist;
-        nearest = i;
-      }
-    }
-
-    if (nearest > _routeProgressIndex) {
-      _routeProgressIndex = nearest;
-    }
-    if (_routeProgressIndex >= source.length) {
-      _routeProgressIndex = source.length - 1;
-    }
-    return _routeProgressIndex;
-  }
-
-  int _nearestIndexRaw(LatLng current, List<LatLng> source) {
-    if (source.isEmpty) return 0;
-
-    var nearest = 0;
-    var best = double.infinity;
-    for (var i = 0; i < source.length; i++) {
-      final p = source[i];
-      final dist = _calculateDistance(
-        current.latitude,
-        current.longitude,
-        p.latitude,
-        p.longitude,
-      );
-      if (dist < best) {
-        best = dist;
-        nearest = i;
-      }
-    }
-    return nearest;
-  }
-
-  List<LatLng> _densifyPolyline(List<LatLng> points) {
-    if (points.length < 2) return points;
-    const stepMeters = 4.0;
-    final dense = <LatLng>[points.first];
-
-    for (var i = 0; i < points.length - 1; i++) {
-      final a = points[i];
-      final b = points[i + 1];
-      final segment = _calculateDistance(
-        a.latitude,
-        a.longitude,
-        b.latitude,
-        b.longitude,
-      );
-      if (segment <= stepMeters) {
-        dense.add(b);
-        continue;
-      }
-
-      final steps = (segment / stepMeters).floor();
-      for (var s = 1; s <= steps; s++) {
-        final t = s / (steps + 1);
-        dense.add(
-          LatLng(
-            a.latitude + (b.latitude - a.latitude) * t,
-            a.longitude + (b.longitude - a.longitude) * t,
-          ),
-        );
-      }
-      dense.add(b);
-    }
-
-    return dense;
   }
 
   /// Recalcula la ruta sin resetear el progreso ni mover la cámara.
@@ -749,32 +358,10 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
       );
       final puntos = await vm.obtenerPolylineConductorDestino();
       if (puntos.isEmpty || !mounted) return;
-      final newDense = _densifyPolyline(puntos);
-      final savedMarker = _conductorLatLng;
-      _fullRoutePoints = newDense;
-      if (savedMarker != null) {
-        _routeProgressIndex = _nearestIndexRaw(savedMarker, newDense);
-      } else {
-        _routeProgressIndex = 0;
-      }
+      _movementEngine.setFullRoute(_mathService.densifyPolyline(puntos));
     } finally {
       _isUpdatingRoute = false;
     }
-  }
-
-  double _distanceToNearestRoutePoint(LatLng p) {
-    if (_fullRoutePoints.isEmpty) return 0;
-    var min = double.infinity;
-    for (final pt in _fullRoutePoints) {
-      final d = _calculateDistance(
-        p.latitude,
-        p.longitude,
-        pt.latitude,
-        pt.longitude,
-      );
-      if (d < min) min = d;
-    }
-    return min.isFinite ? min : 0;
   }
 
   double _polylineDistance(List<LatLng> points) {
@@ -793,12 +380,8 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
     return total;
   }
 
-  String _distanceToLabel(double meters) {
-    if (meters >= 1000) {
-      return '${(meters / 1000).toStringAsFixed(2)} km';
-    }
-    return '${meters.toStringAsFixed(0)} m';
-  }
+  String _distanceToLabel(double meters) =>
+      MapHelper.formatDistanceMeters(meters);
 
   Future<void> _fitConductorDestinoCamera(
     LatLng? conductor,
@@ -825,7 +408,9 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
 
     try {
       await controller.animateCamera(CameraUpdate.newLatLngBounds(bounds, 80));
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'RutaClienteDestinoView');
+    }
   }
 
   // Detecta si el dispositivo tiene barra de navegación inferior (Android/iOS)
@@ -833,30 +418,20 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
     return MediaQuery.of(context).padding.bottom > 0;
   }
 
-  // Calcula la distancia entre dos coordenadas en metros (Haversine)
   double _calculateDistance(
     double lat1,
     double lon1,
     double lat2,
     double lon2,
-  ) {
-    const R = 6371000; // Radio de la Tierra en metros
-    final dLat = (lat2 - lat1) * Math.pi / 180;
-    final dLon = (lon2 - lon1) * Math.pi / 180;
-    final a =
-        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(lat1 * Math.pi / 180) *
-            Math.cos(lat2 * Math.pi / 180) *
-            Math.sin(dLon / 2) *
-            Math.sin(dLon / 2);
-    final c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-  }
+  ) => MapHelper.distanceMeters(LatLng(lat1, lon1), LatLng(lat2, lon2));
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _animacionMarcadorTimer?.cancel();
+    _movementEngine.remainingRoutePointsNotifier.removeListener(
+      _onRemainingRouteChanged,
+    );
+    _movementEngine.dispose();
     _conductorLocationSub?.cancel();
     _conductorLocationFirestoreSub?.cancel();
     _mapController?.dispose();
@@ -917,80 +492,7 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24.r)),
         ),
-        builder: (context) {
-          return SafeArea(
-            child: Container(
-              padding: EdgeInsets.all(24.w),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    width: 40.w,
-                    height: 4.h,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
-                      borderRadius: BorderRadius.circular(2.r),
-                    ),
-                  ),
-                  SizedBox(height: 24.h),
-                  Text(
-                    'Compartir ubicación',
-                    style: TextStyle(fontSize: 22.sp, fontWeight: FontWeight.bold),
-                  ),
-                  SizedBox(height: 32.h),
-                  ElevatedButton.icon(
-                    icon: const Icon(Icons.map, color: Colors.white),
-                    label: const Text(
-                      'Google Maps',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColores.primary,
-                      minimumSize: const Size(double.infinity, 50),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12.r),
-                      ),
-                    ),
-                    onPressed: () async {
-                      await launchUrl(Uri.parse(url));
-                    },
-                  ),
-                  SizedBox(height: 16.h),
-                  ElevatedButton.icon(
-                    icon: const Icon(Icons.chat, color: Colors.white),
-                    label: const Text(
-                      'WhatsApp',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      minimumSize: const Size(double.infinity, 50),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12.r),
-                      ),
-                    ),
-                    onPressed: () async {
-                      final whatsappUrl =
-                          'https://wa.me/?text=Ubicación%20del%20conductor:%20$url';
-                      if (await canLaunchUrl(Uri.parse(whatsappUrl))) {
-                        await launchUrl(Uri.parse(whatsappUrl));
-                      } else {
-                        if (!context.mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('No se pudo abrir WhatsApp'),
-                            duration: Duration(seconds: 3),
-                          ),
-                        );
-                      }
-                    },
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
+        builder: (context) => _CompartirUbicacionSheet(url: url),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1007,103 +509,25 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24.r)),
       ),
-      builder: (ctx) {
-        return SafeArea(
-          child: Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: 24.0.w,
-              vertical: 16.0.h,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 40.w,
-                  height: 4.h,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(2.r),
-                  ),
-                ),
-                SizedBox(height: 16.h),
-                Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 20,
-                      backgroundColor: AppColores.primary,
-                      backgroundImage: vm.fotoConductor.isNotEmpty
-                          ? NetworkImage(vm.fotoConductor)
-                          : null,
-                      child: vm.fotoConductor.isEmpty
-                          ? const Icon(
-                              Icons.person,
-                              size: 24,
-                              color: Colors.white,
-                            )
-                          : null,
-                    ),
-                    SizedBox(width: 12.w),
-                    Expanded(
-                      child: Text(
-                        vm.nombreConductor.isNotEmpty
-                            ? vm.nombreConductor
-                            : 'Conductor',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16.sp,
-                          color: AppColores.textPrimary,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 24.h),
-                Divider(height: 1.h, color: Colors.black12),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(
-                    '¿Cuál es el estado de mi solicitud?',
-                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15.sp),
-                  ),
-                  trailing: const Icon(
-                    Icons.chevron_right,
-                    color: Colors.black54,
-                  ),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    Navigator.of(context).pushNamed(
-                      AppRoutes.ayudaEstadoSolicitud,
-                      arguments: {'solicitudId': widget.idSolicitud},
-                    );
-                  },
-                ),
-                Divider(height: 1.h, color: Colors.black12),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(
-                    'Problemas con el conductor',
-                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15.sp),
-                  ),
-                  trailing: const Icon(
-                    Icons.chevron_right,
-                    color: Colors.black54,
-                  ),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    Navigator.of(context).pushNamed(
-                      AppRoutes.ayudaProblemasConductor,
-                      arguments: {
-                        'solicitudId': widget.idSolicitud,
-                        'nombreConductor': vm.nombreConductor,
-                      },
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+      builder: (ctx) => _AyudaConductorSheet(
+        fotoConductor: vm.fotoConductor,
+        nombreConductor: vm.nombreConductor,
+        onEstadoSolicitud: () {
+          Navigator.of(context).pushNamed(
+            AppRoutes.ayudaEstadoSolicitud,
+            arguments: {'solicitudId': widget.idSolicitud},
+          );
+        },
+        onProblemasConductor: () {
+          Navigator.of(context).pushNamed(
+            AppRoutes.ayudaProblemasConductor,
+            arguments: {
+              'solicitudId': widget.idSolicitud,
+              'nombreConductor': vm.nombreConductor,
+            },
+          );
+        },
+      ),
     );
   }
 
@@ -1123,122 +547,17 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24.r)),
       ),
-      builder: (ctx) {
-        return SafeArea(
-          top: false,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxHeight: MediaQuery.of(ctx).size.height * 0.82,
-            ),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 44.w,
-                      height: 4.h,
-                      decoration: BoxDecoration(
-                        color: AppColores.grey300,
-                        borderRadius: BorderRadius.circular(2.r),
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: 18.h),
-                  Text(
-                    'Detalles del servicio',
-                    style: TextStyle(
-                      fontSize: 20.sp,
-                      fontWeight: FontWeight.w800,
-                      color: AppColores.textPrimary,
-                    ),
-                  ),
-                  SizedBox(height: 16.h),
-                  // Conductor + vehículo asignado.
-                  Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 32,
-                        backgroundColor: AppColores.primary,
-                        backgroundImage: vm.fotoConductor.isNotEmpty
-                            ? NetworkImage(vm.fotoConductor)
-                            : null,
-                        child: vm.fotoConductor.isEmpty
-                            ? const Icon(
-                                Icons.person,
-                                size: 32,
-                                color: Colors.white,
-                              )
-                            : null,
-                      ),
-                      SizedBox(width: 14.w),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Conductor',
-                              style: TextStyle(
-                                color: AppColores.textSecondary,
-                                fontSize: 12.5.sp,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            SizedBox(height: 2.h),
-                            Text(
-                              nombre,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontWeight: FontWeight.w800,
-                                fontSize: 17.sp,
-                                color: AppColores.textPrimary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      SizedBox(width: 10.w),
-                      _DetalleVehiculoChip(
-                        foto: vm.fotoVehiculo,
-                        placa: vm.placaVehiculo,
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 18.h),
-                  Divider(height: 1.h, color: AppColores.borderSubtle),
-                  SizedBox(height: 14.h),
-                  _DetalleRow(
-                    icon: Icons.location_on,
-                    color: AppColores.error,
-                    label: 'Ubicación destino',
-                    value: destino,
-                  ),
-                  SizedBox(height: 12.h),
-                  _DetalleRow(
-                    icon: Icons.attach_money_rounded,
-                    color: AppColores.success,
-                    label: 'Valor del servicio',
-                    value: valor,
-                  ),
-                  SizedBox(height: 12.h),
-                  _DetalleRow(
-                    icon: pagoIcon,
-                    color: AppColores.secondary,
-                    label: 'Método de pago',
-                    value: pago,
-                    iconImage: vm.metodoPago.toLowerCase().contains('nequi')
-                        ? 'assets/img/nequi.png'
-                        : null,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
+      builder: (ctx) => _DetalleServicioSheet(
+        nombreConductor: nombre,
+        fotoConductor: vm.fotoConductor,
+        fotoVehiculo: vm.fotoVehiculo,
+        placaVehiculo: vm.placaVehiculo,
+        destino: destino,
+        valor: valor,
+        pago: pago,
+        pagoIcon: pagoIcon,
+        esNequi: vm.metodoPago.toLowerCase().contains('nequi'),
+      ),
     );
   }
 
@@ -1268,7 +587,7 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
     };
 
     final mq = MediaQuery.of(context);
-    final safeBottom = mq.padding.bottom > 0 ? mq.padding.bottom: 20.0.h;
+    final safeBottom = mq.padding.bottom > 0 ? mq.padding.bottom : 20.0.h;
 
     return Stack(
       children: [
@@ -1346,7 +665,13 @@ class _RutaClienteDestinoContentState extends State<_RutaClienteDestinoContent>
                         ),
                       ),
                     );
-                  } catch (_) {}
+                  } catch (e, st) {
+                    ErrorReporter.report(
+                      e,
+                      st,
+                      reason: 'RutaClienteDestinoView',
+                    );
+                  }
                 },
               ),
               SizedBox(height: 10.h),
@@ -1431,6 +756,327 @@ class _MapWidget extends StatelessWidget {
           },
         ),
       ],
+    );
+  }
+}
+
+/// Contenido del bottom sheet de "Compartir ubicación" del conductor.
+/// Extraído como widget propio para no cargar un builder inline grande en
+/// `_shareLocation`.
+class _CompartirUbicacionSheet extends StatelessWidget {
+  final String url;
+
+  const _CompartirUbicacionSheet({required this.url});
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Container(
+        padding: EdgeInsets.all(24.w),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 40.w,
+              height: 4.h,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2.r),
+              ),
+            ),
+            SizedBox(height: 24.h),
+            Text(
+              'Compartir ubicación',
+              style: TextStyle(fontSize: 22.sp, fontWeight: FontWeight.bold),
+            ),
+            SizedBox(height: 32.h),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.map, color: Colors.white),
+              label: const Text(
+                'Google Maps',
+                style: TextStyle(color: Colors.white),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColores.primary,
+                minimumSize: const Size(double.infinity, 50),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12.r),
+                ),
+              ),
+              onPressed: () async {
+                await launchUrl(Uri.parse(url));
+              },
+            ),
+            SizedBox(height: 16.h),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.chat, color: Colors.white),
+              label: const Text(
+                'WhatsApp',
+                style: TextStyle(color: Colors.white),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                minimumSize: const Size(double.infinity, 50),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12.r),
+                ),
+              ),
+              onPressed: () async {
+                final whatsappUrl =
+                    'https://wa.me/?text=Ubicación%20del%20conductor:%20$url';
+                if (await canLaunchUrl(Uri.parse(whatsappUrl))) {
+                  await launchUrl(Uri.parse(whatsappUrl));
+                } else {
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('No se pudo abrir WhatsApp'),
+                      duration: Duration(seconds: 3),
+                    ),
+                  );
+                }
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Contenido del bottom sheet de ayuda del conductor. Extraído como widget
+/// propio para no cargar un builder inline grande en `_onHelpPressed`.
+class _AyudaConductorSheet extends StatelessWidget {
+  final String fotoConductor;
+  final String nombreConductor;
+  final VoidCallback onEstadoSolicitud;
+  final VoidCallback onProblemasConductor;
+
+  const _AyudaConductorSheet({
+    required this.fotoConductor,
+    required this.nombreConductor,
+    required this.onEstadoSolicitud,
+    required this.onProblemasConductor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: 24.0.w, vertical: 16.0.h),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40.w,
+              height: 4.h,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2.r),
+              ),
+            ),
+            SizedBox(height: 16.h),
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor: AppColores.primary,
+                  backgroundImage: fotoConductor.isNotEmpty
+                      ? NetworkImage(fotoConductor)
+                      : null,
+                  child: fotoConductor.isEmpty
+                      ? const Icon(Icons.person, size: 24, color: Colors.white)
+                      : null,
+                ),
+                SizedBox(width: 12.w),
+                Expanded(
+                  child: Text(
+                    nombreConductor.isNotEmpty ? nombreConductor : 'Conductor',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16.sp,
+                      color: AppColores.textPrimary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 24.h),
+            Divider(height: 1.h, color: Colors.black12),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(
+                '¿Cuál es el estado de mi solicitud?',
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15.sp),
+              ),
+              trailing: const Icon(
+                Icons.chevron_right,
+                color: Colors.black54,
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                onEstadoSolicitud();
+              },
+            ),
+            Divider(height: 1.h, color: Colors.black12),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(
+                'Problemas con el conductor',
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15.sp),
+              ),
+              trailing: const Icon(
+                Icons.chevron_right,
+                color: Colors.black54,
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                onProblemasConductor();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Contenido del bottom sheet de "Detalles del servicio". Extraído como
+/// widget propio para no cargar un builder inline grande en `_onDetails`.
+class _DetalleServicioSheet extends StatelessWidget {
+  final String nombreConductor;
+  final String fotoConductor;
+  final String fotoVehiculo;
+  final String placaVehiculo;
+  final String destino;
+  final String valor;
+  final String pago;
+  final IconData pagoIcon;
+  final bool esNequi;
+
+  const _DetalleServicioSheet({
+    required this.nombreConductor,
+    required this.fotoConductor,
+    required this.fotoVehiculo,
+    required this.placaVehiculo,
+    required this.destino,
+    required this.valor,
+    required this.pago,
+    required this.pagoIcon,
+    required this.esNequi,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.82,
+        ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 44.w,
+                  height: 4.h,
+                  decoration: BoxDecoration(
+                    color: AppColores.grey300,
+                    borderRadius: BorderRadius.circular(2.r),
+                  ),
+                ),
+              ),
+              SizedBox(height: 18.h),
+              Text(
+                'Detalles del servicio',
+                style: TextStyle(
+                  fontSize: 20.sp,
+                  fontWeight: FontWeight.w800,
+                  color: AppColores.textPrimary,
+                ),
+              ),
+              SizedBox(height: 16.h),
+              // Conductor + vehículo asignado.
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 32,
+                    backgroundColor: AppColores.primary,
+                    backgroundImage: fotoConductor.isNotEmpty
+                        ? NetworkImage(fotoConductor)
+                        : null,
+                    child: fotoConductor.isEmpty
+                        ? const Icon(
+                            Icons.person,
+                            size: 32,
+                            color: Colors.white,
+                          )
+                        : null,
+                  ),
+                  SizedBox(width: 14.w),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Conductor',
+                          style: TextStyle(
+                            color: AppColores.textSecondary,
+                            fontSize: 12.5.sp,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        SizedBox(height: 2.h),
+                        Text(
+                          nombreConductor,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 17.sp,
+                            color: AppColores.textPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(width: 10.w),
+                  _DetalleVehiculoChip(foto: fotoVehiculo, placa: placaVehiculo),
+                ],
+              ),
+              SizedBox(height: 18.h),
+              Divider(height: 1.h, color: AppColores.borderSubtle),
+              SizedBox(height: 14.h),
+              _DetalleRow(
+                icon: Icons.location_on,
+                color: AppColores.error,
+                label: 'Ubicación destino',
+                value: destino,
+              ),
+              SizedBox(height: 12.h),
+              _DetalleRow(
+                icon: Icons.attach_money_rounded,
+                color: AppColores.success,
+                label: 'Valor del servicio',
+                value: valor,
+              ),
+              SizedBox(height: 12.h),
+              _DetalleRow(
+                icon: pagoIcon,
+                color: AppColores.secondary,
+                label: 'Método de pago',
+                value: pago,
+                iconImage: esNequi ? 'assets/img/nequi.png' : null,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

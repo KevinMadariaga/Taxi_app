@@ -11,6 +11,7 @@ import 'package:taxi_app/core/helpers/map_helper.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/location_model.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/vehicle_type.dart';
 import 'package:taxi_app/core/services/map_service_adapter.dart';
+import 'package:taxi_app/core/utils/error_reporter.dart';
 
 /// ViewModel unificado para:
 /// - Selección/previsualización de destino (pantalla de mapa con pin centrado).
@@ -104,8 +105,35 @@ class MapapreviewViewModel extends ChangeNotifier {
 
   final MapService _mapService = const MapService();
 
-  String _coordsText(LatLng point) {
+  /// Umbral de tiempo en background a partir del cual, al reanudar la app,
+  /// se considera que la ubicación/ruta pudo quedar desactualizada y debe
+  /// forzarse una recarga.
+  static const Duration resumeReloadThreshold = Duration(seconds: 12);
+
+  /// Indica si, dado el instante en que la app fue pausada y el instante
+  /// actual, corresponde recargar el mapa/ruta al reanudar (regla de
+  /// negocio pura, sin dependencia de `BuildContext`).
+  bool shouldReloadOnResume(DateTime pausedAt, DateTime now) {
+    return now.difference(pausedAt) >= resumeReloadThreshold;
+  }
+
+  /// Texto de coordenadas legible como fallback cuando no hay dirección
+  /// resuelta por reverse geocoding.
+  String coordsText(LatLng point) {
     return '${point.latitude.toStringAsFixed(6)}, ${point.longitude.toStringAsFixed(6)}';
+  }
+
+  /// Construye una dirección legible (calle, sector, localidad,
+  /// departamento) a partir de un [Placemark] de reverse geocoding.
+  /// Devuelve cadena vacía si no hay segmentos disponibles; el llamador
+  /// decide el fallback (p.ej. [coordsText]).
+  String buildAddressFromPlacemark(Placemark p) {
+    return [
+      p.street,
+      p.subLocality,
+      p.locality,
+      p.administrativeArea,
+    ].where((s) => s != null && s.isNotEmpty).join(', ');
   }
 
   String _normalizeLabel(String value) {
@@ -162,9 +190,11 @@ class MapapreviewViewModel extends ChangeNotifier {
         final resolved = _buildFriendlyFromPlacemark(placemarks.first);
         if (resolved.trim().isNotEmpty) return resolved.trim();
       }
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'mapapreview_viewmodel');
+    }
 
-    return _coordsText(position);
+    return coordsText(position);
   }
 
   String _resolveDestinoAddressForSolicitud() {
@@ -174,7 +204,7 @@ class MapapreviewViewModel extends ChangeNotifier {
     final title = formatAddress(destino.title);
     if (title.isNotEmpty) return title;
 
-    return _coordsText(destino.position);
+    return coordsText(destino.position);
   }
 
   String? _firstNonEmptyValue(Map<String, dynamic>? source, List<String> keys) {
@@ -320,17 +350,8 @@ class MapapreviewViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  double calculateBearing(LatLng from, LatLng to) {
-    final lat1 = from.latitude * math.pi / 180;
-    final lat2 = to.latitude * math.pi / 180;
-    final dLon = (to.longitude - from.longitude) * math.pi / 180;
-    final y = math.sin(dLon) * math.cos(lat2);
-    final x =
-        math.cos(lat1) * math.sin(lat2) -
-        math.sin(lat1) * math.cos(lat2) * math.cos(dLon);
-    final brng = math.atan2(y, x);
-    return (brng * 180 / math.pi + 360) % 360;
-  }
+  double calculateBearing(LatLng from, LatLng to) =>
+      MapHelper.bearingDegrees(from, to);
 
   /// Cámara con perspectiva 3D desde el origen (ubicación actual del
   /// cliente) hacia el destino: ancla en el origen y rota el mapa para que
@@ -386,7 +407,9 @@ class MapapreviewViewModel extends ChangeNotifier {
         notifyListeners();
         return;
       }
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'mapapreview_viewmodel');
+    }
 
     _buildRouteWithMathFallback();
   }
@@ -475,7 +498,9 @@ class MapapreviewViewModel extends ChangeNotifier {
         if (doc.exists) {
           clienteDocData = doc.data();
         }
-      } catch (_) {}
+      } catch (e, st) {
+        ErrorReporter.report(e, st, reason: 'mapapreview_viewmodel');
+      }
 
       String? clienteNombre = user?.displayName;
 
@@ -540,21 +565,26 @@ class MapapreviewViewModel extends ChangeNotifier {
         final existing = await FirebaseFirestore.instance
             .collection('solicitudes')
             .where('cliente.id', isEqualTo: clienteId)
-            .where('estado', whereIn: [
-              SolicitudEstado.buscando,
-              'pending',
-              'pendiente',
-              'asignado',
-              'en espera',
-              'en camino',
-              'en ruta',
-            ])
+            .where(
+              'estado',
+              whereIn: [
+                SolicitudEstado.buscando,
+                'pending',
+                'pendiente',
+                SolicitudEstado.asignado,
+                SolicitudEstado.enEspera,
+                SolicitudEstado.enCamino,
+                SolicitudEstado.enRuta,
+              ],
+            )
             .limit(1)
             .get();
         if (existing.docs.isNotEmpty) {
           return existing.docs.first.id;
         }
-      } catch (_) {}
+      } catch (e, st) {
+        ErrorReporter.report(e, st, reason: 'mapapreview_viewmodel');
+      }
 
       final solicitud = <String, dynamic>{
         'cliente': {

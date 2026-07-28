@@ -4,7 +4,7 @@ import 'package:taxi_app/widgets/boton.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:flutter/services.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioConductorView.dart';
-import 'package:taxi_app/widgets/perfil.dart';
+import 'package:taxi_app/screens/perfil/perfil.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodels/registro_conductor_viewmodel.dart';
 import 'dart:io';
 import 'package:taxi_app/widgets/sucess_overlay.dart';

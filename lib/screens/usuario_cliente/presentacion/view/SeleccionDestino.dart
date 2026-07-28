@@ -4,18 +4,20 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:geocoding/geocoding.dart';
+import 'package:taxi_app/core/services/favoritos_service.dart';
 import 'package:taxi_app/core/services/places_search_service.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/model/MapaClienteModel.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/model/ubicacion_resultado.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/location_model.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/DetailsSolicitud.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/MapaPreviewView.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/SeleccionaUbicacionEnMapaView.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/destino_seleccion_viewmodel.dart';
 import 'home_cliente_view.dart';
+import 'package:taxi_app/core/utils/error_reporter.dart';
 
 class DestinoSeleccionView extends StatefulWidget {
   final LatLng? currentLocation;
@@ -31,43 +33,18 @@ class DestinoSeleccionView extends StatefulWidget {
   State<DestinoSeleccionView> createState() => _DestinoSeleccionViewState();
 }
 
-// Centro y radio de Ocaña (Norte de Santander) usados para filtrar
-// resultados: mismo círculo que restringe la búsqueda en el servidor (ver
-// functions/index.js → OCANA_CENTER/OCANA_RADIUS_METERS), aplicado acá
-// también a los favoritos guardados en Firestore para que nunca se cuele
-// una ubicación de otra ciudad y confunda al usuario.
-const LatLng _kOcanaCenter = LatLng(8.2488503, -73.3471543);
-const double _kOcanaRadioMetros = 9000;
-
 class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
   bool _isPreparingNavigation = false;
   String _navigationMessage = 'Preparando vista...';
   final Map<String, String> _direccionPrecargadaCache = <String, String>{};
   final PlacesSearchService _placesService = const PlacesSearchService();
+  final DestinoSeleccionViewModel _destinoLogic =
+      const DestinoSeleccionViewModel();
 
   LatLng? _origenSeleccionado;
 
   LatLng get _origenActual =>
       _origenSeleccionado ?? widget.currentLocation ?? const LatLng(0, 0);
-
-  String _keyFromLatLng(LatLng point) {
-    return '${point.latitude.toStringAsFixed(5)},${point.longitude.toStringAsFixed(5)}';
-  }
-
-  String _coordsText(LatLng point) {
-    return '${point.latitude.toStringAsFixed(6)}, ${point.longitude.toStringAsFixed(6)}';
-  }
-
-  String _buildDireccionAmigable(Placemark p, LatLng fallback) {
-    final direccion = [
-      p.street,
-      p.subLocality,
-      p.locality,
-      p.administrativeArea,
-    ].where((s) => (s ?? '').trim().isNotEmpty).join(', ');
-    if (direccion.trim().isEmpty) return _coordsText(fallback);
-    return direccion;
-  }
 
   Future<String> _resolverDireccionOrigenActual() async {
     final origen = _origenActual;
@@ -77,14 +54,16 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
         origen.longitude,
       );
       if (placemarks.isNotEmpty) {
-        return _buildDireccionAmigable(placemarks.first, origen);
+        return _destinoLogic.buildDireccionAmigable(placemarks.first, origen);
       }
-    } catch (_) {}
-    return _coordsText(origen);
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'SeleccionDestino');
+    }
+    return _destinoLogic.coordsText(origen);
   }
 
   Future<String> _resolverDireccionParaPunto(LatLng point) async {
-    final key = _keyFromLatLng(point);
+    final key = _destinoLogic.keyFromLatLng(point);
     final cached = _direccionPrecargadaCache[key];
     if (cached != null && cached.trim().isNotEmpty) {
       return cached;
@@ -96,13 +75,18 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
         point.longitude,
       );
       if (placemarks.isNotEmpty) {
-        final resolved = _buildDireccionAmigable(placemarks.first, point);
+        final resolved = _destinoLogic.buildDireccionAmigable(
+          placemarks.first,
+          point,
+        );
         _direccionPrecargadaCache[key] = resolved;
         return resolved;
       }
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'SeleccionDestino');
+    }
 
-    final fallback = _coordsText(point);
+    final fallback = _destinoLogic.coordsText(point);
     _direccionPrecargadaCache[key] = fallback;
     return fallback;
   }
@@ -302,70 +286,71 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
     if (tipo == 'Favorito') {
-      final snapshot = await FirebaseFirestore.instance
-          .collection('usuarios')
-          .doc(user.uid)
-          .collection('favoritos')
-          .where('tipo', isEqualTo: 'Favorito')
-          .get();
+      final snapshot = await FavoritosService.instance.getFavoritosPorTipo(
+        user.uid,
+        'Favorito',
+      );
       final favoritos = snapshot.docs;
       showModalBottomSheet(
         context: context,
+        isScrollControlled: true,
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         builder: (ctx) {
-          return Padding(
-            padding: const EdgeInsets.only(
-              top: 24,
-              left: 16,
-              right: 16,
-              bottom: 16,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Favoritos guardados',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
+          return SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.only(
+                top: 24,
+                left: 16,
+                right: 16,
+                bottom: 16,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Favoritos guardados',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                ...favoritos.map((doc) {
-                  final data = doc.data();
-                  final geopoint = data['ubicacion'] as GeoPoint?;
-                  final nombre = (data['nombre'] ?? 'Favorito') as String;
-                  if (geopoint == null) return const SizedBox();
-                  return ListTile(
-                    leading: const Icon(Icons.star, color: Colors.amber),
-                    title: Text(nombre),
-                    subtitle: Text(data['direccion'] ?? ''),
+                  const SizedBox(height: 12),
+                  ...favoritos.map((doc) {
+                    final data = doc.data();
+                    final geopoint = data['ubicacion'] as GeoPoint?;
+                    final nombre = (data['nombre'] ?? 'Favorito') as String;
+                    if (geopoint == null) return const SizedBox();
+                    return ListTile(
+                      leading: const Icon(Icons.star, color: Colors.amber),
+                      title: Text(nombre),
+                      subtitle: Text(data['direccion'] ?? ''),
+                      onTap: () async {
+                        Navigator.of(ctx).pop();
+                        await _abrirFlujoMapaYPreviewDesdeLista(
+                          ubicacionInicialMapa: LatLng(
+                            geopoint.latitude,
+                            geopoint.longitude,
+                          ),
+                          tituloDestino: nombre,
+                          direccionDestino: data['direccion']?.toString(),
+                        );
+                      },
+                    );
+                  }),
+                  const Divider(),
+                  ListTile(
+                    leading: const Icon(Icons.add, color: Colors.black54),
+                    title: const Text('Agregar nuevo favorito'),
                     onTap: () async {
                       Navigator.of(ctx).pop();
-                      await _abrirFlujoMapaYPreviewDesdeLista(
-                        ubicacionInicialMapa: LatLng(
-                          geopoint.latitude,
-                          geopoint.longitude,
-                        ),
-                        tituloDestino: nombre,
-                        direccionDestino: data['direccion']?.toString(),
-                      );
+                      await _agregarNuevoFavoritoDesdeMapa();
                     },
-                  );
-                }).toList(),
-                const Divider(),
-                ListTile(
-                  leading: const Icon(Icons.add, color: Colors.black54),
-                  title: const Text('Agregar nuevo favorito'),
-                  onTap: () async {
-                    Navigator.of(ctx).pop();
-                    await _agregarNuevoFavoritoDesdeMapa();
-                  },
-                ),
-              ],
+                  ),
+                ],
+              ),
             ),
           );
         },
@@ -373,13 +358,11 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
       return;
     }
     if (tipo == 'Casa' || tipo == 'Trabajo') {
-      final snapshot = await FirebaseFirestore.instance
-          .collection('usuarios')
-          .doc(user.uid)
-          .collection('favoritos')
-          .where('tipo', isEqualTo: tipo)
-          .limit(1)
-          .get();
+      final snapshot = await FavoritosService.instance.getFavoritosPorTipo(
+        user.uid,
+        tipo,
+        limit: 1,
+      );
       if (snapshot.docs.isNotEmpty) {
         final data = snapshot.docs.first.data();
         final geopoint = data['ubicacion'] as GeoPoint?;
@@ -437,27 +420,20 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
           p.administrativeArea,
         ].where((s) => (s ?? '').isNotEmpty).join(', ');
       }
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'SeleccionDestino');
+    }
     if (direccion.isEmpty) {
       direccion =
           '${loc.latitude.toStringAsFixed(6)}, ${loc.longitude.toStringAsFixed(6)}';
     }
-    final payload = {
-      'userId': user.uid,
-      'nombre': nombrePersonalizado ?? tipo,
-      'direccion': direccion,
-      'ubicacion': GeoPoint(loc.latitude, loc.longitude),
-      'createdAt': FieldValue.serverTimestamp(),
-      'tipo': tipo,
-    };
-
-    await FirebaseFirestore.instance
-        .collection('usuarios')
-        .doc(user.uid)
-        .collection('favoritos')
-        .add(payload);
-
-    await FirebaseFirestore.instance.collection('ubicaciones').add(payload);
+    await FavoritosService.instance.guardarFavorito(
+      uid: user.uid,
+      nombre: nombrePersonalizado ?? tipo,
+      direccion: direccion,
+      ubicacion: loc,
+      tipo: tipo,
+    );
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -683,13 +659,11 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    final snapshot = await FirebaseFirestore.instance
-        .collection('usuarios')
-        .doc(user.uid)
-        .collection('favoritos')
-        .where('tipo', isEqualTo: tipo)
-        .limit(1)
-        .get();
+    final snapshot = await FavoritosService.instance.getFavoritosPorTipo(
+      user.uid,
+      tipo,
+      limit: 1,
+    );
 
     if (snapshot.docs.isNotEmpty) {
       final data = snapshot.docs.first.data();
@@ -799,8 +773,6 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
   @override
   void initState() {
     super.initState();
-    _destinoFocus.addListener(() => setState(() {}));
-    _origenFocus.addListener(() => setState(() {}));
 
     final origenInicial = widget.origenDireccionInicial?.trim() ?? '';
     if (origenInicial.isNotEmpty) {
@@ -855,127 +827,6 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
     super.dispose();
   }
 
-  Future<LatLng?> _extraerLatLngDesdeTexto(String text) async {
-    final reg = RegExp(r'(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)');
-    final matches = reg.allMatches(text).toList();
-    if (matches.isNotEmpty) {
-      final selected = matches.length >= 2 ? matches[1] : matches[0];
-      final lat = double.tryParse(selected.group(1) ?? '');
-      final lng = double.tryParse(selected.group(2) ?? '');
-      if (lat != null && lng != null) {
-        return LatLng(lat, lng);
-      }
-    }
-
-    final urlMatch = RegExp(r'(https?://[^\s]+)').firstMatch(text);
-    final rawUrl = (urlMatch?.group(1) ?? text).trim();
-    if (rawUrl.isNotEmpty && rawUrl.contains('google.com/maps')) {
-      final atReg = RegExp(r'@(-?\d+\.\d+),(-?\d+\.\d+)(?:,|z)');
-      final atMatches = atReg.allMatches(rawUrl).toList();
-      if (atMatches.isNotEmpty) {
-        if (rawUrl.contains('/place/')) {
-          final m = atMatches[0];
-          final lat = double.tryParse(m.group(1) ?? '');
-          final lng = double.tryParse(m.group(2) ?? '');
-          if (lat != null && lng != null) {
-            return LatLng(lat, lng);
-          }
-        } else if (rawUrl.contains('/dir/')) {
-          final m = atMatches.length > 1 ? atMatches[1] : atMatches[0];
-          final lat = double.tryParse(m.group(1) ?? '');
-          final lng = double.tryParse(m.group(2) ?? '');
-          if (lat != null && lng != null) {
-            return LatLng(lat, lng);
-          }
-        } else {
-          final m = atMatches[0];
-          final lat = double.tryParse(m.group(1) ?? '');
-          final lng = double.tryParse(m.group(2) ?? '');
-          if (lat != null && lng != null) {
-            return LatLng(lat, lng);
-          }
-        }
-      }
-    }
-
-    try {
-      final urlMatch2 = RegExp(r'(https?://[^\s]+)').firstMatch(text);
-      final rawUrl2 = (urlMatch2?.group(1) ?? text).trim();
-      if (rawUrl2.isEmpty) return null;
-
-      Uri uri;
-      try {
-        uri = Uri.parse(rawUrl2);
-      } catch (_) {
-        return null;
-      }
-      if (!uri.hasScheme) {
-        uri = Uri.parse('https://$rawUrl2');
-      }
-
-      final client = http.Client();
-      try {
-        bool isShortGoogleMaps = uri.host.contains('maps.app.goo.gl');
-        String target = '';
-        if (isShortGoogleMaps) {
-          final req = http.Request('GET', uri)
-            ..followRedirects = false
-            ..maxRedirects = 1
-            ..headers['User-Agent'] =
-                'Mozilla/5.0 (Flutter TaxiApp; +https://example.com)';
-
-          final resp = await client
-              .send(req)
-              .timeout(const Duration(seconds: 6));
-          target = resp.headers['location'] ?? '';
-          if (target.isEmpty) {
-            target = await resp.stream.bytesToString();
-          }
-        } else {
-          target = uri.toString();
-        }
-        if (target.isEmpty) return null;
-
-        final targetMatches = reg.allMatches(target).toList();
-        if (targetMatches.isNotEmpty) {
-          final selected = targetMatches.length >= 2
-              ? targetMatches[1]
-              : targetMatches[0];
-          final lat = double.tryParse(selected.group(1) ?? '');
-          final lng = double.tryParse(selected.group(2) ?? '');
-          if (lat != null && lng != null) {
-            return LatLng(lat, lng);
-          }
-        }
-
-        if (isShortGoogleMaps && target.isNotEmpty) {
-          try {
-            final resp2 = await client
-                .get(Uri.parse(target))
-                .timeout(const Duration(seconds: 6));
-            final html = resp2.body;
-            final htmlMatches = reg.allMatches(html).toList();
-            if (htmlMatches.isNotEmpty) {
-              final selected = htmlMatches.length >= 2
-                  ? htmlMatches[1]
-                  : htmlMatches[0];
-              final lat = double.tryParse(selected.group(1) ?? '');
-              final lng = double.tryParse(selected.group(2) ?? '');
-              if (lat != null && lng != null) {
-                return LatLng(lat, lng);
-              }
-            }
-          } catch (_) {}
-        }
-        return null;
-      } finally {
-        client.close();
-      }
-    } catch (_) {
-      return null;
-    }
-  }
-
   Future<void> _usarUbicacionDesdeTextoCompartido() async {
     try {
       final data = await Clipboard.getData(Clipboard.kTextPlain);
@@ -1008,10 +859,14 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
           final redirected = resp.headers['location'] ?? '';
           if (redirected.isNotEmpty) linkParaExtraer = redirected;
           client.close();
-        } catch (_) {}
+        } catch (e, st) {
+          ErrorReporter.report(e, st, reason: 'SeleccionDestino');
+        }
       }
 
-      final destinoLatLng = await _extraerLatLngDesdeTexto(linkParaExtraer);
+      final destinoLatLng = await _destinoLogic.extraerLatLngDesdeTexto(
+        linkParaExtraer,
+      );
       if (destinoLatLng == null) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1151,29 +1006,22 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
             p.administrativeArea,
           ].where((s) => (s ?? '').isNotEmpty).join(', ');
         }
-      } catch (_) {}
+      } catch (e, st) {
+        ErrorReporter.report(e, st, reason: 'SeleccionDestino');
+      }
 
       if (direccion.isEmpty) {
         direccion =
             '${loc.latitude.toStringAsFixed(6)}, ${loc.longitude.toStringAsFixed(6)}';
       }
 
-      final payload = {
-        'userId': user.uid,
-        'nombre': etiqueta,
-        'direccion': direccion,
-        'ubicacion': GeoPoint(loc.latitude, loc.longitude),
-        'createdAt': FieldValue.serverTimestamp(),
-        'tipo': 'Favorito',
-      };
-
-      await FirebaseFirestore.instance
-          .collection('usuarios')
-          .doc(user.uid)
-          .collection('favoritos')
-          .add(payload);
-
-      await FirebaseFirestore.instance.collection('ubicaciones').add(payload);
+      await FavoritosService.instance.guardarFavorito(
+        uid: user.uid,
+        nombre: etiqueta,
+        direccion: direccion,
+        ubicacion: loc,
+        tipo: 'Favorito',
+      );
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1262,35 +1110,10 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
       _placesService.buscar(query),
     ]);
 
-    final guardadas = (resultados[0] as List<UbicacionResultado>)
-        .where((r) => r.location == null || _dentroDeOcana(r.location!))
-        .toList();
-
-    final dePlaces = (resultados[1] as List)
-        .cast<PlacePrediction>()
-        .map(
-          (p) => UbicacionResultado(
-            location: null,
-            nombre: p.mainText,
-            direccion: p.secondaryText.isNotEmpty
-                ? p.secondaryText
-                : p.mainText,
-            placeId: p.placeId,
-          ),
-        )
-        .toList();
-
-    return [...guardadas, ...dePlaces];
-  }
-
-  bool _dentroDeOcana(LatLng punto) {
-    final distancia = Geolocator.distanceBetween(
-      _kOcanaCenter.latitude,
-      _kOcanaCenter.longitude,
-      punto.latitude,
-      punto.longitude,
+    return _destinoLogic.combinarSugerencias(
+      guardadas: resultados[0] as List<UbicacionResultado>,
+      dePlaces: (resultados[1] as List).cast<PlacePrediction>(),
     );
-    return distancia <= _kOcanaRadioMetros;
   }
 
   Future<void> _abrirPreviewDesdeSugerencia(
@@ -1340,12 +1163,10 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    final snapshot = await FirebaseFirestore.instance
-        .collection('usuarios')
-        .doc(user.uid)
-        .collection('favoritos')
-        .where('tipo', isEqualTo: 'Favorito')
-        .get();
+    final snapshot = await FavoritosService.instance.getFavoritosPorTipo(
+      user.uid,
+      'Favorito',
+    );
     final favoritos = snapshot.docs;
 
     final double topPadding =
@@ -1441,8 +1262,7 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
                             children: [
                               ...favoritos.map((doc) {
                                 final data = doc.data();
-                                final geopoint =
-                                    data['ubicacion'] as GeoPoint?;
+                                final geopoint = data['ubicacion'] as GeoPoint?;
                                 final nombre =
                                     (data['nombre'] ?? 'Favorito') as String;
                                 if (geopoint == null) return const SizedBox();
@@ -1461,8 +1281,8 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
                                         geopoint.longitude,
                                       ),
                                       tituloDestino: nombre,
-                                      direccionDestino:
-                                          data['direccion']?.toString(),
+                                      direccionDestino: data['direccion']
+                                          ?.toString(),
                                     );
                                   },
                                 );
@@ -1520,8 +1340,7 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
     if (resultado == null) return;
     setState(() {
       _origenSeleccionado = resultado.position;
-      _origenController.text =
-          (resultado.direccion?.trim().isNotEmpty == true)
+      _origenController.text = (resultado.direccion?.trim().isNotEmpty == true)
           ? resultado.direccion!
           : '${resultado.position.latitude.toStringAsFixed(6)}, ${resultado.position.longitude.toStringAsFixed(6)}';
     });
@@ -1654,38 +1473,43 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: TextField(
-                    controller: _destinoController,
-                    focusNode: _destinoFocus,
-                    autofocus: false,
-                    style: TextStyle(
-                      fontSize: textFieldFontSize,
-                      color: AppColores.textPrimary,
-                    ),
-                    decoration: InputDecoration(
-                      hintText: 'Selecciona un destino',
-                      hintStyle: TextStyle(
-                        fontSize: textFieldFontSize * 0.9,
-                        color: AppColores.textSecondary,
+                  child: AnimatedBuilder(
+                    animation: _destinoFocus,
+                    builder: (context, _) => TextField(
+                      controller: _destinoController,
+                      focusNode: _destinoFocus,
+                      autofocus: false,
+                      style: TextStyle(
+                        fontSize: textFieldFontSize,
+                        color: AppColores.textPrimary,
                       ),
-                      border: InputBorder.none,
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 8),
-                      suffixIcon: _destinoFocus.hasFocus
-                          ? IconButton(
-                              icon: const Icon(
-                                Icons.close_rounded,
-                                size: 18,
-                                color: AppColores.textSecondary,
-                              ),
-                              onPressed: () {
-                                _destinoController.clear();
-                                setState(() => _sugerencias = []);
-                              },
-                            )
-                          : null,
+                      decoration: InputDecoration(
+                        hintText: 'Selecciona un destino',
+                        hintStyle: TextStyle(
+                          fontSize: textFieldFontSize * 0.9,
+                          color: AppColores.textSecondary,
+                        ),
+                        border: InputBorder.none,
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(
+                          vertical: 8,
+                        ),
+                        suffixIcon: _destinoFocus.hasFocus
+                            ? IconButton(
+                                icon: const Icon(
+                                  Icons.close_rounded,
+                                  size: 18,
+                                  color: AppColores.textSecondary,
+                                ),
+                                onPressed: () {
+                                  _destinoController.clear();
+                                  setState(() => _sugerencias = []);
+                                },
+                              )
+                            : null,
+                      ),
+                      onChanged: _onDestinoChanged,
                     ),
-                    onChanged: _onDestinoChanged,
                   ),
                 ),
               ],
@@ -1836,11 +1660,8 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
     return ListView.separated(
       padding: EdgeInsets.zero,
       itemCount: _sugerencias.length,
-      separatorBuilder: (_, _) => const Divider(
-        height: 1,
-        indent: 64,
-        color: AppColores.borderSubtle,
-      ),
+      separatorBuilder: (_, _) =>
+          const Divider(height: 1, indent: 64, color: AppColores.borderSubtle),
       itemBuilder: (_, i) => _buildSugerenciaTile(_sugerencias[i]),
     );
   }
@@ -1983,41 +1804,16 @@ class _DestinoSeleccionViewState extends State<DestinoSeleccionView> {
   }
 }
 
-
 Future<List<UbicacionResultado>> _buscarUbicacionesHelper(String query) async {
   final user = FirebaseAuth.instance.currentUser;
   if (user == null) {
     return [];
   }
 
-  final snapshot = await FirebaseFirestore.instance
-      .collection('ubicaciones')
-      .get();
-  final normalizado = query.toLowerCase();
-  return snapshot.docs
-      .where((doc) {
-        final data = doc.data();
-        final nombre = (data['nombre'] ?? '') as String;
-        final direccion = (data['direccion'] ?? '') as String;
-        final ownerId = data['userId'] as String?;
-
-        if (ownerId != null && ownerId.isNotEmpty && ownerId != user.uid) {
-          return false;
-        }
-
-        final textoBusqueda = '$nombre $direccion'.toLowerCase();
-        return textoBusqueda.contains(normalizado);
-      })
-      .map((doc) {
-        final data = doc.data();
-        final geopoint = data['ubicacion'] as GeoPoint;
-        final nombre = (data['nombre'] ?? '') as String;
-        final direccion = (data['direccion'] ?? '') as String;
-        return UbicacionResultado(
-          location: LatLng(geopoint.latitude, geopoint.longitude),
-          nombre: nombre,
-          direccion: direccion.isNotEmpty ? direccion : nombre,
-        );
-      })
-      .toList();
+  final snapshot = await FavoritosService.instance.getTodasUbicaciones();
+  return const DestinoSeleccionViewModel().filtrarYMapearUbicacionesGuardadas(
+    docs: snapshot.docs,
+    query: query,
+    currentUid: user.uid,
+  );
 }

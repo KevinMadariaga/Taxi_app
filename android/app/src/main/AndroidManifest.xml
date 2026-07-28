@@ -13,16 +13,23 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <!-- Android 14+ requiere permiso explicito para FGS de ubicacion -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <!-- Permite pedir exencion de la optimizacion de bateria (conductores):
+         sin esto, fabricantes agresivos con el ahorro de bateria (MIUI/Xiaomi,
+         EMUI/Huawei, ColorOS/Oppo, etc.) pueden congelar el tracking en
+         background aunque el foreground service este corriendo. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <!-- Google Mobile Ads SDK -->
     <uses-permission android:name="com.google.android.gms.permission.AD_ID" />
     <application
         android:label="Ride"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
-        <!-- Google Maps API key configured directly in manifest. -->
+        <!-- Inyectada por Gradle via manifestPlaceholders (build.gradle.kts),
+             leida de local.properties/gradle.properties/env MAPS_API_KEY -
+             no hardcodear el valor aqui. -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="AIzaSyCZT4vsvNa5yn6QcAhM0kEEYlnRGY3QbX8" />
+            android:value="${MAPS_API_KEY}" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

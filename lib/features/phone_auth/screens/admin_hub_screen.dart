@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/services/reportes_service.dart';
 import 'package:taxi_app/core/services/soporte_chat_service.dart';
+import 'package:taxi_app/core/services/sugerencias_service.dart';
 
 import 'soporte_chat_detalle_admin_screen.dart';
 
@@ -21,32 +23,25 @@ class _AdminHubScreenState extends State<AdminHubScreen> {
   int _mensajes = 0;
   int _sugerencias = 0;
 
-  StreamSubscription<QuerySnapshot>? _reportesSub;
-  StreamSubscription<QuerySnapshot>? _mensajesSub;
-  StreamSubscription<QuerySnapshot>? _sugerenciasSub;
+  StreamSubscription<int>? _reportesSub;
+  StreamSubscription<int>? _mensajesSub;
+  StreamSubscription<int>? _sugerenciasSub;
 
   @override
   void initState() {
     super.initState();
-    final fs = FirebaseFirestore.instance;
 
-    _reportesSub = fs
-        .collection('reportes')
-        .where('visto', isEqualTo: false)
-        .snapshots()
-        .listen((snap) => setState(() => _reportes = snap.docs.length));
+    _reportesSub = ReportesService.instance.watchNoVistosCount().listen(
+      (n) => setState(() => _reportes = n),
+    );
 
-    _mensajesSub = fs
-        .collection('soporte_chats')
-        .where('hayMensajesNuevosAdmin', isEqualTo: true)
-        .snapshots()
-        .listen((snap) => setState(() => _mensajes = snap.docs.length));
+    _mensajesSub = SoporteChatService()
+        .watchChatsConMensajesNuevosCount()
+        .listen((n) => setState(() => _mensajes = n));
 
-    _sugerenciasSub = fs
-        .collection('sugerencias')
-        .where('visto', isEqualTo: false)
-        .snapshots()
-        .listen((snap) => setState(() => _sugerencias = snap.docs.length));
+    _sugerenciasSub = SugerenciasService.instance.watchNoVistasCount().listen(
+      (n) => setState(() => _sugerencias = n),
+    );
   }
 
   @override
@@ -140,10 +135,7 @@ class _TabReportes extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance
-          .collection('reportes')
-          .orderBy('createdAt', descending: true)
-          .snapshots(),
+      stream: ReportesService.instance.watchReportes(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -243,10 +235,7 @@ class _TabReportes extends StatelessWidget {
               ),
               onTap: () async {
                 if (!visto) {
-                  await FirebaseFirestore.instance
-                      .collection('reportes')
-                      .doc(docs[index].id)
-                      .update({'visto': true});
+                  await ReportesService.instance.marcarVisto(docs[index].id);
                 }
                 if (context.mounted) {
                   _mostrarDetalleReporte(
@@ -482,10 +471,7 @@ class _TabSugerencias extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance
-          .collection('sugerencias')
-          .orderBy('creadoEn', descending: true)
-          .snapshots(),
+      stream: SugerenciasService.instance.watchAll(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -619,10 +605,9 @@ class _TabSugerencias extends StatelessWidget {
               ),
               onTap: () async {
                 if (!visto) {
-                  await FirebaseFirestore.instance
-                      .collection('sugerencias')
-                      .doc(docs[index].id)
-                      .update({'visto': true});
+                  await SugerenciasService.instance.marcarVisto(
+                    docs[index].id,
+                  );
                 }
                 if (context.mounted && mensaje.isNotEmpty) {
                   _mostrarDetalleSugerencia(

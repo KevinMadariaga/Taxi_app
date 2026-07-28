@@ -1,43 +1,70 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
-import 'package:geocoding/geocoding.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:taxi_app/core/app_colores.dart';
-import 'package:taxi_app/data/models/solicitud_id.dart';
+import 'package:taxi_app/data/models/solicitud_item.dart';
 import 'package:taxi_app/core/helpers/permisos_helper.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:taxi_app/core/helpers/session_helper.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodels/preview_solicitud.dart';
+import 'package:taxi_app/screens/usuario_conductor/presentacion/controllers/preview_route_controller.dart';
+import 'package:taxi_app/screens/usuario_conductor/presentacion/controllers/conductor_profile_controller.dart';
+import 'package:taxi_app/screens/usuario_conductor/presentacion/controllers/pending_solicitudes_controller.dart';
 import 'package:taxi_app/core/services/tracking_service.dart';
 import 'package:taxi_app/core/services/services.dart';
-import 'package:taxi_app/core/services/map_service_adapter.dart';
 import 'package:taxi_app/core/services/soporte_notification_service.dart';
 import 'package:taxi_app/core/constants/solicitud_estado.dart';
+import 'package:taxi_app/core/utils/error_reporter.dart';
 
 class InicioConductorViewmodel extends ChangeNotifier {
-  // Variables de estado y colecciones faltantes
-  PreviewSolicitud? selectedPreview;
-  bool isMapExpanded = false;
-  final Map<String, List<LatLng>> routePoints = {};
-  final Set<Polyline> routePolylines = {};
-  final Set<Marker> extraMarkers = {};
-  bool isLoadingPreviewRoute = false;
+  InicioConductorViewmodel({
+    FirebaseFirestore? firestore,
+    TrackingService? trackingService,
+    FirebaseAuth? auth,
+    void Function(String userId)? iniciarEscuchaSoporte,
+  }) : _firestore = firestore ?? FirebaseFirestore.instance,
+       _trackingService = trackingService ?? TrackingService(),
+       _auth = auth ?? FirebaseAuth.instance,
+       _iniciarEscuchaSoporte =
+           iniciarEscuchaSoporte ??
+           SoporteNotificationService.instance.iniciarEscuchaUsuario,
+       _previewController = PreviewRouteController(
+         firestore: firestore ?? FirebaseFirestore.instance,
+         trackingService: trackingService ?? TrackingService(),
+       ),
+       _profileController = ConductorProfileController(
+         firestore: firestore ?? FirebaseFirestore.instance,
+         auth: auth ?? FirebaseAuth.instance,
+       ),
+       _solicitudesController = PendingSolicitudesController(
+         firestore: firestore ?? FirebaseFirestore.instance,
+       ) {
+    _previewController.onChanged = _safeNotify;
+    _previewController.getCurrentLocation = () => currentLocation;
+    _previewController.onLocationRefreshed = (loc) => currentLocation = loc;
+    _profileController.onChanged = _safeNotify;
+    _solicitudesController.onChanged = _safeNotify;
+    _solicitudesController.getCurrentLocation = () => currentLocation;
+    _solicitudesController.getTipoVehiculoConductor = () =>
+        _profileController.tipoVehiculoConductor;
+  }
+
+  /// Preview de solicitud seleccionada + su ruta en el mapa. Ver
+  /// `controllers/preview_route_controller.dart`.
+  final PreviewRouteController _previewController;
+
+  /// Perfil del conductor (identidad + rating). Ver
+  /// `controllers/conductor_profile_controller.dart`.
+  final ConductorProfileController _profileController;
+
+  /// Lista de solicitudes pendientes visibles. Ver
+  /// `controllers/pending_solicitudes_controller.dart`.
+  final PendingSolicitudesController _solicitudesController;
+
   bool isConnected = false;
-  final Map<String, String> _clientePhotoById = {};
-  final Set<String> _clientePhotoLoadedIds = {};
-  final Set<String> _knownPendingIds = {};
-  final Set<String> _resolvingAddressSolicitudIds = {};
-  final StreamController<String> _newSolicitudController =
-      StreamController<String>.broadcast();
-  Stream<String> get onNewSolicitud => _newSolicitudController.stream;
   StreamSubscription<DocumentSnapshot>? _conductorSub;
-  StreamSubscription<QuerySnapshot>? _ratingSub;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _previewStatusSub;
   StreamSubscription<QuerySnapshot>? _assignedSub;
-  StreamSubscription<String?>? _cachedNameSub;
   bool _previewStatusHandled = false;
   // Solicitudes ya asignadas a este conductor que ya navegamos (evita repetir).
   final Set<String> _handledAssigned = {};
@@ -46,39 +73,81 @@ class InicioConductorViewmodel extends ChangeNotifier {
   /// (acepta él, o el cliente acepta su contraoferta), sin importar si tenía
   /// la preview abierta. La vista la usa para navegar a la ruta.
   void Function(String solicitudId)? onAsignadoAMi;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final TrackingService _trackingService = TrackingService();
+  final FirebaseFirestore _firestore;
+  final TrackingService _trackingService;
+  final FirebaseAuth _auth;
+  final void Function(String userId) _iniciarEscuchaSoporte;
 
   bool _disposed = false;
   bool isTogglingConnection = false;
-  double rating = 0.0;
-  int totalRatings = 0;
-  int totalCompletedTrips = 0;
-  double totalServiceValue = 0.0;
-  double _ratingFromConductorDoc = 0.0;
-  int _totalRatingsFromConductorDoc = 0;
 
-  String displayName = 'Conductor';
-  String? photoUrl;
+  // ===== Perfil + rating (delegado a ConductorProfileController) =====
+  double get rating => _profileController.rating;
+  int get totalRatings => _profileController.totalRatings;
+  int get totalCompletedTrips => _profileController.totalCompletedTrips;
+  double get totalServiceValue => _profileController.totalServiceValue;
+  String get displayName => _profileController.displayName;
+  String? get photoUrl => _profileController.photoUrl;
+  String? get nameFromDb => _profileController.nameFromDb;
+  String? get plate => _profileController.plate;
+  String? get vehiclePhotoUrl => _profileController.vehiclePhotoUrl;
+  String? get tipoVehiculoConductor => _profileController.tipoVehiculoConductor;
+  set tipoVehiculoConductor(String? value) =>
+      _profileController.tipoVehiculoConductor = value;
+  String? get vehiclePlate => _profileController.vehiclePlate;
+  String? get vehiclePhoto => _profileController.vehiclePhoto;
 
-  String? nameFromDb;
-  String? plate;
-  String? vehiclePhotoUrl;
-  String? tipoVehiculoConductor;
-
-  String? get vehiclePlate => plate;
-  String? get vehiclePhoto => vehiclePhotoUrl;
+  void setDisplayName(String name) => _profileController.setDisplayName(name);
 
   LatLng? currentLocation;
 
+  // ===== Notifiers dedicados al mapa (aislamiento de rebuilds) =====
+  // `InicioConductorView` envuelve casi toda la pantalla (2126 líneas,
+  // incluido el GoogleMap) en un único `Consumer<InicioConductorViewmodel>`.
+  // Como los 3 sub-controllers (preview, perfil, solicitudes pendientes)
+  // delegan TODOS sus cambios al mismo `notifyListeners()`, cualquier cambio
+  // ajeno al mapa (ej. rating del perfil, lista de solicitudes) reconstruye
+  // también el GoogleMap. Estos `ValueNotifier` exponen solo los datos que
+  // el mapa necesita para que la vista pueda aislarlo con un
+  // `AnimatedBuilder` (mismo patrón que `_AnimatedConductorMap` en
+  // trip_tracking_screen.dart), sin tener que escuchar el VM completo.
+  // Se sincronizan en `_syncMapNotifiers()` (llamado desde `_safeNotify()`)
+  // con chequeo de igualdad para no emitir un valor nuevo si el contenido
+  // no cambió realmente.
+  final ValueNotifier<LatLng?> currentLocationNotifier =
+      ValueNotifier<LatLng?>(null);
+  final ValueNotifier<PreviewSolicitud?> selectedPreviewNotifier =
+      ValueNotifier<PreviewSolicitud?>(null);
+  final ValueNotifier<Set<Marker>> extraMarkersNotifier =
+      ValueNotifier<Set<Marker>>(const <Marker>{});
+  final ValueNotifier<Set<Polyline>> routePolylinesNotifier =
+      ValueNotifier<Set<Polyline>>(const <Polyline>{});
+
+  bool _unorderedSetEquals<T>(Set<T> a, Set<T> b) =>
+      a.length == b.length && a.containsAll(b);
+
+  void _syncMapNotifiers() {
+    if (currentLocationNotifier.value != currentLocation) {
+      currentLocationNotifier.value = currentLocation;
+    }
+    if (!identical(selectedPreviewNotifier.value, selectedPreview)) {
+      selectedPreviewNotifier.value = selectedPreview;
+    }
+    if (!_unorderedSetEquals(extraMarkersNotifier.value, extraMarkers)) {
+      extraMarkersNotifier.value = Set<Marker>.of(extraMarkers);
+    }
+    if (!_unorderedSetEquals(routePolylinesNotifier.value, routePolylines)) {
+      routePolylinesNotifier.value = Set<Polyline>.of(routePolylines);
+    }
+  }
+
   bool isLoading = true;
   bool loadingLocation = true;
-  final List<SolicitudItem> solicitudes = [];
-  StreamSubscription<QuerySnapshot>? _sub;
-  // Último snapshot recibido del listener de solicitudes. Permite re-filtrar
-  // localmente (sin round-trip a Firestore) cuando cambia tipoVehiculoConductor,
-  // por ejemplo al cambiar de moto a carro desde el perfil.
-  QuerySnapshot? _lastSolicitudesSnapshot;
+
+  // ===== Solicitudes pendientes (delegado a PendingSolicitudesController) =====
+  List<SolicitudItem> get solicitudes => _solicitudesController.solicitudes;
+  Stream<String> get onNewSolicitud => _solicitudesController.onNewSolicitud;
+  SolicitudItem? get firstSolicitud => _solicitudesController.firstSolicitud;
 
   // Método de inicialización principal
   Future<void> init() async {
@@ -89,21 +158,25 @@ class InicioConductorViewmodel extends ChangeNotifier {
     // tracking en background (ver RutaDestinoView/resumen_viaje), no debe
     // seguir corriendo una vez el conductor está de vuelta en el home.
     unawaited(stopBackgroundTrackingService());
-    _listenCachedName();
+    _profileController.listenCachedName();
     // Kick off async startup tasks but do not await them so UI can render fast.
-    _loadProfile();
-    _requestBackgroundLocationPermission();
+    _profileController.loadProfile();
+    // El permiso de background debe pedirse después del foreground: Android
+    // 11+ exige "whileInUse" concedido antes de poder solicitar "always".
+    // PermissionsHelper._runExclusive serializa por orden de llamada, así
+    // que _loadLocation() (que pide foreground) debe encolarse primero.
     _loadLocation();
+    _requestBackgroundLocationPermission();
 
     // Subscriptions can be registered immediately; they will react when data arrives.
     _subscribeConductorStatus();
-    _subscribeSolicitudes();
-    _subscribeRatings();
+    ensureSolicitudesSubscription();
+    _profileController.subscribeRatings();
     _subscribeAssignedToMe();
 
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = _auth.currentUser?.uid;
     if (uid != null && uid.isNotEmpty) {
-      SoporteNotificationService.instance.iniciarEscuchaUsuario(uid);
+      _iniciarEscuchaSoporte(uid);
     }
 
     // Mark initial loading as false to avoid blocking UI; specific flags (like loadingLocation)
@@ -112,105 +185,18 @@ class InicioConductorViewmodel extends ChangeNotifier {
     _safeNotify();
   }
 
-  void _listenCachedName() {
-    _cachedNameSub?.cancel();
-    _cachedNameSub = SessionHelper.cachedNameStream.listen((name) {
-      if (name != null && name.trim().isNotEmpty) {
-        setDisplayName(name.trim());
-      }
-    });
-
-    SessionHelper.getCachedName()
-        .then((n) {
-          if (n != null && n.trim().isNotEmpty) {
-            setDisplayName(n.trim());
-          }
-        })
-        .catchError((_) {});
-  }
-
-  Future<void> _loadProfile() async {
-    // Cargar perfil (no solicitar ubicación aquí para evitar bloqueos duplicados)
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user != null) {
-        photoUrl = user.photoURL;
-        if (user.displayName != null && user.displayName!.trim().isNotEmpty) {
-          displayName = user.displayName!.trim();
-        } else if (user.email != null && user.email!.contains('@')) {
-          final namePart = user.email!.split('@').first;
-          if (namePart.isNotEmpty)
-            displayName =
-                '${namePart[0].toUpperCase()}${namePart.substring(1)}';
-        }
-
-        final uid = user.uid;
-        try {
-          final snap = await _firestore.collection('usuarios').doc(uid).get();
-          if (snap.exists) {
-            final data = snap.data();
-            nameFromDb = data?['nombre']?.toString();
-            plate = data?['placa']?.toString();
-            final tipo = data?['tipoVehiculo']?.toString().trim().toLowerCase();
-            if (tipo != null && tipo.isNotEmpty) {
-              tipoVehiculoConductor = tipo;
-            }
-            // Preferir la foto almacenada en Firestore si existe
-            final fotoFromDb =
-                data?['fotoUrl'] ?? data?['foto'] ?? data?['photoUrl'];
-            if (fotoFromDb != null && fotoFromDb.toString().trim().isNotEmpty) {
-              photoUrl = fotoFromDb.toString().trim();
-            }
-            // Obtener la foto del vehículo si existe
-            final fotoVehiculoFromDb =
-                data?['fotoVehiculo'] ?? data?['vehiclePhotoUrl'];
-            if (fotoVehiculoFromDb != null &&
-                fotoVehiculoFromDb.toString().trim().isNotEmpty) {
-              vehiclePhotoUrl = fotoVehiculoFromDb.toString().trim();
-            }
-
-            final docAverage = _toDoubleOrNull(
-              data?['calificacionPromedio'] ??
-                  data?['ratingPromedio'] ??
-                  data?['rating'],
-            );
-            final docCount = _toIntOrNull(
-              data?['totalCalificaciones'] ??
-                  data?['ratingCount'] ??
-                  data?['totalRatings'],
-            );
-
-            if (docAverage != null) {
-              _ratingFromConductorDoc = docAverage.clamp(0.0, 5.0).toDouble();
-            }
-            if (docCount != null && docCount >= 0) {
-              _totalRatingsFromConductorDoc = docCount;
-            }
-            if (_totalRatingsFromConductorDoc > 0) {
-              totalRatings = _totalRatingsFromConductorDoc;
-              rating = _ratingFromConductorDoc;
-            }
-
-            if (nameFromDb != null && nameFromDb!.trim().isNotEmpty) {
-              displayName = nameFromDb!.trim();
-            }
-          }
-        } catch (_) {}
-      }
-    } catch (_) {}
-    notifyListeners();
-  }
-
   Future<void> _loadLocation() async {
     loadingLocation = true;
-    notifyListeners();
+    _safeNotify();
     try {
       // Obtener ubicación con TrackingService
       final position = await _trackingService.obtenerUbicacionActual();
       if (position != null) {
         currentLocation = LatLng(position.latitude, position.longitude);
       }
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'InicioConductorViewModel');
+    }
     loadingLocation = false;
     _safeNotify();
 
@@ -228,140 +214,75 @@ class InicioConductorViewmodel extends ChangeNotifier {
   Future<void> _requestBackgroundLocationPermission() async {
     try {
       await PermissionsHelper.requestBackgroundLocationPermission();
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'InicioConductorViewModel');
+    }
   }
 
   Future<void> refreshLocation() async {
     await _loadLocation();
   }
 
-  /// Recalcula la distancia de la preview abierta contra `currentLocation`.
-  ///
-  /// `selectedPreview` guarda una referencia fija al `SolicitudItem` del
-  /// momento en que se abrió: cada snapshot nuevo de `solicitudes` crea
-  /// objetos `SolicitudItem` nuevos, así que la distancia de la preview
-  /// abierta jamás se actualizaba sola. Necesario tras volver de un
-  /// background prolongado (la ubicación se refresca pero la preview no).
-  void refreshSelectedPreviewDistance() {
-    final preview = selectedPreview;
-    final loc = currentLocation;
-    if (preview == null || loc == null) return;
-    preview.solicitud.distanciaKm = _distanceKm(
-      loc.latitude,
-      loc.longitude,
-      preview.solicitud.ubicacionInicial.latitude,
-      preview.solicitud.ubicacionInicial.longitude,
-    );
-    _safeNotify();
-  }
+  // ===== Preview + ruta (delegado a PreviewRouteController) =====
 
-  // ===== UI state helpers =====
+  PreviewSolicitud? get selectedPreview => _previewController.selectedPreview;
+  bool get isMapExpanded => _previewController.isMapExpanded;
+  Map<String, List<LatLng>> get routePoints => _previewController.routePoints;
+  Set<Polyline> get routePolylines => _previewController.routePolylines;
+  Set<Marker> get extraMarkers => _previewController.extraMarkers;
+  bool get isLoadingPreviewRoute => _previewController.isLoadingPreviewRoute;
 
-  void selectPreview(PreviewSolicitud preview) {
-    selectedPreview = preview;
-    isMapExpanded = false;
-    unawaited(preloadClientePhoto(preview.solicitud.clienteId));
-    // Si el item se armó antes de tener currentLocation (p. ej. justo tras un
-    // cambio de rol, cuando el GPS aún no resolvía), su distanciaKm quedó en
-    // null. Recalcularla aquí evita que la preview muestre "Solicitud cercana"
-    // genérico en vez de la distancia real.
-    refreshSelectedPreviewDistance();
-    _safeNotify();
-  }
+  void refreshSelectedPreviewDistance() =>
+      _previewController.refreshSelectedPreviewDistance();
 
-  String? fotoClientePorId(String? clienteId) {
-    if (clienteId == null || clienteId.isEmpty) {
-      return null;
-    }
-    return _clientePhotoById[clienteId];
-  }
+  void selectPreview(PreviewSolicitud preview) =>
+      _previewController.selectPreview(preview);
 
-  Future<void> preloadClientePhoto(String? clienteId) async {
-    if (clienteId == null || clienteId.isEmpty) return;
-    if (_clientePhotoLoadedIds.contains(clienteId)) return;
+  String? fotoClientePorId(String? clienteId) =>
+      _previewController.fotoClientePorId(clienteId);
 
-    _clientePhotoLoadedIds.add(clienteId);
-    try {
-      final doc = await _firestore.collection('cliente').doc(clienteId).get();
-      if (!doc.exists) {
-        _safeNotify();
-        return;
-      }
+  Future<void> preloadClientePhoto(String? clienteId) =>
+      _previewController.preloadClientePhoto(clienteId);
 
-      final data = doc.data();
-      final foto =
-          data?['foto']?.toString() ??
-          data?['fotoUrl']?.toString() ??
-          data?['photo']?.toString();
+  void clearPreviewAndRoutes() => _previewController.clearPreviewAndRoutes();
 
-      if (foto != null && foto.isNotEmpty) {
-        _clientePhotoById[clienteId] = foto;
-      }
-      _safeNotify();
-    } catch (_) {
-      _safeNotify();
-    }
-  }
+  void setMapExpanded(bool value) => _previewController.setMapExpanded(value);
 
-  void clearPreviewAndRoutes() {
-    selectedPreview = null;
-    isMapExpanded = false;
-    routePoints.clear();
-    routePolylines.removeWhere((p) => p.polylineId.value.startsWith('route_'));
-    extraMarkers.removeWhere((m) => m.markerId.value == 'driver');
-    _safeNotify();
-  }
+  void setRoute(String id, List<LatLng> points) =>
+      _previewController.setRoute(id, points);
 
-  void setMapExpanded(bool value) {
-    if (isMapExpanded == value) return;
-    isMapExpanded = value;
-    _safeNotify();
-  }
+  Future<void> fetchRouteOSRM(String id, LatLng origin, LatLng dest) =>
+      _previewController.fetchRouteOSRM(id, origin, dest);
 
-  void setRoute(String id, List<LatLng> points) {
-    routePoints[id] = points;
-    routePolylines.removeWhere((p) => p.polylineId.value == 'route_$id');
-    routePolylines.add(
-      Polyline(
-        polylineId: PolylineId('route_$id'),
-        color: AppColores.primary,
-        width: 5,
-        points: points,
-      ),
-    );
-    _safeNotify();
-  }
+  CameraPosition? getCameraPerspectiveForPreview() =>
+      _previewController.getCameraPerspectiveForPreview();
 
-  void _subscribeSolicitudes() {
-    // Ensure we don't keep an active listener when driver is disconnected.
-    _sub?.cancel();
-    if (!isConnected) {
-      // Do not subscribe while disconnected.
-      return;
-    }
+  double calculateBearing(LatLng from, LatLng to) =>
+      _previewController.calculateBearing(from, to);
 
-    // Suscribirse solo a solicitudes en estado "pendiente/buscando" para
-    // reducir el volumen de datos descargados.
-    _sub = _firestore
-        .collection('solicitudes')
-        .where('estado', whereIn: ['buscando', 'pending', 'pendiente'])
-        .snapshots()
-        .listen((snap) {
-          _handleSolicitudesQuerySnapshot(snap);
-        });
+  /// Zoom sugerido para la cámara según la distancia (metros) entre el
+  /// conductor y el cliente, usado al centrar la preview de una solicitud.
+  double zoomForDistance(double meters) {
+    if (meters <= 150) return 17.5;
+    if (meters <= 300) return 16.8;
+    if (meters <= 600) return 16.0;
+    if (meters <= 1200) return 15.0;
+    if (meters <= 2500) return 14.0;
+    if (meters <= 5000) return 13.0;
+    return 12.0;
   }
 
   /// Asegura que el listener de solicitudes esté activo si el conductor está conectado.
   void ensureSolicitudesSubscription() {
     if (!isConnected) return;
-    _subscribeSolicitudes();
+    _solicitudesController.subscribe();
   }
 
   /// Vigila si CUALQUIER solicitud queda asignada a este conductor (acepta él o
   /// el cliente acepta su contraoferta) y dispara [onAsignadoAMi] para navegar,
   /// sin depender de tener la preview abierta.
   void _subscribeAssignedToMe() {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = _auth.currentUser?.uid;
     if (uid == null || uid.isEmpty) return;
     _assignedSub?.cancel();
     _assignedSub = _firestore
@@ -379,157 +300,18 @@ class InicioConductorViewmodel extends ChangeNotifier {
               _handledAssigned.add(doc.id);
               try {
                 onAsignadoAMi?.call(doc.id);
-              } catch (_) {}
+              } catch (e, st) {
+                ErrorReporter.report(e, st, reason: 'InicioConductorViewModel');
+              }
               break;
             }
           }
         });
   }
 
-  void _handleSolicitudesQuerySnapshot(QuerySnapshot snap) {
-    if (!isConnected) {
-      return;
-    }
-    _lastSolicitudesSnapshot = snap;
-
-    try {
-      final currentPendingIds = <String>{};
-      final parsedSolicitudes = <SolicitudItem>[];
-
-      for (final doc in snap.docs) {
-        final item = _buildPendingSolicitudItem(doc);
-        if (item == null) continue;
-
-        if (currentLocation != null) {
-          item.distanciaKm = _distanceKm(
-            currentLocation!.latitude,
-            currentLocation!.longitude,
-            item.ubicacionInicial.latitude,
-            item.ubicacionInicial.longitude,
-          );
-
-          // Only include solicitudes within 3 km
-          if (item.distanciaKm == null || item.distanciaKm! > 3.0) {
-            continue;
-          }
-
-          // mark as pending for notification comparison (only when within range)
-          currentPendingIds.add(doc.id);
-        } else {
-          // If current location is not yet available, keep solicitudes and show them.
-          item.distanciaKm = null;
-          currentPendingIds.add(doc.id);
-        }
-
-        parsedSolicitudes.add(item);
-        unawaited(_completarDatosSolicitud(item));
-        unawaited(_ensureFriendlyAddress(item));
-      }
-
-      solicitudes
-        ..clear()
-        ..addAll(parsedSolicitudes);
-
-      try {
-        // No se muestra notificación local aquí: la notificación de "nueva
-        // solicitud" ya la maneja FCM (ver fcm_service.dart), que la
-        // suprime correctamente en foreground (la UI ya la muestra en esta
-        // misma lista) y la deja en manos del OS/handler de background para
-        // que aparezca una sola vez. Disparar otra aquí duplicaba el aviso
-        // y además ignoraba si la app estaba en foreground.
-        for (final id in currentPendingIds) {
-          if (!_knownPendingIds.contains(id)) {
-            try {
-              _newSolicitudController.add(id);
-            } catch (_) {}
-          }
-        }
-        _knownPendingIds
-          ..clear()
-          ..addAll(currentPendingIds);
-      } catch (_) {}
-
-      solicitudes.sort(
-        (a, b) => (a.distanciaKm ?? double.maxFinite).compareTo(
-          b.distanciaKm ?? double.maxFinite,
-        ),
-      );
-      _safeNotify();
-    } catch (_) {}
-  }
-
-  SolicitudItem? _buildPendingSolicitudItem(QueryDocumentSnapshot doc) {
-    final raw = doc.data();
-    if (raw is! Map<String, dynamic>) return null;
-
-    final status = raw['estado'] ?? raw['status'];
-    if (!_isPendingStatus(status)) return null;
-
-    final item = SolicitudItem.fromMap(doc.id, raw);
-    if (item.clienteId == null || item.clienteId!.isEmpty) return null;
-
-    final lat = item.ubicacionInicial.latitude;
-    final lng = item.ubicacionInicial.longitude;
-    if (lat == 0 && lng == 0) return null;
-
-    // Filtrar por tipo de vehículo: solo mostrar solicitudes que coincidan
-    // con el tipo del conductor. Si el conductor no tiene tipo registrado,
-    // muestra todas para compatibilidad con perfiles anteriores.
-    final conductorTipo = tipoVehiculoConductor;
-    final solicitudTipo = item.tipoVehiculo?.toLowerCase().trim();
-    if (conductorTipo != null &&
-        solicitudTipo != null &&
-        solicitudTipo.isNotEmpty &&
-        conductorTipo != solicitudTipo) {
-      return null;
-    }
-
-    return item;
-  }
-
-  bool _isPendingStatus(dynamic status) {
-    if (status == null) return false;
-    return SolicitudEstado.normalize(status.toString()) ==
-        SolicitudEstado.buscando;
-  }
-
-  Future<void> _ensureFriendlyAddress(SolicitudItem item) async {
-    final hasAddress =
-        (item.origenTitle != null && item.origenTitle!.trim().isNotEmpty) ||
-        (item.direccion != null && item.direccion!.trim().isNotEmpty);
-    if (hasAddress) return;
-    if (!_resolvingAddressSolicitudIds.add(item.id)) return;
-
-    try {
-      final placemarks = await placemarkFromCoordinates(
-        item.ubicacionInicial.latitude,
-        item.ubicacionInicial.longitude,
-      );
-      if (placemarks.isEmpty) return;
-
-      final p = placemarks.first;
-      final parts = [
-        p.street?.trim(),
-        p.subLocality?.trim(),
-        p.locality?.trim(),
-      ].whereType<String>().where((value) => value.isNotEmpty);
-
-      final friendly = parts.take(2).join(', ').trim();
-      if (friendly.isEmpty) return;
-
-      item.origenTitle = friendly;
-      item.direccion = friendly;
-      _safeNotify();
-    } catch (_) {
-      // Si falla geocoding dejamos fallback a lat/lng en la vista.
-    } finally {
-      _resolvingAddressSolicitudIds.remove(item.id);
-    }
-  }
-
   void _subscribeConductorStatus() {
     try {
-      final uid = FirebaseAuth.instance.currentUser?.uid;
+      final uid = _auth.currentUser?.uid;
       if (uid == null || uid.isEmpty) return;
       _conductorSub?.cancel();
       _conductorSub = _firestore.collection('usuarios').doc(uid).snapshots().listen((
@@ -538,62 +320,13 @@ class InicioConductorViewmodel extends ChangeNotifier {
         if (!snap.exists) return;
         final data = snap.data();
         if (data != null) {
-          final docName = data['nombre']?.toString().trim();
-          if (docName != null && docName.isNotEmpty) {
-            displayName = docName;
-          }
-
-          final docPlate = data['placa']?.toString().trim();
-          if (docPlate != null && docPlate.isNotEmpty) {
-            plate = docPlate;
-          }
-
-          final docTipo = data['tipoVehiculo']?.toString().trim().toLowerCase();
-          if (docTipo != null &&
-              docTipo.isNotEmpty &&
-              docTipo != tipoVehiculoConductor) {
-            tipoVehiculoConductor = docTipo;
+          final previousTipo = _profileController.tipoVehiculoConductor;
+          _profileController.hydrateFromConductorDoc(data);
+          if (_profileController.tipoVehiculoConductor != previousTipo) {
             // Re-filtrar localmente las solicitudes ya cacheadas con el nuevo
             // tipo de vehículo, sin esperar un nuevo evento de Firestore ni
             // recargar la app (ver cambiar_vehiculo_view.dart).
-            final cached = _lastSolicitudesSnapshot;
-            if (cached != null) {
-              _handleSolicitudesQuerySnapshot(cached);
-            }
-          }
-
-          final p = data['foto'] ?? data['fotoUrl'] ?? data['photoUrl'];
-          if (p != null && p.toString().trim().isNotEmpty) {
-            photoUrl = p.toString().trim();
-          }
-
-          final vehiclePhoto = data['fotoVehiculo'] ?? data['vehiclePhotoUrl'];
-          if (vehiclePhoto != null &&
-              vehiclePhoto.toString().trim().isNotEmpty) {
-            vehiclePhotoUrl = vehiclePhoto.toString().trim();
-          }
-
-          final docAverage = _toDoubleOrNull(
-            data['calificacionPromedio'] ??
-                data['ratingPromedio'] ??
-                data['rating'],
-          );
-          final docCount = _toIntOrNull(
-            data['totalCalificaciones'] ??
-                data['ratingCount'] ??
-                data['totalRatings'],
-          );
-
-          if (docAverage != null) {
-            _ratingFromConductorDoc = docAverage.clamp(0.0, 5.0).toDouble();
-          }
-          if (docCount != null && docCount >= 0) {
-            _totalRatingsFromConductorDoc = docCount;
-          }
-
-          if (_totalRatingsFromConductorDoc > 0) {
-            totalRatings = _totalRatingsFromConductorDoc;
-            rating = _ratingFromConductorDoc;
+            _solicitudesController.reprocessLastSnapshot();
           }
         }
 
@@ -607,123 +340,35 @@ class InicioConductorViewmodel extends ChangeNotifier {
           // Limpiar estados de solicitudes/previews cuando no está disponible.
           try {
             stopPreviewSolicitudStatusListener();
-          } catch (_) {}
+          } catch (e, st) {
+            ErrorReporter.report(e, st, reason: 'InicioConductorViewModel');
+          }
           clearPreviewAndRoutes();
-          solicitudes.clear();
-          _knownPendingIds.clear();
+          _solicitudesController.clear();
           // Cancel solicitudes listener when disconnected to avoid processing updates
           try {
-            _sub?.cancel();
-          } catch (_) {}
+            _solicitudesController.stop();
+          } catch (e, st) {
+            ErrorReporter.report(e, st, reason: 'InicioConductorViewModel');
+          }
           _safeNotify();
         } else if (!previously && isConnected) {
           // Just became connected: start listening to solicitudes
           try {
-            _subscribeSolicitudes();
-          } catch (_) {}
+            _solicitudesController.subscribe();
+          } catch (e, st) {
+            ErrorReporter.report(e, st, reason: 'InicioConductorViewModel');
+          }
         }
         _safeNotify();
       });
-    } catch (_) {}
-  }
-
-  void _subscribeRatings() {
-    try {
-      final uid = FirebaseAuth.instance.currentUser?.uid;
-      if (uid == null || uid.isEmpty) return;
-      _ratingSub?.cancel();
-      _ratingSub = _firestore
-          .collection('solicitudes')
-          .where('conductor.id', isEqualTo: uid)
-          .snapshots()
-          .listen((snap) {
-            double scoreTotal = 0.0;
-            int completedCount = 0;
-            int ratedCount = 0;
-            double serviceTotal = 0.0;
-
-            for (var doc in snap.docs) {
-              try {
-                final data = doc.data();
-                final estado = SolicitudEstado.normalize(
-                  (data['estado'] ?? data['status'] ?? '').toString(),
-                );
-                if (!_isCompletedStatus(estado)) continue;
-
-                completedCount++;
-                serviceTotal += _extractServiceValue(data);
-
-                final score = _extractRatingScore(data);
-                if (score != null) {
-                  scoreTotal += score;
-                  ratedCount++;
-                }
-              } catch (_) {}
-            }
-
-            // Promedio basado en calificaciones efectivamente realizadas por clientes.
-            totalCompletedTrips = completedCount;
-            totalServiceValue = serviceTotal;
-            // Si existe rating consolidado en usuarios, priorizarlo en la vista.
-            if (_totalRatingsFromConductorDoc > 0) {
-              totalRatings = _totalRatingsFromConductorDoc;
-              rating = _ratingFromConductorDoc;
-            } else if (ratedCount > 0) {
-              totalRatings = ratedCount;
-              rating = scoreTotal / ratedCount;
-            } else {
-              totalRatings = _totalRatingsFromConductorDoc;
-              rating = _totalRatingsFromConductorDoc > 0
-                  ? _ratingFromConductorDoc
-                  : 0.0;
-            }
-            _safeNotify();
-          });
-    } catch (_) {}
-  }
-
-  double? _toDoubleOrNull(dynamic value) {
-    if (value is num) return value.toDouble();
-    return double.tryParse(value?.toString() ?? '');
-  }
-
-  int? _toIntOrNull(dynamic value) {
-    if (value is int) return value;
-    if (value is num) return value.toInt();
-    return int.tryParse(value?.toString() ?? '');
-  }
-
-  bool _isCompletedStatus(String status) {
-    if (status.isEmpty) return false;
-    return status == SolicitudEstado.completado;
-  }
-
-  double _extractServiceValue(Map<String, dynamic> data) {
-    final tarifa = data['tarifa'];
-    if (tarifa is Map<String, dynamic> && tarifa['total'] != null) {
-      final total = tarifa['total'];
-      if (total is num) return total.toDouble();
-      return double.tryParse(total.toString()) ?? 0.0;
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'InicioConductorViewModel');
     }
-
-    final valor = data['valor'];
-    if (valor is num) return valor.toDouble();
-    return double.tryParse(valor?.toString() ?? '') ?? 0.0;
-  }
-
-  double? _extractRatingScore(Map<String, dynamic> data) {
-    final raw = data['calificacion'] ?? data['calificacion_cliente'];
-    if (raw is Map<String, dynamic>) {
-      final score = raw['score'] ?? raw['puntaje'] ?? raw['valor'];
-      if (score is num) return score.toDouble();
-      return double.tryParse(score?.toString() ?? '');
-    }
-    if (raw is num) return raw.toDouble();
-    return double.tryParse(raw?.toString() ?? '');
   }
 
   Future<void> toggleConductorConnection() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = _auth.currentUser?.uid;
     if (uid == null) return;
 
     isTogglingConnection = true;
@@ -752,26 +397,26 @@ class InicioConductorViewmodel extends ChangeNotifier {
     }
   }
 
-  Future<void> fetchRouteOSRM(String id, LatLng origin, LatLng dest) async {
-    isLoadingPreviewRoute = true;
-    _safeNotify();
-    try {
-      final mapService = const MapService();
-      final points = await mapService.getRoutePolyline(origin, dest);
-      if (points.isNotEmpty) {
-        setRoute(id, points);
-      }
-    } catch (e) {
-      debugPrint('Error fetching route: $e');
-    } finally {
-      isLoadingPreviewRoute = false;
-      _safeNotify();
-    }
-  }
-
   Future<void> aceptarSolicitud(String solicitudId) async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = _auth.currentUser?.uid;
     if (uid == null) throw Exception('No user logged in');
+
+    // `currentLocation` se carga una sola vez al iniciar el ViewModel (ver
+    // `_loadLocation`) y no se refresca sola durante una sesión larga
+    // conectado. Si se usa tal cual aquí, la coordenada obsoleta queda
+    // persistida como `conductor.lat/lng` en el mismo instante en que pasa a
+    // "asignado", y es justo esa coordenada la que usan tanto
+    // DriverTripController como TripTrackingViewModel para calcular la
+    // primera ruta de recogida (mismo problema ya resuelto para el preview
+    // en `fetchRouteOSRM`; aquí faltaba aplicarlo).
+    try {
+      final fresh = await _trackingService.obtenerUbicacionActual();
+      if (fresh != null) {
+        currentLocation = LatLng(fresh.latitude, fresh.longitude);
+      }
+    } catch (_) {
+      // Se sigue con `currentLocation` existente como fallback.
+    }
 
     final conductorPayload = _buildConductorPayload(uid);
     final ref = _firestore.collection('solicitudes').doc(solicitudId);
@@ -791,7 +436,9 @@ class InicioConductorViewmodel extends ChangeNotifier {
       final vencida =
           vence is Timestamp && vence.toDate().isBefore(DateTime.now());
       if (!membresiaActiva || vencida) {
-        throw StateError('Tu membresía no está activa. Actívala para aceptar viajes.');
+        throw StateError(
+          'Tu membresía no está activa. Actívala para aceptar viajes.',
+        );
       }
 
       final snap = await tx.get(ref);
@@ -823,8 +470,20 @@ class InicioConductorViewmodel extends ChangeNotifier {
     required String solicitudId,
     required double nuevoValor,
   }) async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = _auth.currentUser?.uid;
     if (uid == null) throw Exception('No user logged in');
+
+    // Mismo problema de GPS obsoleto que en `aceptarSolicitud`: una
+    // contraoferta también persiste `conductor.lat/lng` y puede terminar en
+    // "asignado" si el cliente la acepta, así que necesita ubicación fresca.
+    try {
+      final fresh = await _trackingService.obtenerUbicacionActual();
+      if (fresh != null) {
+        currentLocation = LatLng(fresh.latitude, fresh.longitude);
+      }
+    } catch (_) {
+      // Se sigue con `currentLocation` existente como fallback.
+    }
 
     final conductorPayload = _buildConductorPayload(uid);
     final ref = _firestore.collection('solicitudes').doc(solicitudId);
@@ -862,6 +521,32 @@ class InicioConductorViewmodel extends ChangeNotifier {
         'contraofertas': {uid: ofertaEntry},
       }, SetOptions(merge: true));
     });
+  }
+
+  /// Formatea un entero como moneda con separador de miles ('.'), ej. 12345 -> "12.345".
+  String formatMoneda(int v) {
+    final s = v.toString();
+    final buf = StringBuffer();
+    for (int i = 0; i < s.length; i++) {
+      final rev = s.length - i;
+      buf.write(s[i]);
+      if (rev > 1 && rev % 3 == 1) buf.write('.');
+    }
+    return buf.toString();
+  }
+
+  /// Opciones sugeridas de contraoferta a partir del valor base ofrecido por
+  /// el cliente (o un mínimo por defecto si no hay valor base), ordenadas
+  /// ascendentemente.
+  List<int> contraofertaOpciones(int valorBase) {
+    final base = valorBase > 0 ? valorBase : 10000;
+    return <int>{
+      base + 1000,
+      base + 2000,
+      base + 3000,
+      base + 5000,
+      base + 7000,
+    }.toList()..sort();
   }
 
   Map<String, dynamic> _buildConductorPayload(String uid) {
@@ -917,7 +602,9 @@ class InicioConductorViewmodel extends ChangeNotifier {
               await onAsignado();
               return;
             }
-          } catch (_) {}
+          } catch (e, st) {
+            ErrorReporter.report(e, st, reason: 'InicioConductorViewModel');
+          }
         });
   }
 
@@ -928,72 +615,10 @@ class InicioConductorViewmodel extends ChangeNotifier {
     if (sub == null) return;
     try {
       await sub.cancel();
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'InicioConductorViewModel');
+    }
   }
-
-  double calculateBearing(LatLng from, LatLng to) {
-    final lat1 = from.latitude * math.pi / 180;
-    final lat2 = to.latitude * math.pi / 180;
-    final dLon = (to.longitude - from.longitude) * math.pi / 180;
-    final y = math.sin(dLon) * math.cos(lat2);
-    final x =
-        math.cos(lat1) * math.sin(lat2) -
-        math.sin(lat1) * math.cos(lat2) * math.cos(dLon);
-    final brng = math.atan2(y, x);
-    return (brng * 180 / math.pi + 360) % 360;
-  }
-
-  CameraPosition? getCameraPerspectiveForPreview() {
-    if (selectedPreview == null || currentLocation == null) return null;
-    final s = selectedPreview!.solicitud;
-    final client = LatLng(
-      s.ubicacionInicial.latitude,
-      s.ubicacionInicial.longitude,
-    );
-    final driver = currentLocation!;
-    final bearing = calculateBearing(driver, client);
-    return CameraPosition(
-      target: driver,
-      bearing: bearing,
-      tilt: 10.0,
-      zoom: 16.0,
-    );
-  }
-
-  Future<void> _completarDatosSolicitud(SolicitudItem item) async {
-    try {
-      if (item.nombreCliente == null) {
-        final cli = await _firestore
-            .collection('cliente')
-            .doc(item.clienteId)
-            .get();
-        item.nombreCliente = cli.data()?['nombre']?.toString() ?? 'Cliente';
-      }
-      if (item.direccion == null) {
-        item.direccion = 'Ubicación del cliente';
-      }
-      _safeNotify();
-    } catch (_) {}
-  }
-
-  SolicitudItem? get firstSolicitud =>
-      solicitudes.isNotEmpty ? solicitudes.first : null;
-
-  double _distanceKm(double lat1, double lon1, double lat2, double lon2) {
-    const R = 6371.0; // km
-    final dLat = _deg2rad(lat2 - lat1);
-    final dLon = _deg2rad(lon2 - lon1);
-    final a =
-        math.sin(dLat / 2) * math.sin(dLat / 2) +
-        math.cos(_deg2rad(lat1)) *
-            math.cos(_deg2rad(lat2)) *
-            math.sin(dLon / 2) *
-            math.sin(dLon / 2);
-    final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
-    return R * c;
-  }
-
-  double _deg2rad(double deg) => deg * (math.pi / 180.0);
 
   /// Centra la cámara del mapa en `currentLocation` si está disponible.
   ///
@@ -1009,7 +634,9 @@ class InicioConductorViewmodel extends ChangeNotifier {
           CameraPosition(target: currentLocation!, zoom: zoom),
         ),
       );
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'InicioConductorViewModel');
+    }
   }
 
   /// Devuelve un `CameraUpdate` centrado en `currentLocation` o `null` si no hay ubicación.
@@ -1021,48 +648,52 @@ class InicioConductorViewmodel extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
-    _sub?.cancel();
+    _profileController.dispose();
     try {
-      _ratingSub?.cancel();
-    } catch (_) {}
+      _solicitudesController.dispose();
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'InicioConductorViewModel');
+    }
     try {
       _conductorSub?.cancel();
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'InicioConductorViewModel');
+    }
     try {
       _previewStatusSub?.cancel();
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'InicioConductorViewModel');
+    }
     try {
       _assignedSub?.cancel();
-    } catch (_) {}
-    try {
-      _cachedNameSub?.cancel();
-    } catch (_) {}
-    try {
-      _newSolicitudController.close();
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'InicioConductorViewModel');
+    }
     SoporteNotificationService.instance.detenerEscuchaUsuario();
+    currentLocationNotifier.dispose();
+    selectedPreviewNotifier.dispose();
+    extraMarkersNotifier.dispose();
+    routePolylinesNotifier.dispose();
     super.dispose();
   }
 
   void _safeNotify() {
-    if (!_disposed) notifyListeners();
-  }
-
-  /// Actualiza el nombre de display y notifica a los listeners de forma segura.
-  void setDisplayName(String name) {
-    displayName = name;
-    _safeNotify();
+    if (_disposed) return;
+    _syncMapNotifiers();
+    notifyListeners();
   }
 
   /// Guarda la ubicación del conductor en conductores_conectados.
   Future<void> guardarUbicacionConectado(LatLng location) async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = _auth.currentUser?.uid;
     if (uid == null) return;
     try {
       await _firestore.collection('conductores_conectados').doc(uid).set({
         'ubicacion': {'lat': location.latitude, 'lng': location.longitude},
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'InicioConductorViewModel');
+    }
   }
 }

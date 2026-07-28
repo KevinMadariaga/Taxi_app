@@ -8,6 +8,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:taxi_app/core/helpers/permisos_helper.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:taxi_app/core/services/firebase_service.dart';
+import 'package:taxi_app/core/utils/error_reporter.dart';
 
 Future<void> initializeTrackingNotificationChannel() async {
   const AndroidNotificationChannel channel = AndroidNotificationChannel(
@@ -287,7 +288,9 @@ class TrackingService {
         try {
           // Notify caller immediately about initial position
           onLocationUpdate?.call(initial);
-        } catch (_) {}
+        } catch (e, st) {
+          ErrorReporter.report(e, st, reason: 'tracking_service');
+        }
       } catch (e) {
         developer.log(
           "❌ Error enviando ubicación inicial: $e",
@@ -334,7 +337,9 @@ class TrackingService {
           try {
             // Notify caller after successful send to firebase (best-effort)
             onLocationUpdate?.call(position);
-          } catch (_) {}
+          } catch (e, st) {
+            ErrorReporter.report(e, st, reason: 'tracking_service');
+          }
         } catch (e) {
           developer.log(
             "❌ Error enviando ubicación (reintentará): $e",

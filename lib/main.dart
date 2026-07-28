@@ -15,8 +15,6 @@ import 'package:taxi_app/core/theme/app_theme.dart';
 import 'package:taxi_app/core/utils/app_dependencies.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/casos_uso/sign_in_google_client_usecase.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/casos_uso/sign_in_apple_client_usecase.dart';
-import 'package:taxi_app/caracteristicas/autenticacion/dominio/casos_uso/send_client_phone_otp_usecase.dart';
-import 'package:taxi_app/caracteristicas/autenticacion/dominio/casos_uso/verify_client_phone_otp_usecase.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/casos_uso/get_client_user_usecase.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/casos_uso/complete_client_profile_usecase.dart';
 import 'package:taxi_app/routes/app_routes.dart';
@@ -24,7 +22,7 @@ import 'package:taxi_app/presentation/widgets/app_update_gate.dart';
 import 'package:taxi_app/features/client/data/firebaseDB.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/datos/repositorios/app_auth_adapter.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/repositorios/client_auth_repository.dart';
-import 'package:taxi_app/models/AuthModel.dart';
+import 'package:taxi_app/presentation/viewmodels/auth_view_model.dart';
 import 'package:taxi_app/core/services/background_tracking_service.dart';
 import 'package:taxi_app/core/services/notificacion_servicio.dart';
 import 'package:taxi_app/core/services/tracking_service.dart';
@@ -32,6 +30,7 @@ import 'package:taxi_app/core/services/fcm_service.dart';
 import 'package:taxi_app/core/app_navigator.dart';
 import 'package:taxi_app/features/phone_auth/screens/admin_hub_screen.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/soporte_chat_screen.dart';
+import 'package:taxi_app/core/utils/error_reporter.dart';
 
 const SystemUiOverlayStyle _globalSystemOverlayStyle = SystemUiOverlayStyle(
   statusBarColor: Colors.transparent,
@@ -135,24 +134,36 @@ Future<void> main() async {
 Future<void> _inicializarServiciosDiferidos() async {
   try {
     await PermissionsHelper.requestAllPermissions();
-  } catch (_) {}
+  } catch (e, st) {
+    ErrorReporter.report(e, st, reason: 'main');
+  }
   try {
     await NotificacionesServicio.instance.init();
     NotificacionesServicio.onNotificationTap = _manejarTapNotificacion;
-  } catch (_) {}
+  } catch (e, st) {
+    ErrorReporter.report(e, st, reason: 'main');
+  }
   try {
     await initializeLocationNotificationChannel();
-  } catch (_) {}
+  } catch (e, st) {
+    ErrorReporter.report(e, st, reason: 'main');
+  }
   try {
     await initializeTrackingNotificationChannel();
-  } catch (_) {}
+  } catch (e, st) {
+    ErrorReporter.report(e, st, reason: 'main');
+  }
   try {
     await initializeBackgroundService();
-  } catch (_) {}
+  } catch (e, st) {
+    ErrorReporter.report(e, st, reason: 'main');
+  }
   // FCM al final: en iOS la espera del token APNs puede tardar varios segundos.
   try {
     await FcmService.instance.init();
-  } catch (_) {}
+  } catch (e, st) {
+    ErrorReporter.report(e, st, reason: 'main');
+  }
 }
 
 /// Root widget for the Taxi App.
@@ -182,14 +193,6 @@ class MyApp extends StatelessWidget {
             Provider<SignInAppleClientUseCase>(
               create: (ctx) =>
                   SignInAppleClientUseCase(ctx.read<ClientAuthRepository>()),
-            ),
-            Provider<SendClientPhoneOtpUseCase>(
-              create: (ctx) =>
-                  SendClientPhoneOtpUseCase(ctx.read<ClientAuthRepository>()),
-            ),
-            Provider<VerifyClientPhoneOtpUseCase>(
-              create: (ctx) =>
-                  VerifyClientPhoneOtpUseCase(ctx.read<ClientAuthRepository>()),
             ),
             Provider<GetClientUserUseCase>(
               create: (ctx) =>

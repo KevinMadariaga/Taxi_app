@@ -1,8 +1,8 @@
 import 'dart:convert';
-import 'dart:math' as math;
 
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
+import 'package:taxi_app/core/helpers/map_helper.dart';
 import 'package:taxi_app/core/services/map_service_adapter.dart';
 
 class DriverRouteService {
@@ -17,22 +17,7 @@ class DriverRouteService {
   String? _lastKey;
   List<LatLng>? _lastRoute;
 
-  double distanceMeters(LatLng a, LatLng b) {
-    const earthRadius = 6371000.0;
-    final dLat = _degToRad(b.latitude - a.latitude);
-    final dLng = _degToRad(b.longitude - a.longitude);
-    final lat1 = _degToRad(a.latitude);
-    final lat2 = _degToRad(b.latitude);
-
-    final h =
-        math.sin(dLat / 2) * math.sin(dLat / 2) +
-        math.cos(lat1) *
-            math.cos(lat2) *
-            math.sin(dLng / 2) *
-            math.sin(dLng / 2);
-    final c = 2 * math.atan2(math.sqrt(h), math.sqrt(1 - h));
-    return earthRadius * c;
-  }
+  double distanceMeters(LatLng a, LatLng b) => MapHelper.distanceMeters(a, b);
 
   Duration etaFromDistance(double meters, {double avgSpeedKmh = 26}) {
     final speedMps = (avgSpeedKmh * 1000) / 3600;
@@ -49,10 +34,7 @@ class DriverRouteService {
     return total;
   }
 
-  String formatDistance(double meters) {
-    if (meters < 1000) return '${meters.round()} m';
-    return '${(meters / 1000).toStringAsFixed(2)} km';
-  }
+  String formatDistance(double meters) => MapHelper.formatDistanceMeters(meters);
 
   String formatEta(Duration eta) {
     if (eta.inMinutes <= 0) return '1 min';
@@ -136,6 +118,4 @@ class DriverRouteService {
     String q(double value) => value.toStringAsFixed(4);
     return '${q(from.latitude)},${q(from.longitude)}|${q(to.latitude)},${q(to.longitude)}';
   }
-
-  double _degToRad(double value) => value * (math.pi / 180.0);
 }

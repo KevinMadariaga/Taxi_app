@@ -16,6 +16,7 @@ class UserTripInfoCard extends StatefulWidget {
     required this.distanceText,
     required this.onHelp,
     required this.onDetails,
+    this.progress = 0.0,
     this.isMoto = false,
     this.cancelEnabled = true,
     this.title = 'Conductor llegando a tu ubicacion',
@@ -39,6 +40,11 @@ class UserTripInfoCard extends StatefulWidget {
   final String distanceText;
   final VoidCallback onHelp;
   final VoidCallback onDetails;
+
+  /// Progreso real (0..1) del conductor hacia el punto de recogida. Anima la
+  /// barra direccional (ícono carro → ícono usuario) reflejando la posición
+  /// real, no un shimmer decorativo desconectado del viaje.
+  final double progress;
   final String title;
   final String primaryActionText;
   final IconData primaryActionIcon;
@@ -49,27 +55,40 @@ class UserTripInfoCard extends StatefulWidget {
 
 class _UserTripInfoCardState extends State<UserTripInfoCard>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _shimmerController;
-  late final Animation<double> _shimmerAnimation;
+  late final AnimationController _progressController;
+  late final Animation<double> _progressAnimation;
   bool _isExpanded = true;
 
   @override
   void initState() {
     super.initState();
-    _shimmerController = AnimationController(
+    _progressController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1200),
-    )..repeat();
-
-    _shimmerAnimation = CurvedAnimation(
-      parent: _shimmerController,
-      curve: Curves.easeInOut,
+      duration: const Duration(milliseconds: 500),
+      value: widget.progress.clamp(0.0, 1.0),
+    );
+    _progressAnimation = CurvedAnimation(
+      parent: _progressController,
+      curve: Curves.easeOut,
     );
   }
 
   @override
+  void didUpdateWidget(covariant UserTripInfoCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final target = widget.progress.clamp(0.0, 1.0);
+    if ((target - _progressController.value).abs() > 0.001) {
+      _progressController.animateTo(
+        target,
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
+  @override
   void dispose() {
-    _shimmerController.dispose();
+    _progressController.dispose();
     super.dispose();
   }
 
@@ -213,7 +232,10 @@ class _UserTripInfoCardState extends State<UserTripInfoCard>
               SizedBox(height: _isExpanded ? 18 : 10),
 
               // ── Barra direccional animada - Always Visible ──────────────────
-              _DirectionalBar(animation: _shimmerAnimation, isMoto: widget.isMoto),
+              _DirectionalBar(
+                animation: _progressAnimation,
+                isMoto: widget.isMoto,
+              ),
 
               // ── Botones Inferiores (Chat y Detalles) ──────────────────────
               if (_isExpanded) ...[
@@ -225,16 +247,27 @@ class _UserTripInfoCardState extends State<UserTripInfoCard>
                       onPressed: widget.onEmergency,
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.red.shade700,
-                        side: BorderSide(color: Colors.red.shade400, width: 1.4),
+                        side: BorderSide(
+                          color: Colors.red.shade400,
+                          width: 1.4,
+                        ),
                         padding: const EdgeInsets.symmetric(vertical: 13),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14),
                         ),
                       ),
-                      icon: Icon(Icons.emergency_rounded, size: 18, color: Colors.red.shade700),
+                      icon: Icon(
+                        Icons.emergency_rounded,
+                        size: 18,
+                        color: Colors.red.shade700,
+                      ),
                       label: Text(
                         'Llamar emergencia',
-                        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: Colors.red.shade700),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                          color: Colors.red.shade700,
+                        ),
                       ),
                     ),
                   ),
@@ -383,7 +416,9 @@ class _DirectionalBar extends StatelessWidget {
                       Align(
                         alignment: Alignment.centerLeft,
                         child: FractionallySizedBox(
-                          widthFactor: (0.15 + animation.value * 0.85).clamp(
+                          // 0.08 mínimo: siempre se ve un tramo junto al ícono
+                          // del carro aunque el progreso real sea 0.
+                          widthFactor: (0.08 + animation.value * 0.92).clamp(
                             0.0,
                             1.0,
                           ),

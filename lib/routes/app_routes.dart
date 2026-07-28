@@ -6,6 +6,7 @@ import 'package:taxi_app/presentation/screens/splash/splash_view.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/presentacion/viewmodels/login_viewmodel.dart';
 import 'package:taxi_app/presentation/viewmodels/splash/splash_viewmodel.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/presentacion/vistas/home_screen.dart';
+import 'package:taxi_app/features/admin/admin_home_screen.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/ayuda/estado_solicitud_view.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/ayuda/cambiar_destino_view.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/ayuda/problemas_conductor_view.dart';
@@ -14,6 +15,7 @@ import 'package:taxi_app/screens/usuario_cliente/presentacion/view/ayuda/metodo_
 class AppRoutes {
   static const String splash = '/';
   static const String login = '/login';
+  static const String adminHome = '/admin-home';
 
   // Pantallas de la sección "Ayuda" del cliente.
   static const String ayudaEstadoSolicitud = '/ayuda/estado-solicitud';
@@ -45,6 +47,12 @@ class AppRoutes {
             ),
             child: const HomeView(),
           ),
+        );
+      case adminHome:
+        return MaterialPageRoute(
+          settings: settings,
+          builder: (_) =>
+              AdminHomeScreen(adminId: (args['adminId'] ?? '').toString()),
         );
       case ayudaEstadoSolicitud:
         return MaterialPageRoute(

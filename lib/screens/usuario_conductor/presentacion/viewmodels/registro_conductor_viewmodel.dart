@@ -1,11 +1,12 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:taxi_app/core/helpers/session_helper.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-import 'package:flutter_image_compress/flutter_image_compress.dart';
-import 'dart:typed_data';
+import 'package:taxi_app/core/services/image_processing_service.dart';
+import 'package:taxi_app/core/services/image_upload_service.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/model/registro_conductor_model.dart';
 
 class RegistroConductorViewModel {
@@ -20,6 +21,9 @@ class RegistroConductorViewModel {
 
   final FirebaseAuth _auth;
   final FirebaseFirestore _firestore;
+  final ImageProcessingService _imageProcessingService =
+      const ImageProcessingService();
+  final ImageUploadService _imageUploadService = ImageUploadService();
 
   final ValueNotifier<bool> isLoading = ValueNotifier(false);
   final ValueNotifier<String?> error = ValueNotifier(null);
@@ -123,67 +127,17 @@ class RegistroConductorViewModel {
     }
   }
 
+  /// Comprime y sube la foto de perfil vía los servicios compartidos
+  /// ([ImageProcessingService]/[ImageUploadService]) en vez de reimplementar
+  /// aquí su propia cadena de intentos de compresión.
   Future<String> _uploadProfilePhoto(String uid, XFile file) async {
-    final originalBytes = await file.readAsBytes();
-
-    const int maxBytes = 100 * 1024;
-
-    Uint8List compressed = Uint8List.fromList(originalBytes);
-
-    final attempts = <Map<String, int>>[
-      {'q': 80, 'w': 0},
-      {'q': 70, 'w': 0},
-      {'q': 60, 'w': 1280},
-      {'q': 50, 'w': 1080},
-      {'q': 45, 'w': 900},
-      {'q': 40, 'w': 720},
-      {'q': 35, 'w': 640},
-      {'q': 30, 'w': 560},
-      {'q': 25, 'w': 480},
-    ];
-
-    for (final a in attempts) {
-      try {
-        final q = a['q'] ?? 70;
-        final w = a['w'] ?? 0;
-        final result = w > 0
-            ? await FlutterImageCompress.compressWithList(
-                originalBytes,
-                quality: q,
-                rotate: 0,
-                format: CompressFormat.webp,
-                minWidth: w,
-                minHeight: w,
-              )
-            : await FlutterImageCompress.compressWithList(
-                originalBytes,
-                quality: q,
-                rotate: 0,
-                format: CompressFormat.webp,
-              );
-        if (result.isEmpty) continue;
-        final current = Uint8List.fromList(result);
-        if (compressed.isEmpty || current.length < compressed.length) {
-          compressed = current;
-        }
-        if (current.length <= maxBytes) {
-          compressed = current;
-          break;
-        }
-      } catch (_) {}
-    }
-
-    final ref = FirebaseStorage.instance
-        .ref()
-        .child('conductor_photos')
-        .child('$uid.webp');
-    final uploadTask = ref.putData(
-      compressed,
-      SettableMetadata(contentType: 'image/webp'),
+    final compressed = await _imageProcessingService.compressProfilePhoto(
+      File(file.path),
     );
-    final snapshot = await uploadTask;
-    final url = await snapshot.ref.getDownloadURL();
-    return url;
+    return _imageUploadService.uploadFile(
+      file: compressed,
+      storagePath: 'conductor_photos/$uid.webp',
+    );
   }
 
   void dispose() {

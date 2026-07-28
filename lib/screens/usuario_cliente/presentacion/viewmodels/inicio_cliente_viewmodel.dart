@@ -9,10 +9,11 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:taxi_app/core/helpers/map_helper.dart';
 import 'package:taxi_app/core/helpers/session_helper.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/model/MapaClienteModel.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/model/ubicacion_resultado.dart';
 import 'package:taxi_app/core/services/services.dart';
 import 'package:taxi_app/core/services/soporte_notification_service.dart';
 import 'package:taxi_app/core/services/ubicacion_servicio.dart';
+import 'package:taxi_app/core/utils/error_reporter.dart';
 
 class InicioClienteViewModel extends ChangeNotifier {
   // --- Estado principal ---
@@ -38,12 +39,27 @@ class InicioClienteViewModel extends ChangeNotifier {
   BitmapDescriptor? _taxiIcon;
   List<UbicacionResultado> _favoritos = [];
 
+  // --- ValueNotifiers dedicados para el mapa / loader ---
+  // Vía adicional para que el widget del GoogleMap y el overlay de carga se
+  // reconstruyan de forma aislada (AnimatedBuilder) sin depender del rebuild
+  // completo disparado por el ChangeNotifier general del VM. No reemplazan
+  // los campos ni los notifyListeners() existentes: otros flujos del VM
+  // siguen dependiendo de ellos.
+  final ValueNotifier<LatLng?> currentLocationNotifier =
+      ValueNotifier<LatLng?>(null);
+  final ValueNotifier<Set<Marker>> conductoresMarkersNotifier =
+      ValueNotifier<Set<Marker>>(<Marker>{});
+  final ValueNotifier<bool> isLoadingLocationNotifier = ValueNotifier<bool>(
+    false,
+  );
+
   // --- Getters públicos ---
   String get clientName => _clientName;
   String? get clientId => _clientId;
   bool get isLoadingLocation => _isLoadingLocation;
   bool get isLoadingFavoritos => _isLoadingFavoritos;
   LatLng? get currentLocation => _currentLocation;
+
   /// `true` si la última carga detectó una ubicación nueva (distinta a la
   /// cacheada). La vista lo usa para mostrar "Ubicación encontrada" solo
   /// cuando realmente hubo un cambio.
@@ -110,9 +126,11 @@ class InicioClienteViewModel extends ChangeNotifier {
     if (loc == null) return;
 
     _isLoadingLocation = true;
+    isLoadingLocationNotifier.value = true;
     if (!_disposed) notifyListeners();
     try {
       _currentLocation = loc;
+      currentLocationNotifier.value = loc;
       await _guardarUbicacionCliente(loc);
       await _guardarUbicacionCache(loc);
       _ubicacionNueva = true;
@@ -120,6 +138,7 @@ class InicioClienteViewModel extends ChangeNotifier {
       debugPrint('Error guardando ubicación: $e');
     } finally {
       _isLoadingLocation = false;
+      isLoadingLocationNotifier.value = false;
       if (!_disposed) notifyListeners();
     }
   }
@@ -157,6 +176,7 @@ class InicioClienteViewModel extends ChangeNotifier {
               }
             }
             _conductoresMarkers = markers;
+            conductoresMarkersNotifier.value = markers;
             if (!_disposed) notifyListeners();
           },
           onError: (e) {
@@ -236,7 +256,9 @@ class InicioClienteViewModel extends ChangeNotifier {
             }
           })
           .catchError((_) {});
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'inicio_cliente_viewmodel');
+    }
   }
 
   Future<String> _obtenerNombreCliente(User user) async {
@@ -292,7 +314,9 @@ class InicioClienteViewModel extends ChangeNotifier {
     if (name != 'Cliente') {
       try {
         await SessionHelper.saveCachedName(name);
-      } catch (_) {}
+      } catch (e, st) {
+        ErrorReporter.report(e, st, reason: 'inicio_cliente_viewmodel');
+      }
     }
     return name;
   }
@@ -309,7 +333,9 @@ class InicioClienteViewModel extends ChangeNotifier {
       if (cached != null && cached.trim().isNotEmpty) {
         _clientName = cached.trim();
       }
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'inicio_cliente_viewmodel');
+    }
     if (!_disposed) notifyListeners();
   }
 
@@ -335,7 +361,9 @@ class InicioClienteViewModel extends ChangeNotifier {
   /// Actualiza la ubicación local y en Firestore si hay cliente
   Future<void> updateLocation(LatLng loc) async {
     _isLoadingLocation = true;
+    isLoadingLocationNotifier.value = true;
     _currentLocation = loc;
+    currentLocationNotifier.value = loc;
     if (!_disposed) notifyListeners();
     try {
       await _guardarUbicacionCliente(loc);
@@ -343,6 +371,7 @@ class InicioClienteViewModel extends ChangeNotifier {
       debugPrint('Error guardando ubicacion: $e');
     } finally {
       _isLoadingLocation = false;
+      isLoadingLocationNotifier.value = false;
       if (!_disposed) notifyListeners();
     }
   }
@@ -354,6 +383,7 @@ class InicioClienteViewModel extends ChangeNotifier {
     final cache = await _leerUbicacionCache();
     if (cache != null && _currentLocation == null) {
       _currentLocation = cache;
+      currentLocationNotifier.value = cache;
       if (!_disposed) notifyListeners();
     }
 
@@ -380,17 +410,22 @@ class InicioClienteViewModel extends ChangeNotifier {
 
     if (!esNueva) {
       _currentLocation = base;
+      currentLocationNotifier.value = base;
       try {
         await _guardarUbicacionCliente(base!);
-      } catch (_) {}
+      } catch (e, st) {
+        ErrorReporter.report(e, st, reason: 'inicio_cliente_viewmodel');
+      }
       return;
     }
 
     // 4. Ubicación nueva → mostrar "Buscando ubicación" y actualizar.
     _isLoadingLocation = true;
+    isLoadingLocationNotifier.value = true;
     if (!_disposed) notifyListeners();
     try {
       _currentLocation = loc;
+      currentLocationNotifier.value = loc;
       await _guardarUbicacionCliente(loc);
       await _guardarUbicacionCache(loc);
       _ubicacionNueva = true;
@@ -398,6 +433,7 @@ class InicioClienteViewModel extends ChangeNotifier {
       debugPrint('Error guardando ubicación: $e');
     } finally {
       _isLoadingLocation = false;
+      isLoadingLocationNotifier.value = false;
       if (!_disposed) notifyListeners();
     }
   }
@@ -408,7 +444,9 @@ class InicioClienteViewModel extends ChangeNotifier {
       final lat = prefs.getDouble(_kLastLat);
       final lng = prefs.getDouble(_kLastLng);
       if (lat != null && lng != null) return LatLng(lat, lng);
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'inicio_cliente_viewmodel');
+    }
     return null;
   }
 
@@ -417,7 +455,9 @@ class InicioClienteViewModel extends ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setDouble(_kLastLat, loc.latitude);
       await prefs.setDouble(_kLastLng, loc.longitude);
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'inicio_cliente_viewmodel');
+    }
   }
 
   Future<void> _guardarUbicacionCliente(LatLng loc) async {
@@ -455,7 +495,9 @@ class InicioClienteViewModel extends ChangeNotifier {
           return parts.take(2).join(', ');
         }
       }
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'inicio_cliente_viewmodel');
+    }
     return '${coord.latitude.toStringAsFixed(6)}, ${coord.longitude.toStringAsFixed(6)}';
   }
 
@@ -465,11 +507,18 @@ class InicioClienteViewModel extends ChangeNotifier {
     _authSub?.cancel();
     try {
       _cachedNameSub?.cancel();
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'inicio_cliente_viewmodel');
+    }
     try {
       _conductoresSub?.cancel();
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'inicio_cliente_viewmodel');
+    }
     SoporteNotificationService.instance.detenerEscuchaUsuario();
+    currentLocationNotifier.dispose();
+    conductoresMarkersNotifier.dispose();
+    isLoadingLocationNotifier.dispose();
     super.dispose();
   }
 

@@ -15,6 +15,7 @@ import 'package:taxi_app/widgets/MapaGoogle.dart';
 import 'SeleccionaUbicacionEnMapaView.dart';
 
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/utils/error_reporter.dart';
 
 class MapPreview extends StatefulWidget {
   final LocationModel origen;
@@ -125,30 +126,25 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
 
       if (placemarks.isNotEmpty) {
         final p = placemarks.first;
-        final direccion = [
-          p.street,
-          p.subLocality,
-          p.locality,
-          p.administrativeArea,
-        ].where((s) => s != null && s.isNotEmpty).join(', ');
+        final direccion = _vm.buildAddressFromPlacemark(p);
 
         setState(() {
           _origenDireccionActual = direccion.isNotEmpty
               ? direccion
-              : _coordsText(origenPos);
+              : _vm.coordsText(origenPos);
           _resolviendoOrigenDireccion = false;
         });
         return;
       }
 
       setState(() {
-        _origenDireccionActual = _coordsText(origenPos);
+        _origenDireccionActual = _vm.coordsText(origenPos);
         _resolviendoOrigenDireccion = false;
       });
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _origenDireccionActual = _coordsText(origenPos);
+        _origenDireccionActual = _vm.coordsText(origenPos);
         _resolviendoOrigenDireccion = false;
       });
     }
@@ -168,7 +164,9 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
       );
       if (!mounted) return;
       setState(() => _destIcon = icon);
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'DetailsSolicitud');
+    }
   }
 
   void _onMapCreated(GoogleMapController controller) {
@@ -186,16 +184,14 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
     final persp = _vm.cameraPerspective;
     if (persp == null) return;
     try {
-      await _controller!.animateCamera(
-        CameraUpdate.newCameraPosition(persp),
-      );
+      await _controller!.animateCamera(CameraUpdate.newCameraPosition(persp));
     } catch (_) {
       await Future.delayed(const Duration(milliseconds: 300));
       try {
-        await _controller!.animateCamera(
-          CameraUpdate.newCameraPosition(persp),
-        );
-      } catch (_) {}
+        await _controller!.animateCamera(CameraUpdate.newCameraPosition(persp));
+      } catch (e, st) {
+        ErrorReporter.report(e, st, reason: 'DetailsSolicitud');
+      }
     }
   }
 
@@ -218,8 +214,7 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
       if (_wasInBackground) {
         _wasInBackground = false;
         final pausedAt = _pausedAt ?? DateTime.now();
-        final elapsed = DateTime.now().difference(pausedAt);
-        if (elapsed >= const Duration(seconds: 12)) {
+        if (_vm.shouldReloadOnResume(pausedAt, DateTime.now())) {
           _handleAppResumeReload();
         }
         _pausedAt = null;
@@ -486,12 +481,19 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
                 ].where((s) => s != null && s.isNotEmpty).join(', ');
                 if (direccion.isNotEmpty) resolved = direccion;
               }
-            } catch (_) {}
+            } catch (e, st) {
+              ErrorReporter.report(e, st, reason: 'DetailsSolicitud');
+            }
           }
 
-          // Recreate ViewModel with updated origen
+          // Recreate ViewModel with updated origen.
+          // No se dispone `_controller` aquí: la key de `Mapagoogle` solo
+          // depende de `destino` (línea ~345), así que cambiar el origen no
+          // recrea el widget del mapa ni dispara `onMapCreated` de nuevo.
+          // Disponer el controller en ese caso lo deja apuntando a un
+          // controller ya destruido, y `animateCamera` (más abajo) falla
+          // silenciosamente sin volver a centrar la cámara.
           if (_vmListener != null) _vm.removeListener(_vmListener!);
-          _controller?.dispose();
           _vm.dispose();
 
           final nuevoOrigen = LocationModel(
@@ -519,7 +521,9 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
             _controller?.animateCamera(
               CameraUpdate.newLatLng(origenSeleccionado),
             );
-          } catch (_) {}
+          } catch (e, st) {
+            ErrorReporter.report(e, st, reason: 'DetailsSolicitud');
+          }
         }
       },
       child: _buildLocationInfoCard(
@@ -576,7 +580,9 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
                 ].where((s) => s != null && s.isNotEmpty).join(', ');
                 if (direccion.isNotEmpty) resolved = direccion;
               }
-            } catch (_) {}
+            } catch (e, st) {
+              ErrorReporter.report(e, st, reason: 'DetailsSolicitud');
+            }
           }
 
           // Recreate ViewModel with updated destino
@@ -608,7 +614,9 @@ class _MapPreviewState extends State<MapPreview> with WidgetsBindingObserver {
             _controller?.animateCamera(
               CameraUpdate.newLatLng(destinoSeleccionado),
             );
-          } catch (_) {}
+          } catch (e, st) {
+            ErrorReporter.report(e, st, reason: 'DetailsSolicitud');
+          }
         }
       },
       child: _buildLocationInfoCard(

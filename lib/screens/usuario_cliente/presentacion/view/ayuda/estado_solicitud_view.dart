@@ -1,19 +1,16 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/constants/solicitud_estado.dart';
+import 'package:taxi_app/features/trip_tracking_cliente/services/trip_tracking_firestore_service.dart';
 
 /// Muestra el estado actual de la solicitud en tiempo real con una línea de
 /// tiempo (timeline). Escucha el documento `solicitudes/{id}` en Firestore.
 class EstadoSolicitudView extends StatelessWidget {
   EstadoSolicitudView({super.key, required this.solicitudId})
-    : _stream = FirebaseFirestore.instance
-          .collection('solicitudes')
-          .doc(solicitudId)
-          .snapshots();
+    : _stream = TripTrackingFirebaseService().watchSolicitudRaw(solicitudId);
 
   final String solicitudId;
-  final Stream<DocumentSnapshot<Map<String, dynamic>>> _stream;
+  final Stream<Map<String, dynamic>> _stream;
 
   static const List<_PasoEstado> _pasos = [
     _PasoEstado(
@@ -67,7 +64,7 @@ class EstadoSolicitudView extends StatelessWidget {
           style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
         ),
       ),
-      body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      body: StreamBuilder<Map<String, dynamic>>(
         stream: _stream,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -76,7 +73,7 @@ class EstadoSolicitudView extends StatelessWidget {
             );
           }
 
-          final data = snapshot.data?.data();
+          final data = snapshot.data;
           final raw = (data?['estado'] ?? data?['status'] ?? '').toString();
           final estado = SolicitudEstado.normalize(raw);
 

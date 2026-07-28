@@ -15,6 +15,7 @@ import '../models/resumen_viaje_model.dart';
 import '../widgets/calificacion_section.dart';
 import '../widgets/resumen_header.dart';
 import '../widgets/resumen_info_item.dart';
+import 'package:taxi_app/core/utils/error_reporter.dart';
 
 class ResumenViajeView extends StatelessWidget {
   const ResumenViajeView({
@@ -77,7 +78,9 @@ class _ResumenViajeBodyState extends State<_ResumenViajeBody> {
             body: '¡Gracias por elegirnos! Esperamos verte pronto.',
           );
         }
-      } catch (_) {}
+      } catch (e, st) {
+        ErrorReporter.report(e, st, reason: 'resumen_viaje_view');
+      }
     });
   }
 
@@ -269,7 +272,9 @@ class _ResumenViajeBodyState extends State<_ResumenViajeBody> {
       try {
         await SessionHelper.clearActiveSolicitud();
         await SessionHelper.clearActiveSolicitudScreen();
-      } catch (_) {}
+      } catch (e, st) {
+        ErrorReporter.report(e, st, reason: 'resumen_viaje_view');
+      }
 
       if (!context.mounted) return;
       await registrarViajeYMostrarSugerenciaModal(context, tipo: 'cliente');

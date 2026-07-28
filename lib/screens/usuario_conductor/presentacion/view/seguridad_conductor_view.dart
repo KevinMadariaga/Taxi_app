@@ -1,5 +1,7 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/features/phone_auth/services/user_data_service.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/soporte_chat_screen.dart';
 
 class SeguridadConductorView extends StatefulWidget {
@@ -11,7 +13,31 @@ class SeguridadConductorView extends StatefulWidget {
 }
 
 class _SeguridadConductorViewState extends State<SeguridadConductorView> {
-  final List<String> _emergencyContacts = [];
+  final UserDataService _userDataService = UserDataService();
+  List<String> _emergencyContacts = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarContactos();
+  }
+
+  Future<void> _cargarContactos() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    final contactos = await _userDataService.obtenerContactosEmergencia(uid);
+    if (!mounted) return;
+    setState(() => _emergencyContacts = contactos);
+  }
+
+  Future<void> _guardarContactos() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    await _userDataService.guardarContactosEmergencia(
+      uid: uid,
+      contactos: _emergencyContacts,
+    );
+  }
 
   Future<void> _openSupportChat() async {
     await Navigator.of(context).push(
@@ -76,6 +102,7 @@ class _SeguridadConductorViewState extends State<SeguridadConductorView> {
 
               setState(() => _emergencyContacts.add(value));
               setModalState(() {});
+              await _guardarContactos();
             }
 
             return SafeArea(
@@ -117,11 +144,12 @@ class _SeguridadConductorViewState extends State<SeguridadConductorView> {
                           title: Text(item),
                           trailing: IconButton(
                             icon: const Icon(Icons.delete_outline),
-                            onPressed: () {
+                            onPressed: () async {
                               setState(
                                 () => _emergencyContacts.removeAt(index),
                               );
                               setModalState(() {});
+                              await _guardarContactos();
                             },
                           ),
                         );

@@ -3,6 +3,7 @@ import 'dart:io' show Platform;
 import 'package:new_version_plus/new_version_plus.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:taxi_app/core/utils/error_reporter.dart';
 
 typedef MinimumRequiredVersionFetcher = Future<String?> Function();
 
@@ -146,7 +147,9 @@ class UpdateService {
           return 'https://play.google.com/store/apps/details?id=$id';
         }
       }
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'update_service');
+    }
     return null;
   }
 

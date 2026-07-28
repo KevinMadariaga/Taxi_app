@@ -1,10 +1,10 @@
 import 'dart:convert';
-import 'dart:math' as math;
 
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
+import 'package:taxi_app/core/helpers/map_helper.dart';
 
 class MapService {
   // La key de Google Directions vive solo en Secret Manager, del lado del
@@ -19,23 +19,8 @@ class MapService {
   List<LatLng>? _lastRoute;
   String? _lastRouteKey;
 
-  double distanceMeters(LatLng from, LatLng to) {
-    const earthRadius = 6371000.0;
-    final dLat = _degToRad(to.latitude - from.latitude);
-    final dLng = _degToRad(to.longitude - from.longitude);
-    final lat1 = _degToRad(from.latitude);
-    final lat2 = _degToRad(to.latitude);
-
-    final a =
-        math.sin(dLat / 2) * math.sin(dLat / 2) +
-        math.cos(lat1) *
-            math.cos(lat2) *
-            math.sin(dLng / 2) *
-            math.sin(dLng / 2);
-
-    final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
-    return earthRadius * c;
-  }
+  double distanceMeters(LatLng from, LatLng to) =>
+      MapHelper.distanceMeters(from, to);
 
   double routeDistanceMeters(List<LatLng> points) {
     if (points.length < 2) return 0;
@@ -57,10 +42,7 @@ class MapService {
     return Duration(seconds: seconds);
   }
 
-  String formatDistance(double meters) {
-    if (meters < 1000) return '${meters.round()} m';
-    return '${(meters / 1000).toStringAsFixed(2)} km';
-  }
+  String formatDistance(double meters) => MapHelper.formatDistanceMeters(meters);
 
   String formatEta(Duration eta) {
     if (eta.inMinutes <= 0) return '1 min';
@@ -222,6 +204,4 @@ class MapService {
     }
     return points;
   }
-
-  double _degToRad(double value) => value * (math.pi / 180);
 }

@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:taxi_app/utils/marker_icon_helper.dart';
+import 'package:taxi_app/core/utils/marker_icon_helper.dart';
 
 import 'package:flutter/services.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -14,7 +14,7 @@ import 'package:taxi_app/screens/usuario_cliente/presentacion/view/InicioCliente
 import 'package:taxi_app/widgets/intermediate_transition_view.dart';
 import 'package:taxi_app/features/trip_tracking_cliente/widgets/trip_details_sheet.dart';
 import 'package:taxi_app/core/services/services.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:taxi_app/features/trip_tracking_cliente/services/trip_tracking_firestore_service.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/RutaClienteDestinoView.dart';
 import 'package:taxi_app/routes/app_routes.dart';
 
@@ -24,6 +24,7 @@ import '../viewmodels/trip_tracking_viewmodel.dart';
 import '../widgets/user_trip_info_card.dart';
 import '../widgets/panic_button_fab.dart';
 import 'trip_chat_screen.dart';
+import 'package:taxi_app/core/utils/error_reporter.dart';
 
 class TripTrackingScreen extends StatefulWidget {
   const TripTrackingScreen({
@@ -41,7 +42,8 @@ class TripTrackingScreen extends StatefulWidget {
   State<TripTrackingScreen> createState() => _TripTrackingScreenState();
 }
 
-class _TripTrackingScreenState extends State<TripTrackingScreen> {
+class _TripTrackingScreenState extends State<TripTrackingScreen>
+    with WidgetsBindingObserver {
   GoogleMapController? _mapController;
   late final SolicitudEstadoController _estadoController;
   BitmapDescriptor? _taxiMarkerIcon;
@@ -60,9 +62,18 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
   String? _lastEstadoProcesado;
   String? _lastPersistedStatus;
 
+  // Se incrementa al volver de segundo plano y se usa como `key` del mapa:
+  // fuerza a Flutter a desmontar/recrear el `GoogleMap` (y su vista nativa)
+  // en vez de reutilizar una que pudo quedar en mal estado tras el ciclo
+  // pause/resume de Android (pantalla negra que no cargaba al volver de
+  // otra app, reportado en dispositivo real).
+  int _mapGeneration = 0;
+  AppLifecycleState? _lastLifecycleState;
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _estadoController = SolicitudEstadoController();
     // Listen to wait modal visibility to disable cancel button while modal is open.
     _estadoController.waitModalVisible.addListener(() {
@@ -82,7 +93,41 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
     // Persist current screen so reload restores this exact view
     try {
       SessionHelper.setActiveSolicitudScreen('trip_tracking');
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'trip_tracking_screen');
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    final wasBackground =
+        _lastLifecycleState == AppLifecycleState.paused ||
+        _lastLifecycleState == AppLifecycleState.hidden;
+    _lastLifecycleState = state;
+
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      // Los Timer de Dart siguen corriendo en Android aunque la app no sea
+      // visible: sin pausar esto, el ticker de 50ms seguía mutando
+      // marcador/polyline contra un GoogleMap sin superficie visible.
+      _vm?.pauseForBackground();
+      // Mismo motivo: este Timer periódico animaba la cámara del mapa cada
+      // 2s incluso en background, contra una vista nativa sin superficie.
+      _cameraFollowTimer?.cancel();
+      _cameraFollowTimer = null;
+      return;
+    }
+
+    if (state == AppLifecycleState.resumed && wasBackground) {
+      if (!mounted) return;
+      setState(() {
+        _mapGeneration++;
+        _initialCameraApplied = false;
+      });
+      _vm?.resumeFromBackground();
+      if (_vm != null) _startCameraFollowTimer(_vm!);
+    }
   }
 
   void _startCancelDisableTimer() {
@@ -123,34 +168,11 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
           // El ViewModel ya entrega la posición suavizada y snapeada a la ruta
           // (misma lógica que RutaClienteDestinoView); no duplicar el suavizado
           // aquí para evitar doble-lag / movimientos raros.
-          final conductorPos = vm.conductorLatLng;
-          final (conductorIcon, conductorRotation) = _markerIconAndRotation(
-            vm.conductorHeading,
-          );
-          final markers = <Marker>{
-            if (conductorPos != null)
-              Marker(
-                markerId: const MarkerId('conductor'),
-                position: conductorPos,
-                rotation: conductorRotation,
-                icon: conductorIcon ??
-                    BitmapDescriptor.defaultMarkerWithHue(
-                        BitmapDescriptor.hueAzure),
-                flat: true,
-                anchor: const Offset(0.5, 0.5),
-              ),
-          };
-
-          final polylines = <Polyline>{
-            if (vm.routePoints.length >= 2)
-              Polyline(
-                polylineId: const PolylineId('ruta_real_time'),
-                points: vm.routePoints,
-                color: AppColores.buttonPrimary,
-                width: 5,
-              ),
-          };
-
+          //
+          // La posición/heading/ruta restante del conductor se leen de los
+          // ValueNotifiers del VM (ver `_buildMap`), no de este builder: así
+          // el mapa se anima a 50ms sin reconstruir todo el Scaffold/card 20
+          // veces por segundo (causa del freeze/lag reportado).
           final initialTarget =
               vm.clienteLatLng ??
               vm.conductorLatLng ??
@@ -179,23 +201,17 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
                           width: double.infinity,
                           child: Stack(
                             children: [
-                              GoogleMap(
-                                initialCameraPosition: CameraPosition(
-                                  target: initialTarget,
-                                  zoom: 14,
-                                ),
-                                myLocationEnabled: true,
-                                myLocationButtonEnabled: false,
-                                compassEnabled: true,
-                                padding: EdgeInsets.only(
-                                  top:
-                                      mq.padding.top +
-                                      350, // Evita que se tape con la card superior
-                                  bottom: safeBottom + 20,
-                                ),
-                                markers: markers,
-                                polylines: polylines,
+                              _AnimatedConductorMap(
+                                key: ValueKey('conductor_map_$_mapGeneration'),
+                                vm: vm,
+                                initialTarget: initialTarget,
+                                topPadding: mq.padding.top + 350,
+                                bottomPadding: safeBottom + 20,
+                                markerIconAndRotation: _markerIconAndRotation,
                                 onMapCreated: (controller) {
+                                  if (_mapController != controller) {
+                                    _mapController?.dispose();
+                                  }
                                   _mapController = controller;
                                   _fitInitialCameraIfNeeded(vm);
                                 },
@@ -294,6 +310,7 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
                             cancelEnabled: _cancelAllowed,
                             etaText: vm.etaTexto,
                             distanceText: vm.distanciaTexto,
+                            progress: vm.pickupProgress,
                             onHelp: () {
                               showModalBottomSheet(
                                 context: context,
@@ -304,174 +321,40 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
                                     top: Radius.circular(24.r),
                                   ),
                                 ),
-                                builder: (ctx) {
-                                  return SafeArea(
-                                    child: Padding(
-                                      padding: EdgeInsets.symmetric(
-                                        horizontal: 24.0.w,
-                                        vertical: 16.0.h,
-                                      ),
-                                      child: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Container(
-                                            width: 40.w,
-                                            height: 4.h,
-                                            decoration: BoxDecoration(
-                                              color: Colors.grey.shade300,
-                                              borderRadius:
-                                                  BorderRadius.circular(2.r),
-                                            ),
-                                          ),
-                                          SizedBox(height: 16.h),
-                                          Row(
-                                            children: [
-                                              CircleAvatar(
-                                                radius: 20,
-                                                backgroundColor:
-                                                    AppColores.primary,
-                                                backgroundImage:
-                                                    vm.fotoUsuario.isNotEmpty
-                                                    ? NetworkImage(
-                                                        vm.fotoUsuario,
-                                                      )
-                                                    : null,
-                                                child: vm.fotoUsuario.isEmpty
-                                                    ? const Icon(
-                                                        Icons.person,
-                                                        size: 24,
-                                                        color: Colors.white,
-                                                      )
-                                                    : null,
-                                              ),
-                                              SizedBox(width: 12.w),
-                                              Expanded(
-                                                child: Text(
-                                                  vm.nombreUsuarioCard,
-                                                  style: TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                    fontSize: 16.sp,
-                                                    color:
-                                                        AppColores.textPrimary,
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                          SizedBox(height: 24.h),
-                                          Divider(
-                                            height: 1.h,
-                                            color: Colors.black12,
-                                          ),
-                                          ListTile(
-                                            contentPadding: EdgeInsets.zero,
-                                            title: Text(
-                                              '¿Cuál es el estado de mi solicitud?',
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.w600,
-                                                fontSize: 15.sp,
-                                              ),
-                                            ),
-                                            trailing: const Icon(
-                                              Icons.chevron_right,
-                                              color: Colors.black54,
-                                            ),
-                                            onTap: () {
-                                              Navigator.pop(ctx);
-                                              Navigator.of(context).pushNamed(
-                                                AppRoutes.ayudaEstadoSolicitud,
-                                                arguments: {
-                                                  'solicitudId': vm.solicitudId,
-                                                },
-                                              );
-                                            },
-                                          ),
-                                          Divider(
-                                            height: 1.h,
-                                            color: Colors.black12,
-                                          ),
-                                          ListTile(
-                                            contentPadding: EdgeInsets.zero,
-                                            title: Text(
-                                              'Revisar o modificar mi pago',
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.w600,
-                                                fontSize: 15.sp,
-                                              ),
-                                            ),
-                                            trailing: const Icon(
-                                              Icons.chevron_right,
-                                              color: Colors.black54,
-                                            ),
-                                            onTap: () {
-                                              Navigator.pop(ctx);
-                                              Navigator.of(context).pushNamed(
-                                                AppRoutes.ayudaMetodoPago,
-                                                arguments: {
-                                                  'solicitudId': vm.solicitudId,
-                                                  'metodoActual': vm.metodoPago,
-                                                },
-                                              );
-                                            },
-                                          ),
-                                          Divider(
-                                            height: 1.h,
-                                            color: Colors.black12,
-                                          ),
-                                          ListTile(
-                                            contentPadding: EdgeInsets.zero,
-                                            title: Text(
-                                              'Problemas con el conductor',
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.w600,
-                                                fontSize: 15.sp,
-                                              ),
-                                            ),
-                                            trailing: const Icon(
-                                              Icons.chevron_right,
-                                              color: Colors.black54,
-                                            ),
-                                            onTap: () {
-                                              Navigator.pop(ctx);
-                                              Navigator.of(context).pushNamed(
-                                                AppRoutes
-                                                    .ayudaProblemasConductor,
-                                                arguments: {
-                                                  'solicitudId': vm.solicitudId,
-                                                  'nombreConductor':
-                                                      vm.nombreConductor,
-                                                },
-                                              );
-                                            },
-                                          ),
-                                          Divider(
-                                            height: 1.h,
-                                            color: Colors.black12,
-                                          ),
-                                          ListTile(
-                                            contentPadding: EdgeInsets.zero,
-                                            title: Text(
-                                              '¿Puedo cancelar mi solicitud?',
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.w600,
-                                                fontSize: 15.sp,
-                                              ),
-                                            ),
-                                            trailing: const Icon(
-                                              Icons.chevron_right,
-                                              color: Colors.black54,
-                                            ),
-                                            onTap: () {
-                                              Navigator.pop(ctx);
-                                              // Confirmación con modal centrado.
-                                              _onCancelPressed(vm);
-                                            },
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  );
-                                },
+                                builder: (ctx) => _MenuAyudaSheet(
+                                  nombreUsuario: vm.nombreUsuarioCard,
+                                  fotoUsuario: vm.fotoUsuario,
+                                  onEstadoSolicitud: () {
+                                    Navigator.of(context).pushNamed(
+                                      AppRoutes.ayudaEstadoSolicitud,
+                                      arguments: {
+                                        'solicitudId': vm.solicitudId,
+                                      },
+                                    );
+                                  },
+                                  onMetodoPago: () {
+                                    Navigator.of(context).pushNamed(
+                                      AppRoutes.ayudaMetodoPago,
+                                      arguments: {
+                                        'solicitudId': vm.solicitudId,
+                                        'metodoActual': vm.metodoPago,
+                                      },
+                                    );
+                                  },
+                                  onProblemasConductor: () {
+                                    Navigator.of(context).pushNamed(
+                                      AppRoutes.ayudaProblemasConductor,
+                                      arguments: {
+                                        'solicitudId': vm.solicitudId,
+                                        'nombreConductor': vm.nombreConductor,
+                                      },
+                                    );
+                                  },
+                                  onCancelar: () {
+                                    // Confirmación con modal centrado.
+                                    _onCancelPressed(vm);
+                                  },
+                                ),
                               );
                             },
                             onDetails: () {
@@ -626,13 +509,14 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
 
   Future<void> _loadTipoVehiculoYIcono() async {
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('solicitudes')
-          .doc(widget.solicitudId)
-          .get();
-      final tipo = (doc.data()?['tipoVehiculo'] ?? '').toString().toLowerCase();
+      final data = await TripTrackingFirebaseService().getSolicitudOnce(
+        widget.solicitudId,
+      );
+      final tipo = (data?['tipoVehiculo'] ?? '').toString().toLowerCase();
       if (mounted) setState(() => _isMoto = tipo == 'moto');
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'trip_tracking_screen');
+    }
     _loadTaxiMarkerIcon();
   }
 
@@ -652,7 +536,9 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
         size: const Size(40, 40),
         mirrored: true,
       );
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'trip_tracking_screen');
+    }
     if (!mounted) return;
     setState(() {
       _taxiMarkerIcon = icon;
@@ -664,12 +550,31 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
   /// rotarlo más allá de 90°/270° lo deja "de cabeza". Para rumbos hacia el
   /// sur se usa el bitmap espejado (izquierda-derecha) y se pliega la
   /// rotación dentro de ±90°, así el ícono nunca se ve invertido.
+  ///
+  /// Cambiar el `icon` de un Marker (no solo `rotation`) fuerza que Google
+  /// Maps lo recree a nivel nativo — si el heading oscila justo alrededor de
+  /// 90°/270° (ruido GPS, curvas), el ícono entraba en flip-flop constante
+  /// entre normal/espejado y el carro parpadeaba/desaparecía en cada cambio.
+  /// Zona muerta (histéresis) de 20° a cada lado del umbral: una vez que
+  /// cambia de estado, no vuelve a cambiar hasta que el heading se aleje lo
+  /// suficiente del umbral, en vez de reaccionar a cada pequeño cruce.
+  bool _isMirroredHeading = false;
+
   (BitmapDescriptor?, double) _markerIconAndRotation(double heading) {
-    final mirror = heading > 90 && heading < 270;
-    final icon = mirror
+    if (_isMirroredHeading) {
+      if (heading <= 80 || heading >= 280) {
+        _isMirroredHeading = false;
+      }
+    } else {
+      if (heading > 100 && heading < 260) {
+        _isMirroredHeading = true;
+      }
+    }
+
+    final icon = _isMirroredHeading
         ? (_taxiMarkerIconMirrored ?? _taxiMarkerIcon)
         : _taxiMarkerIcon;
-    final rotation = mirror ? heading - 180 : heading;
+    final rotation = _isMirroredHeading ? heading - 180 : heading;
     return (icon, rotation);
   }
 
@@ -696,7 +601,9 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
               clientLng: vm.clienteLatLng?.longitude,
             ),
           );
-        } catch (_) {}
+        } catch (e, st) {
+          ErrorReporter.report(e, st, reason: 'trip_tracking_screen');
+        }
         return;
       }
 
@@ -704,7 +611,9 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
         try {
           await SessionHelper.clearActiveSolicitud();
           await RouteCacheService.clearSolicitud(widget.solicitudId);
-        } catch (_) {}
+        } catch (e, st) {
+          ErrorReporter.report(e, st, reason: 'trip_tracking_screen');
+        }
       }
     });
   }
@@ -723,7 +632,9 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
     // Mark the intended screen so reloads will open RutaClienteDestino
     try {
       await SessionHelper.setActiveSolicitudScreen('ruta_cliente_destino');
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'trip_tracking_screen');
+    }
 
     await navigateWithIntermediateLoader(
       context: context,
@@ -742,7 +653,9 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
       context: context,
       builder: (ctx) => Dialog(
         insetPadding: EdgeInsets.symmetric(horizontal: 32.w),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24.r)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24.r),
+        ),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(22, 24, 22, 18),
           child: Column(
@@ -843,33 +756,38 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
     // After attempting cancel, verify remote state and delete the solicitud
     // from Firestore if it is actually cancelled.
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('solicitudes')
-          .doc(widget.solicitudId)
-          .get();
+      final data = await TripTrackingFirebaseService().getSolicitudOnce(
+        widget.solicitudId,
+      );
 
-      if (doc.exists) {
-        final data = doc.data();
-        final estadoRaw = (data?['status'] ?? data?['estado'] ?? '').toString();
+      if (data != null) {
+        final estadoRaw = (data['status'] ?? data['estado'] ?? '').toString();
         final estadoNorm = SolicitudEstadoController.normalizeEstado(estadoRaw);
         if (estadoNorm == SolicitudEstado.cancelado ||
             estadoNorm == SolicitudEstado.sinRespuesta) {
           try {
-            await FirebaseFirestore.instance
-                .collection('solicitudes')
-                .doc(widget.solicitudId)
-                .delete();
-          } catch (_) {}
+            await TripTrackingFirebaseService().eliminarSolicitud(
+              solicitudId: widget.solicitudId,
+            );
+          } catch (e, st) {
+            ErrorReporter.report(e, st, reason: 'trip_tracking_screen');
+          }
 
           try {
             await SessionHelper.clearActiveSolicitud();
-          } catch (_) {}
+          } catch (e, st) {
+            ErrorReporter.report(e, st, reason: 'trip_tracking_screen');
+          }
           try {
             await RouteCacheService.clearSolicitud(widget.solicitudId);
-          } catch (_) {}
+          } catch (e, st) {
+            ErrorReporter.report(e, st, reason: 'trip_tracking_screen');
+          }
         }
       }
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'trip_tracking_screen');
+    }
 
     if (!mounted) return;
     _navigateCancelado();
@@ -893,9 +811,13 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
         await SessionHelper.clearActiveSolicitud();
         try {
           await SessionHelper.clearActiveSolicitudScreen();
-        } catch (_) {}
+        } catch (e, st) {
+          ErrorReporter.report(e, st, reason: 'trip_tracking_screen');
+        }
         await RouteCacheService.clearSolicitud(widget.solicitudId);
-      } catch (_) {}
+      } catch (e, st) {
+        ErrorReporter.report(e, st, reason: 'trip_tracking_screen');
+      }
       if (!mounted) return;
       await navigateWithIntermediateLoader(
         context: context,
@@ -1033,13 +955,233 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _mapController?.dispose();
     _cameraFollowTimer?.cancel();
     try {
       _estadoController.waitModalVisible.removeListener(() {});
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'trip_tracking_screen');
+    }
     _estadoController.dispose();
     _cancelDisableTimer?.cancel();
     super.dispose();
+  }
+}
+
+/// Contenido del bottom sheet de ayuda mostrado desde `onHelp`. Extraído
+/// como widget propio para no reconstruir toda la pantalla al abrir el
+/// modal, y para que el `showModalBottomSheet` no cargue un builder inline
+/// de gran tamaño.
+class _MenuAyudaSheet extends StatelessWidget {
+  final String nombreUsuario;
+  final String fotoUsuario;
+  final VoidCallback onEstadoSolicitud;
+  final VoidCallback onMetodoPago;
+  final VoidCallback onProblemasConductor;
+  final VoidCallback onCancelar;
+
+  const _MenuAyudaSheet({
+    required this.nombreUsuario,
+    required this.fotoUsuario,
+    required this.onEstadoSolicitud,
+    required this.onMetodoPago,
+    required this.onProblemasConductor,
+    required this.onCancelar,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: 24.0.w, vertical: 16.0.h),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40.w,
+              height: 4.h,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2.r),
+              ),
+            ),
+            SizedBox(height: 16.h),
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor: AppColores.primary,
+                  backgroundImage: fotoUsuario.isNotEmpty
+                      ? NetworkImage(fotoUsuario)
+                      : null,
+                  child: fotoUsuario.isEmpty
+                      ? const Icon(Icons.person, size: 24, color: Colors.white)
+                      : null,
+                ),
+                SizedBox(width: 12.w),
+                Expanded(
+                  child: Text(
+                    nombreUsuario,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16.sp,
+                      color: AppColores.textPrimary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 24.h),
+            Divider(height: 1.h, color: Colors.black12),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(
+                '¿Cuál es el estado de mi solicitud?',
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15.sp),
+              ),
+              trailing: const Icon(
+                Icons.chevron_right,
+                color: Colors.black54,
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                onEstadoSolicitud();
+              },
+            ),
+            Divider(height: 1.h, color: Colors.black12),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(
+                'Revisar o modificar mi pago',
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15.sp),
+              ),
+              trailing: const Icon(
+                Icons.chevron_right,
+                color: Colors.black54,
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                onMetodoPago();
+              },
+            ),
+            Divider(height: 1.h, color: Colors.black12),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(
+                'Problemas con el conductor',
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15.sp),
+              ),
+              trailing: const Icon(
+                Icons.chevron_right,
+                color: Colors.black54,
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                onProblemasConductor();
+              },
+            ),
+            Divider(height: 1.h, color: Colors.black12),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(
+                '¿Puedo cancelar mi solicitud?',
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15.sp),
+              ),
+              trailing: const Icon(
+                Icons.chevron_right,
+                color: Colors.black54,
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                onCancelar();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Capa del `GoogleMap` desacoplada del `Consumer` de toda la pantalla:
+/// escucha directamente los `ValueNotifier`s de posición/heading/ruta del
+/// conductor (que se actualizan cada 50ms) para animar el marcador sin
+/// reconstruir Scaffold, card y overlays en cada tick.
+class _AnimatedConductorMap extends StatelessWidget {
+  const _AnimatedConductorMap({
+    super.key,
+    required this.vm,
+    required this.initialTarget,
+    required this.topPadding,
+    required this.bottomPadding,
+    required this.markerIconAndRotation,
+    required this.onMapCreated,
+  });
+
+  final TripTrackingViewModel vm;
+  final LatLng initialTarget;
+  final double topPadding;
+  final double bottomPadding;
+  final (BitmapDescriptor?, double) Function(double heading)
+  markerIconAndRotation;
+  final void Function(GoogleMapController controller) onMapCreated;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: Listenable.merge([
+        vm.conductorPositionNotifier,
+        vm.conductorHeadingNotifier,
+        vm.routePointsNotifier,
+      ]),
+      builder: (context, _) {
+        final conductorPos = vm.conductorPositionNotifier.value;
+        final (conductorIcon, conductorRotation) = markerIconAndRotation(
+          vm.conductorHeadingNotifier.value,
+        );
+        final routePts = vm.routePointsNotifier.value;
+
+        final markers = <Marker>{
+          if (conductorPos != null)
+            Marker(
+              markerId: const MarkerId('conductor'),
+              position: conductorPos,
+              rotation: conductorRotation,
+              icon:
+                  conductorIcon ??
+                  BitmapDescriptor.defaultMarkerWithHue(
+                    BitmapDescriptor.hueAzure,
+                  ),
+              flat: true,
+              anchor: const Offset(0.5, 0.5),
+            ),
+        };
+
+        final polylines = <Polyline>{
+          if (routePts.length >= 2)
+            Polyline(
+              polylineId: const PolylineId('ruta_real_time'),
+              points: routePts,
+              color: AppColores.buttonPrimary,
+              width: 5,
+            ),
+        };
+
+        return GoogleMap(
+          initialCameraPosition: CameraPosition(
+            target: initialTarget,
+            zoom: 14,
+          ),
+          myLocationEnabled: true,
+          myLocationButtonEnabled: false,
+          compassEnabled: true,
+          padding: EdgeInsets.only(top: topPadding, bottom: bottomPadding),
+          markers: markers,
+          polylines: polylines,
+          onMapCreated: onMapCreated,
+        );
+      },
+    );
   }
 }

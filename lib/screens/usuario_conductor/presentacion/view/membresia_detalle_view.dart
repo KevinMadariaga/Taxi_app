@@ -1,11 +1,58 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/features/phone_auth/services/user_data_service.dart';
 
 /// Detalle de la membresía del conductor. Se abre al tocar la tarjeta
 /// "Estás activo" en el perfil del conductor.
-class MembresiaDetalleView extends StatelessWidget {
-  const MembresiaDetalleView({super.key, required this.data});
+///
+/// Resuelve sus propios datos a partir de [uid] (en vez de recibir el mapa
+/// completo del padre) para no acoplar esta pantalla al ciclo de carga de
+/// `PaginaPerfilUsuario`.
+class MembresiaDetalleView extends StatefulWidget {
+  const MembresiaDetalleView({super.key, required this.uid});
+
+  final String uid;
+
+  @override
+  State<MembresiaDetalleView> createState() => _MembresiaDetalleViewState();
+}
+
+class _MembresiaDetalleViewState extends State<MembresiaDetalleView> {
+  late final Future<Map<String, dynamic>?> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = UserDataService().getUsuario(widget.uid);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<Map<String, dynamic>?>(
+      future: _future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return Scaffold(
+            backgroundColor: AppColores.background,
+            appBar: AppBar(
+              title: const Text('Detalle de membresía'),
+              backgroundColor: AppColores.primary,
+              foregroundColor: AppColores.textWhite,
+            ),
+            body: const Center(child: CircularProgressIndicator()),
+          );
+        }
+        return _MembresiaDetalleContent(
+          data: snapshot.data ?? const <String, dynamic>{},
+        );
+      },
+    );
+  }
+}
+
+class _MembresiaDetalleContent extends StatelessWidget {
+  const _MembresiaDetalleContent({required this.data});
 
   final Map<String, dynamic> data;
 

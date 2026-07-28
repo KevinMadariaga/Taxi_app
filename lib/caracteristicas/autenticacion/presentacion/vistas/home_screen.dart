@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/utils/transicion_pagina.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/modelos/auth_flow_result.dart';
+import 'package:taxi_app/caracteristicas/autenticacion/dominio/repositorios/client_auth_repository.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/presentacion/controladores/home_auth_controller.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/casos_uso/sign_in_google_client_usecase.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/presentacion/vistas/complete_profile_page.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/home_cliente_view.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioConductorView.dart';
-import 'package:taxi_app/features/admin/admin_home_screen.dart';
+import 'package:taxi_app/routes/app_routes.dart';
+import 'package:taxi_app/core/utils/error_reporter.dart';
 
 /// Pantalla de inicio de sesión del cliente.
 /// Diseño pulido: hero de marca + accesos sociales (Google / Apple).
@@ -89,33 +90,27 @@ class _HomeViewState extends State<HomeView> {
 
     // Enrutar según rol: admin → panel admin, conductor → inicio conductor,
     // cliente (o desconocido) → home cliente. Se detecta por doc en
-    // `administradores` o por el campo `rol`/`role` en `usuarios`.
+    // `administradores` o por el rol resuelto de `usuarios`.
     bool esAdmin = false;
     String rol = '';
     try {
-      final adminDoc = await FirebaseFirestore.instance
-          .collection('administradores')
-          .doc(result.user.id)
-          .get();
-      if (adminDoc.exists) esAdmin = true;
-
-      final userDoc = await FirebaseFirestore.instance
-          .collection('usuarios')
-          .doc(result.user.id)
-          .get();
-      rol = (userDoc.data()?['rol'] ?? userDoc.data()?['role'] ?? '')
-          .toString()
-          .toLowerCase();
-      if (rol == 'admin' || rol == 'administrador') esAdmin = true;
-    } catch (_) {}
+      final authRepository = Provider.of<ClientAuthRepository>(
+        context,
+        listen: false,
+      );
+      esAdmin = await authRepository.isRegisteredAdmin(result.user.id);
+      rol = await authRepository.resolveUserRole(result.user.id);
+      if (rol == 'administrador') esAdmin = true;
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'home_screen');
+    }
 
     if (!mounted) return;
     if (esAdmin) {
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(
-          builder: (_) => AdminHomeScreen(adminId: result.user.id),
-        ),
+      Navigator.of(context).pushNamedAndRemoveUntil(
+        AppRoutes.adminHome,
         (route) => false,
+        arguments: {'adminId': result.user.id},
       );
       return;
     }

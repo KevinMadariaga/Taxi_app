@@ -51,6 +51,10 @@ post_install do |installer|
       
       # Asegura que el target de despliegue sea consistente (ej. 15.0)
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
+
+      # GoogleMLKit no trae slice arm64 para simulador -> excluirlo fuerza x86_64/Rosetta en sim
+      # TEMP disabled: bloquea sim por completo (varios pods de Google ya no traen x86_64 tampoco)
+      # config.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = 'arm64'
     end
   end
 end

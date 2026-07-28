@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/routes/app_routes.dart';
-import 'package:taxi_app/screens/eliminar_cuenta_screen.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/view/eliminar_cuenta_screen.dart';
 import 'package:taxi_app/core/services/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 

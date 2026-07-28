@@ -23,6 +23,7 @@ import '../widgets/driver_client_info_card.dart';
 import '../widgets/driver_waiting_client_modal.dart';
 import 'driver_chat_screen.dart';
 import 'reportar_problema_screen.dart';
+import 'package:taxi_app/core/utils/error_reporter.dart';
 
 class DriverTripScreen extends StatefulWidget {
   const DriverTripScreen({super.key, required this.tripId});
@@ -58,7 +59,9 @@ class _DriverTripScreenState extends State<DriverTripScreen>
     // Persist current screen so reload restores DriverTripScreen when assigned
     try {
       SessionHelper.setActiveSolicitudScreen('driver_trip');
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'driver_trip_screen');
+    }
   }
 
   Future<void> _loadClientMarkerIcon() async {
@@ -77,7 +80,9 @@ class _DriverTripScreenState extends State<DriverTripScreen>
       setState(() {
         _clientMarkerIcon = icon;
       });
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'driver_trip_screen');
+    }
   }
 
   /// Detecta si el dispositivo tiene barra de navegación inferior (Android/iOS)
@@ -90,7 +95,9 @@ class _DriverTripScreenState extends State<DriverTripScreen>
     _stopBackgroundTrackingIfNeeded();
     try {
       NotificacionesServicio.instance.cancelAll();
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'driver_trip_screen');
+    }
     WidgetsBinding.instance.removeObserver(this);
     _controller.dispose();
     super.dispose();
@@ -154,7 +161,9 @@ class _DriverTripScreenState extends State<DriverTripScreen>
     try {
       final service = FlutterBackgroundService();
       service.invoke('stop');
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'driver_trip_screen');
+    }
     _backgroundTrackingEnabled = false;
     _backgroundTrackingStarting = false;
   }
@@ -178,7 +187,9 @@ class _DriverTripScreenState extends State<DriverTripScreen>
                   title: 'Servicio cancelado',
                   body: 'El cliente ha cancelado el servicio.',
                 );
-              } catch (_) {}
+              } catch (e, st) {
+                ErrorReporter.report(e, st, reason: 'driver_trip_screen');
+              }
             }
             WidgetsBinding.instance.addPostFrameCallback((_) async {
               if (!mounted) return;
@@ -196,20 +207,28 @@ class _DriverTripScreenState extends State<DriverTripScreen>
                       conductorId: FirebaseAuth.instance.currentUser?.uid,
                     ),
                   );
-                } catch (_) {}
+                } catch (e, st) {
+                  ErrorReporter.report(e, st, reason: 'driver_trip_screen');
+                }
                 return;
               }
               if (_shouldClearSolicitud(status)) {
                 try {
                   try {
                     await _stopBackgroundTrackingIfNeeded();
-                  } catch (_) {}
+                  } catch (e, st) {
+                    ErrorReporter.report(e, st, reason: 'driver_trip_screen');
+                  }
                   try {
                     await NotificacionesServicio.instance.cancelAll();
-                  } catch (_) {}
+                  } catch (e, st) {
+                    ErrorReporter.report(e, st, reason: 'driver_trip_screen');
+                  }
                   await SessionHelper.clearActiveSolicitud();
                   await RouteCacheService.clearSolicitud(widget.tripId);
-                } catch (_) {}
+                } catch (e, st) {
+                  ErrorReporter.report(e, st, reason: 'driver_trip_screen');
+                }
               }
             });
           }
@@ -524,8 +543,6 @@ class _DriverTripScreenState extends State<DriverTripScreen>
     );
   }
 
-
-
   void _fitInitialCameraIfNeeded(DriverTripController controller) {
     final map = _mapController;
     if (_initialCameraApplied || map == null) return;
@@ -660,7 +677,9 @@ class _DriverTripScreenState extends State<DriverTripScreen>
 
       try {
         Navigator.of(modalCtx).pop();
-      } catch (_) {}
+      } catch (e, st) {
+        ErrorReporter.report(e, st, reason: 'driver_trip_screen');
+      }
     });
   }
 
@@ -683,7 +702,9 @@ class _DriverTripScreenState extends State<DriverTripScreen>
 
     try {
       Navigator.of(modalCtx).pop();
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'driver_trip_screen');
+    }
 
     _waitingSheetVisible = false;
     _waitingModalContext = null;
@@ -697,7 +718,9 @@ class _DriverTripScreenState extends State<DriverTripScreen>
     try {
       try {
         await SessionHelper.setActiveSolicitudScreen('ruta_destino');
-      } catch (_) {}
+      } catch (e, st) {
+        ErrorReporter.report(e, st, reason: 'driver_trip_screen');
+      }
       if (!mounted) return;
       await navigateWithIntermediateLoader(
         context: context,
@@ -722,7 +745,9 @@ class _DriverTripScreenState extends State<DriverTripScreen>
       await SessionHelper.clearActiveSolicitud();
       try {
         await SessionHelper.clearActiveSolicitudScreen();
-      } catch (_) {}
+      } catch (e, st) {
+        ErrorReporter.report(e, st, reason: 'driver_trip_screen');
+      }
       await RouteCacheService.clearSolicitud(widget.tripId);
 
       if (!mounted) return;
@@ -761,7 +786,9 @@ class _SecurityCenterSheetState extends State<_SecurityCenterSheet> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.r)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20.r),
+        ),
         title: Row(
           children: [
             Container(
@@ -771,7 +798,11 @@ class _SecurityCenterSheetState extends State<_SecurityCenterSheet> {
                 color: AppColores.error.withValues(alpha: 0.12),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.phone_in_talk_rounded, color: AppColores.error, size: 22),
+              child: const Icon(
+                Icons.phone_in_talk_rounded,
+                color: AppColores.error,
+                size: 22,
+              ),
             ),
             SizedBox(width: 12.w),
             Expanded(
@@ -789,17 +820,25 @@ class _SecurityCenterSheetState extends State<_SecurityCenterSheet> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancelar', style: TextStyle(color: AppColores.textSecondary)),
+            child: const Text(
+              'Cancelar',
+              style: TextStyle(color: AppColores.textSecondary),
+            ),
           ),
           FilledButton(
             style: FilledButton.styleFrom(
               backgroundColor: AppColores.error,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12.r),
+              ),
             ),
             onPressed: () => Navigator.of(ctx).pop(true),
             child: const Text(
               'Llamar al 123',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ],
@@ -857,24 +896,44 @@ class _SecurityCenterSheetState extends State<_SecurityCenterSheet> {
                   ? SizedBox(
                       width: 24.w,
                       height: 24.h,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColores.error),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColores.error,
+                      ),
                     )
-                  : const Icon(Icons.sos_rounded, color: AppColores.error, size: 28),
-              title: const Text('Emergencia', style: TextStyle(fontWeight: FontWeight.w700)),
+                  : const Icon(
+                      Icons.sos_rounded,
+                      color: AppColores.error,
+                      size: 28,
+                    ),
+              title: const Text(
+                'Emergencia',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
               subtitle: const Text('Llama al 123 — Policía Nacional.'),
               onTap: _callingEmergency ? null : _handleEmergency,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12.r),
+              ),
               tileColor: AppColores.error.withValues(alpha: 0.06),
             ),
             SizedBox(height: 10.h),
             // Reportar problema
             ListTile(
               contentPadding: EdgeInsets.symmetric(horizontal: 12.w),
-              leading: const Icon(Icons.report_problem_outlined, color: AppColores.warning),
-              title: const Text('Reportar problema', style: TextStyle(fontWeight: FontWeight.w700)),
+              leading: const Icon(
+                Icons.report_problem_outlined,
+                color: AppColores.warning,
+              ),
+              title: const Text(
+                'Reportar problema',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
               subtitle: const Text('Reportar incidente durante el viaje.'),
               onTap: _handleReportar,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12.r),
+              ),
               tileColor: AppColores.warning.withValues(alpha: 0.06),
             ),
             SizedBox(height: 8.h),

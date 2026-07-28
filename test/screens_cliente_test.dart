@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/historial_viaje_cliente.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/InicioClienteView.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/view/registro_cliente_view.dart';
 import 'test_helpers/firebase_test_setup.dart';
 
 void main() {
@@ -22,12 +22,13 @@ void main() {
         tester.view.resetDevicePixelRatio();
       });
 
-      await tester.pumpWidget(MaterialApp(home: InicioClienteView()));
+      await tester.pumpWidget(
+        ScreenUtilInit(
+          designSize: const Size(390, 844),
+          builder: (context, child) => MaterialApp(home: InicioClienteView()),
+        ),
+      );
       expect(find.byType(InicioClienteView), findsOneWidget);
-    });
-    testWidgets('RegistroClienteView se puede construir', (tester) async {
-      await tester.pumpWidget(MaterialApp(home: RegistroClienteView()));
-      expect(find.byType(RegistroClienteView), findsOneWidget);
     });
   });
 }

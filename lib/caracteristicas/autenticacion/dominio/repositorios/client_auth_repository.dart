@@ -44,4 +44,23 @@ abstract class ClientAuthRepository {
     required String? fotoUrl,
     String? email,
   });
+
+  /// Login legado con correo/contraseña (panel de administración/conductores).
+  /// Devuelve el uid del usuario recién autenticado.
+  Future<String> loginWithEmail({
+    required String email,
+    required String password,
+  });
+
+  /// Resuelve el rol (cliente/conductor/administrador) de [uid] desde
+  /// `usuarios/{uid}`, aceptando los alias legacy `tipoUsuario`/`rol`/`role`.
+  /// Devuelve 'cliente' si no se pudo determinar.
+  Future<String> resolveUserRole(String uid);
+
+  /// Indica si [uid] tiene un documento propio en `administradores` (distinto
+  /// de `usuarios.rol == 'admin'`, ambas señales se combinan al enrutar tras
+  /// login social — ver `HomeView._navegarTrasLogin`).
+  Future<bool> isRegisteredAdmin(String uid);
+
+  Future<void> logout();
 }

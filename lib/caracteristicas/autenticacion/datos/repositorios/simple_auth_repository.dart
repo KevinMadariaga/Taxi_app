@@ -7,7 +7,7 @@ class LegacyAuthRepository {
 
   LegacyAuthRepository(this._firebase);
 
-  Future<void> login(String email, String password) {
+  Future<String> login(String email, String password) {
     return _firebase.login(email, password);
   }
 

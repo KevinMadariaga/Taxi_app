@@ -26,6 +26,15 @@ class SugerenciasService {
     await _fs.collection('sugerencias').doc(docId).update({'visto': true});
   }
 
+  /// Cantidad de sugerencias sin revisar (badge de `AdminHubScreen`).
+  Stream<int> watchNoVistasCount() {
+    return _fs
+        .collection('sugerencias')
+        .where('visto', isEqualTo: false)
+        .snapshots()
+        .map((snap) => snap.docs.length);
+  }
+
   Stream<QuerySnapshot<Map<String, dynamic>>> watchAll() {
     return _fs
         .collection('sugerencias')

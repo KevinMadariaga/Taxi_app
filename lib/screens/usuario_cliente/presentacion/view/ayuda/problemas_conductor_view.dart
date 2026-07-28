@@ -1,7 +1,7 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/services/reportes_service.dart';
 
 /// Formulario para reportar problemas con el conductor. Guarda el reporte en la
 /// colección `reportes` de Firestore.
@@ -44,15 +44,13 @@ class _ProblemasConductorViewState extends State<ProblemasConductorView> {
     setState(() => _enviando = true);
     try {
       final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
-      await FirebaseFirestore.instance.collection('reportes').add({
-        'tipo': 'problema_conductor',
-        'solicitudId': widget.solicitudId,
-        'clienteId': uid,
-        'conductor': widget.nombreConductor,
-        'motivos': _seleccionados.toList(),
-        'comentario': _comentario.text.trim(),
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+      await ReportesService.instance.enviarReporteConductor(
+        solicitudId: widget.solicitudId,
+        clienteId: uid,
+        conductor: widget.nombreConductor,
+        motivos: _seleccionados.toList(),
+        comentario: _comentario.text.trim(),
+      );
       if (!mounted) return;
       await _mostrarExito();
     } catch (e) {

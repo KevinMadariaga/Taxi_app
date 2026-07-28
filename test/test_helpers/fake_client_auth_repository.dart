@@ -102,4 +102,27 @@ class FakeClientAuthRepository implements ClientAuthRepository {
   }) async {
     return;
   }
+
+  @override
+  Future<String> loginWithEmail({
+    required String email,
+    required String password,
+  }) async {
+    return 'fake-uid';
+  }
+
+  @override
+  Future<String> resolveUserRole(String uid) async {
+    return 'cliente';
+  }
+
+  @override
+  Future<bool> isRegisteredAdmin(String uid) async {
+    return false;
+  }
+
+  @override
+  Future<void> logout() async {
+    return;
+  }
 }

@@ -1,0 +1,216 @@
+rules_version = '2';
+
+// Reglas redactadas a partir de un mapeo exacto de los accesos reales del
+// código (auditoría 2026-07-18). Reemplazan `allow read, write: if true`
+// que estaba activo en producción — hueco crítico: cualquiera podía leer y
+// escribir cualquier documento sin autenticarse.
+//
+// Limitaciones conocidas y aceptadas (mejoran muchísimo sobre el estado
+// anterior, pero no son perfectas — requieren cambios de código para
+// cerrarse del todo):
+// - `solicitudes` en estado 'buscando': cualquier usuario con rol=='conductor'
+//   puede escribir el documento completo, no solo los campos de
+//   conductor/contraoferta, porque el código no separa esas escrituras por
+//   campo (InicioConductorViewModel.aceptarSolicitud/enviarContraoferta).
+// - `administradores`: lectura abierta a cualquier autenticado porque
+//   AdminFcmService.sendToAllAdmins (llamado por clientes y conductores)
+//   lee toda la colección sin filtro para juntar tokens FCM. Expone
+//   nombre/teléfono/gremio de admins a cualquier usuario logueado. Fix
+//   correcto a mediano plazo: mover ese envío a una Cloud Function.
+// - `usuarios` con rol=='conductor': lectura abierta a cualquier admin
+//   autenticado (no solo el admin dueño del gremio) porque
+//   gestion_conductores_viewmodel.dart lista TODOS los conductores sin
+//   filtrar por adminId en la query — el aislamiento por gremio hoy es
+//   solo client-side.
+//
+// Antes de desplegar a producción: probar con el emulador de Firestore
+// (firebase emulators:start) contra los flujos reales de la app.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdminRole() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/administradores/$(request.auth.uid));
+    }
+
+    function isConductorRole() {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.get('rol', '') == 'conductor';
+    }
+
+    // ---------------------------------------------------------------
+    // solicitudes: doc autogenerado. cliente.id = dueño; conductor.id =
+    // asignado (ausente hasta que alguien acepta). Un conductor necesita
+    // poder LEER y ACTUALIZAR solicitudes en 'buscando' antes de ser suyas
+    // (para poder verlas, aceptarlas o mandar contraoferta).
+    // ---------------------------------------------------------------
+    match /solicitudes/{solicitudId} {
+      function isOwner() {
+        return isSignedIn() && resource.data.cliente.id == request.auth.uid;
+      }
+
+      function isAssignedConductor() {
+        return isSignedIn() &&
+          resource.data.get('conductor', null) != null &&
+          resource.data.conductor.id == request.auth.uid;
+      }
+
+      function isOpenForConductores() {
+        return resource.data.estado in ['buscando', 'pending', 'pendiente'];
+      }
+
+      allow read: if isOwner() || isAssignedConductor() ||
+        (isConductorRole() && isOpenForConductores());
+
+      allow create: if isSignedIn() &&
+        request.resource.data.cliente.id == request.auth.uid &&
+        request.resource.data.estado == 'buscando';
+
+      allow update: if isOwner() || isAssignedConductor() ||
+        (isConductorRole() && isOpenForConductores());
+
+      allow delete: if false;
+
+      match /mensajes/{mensajeId} {
+        function solicitudPadre() {
+          return get(/databases/$(database)/documents/solicitudes/$(solicitudId)).data;
+        }
+
+        function esParticipante() {
+          return isSignedIn() &&
+            (solicitudPadre().cliente.id == request.auth.uid ||
+              (solicitudPadre().get('conductor', null) != null &&
+                solicitudPadre().conductor.id == request.auth.uid));
+        }
+
+        allow read: if esParticipante();
+        allow create: if esParticipante() &&
+          request.resource.data.senderId == request.auth.uid;
+        allow update, delete: if false;
+      }
+    }
+
+    // ---------------------------------------------------------------
+    // usuarios: doc id = uid de Auth, compartido entre cliente y conductor
+    // (campo `rol`). Conductores tienen `adminId` = uid del admin dueño del
+    // gremio, que puede gestionarlos.
+    // ---------------------------------------------------------------
+    match /usuarios/{uid} {
+      allow read: if isSignedIn() &&
+        (request.auth.uid == uid ||
+          (isAdminRole() && resource.data.get('rol', '') == 'conductor'));
+
+      allow create: if isSignedIn() &&
+        (request.auth.uid == uid ||
+          (isAdminRole() &&
+            request.resource.data.get('rol', '') == 'conductor' &&
+            request.resource.data.get('adminId', '') == request.auth.uid));
+
+      allow update: if isSignedIn() &&
+        ((request.auth.uid == uid &&
+            request.resource.data.get('rol', '') == resource.data.get('rol', '') &&
+            request.resource.data.get('adminId', '') == resource.data.get('adminId', '')) ||
+          (isAdminRole() &&
+            resource.data.get('rol', '') == 'conductor' &&
+            resource.data.get('adminId', '') == request.auth.uid));
+
+      allow delete: if isAdminRole() &&
+        resource.data.get('rol', '') == 'conductor' &&
+        resource.data.get('adminId', '') == request.auth.uid;
+
+      // Direcciones favoritas del propio usuario.
+      match /favoritos/{favoritoId} {
+        allow read, write: if isSignedIn() && request.auth.uid == uid;
+      }
+    }
+
+    // Espejo de `usuarios` para clientes (compatibilidad legacy, mismo uid).
+    match /cliente/{uid} {
+      allow read, write: if isSignedIn() && request.auth.uid == uid;
+    }
+
+    // Historial de ubicaciones buscadas/guardadas por el cliente.
+    match /ubicaciones/{id} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // ---------------------------------------------------------------
+    // conductores: colección casi sin uso (una sola query en todo el
+    // código, para marcadores de taxis disponibles en el mapa del
+    // cliente). Sin escrituras conocidas — se deniegan por defecto.
+    // ---------------------------------------------------------------
+    match /conductores/{id} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    // Presencia en vivo del conductor conectado (para el mapa "sonar" del
+    // cliente). Doc id = uid del conductor, self-managed.
+    match /conductores_conectados/{uid} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && request.auth.uid == uid;
+    }
+
+    // ---------------------------------------------------------------
+    // administradores: escritura solo del propio dueño. Lectura abierta a
+    // cualquier usuario autenticado porque `AdminFcmService.sendToAllAdmins`
+    // (llamado por clientes Y conductores, ver soporte_chat_service.dart,
+    // completar_registro_conductor_view.dart, activacion_servicio_view.dart)
+    // hace un `.get()` sin filtro sobre toda la colección para juntar
+    // `fcmToken` de todos los admins.
+    // ---------------------------------------------------------------
+    match /administradores/{uid} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && request.auth.uid == uid;
+    }
+
+    // ---------------------------------------------------------------
+    // soporte_chats/{userId}: chat de soporte entre un usuario (cliente o
+    // conductor) y cualquier admin. Doc id = uid del usuario.
+    // ---------------------------------------------------------------
+    match /soporte_chats/{userId} {
+      allow read, write: if isSignedIn() &&
+        (request.auth.uid == userId || isAdminRole());
+
+      match /mensajes/{mensajeId} {
+        allow read: if isSignedIn() &&
+          (request.auth.uid == userId || isAdminRole());
+        allow create: if isSignedIn() &&
+          (request.auth.uid == userId || isAdminRole());
+        allow update, delete: if false;
+      }
+    }
+
+    // Reportes (problema con conductor/cliente). Solo el autor los crea con
+    // su propio id; solo admins los leen/marcan como atendidos.
+    match /reportes/{id} {
+      allow read, update: if isAdminRole();
+      allow create: if isSignedIn() &&
+        (request.resource.data.get('clienteId', '') == request.auth.uid ||
+          request.resource.data.get('conductorId', '') == request.auth.uid);
+      allow delete: if false;
+    }
+
+    // Sugerencias de usuarios. Solo el autor las crea; solo admins las leen
+    // y marcan como vistas.
+    match /sugerencias/{id} {
+      allow read, update: if isAdminRole();
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow delete: if false;
+    }
+
+    // Alertas de pánico (botón SOS). Solo el autor las crea; solo admins
+    // las leen y las marcan como atendidas.
+    match /emergencias/{id} {
+      allow read, update: if isAdminRole();
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow delete: if false;
+    }
+  }
+}

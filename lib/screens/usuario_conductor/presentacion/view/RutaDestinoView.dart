@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io' show Platform;
 import 'dart:math' as Math;
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
@@ -10,6 +9,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:taxi_app/core/helpers/map_helper.dart';
 import 'package:taxi_app/core/helpers/session_helper.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/resumen_conductor_view.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodels/RutaDestinoViewModel.dart';
@@ -20,10 +20,11 @@ import 'package:taxi_app/widgets/intermediate_transition_view.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:provider/provider.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:taxi_app/utils/marker_icon_helper.dart';
+import 'package:taxi_app/core/utils/marker_icon_helper.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:taxi_app/features/driver_trip/widgets/driver_client_info_card.dart';
 import 'package:taxi_app/features/driver_trip/screens/reportar_problema_screen.dart';
+import 'package:taxi_app/core/utils/error_reporter.dart';
 
 class RutaDestino extends StatelessWidget {
   final String idSolicitud;
@@ -152,7 +153,9 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
       // Persistir que estamos en la pantalla de ruta conductor para restaurar en reload
       try {
         await SessionHelper.setActiveSolicitudScreen('ruta_destino');
-      } catch (_) {}
+      } catch (e, st) {
+        ErrorReporter.report(e, st, reason: 'RutaDestinoView');
+      }
       if (!mounted) return;
 
       await vm.cargarDatosCliente(widget.idSolicitud);
@@ -182,22 +185,19 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
 
   Future<void> _loadTipoVehiculo() async {
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('solicitudes')
-          .doc(widget.idSolicitud)
-          .get();
-      final tipo = (doc.data()?['tipoVehiculo'] ?? '').toString().toLowerCase();
+      final data = await TripTrackingFirebaseService().getSolicitudOnce(
+        widget.idSolicitud,
+      );
+      final tipo = (data?['tipoVehiculo'] ?? '').toString().toLowerCase();
       if (mounted) setState(() => _isMoto = tipo == 'moto');
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'RutaDestinoView');
+    }
   }
 
   Future<void> _cargarMarcadoresPersonalizados() async {
-    final dpr = WidgetsBinding
-        .instance
-        .platformDispatcher
-        .views
-        .first
-        .devicePixelRatio;
+    final dpr =
+        WidgetsBinding.instance.platformDispatcher.views.first.devicePixelRatio;
     final destinoIcon = await MarkerIconHelper.fromAsset(
       'assets/img/map_pin_red.png',
       size: const Size(48, 48),
@@ -238,12 +238,17 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
       return;
     }
     const alpha = 0.15;
-    final newLat = _conductorSmooth!.latitude +
+    final newLat =
+        _conductorSmooth!.latitude +
         (target.latitude - _conductorSmooth!.latitude) * alpha;
-    final newLng = _conductorSmooth!.longitude +
+    final newLng =
+        _conductorSmooth!.longitude +
         (target.longitude - _conductorSmooth!.longitude) * alpha;
     final dist = Geolocator.distanceBetween(
-      newLat, newLng, target.latitude, target.longitude,
+      newLat,
+      newLng,
+      target.latitude,
+      target.longitude,
     );
     final current = dist < 0.3 ? target : LatLng(newLat, newLng);
     setState(() {
@@ -258,7 +263,9 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
     // navegación real de Google Maps) sino la frecuencia de animateCamera —
     // a más de ~2/seg empieza a notarse en Android de gama baja.
     _cameraFollowTick++;
-    if (_cameraFollowTick >= 10 && _centraSoloConductor && _mapController != null) {
+    if (_cameraFollowTick >= 10 &&
+        _centraSoloConductor &&
+        _mapController != null) {
       _cameraFollowTick = 0;
       unawaited(
         _mapController!.animateCamera(
@@ -274,10 +281,8 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
     }
   }
 
-  double _lerpAngle(double current, double target, double t) {
-    final diff = (target - current + 540) % 360 - 180;
-    return (current + diff * t) % 360;
-  }
+  double _lerpAngle(double current, double target, double t) =>
+      MapHelper.lerpAngle(current, target, t);
 
   @override
   void dispose() {
@@ -287,7 +292,9 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
     // Ensure background service is stopped when widget is disposed
     try {
       _detenerTrackingBackground();
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'RutaDestinoView');
+    }
     super.dispose();
   }
 
@@ -383,12 +390,14 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
           solicitudId: widget.idSolicitud,
           location: nuevaUbicacion,
           timestampMs: ts,
-          appendRouteHistory: true,
         );
         debugPrint(
           '[LOG] Ubicación guardada en Firestore (servicio): lat=${nuevaUbicacion.latitude}, lng=${nuevaUbicacion.longitude}',
         );
-        await vm.verificarUbicacionPersistida(widget.idSolicitud, nuevaUbicacion);
+        await vm.verificarUbicacionPersistida(
+          widget.idSolicitud,
+          nuevaUbicacion,
+        );
       } catch (e) {
         debugPrint('Error guardando ubicación (servicio): $e');
       }
@@ -471,9 +480,11 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
               solicitudId: widget.idSolicitud,
               location: nuevaUbicacion,
               timestampMs: timestampMs,
-              appendRouteHistory: true,
             );
-            await vm.verificarUbicacionPersistida(widget.idSolicitud, nuevaUbicacion);
+            await vm.verificarUbicacionPersistida(
+              widget.idSolicitud,
+              nuevaUbicacion,
+            );
           } catch (e) {
             debugPrint('Error guardando ubicación obtenida (servicio): $e');
           }
@@ -543,7 +554,9 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
       // Ensure background tracking is stopped when finalizing the trip
       try {
         await _detenerTrackingBackground();
-      } catch (_) {}
+      } catch (e, st) {
+        ErrorReporter.report(e, st, reason: 'RutaDestinoView');
+      }
       if (actualizarEstadoSolicitud) {
         await vm.marcarCompletado(widget.idSolicitud);
       }
@@ -733,9 +746,12 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
           position: destinoLatLng,
           infoWindow: InfoWindow(
             title: vm.tituloDestino.isNotEmpty ? vm.tituloDestino : 'Destino',
-            snippet: vm.direccionDestino.isNotEmpty ? vm.direccionDestino : null,
+            snippet: vm.direccionDestino.isNotEmpty
+                ? vm.direccionDestino
+                : null,
           ),
-          icon: _destinoMarkerIcon ??
+          icon:
+              _destinoMarkerIcon ??
               BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
         ),
     };
@@ -789,7 +805,10 @@ class _RutaDestinoContentState extends State<_RutaDestinoContent>
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [Colors.black.withValues(alpha: 0.28), Colors.transparent],
+                  colors: [
+                    Colors.black.withValues(alpha: 0.28),
+                    Colors.transparent,
+                  ],
                 ),
               ),
             ),

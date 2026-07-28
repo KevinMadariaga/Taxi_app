@@ -9,8 +9,8 @@ import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import 'package:taxi_app/core/helpers/map_helper.dart';
 import 'package:taxi_app/core/helpers/session_helper.dart';
-import 'dart:math' as math;
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/chat_message.dart';
 import 'package:taxi_app/core/services/chat_service_adapter.dart';
 import 'package:taxi_app/core/services/services.dart';
@@ -114,17 +114,8 @@ class RutaDestinoViewModel extends ChangeNotifier {
     }
   }
 
-  double calculateBearing(LatLng from, LatLng to) {
-    final lat1 = from.latitude * math.pi / 180;
-    final lat2 = to.latitude * math.pi / 180;
-    final dLon = (to.longitude - from.longitude) * math.pi / 180;
-    final y = math.sin(dLon) * math.cos(lat2);
-    final x =
-        math.cos(lat1) * math.sin(lat2) -
-        math.sin(lat1) * math.cos(lat2) * math.cos(dLon);
-    final brng = math.atan2(y, x);
-    return (brng * 180 / math.pi + 360) % 360;
-  }
+  double calculateBearing(LatLng from, LatLng to) =>
+      MapHelper.bearingDegrees(from, to);
 
   CameraPosition? getCameraPerspective() {
     if (currentDriverLocation == null ||
@@ -153,10 +144,8 @@ class RutaDestinoViewModel extends ChangeNotifier {
   }) {
     _solicitudStateSub?.cancel();
     _completionHandled = false;
-    _solicitudStateSub = FirebaseFirestore.instance
-        .collection('solicitudes')
-        .doc(solicitudId)
-        .snapshots()
+    _solicitudStateSub = _firebaseService
+        .watchSolicitud(solicitudId)
         .listen((doc) async {
           if (!doc.exists) return;
           final data = doc.data();
@@ -179,11 +168,7 @@ class RutaDestinoViewModel extends ChangeNotifier {
   ) async {
     if (!kDebugMode) return;
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('solicitudes')
-          .doc(solicitudId)
-          .get();
-      final data = doc.data();
+      final data = await _firebaseService.obtenerEstadoSolicitud(solicitudId);
       final storedLat = data?['conductor']?['ubicacion']?['lat'];
       final storedLng = data?['conductor']?['ubicacion']?['lng'];
       debugPrint(
@@ -210,10 +195,10 @@ class RutaDestinoViewModel extends ChangeNotifier {
   }
 
   Future<void> marcarCompletado(String solicitudId) async {
-    await FirebaseFirestore.instance.collection('solicitudes').doc(solicitudId).update({
-      'estado': 'completado',
-      'fecha de terminacion': DateTime.now(),
-    });
+    // finalizarViaje ya marca `estado`/`completedAt`/`fecha de terminacion`
+    // (con serverTimestamp, más confiable que el DateTime.now() del cliente
+    // que se usaba aquí antes) vía SolicitudFirestoreDatasource.
+    await _firebaseService.finalizarViaje(solicitudId);
   }
 
   Future<void> finalizarSolicitud(String solicitudId) async {
@@ -251,19 +236,15 @@ class RutaDestinoViewModel extends ChangeNotifier {
     await SessionHelper.clearActiveSolicitud();
   }
 
-  static Future<bool> restaurarSolicitudActiva(BuildContext _) async {
+  Future<bool> restaurarSolicitudActiva(BuildContext _) async {
     final id = await SessionHelper.getActiveSolicitud();
     if (id != null && id.isNotEmpty) {
       // Consultar Firestore para verificar el estado
       try {
-        final doc = await FirebaseFirestore.instance
-            .collection('solicitudes')
-            .doc(id)
-            .get();
-        if (doc.exists) {
-          final data = doc.data();
+        final data = await _firebaseService.obtenerEstadoSolicitud(id);
+        if (data != null) {
           final estado = SolicitudEstado.normalize(
-            (data?['estado'] ?? '').toString(),
+            (data['estado'] ?? '').toString(),
           );
           if (estado == SolicitudEstado.asignado) {
             return true;
@@ -364,12 +345,7 @@ class RutaDestinoViewModel extends ChangeNotifier {
   Future<void> cargarDatosCliente(String solicitudId) async {
     await guardarSolicitudActiva(solicitudId);
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('solicitudes')
-          .doc(solicitudId)
-          .get();
-      if (!doc.exists) return;
-      final data = doc.data();
+      final data = await _firebaseService.obtenerEstadoSolicitud(solicitudId);
       if (data == null) return;
       final cliente = data['cliente'];
       if (cliente is Map<String, dynamic>) {

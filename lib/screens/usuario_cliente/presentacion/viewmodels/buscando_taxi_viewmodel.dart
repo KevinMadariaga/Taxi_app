@@ -2,11 +2,13 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart' show AppLifecycleState;
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import 'package:taxi_app/core/services/services.dart';
 import 'package:taxi_app/core/helpers/session_helper.dart';
 import 'package:taxi_app/core/constants/solicitud_estado.dart';
+import 'package:taxi_app/core/utils/error_reporter.dart';
 
 /// Contraoferta individual de un conductor.
 class ContraofertaItem {
@@ -62,6 +64,30 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
   String? _counterOfferToken;
   String? _lastNotifiedCounterOfferToken;
 
+  // ── Tracking de conductores + timers de ciclo de vida ───────────────────────
+  // Extraído de BuscandoTaxiView (comunidad de menor cohesión del repo según
+  // graphify-out/GRAPH_REPORT.md) — antes vivía en el State del widget: la
+  // View suscribía streams del vm ella misma y corría timers de negocio
+  // (avisar 5min, cancelar tras 6min en background/2s tras detached) fuera de
+  // MVVM. Acá el vm posee la suscripción y el timer completos.
+  Map<String, LatLng> conductoresPositions = {};
+  Map<String, LatLng> conectadosPositions = {};
+  int searchSeconds = 0;
+  bool flujoTerminado = false;
+
+  StreamSubscription<Map<String, LatLng>>? _conductoresSub;
+  StreamSubscription<Map<String, LatLng>>? _conductoresConectadosSub;
+  Timer? _searchTimer;
+  Timer? _bgCancelTimer;
+  Timer? _detachedCancelTimer;
+  bool _notif5minEnviada = false;
+
+  // 6 min en segundo plano sin volver → cancelar solicitud.
+  static const Duration _umbralBackgroundCancel = Duration(minutes: 6);
+  // 2 s tras destrucción del motor → cancelar solicitud.
+  static const Duration _umbralDetachedCancel = Duration(seconds: 2);
+  static const int segundosAviso5min = 300;
+
   bool get isCancelling => _isCancelling;
   bool get isUpdatingValor => _isUpdatingValor;
   bool get isRespondingCounteroffer => _isRespondingCounteroffer;
@@ -70,8 +96,7 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
   String? get estadoContraoferta => _estadoContraoferta;
   String? get tipoVehiculo => _tipoVehiculo;
   bool get isMotoSolicitud => (_tipoVehiculo ?? '').toLowerCase() == 'moto';
-  List<ContraofertaItem> get contraofertas =>
-      List.unmodifiable(_contraofertas);
+  List<ContraofertaItem> get contraofertas => List.unmodifiable(_contraofertas);
   bool get hasPendingCounteroffer =>
       _contraofertas.isNotEmpty ||
       (_valorContraofertaPendiente != null &&
@@ -146,13 +171,16 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
             ? Map<String, dynamic>.from(conductorRaw)
             : <String, dynamic>{};
 
-        final conductorId = conductorData['id']?.toString() ??
+        final conductorId =
+            conductorData['id']?.toString() ??
             entry['conductorId']?.toString() ??
             key.toString();
-        final nombre = conductorData['nombre']?.toString() ??
+        final nombre =
+            conductorData['nombre']?.toString() ??
             entry['conductorNombre']?.toString() ??
             'Conductor';
-        final foto = conductorData['foto']?.toString() ??
+        final foto =
+            conductorData['foto']?.toString() ??
             conductorData['fotoUrl']?.toString();
         final placa = conductorData['placa']?.toString();
         final v = _toDouble(entry['valor']);
@@ -162,31 +190,40 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
         final stamp = entry['createdAt'];
         if (stamp is Timestamp) createdAt = stamp.toDate();
 
-        final calif = _toDouble(conductorData['calificacionPromedio'] ??
-                conductorData['calificacion'] ??
-                conductorData['rating']) ??
+        final calif =
+            _toDouble(
+              conductorData['calificacionPromedio'] ??
+                  conductorData['calificacion'] ??
+                  conductorData['rating'],
+            ) ??
             0;
-        final totalCalif = (conductorData['totalCalificaciones'] ??
-                conductorData['totalRatings'] ??
-                conductorData['ratingCount']);
+        final totalCalif =
+            (conductorData['totalCalificaciones'] ??
+            conductorData['totalRatings'] ??
+            conductorData['ratingCount']);
         final totalCalifInt = totalCalif is num ? totalCalif.toInt() : 0;
 
-        newList.add(ContraofertaItem(
-          conductorId: conductorId,
-          conductorNombre: nombre,
-          conductorFoto: foto,
-          placa: placa,
-          valor: v,
-          createdAt: createdAt,
-          conductorPayload: conductorData,
-          calificacion: calif.clamp(0, 5).toDouble(),
-          totalCalificaciones: totalCalifInt,
-        ));
+        newList.add(
+          ContraofertaItem(
+            conductorId: conductorId,
+            conductorNombre: nombre,
+            conductorFoto: foto,
+            placa: placa,
+            valor: v,
+            createdAt: createdAt,
+            conductorPayload: conductorData,
+            calificacion: calif.clamp(0, 5).toDouble(),
+            totalCalificaciones: totalCalifInt,
+          ),
+        );
       });
       // Filtrar solo la oferta exacta rechazada (clave conductorId:valor).
       // Si el mismo conductor manda un precio diferente, es oferta nueva → pasa.
-      newList.removeWhere((o) => _rejectedContraIds.contains(
-            '${o.conductorId}:${o.valor.toStringAsFixed(0)}'));
+      newList.removeWhere(
+        (o) => _rejectedContraIds.contains(
+          '${o.conductorId}:${o.valor.toStringAsFixed(0)}',
+        ),
+      );
       // Ordenar por valor ascendente para mostrar la más barata primero
       newList.sort((a, b) => a.valor.compareTo(b.valor));
 
@@ -252,7 +289,9 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
         title: 'Contraoferta del conductor',
         body: 'Te proponen un nuevo valor: \$$valorTxt',
       );
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'buscando_taxi_viewmodel');
+    }
   }
 
   static String _formatMiles(int value) {
@@ -276,7 +315,7 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
     try {
       await _firestore.collection('solicitudes').doc(solicitudId).set({
         'valorServicioPropuesto': nuevoValor,
-        'estado': 'buscando',
+        'estado': SolicitudEstado.buscando,
         'estadoContraoferta': 'sin_contraoferta',
         'updatedAt': FieldValue.serverTimestamp(),
         'tarifa': {
@@ -362,7 +401,7 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
             : <String, dynamic>{'id': conductorId};
 
         tx.set(ref, {
-          'estado': 'asignado',
+          'estado': SolicitudEstado.asignado,
           'conductor': conductorPayloadFresco,
           'valorServicioPropuesto': valorFresco,
           'estadoContraoferta': 'aceptada_cliente',
@@ -408,7 +447,9 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
       ContraofertaItem? oferta;
       try {
         oferta = _contraofertas.firstWhere((o) => o.conductorId == conductorId);
-      } catch (_) {}
+      } catch (e, st) {
+        ErrorReporter.report(e, st, reason: 'buscando_taxi_viewmodel');
+      }
       final rejectKey = oferta != null
           ? '$conductorId:${oferta.valor.toStringAsFixed(0)}'
           : conductorId;
@@ -465,7 +506,7 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
 
         final conductorData = contraRaw['conductor'];
         tx.set(ref, {
-          'estado': 'asignado',
+          'estado': SolicitudEstado.asignado,
           'valorServicioPropuesto': valor,
           'estadoContraoferta': 'aceptada_cliente',
           'updatedAt': FieldValue.serverTimestamp(),
@@ -507,7 +548,7 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
 
     try {
       await _firestore.collection('solicitudes').doc(solicitudId).set({
-        'estado': 'buscando',
+        'estado': SolicitudEstado.buscando,
         'estadoContraoferta': 'rechazada_cliente',
         'updatedAt': FieldValue.serverTimestamp(),
         'contraoferta': {
@@ -538,7 +579,9 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
         title: 'Solicitud asignada',
         body: '¡Un conductor ha sido asignado a tu viaje!',
       );
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'buscando_taxi_viewmodel');
+    }
   }
 
   Future<void> detenerEscucha() async {
@@ -547,7 +590,9 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
     if (sub == null) return;
     try {
       await sub.cancel();
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'buscando_taxi_viewmodel');
+    }
   }
 
   /// Cancela por inactividad/abandono (app cerrada o en segundo plano demasiado
@@ -561,16 +606,20 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
     final docRef = _firestore.collection('solicitudes').doc(solicitudId);
     try {
       await docRef.update({
-        'estado': 'cancelado',
+        'estado': SolicitudEstado.cancelado,
         'cancelledAt': FieldValue.serverTimestamp(),
         'cancelReason': 'inactividad',
       });
-      unawaited(_borrarSolicitudTrasGracia(
-        docRef,
-        solicitudId,
-        gracia: const Duration(seconds: 3),
-      ));
-    } catch (_) {}
+      unawaited(
+        _borrarSolicitudTrasGracia(
+          docRef,
+          solicitudId,
+          gracia: const Duration(seconds: 3),
+        ),
+      );
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'buscando_taxi_viewmodel');
+    }
     SessionHelper.clearActiveSolicitud().ignore();
     SessionHelper.clearActiveSolicitudScreen().ignore();
   }
@@ -587,7 +636,7 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
     final docRef = _firestore.collection('solicitudes').doc(solicitudId);
     try {
       await docRef.update({
-        'estado': 'cancelado',
+        'estado': SolicitudEstado.cancelado,
         'cancelledAt': FieldValue.serverTimestamp(),
       });
     } catch (e) {
@@ -624,12 +673,116 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
     }
   }
 
+  // ── Tracking de conductores ──────────────────────────────────────────────
+
+  void subscribeConductores() {
+    _conductoresSub?.cancel();
+    _conductoresSub = streamConductoresDisponibles().listen((positions) {
+      conductoresPositions = Map<String, LatLng>.from(positions);
+      _safeNotify();
+    }, onError: (_) {});
+  }
+
+  void subscribeConductoresConectados() {
+    _conductoresConectadosSub?.cancel();
+    _conductoresConectadosSub = streamConductoresConectados().listen((
+      positions,
+    ) {
+      conectadosPositions = Map<String, LatLng>.from(positions);
+      _safeNotify();
+    }, onError: (_) {});
+  }
+
+  // ── Timer de búsqueda ─────────────────────────────────────────────────────
+
+  void startSearchTimer() {
+    _searchTimer?.cancel();
+    searchSeconds = 0;
+    _searchTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      searchSeconds++;
+      _safeNotify();
+      if (!_notif5minEnviada && searchSeconds >= segundosAviso5min) {
+        _notif5minEnviada = true;
+        _avisar5Minutos();
+      }
+    });
+  }
+
+  Future<void> _avisar5Minutos() async {
+    try {
+      await NotificacionesServicio.instance.showNotification(
+        id: 1003,
+        title: 'Llevas 5 minutos buscando',
+        body:
+            'Aún no hay conductor. ¿Quieres aumentar tu oferta para '
+            'conseguir uno más rápido?',
+      );
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'buscando_taxi_viewmodel');
+    }
+  }
+
+  // ── Ciclo de vida de la app ───────────────────────────────────────────────
+
+  void handleAppLifecycleState(AppLifecycleState state) {
+    if (flujoTerminado) return;
+
+    if (state == AppLifecycleState.detached) {
+      // Motor Flutter destruido (app cerrada por completo).
+      // Esperar 2 s para dar tiempo al SDK a enviar la escritura a Firestore.
+      _detachedCancelTimer?.cancel();
+      _detachedCancelTimer = Timer(_umbralDetachedCancel, () {
+        if (!flujoTerminado) marcarCanceladaPorInactividad();
+      });
+      return;
+    }
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
+      // App en segundo plano: cancelar tras 6 min sin volver.
+      _bgCancelTimer?.cancel();
+      _bgCancelTimer = Timer(_umbralBackgroundCancel, () {
+        if (!flujoTerminado) marcarCanceladaPorInactividad();
+      });
+      return;
+    }
+    if (state == AppLifecycleState.resumed) {
+      _bgCancelTimer?.cancel();
+      _detachedCancelTimer?.cancel();
+    }
+  }
+
+  /// Marca el flujo como terminado (navegación a viaje asignado, o
+  /// cancelación manual) — detiene los timers de background/detached de una
+  /// vez. El search timer y la suscripción de conectados se detienen aparte
+  /// vía [finalizarTrackingConductores], después del `await` a
+  /// `detenerEscucha()` en el caller (mismo orden en dos fases que tenía la
+  /// View originalmente).
+  void marcarFlujoTerminado() {
+    flujoTerminado = true;
+    _bgCancelTimer?.cancel();
+    _detachedCancelTimer?.cancel();
+  }
+
+  /// Segunda fase de limpieza al terminar el flujo. Nota: no cancela
+  /// `_conductoresSub` (conductores disponibles) a propósito — solo lo hace
+  /// [dispose] — mismo comportamiento asimétrico que tenía la View original.
+  void finalizarTrackingConductores() {
+    _searchTimer?.cancel();
+    _conductoresConectadosSub?.cancel();
+  }
+
   @override
   void dispose() {
     _disposed = true;
     try {
       _solicitudSub?.cancel();
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'buscando_taxi_viewmodel');
+    }
+    _bgCancelTimer?.cancel();
+    _detachedCancelTimer?.cancel();
+    _searchTimer?.cancel();
+    _conductoresSub?.cancel();
+    _conductoresConectadosSub?.cancel();
     super.dispose();
   }
 

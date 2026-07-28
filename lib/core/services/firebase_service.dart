@@ -4,7 +4,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:flutter/foundation.dart';
+import 'package:taxi_app/core/constants/solicitud_estado.dart';
 import 'package:taxi_app/core/services/solicitud_firestore_datasource.dart';
+import 'package:taxi_app/core/utils/error_reporter.dart';
 
 /// Servicio centralizado para operaciones de Firebase relacionadas con:
 /// - Ubicación (guardar y escuchar actualizaciones).
@@ -112,7 +114,9 @@ class FirebaseService {
         debugPrint(
           '[FirebaseService] actualizarUbicacionConductorEnSolicitud -> solicitud:$solicitudId lat:${position.latitude} lng:${position.longitude}',
         );
-      } catch (_) {}
+      } catch (e, st) {
+        ErrorReporter.report(e, st, reason: 'firebase_service');
+      }
       await _firestore.collection('solicitudes').doc(solicitudId).update({
         'conductor.lat': position.latitude,
         'conductor.lng': position.longitude,
@@ -228,12 +232,12 @@ class FirebaseService {
 
   /// Marca el inicio de un viaje (cuando el conductor llega al origen).
   ///
-  /// Actualiza el estado a 'en_progreso' y registra la hora de inicio.
+  /// Actualiza el estado a [SolicitudEstado.enRuta] y registra la hora de inicio.
   Future<void> iniciarViaje(String solicitudId) async {
     try {
       await _solicitudDatasource.actualizarEstado(
         solicitudId: solicitudId,
-        estado: 'en_progreso',
+        estado: SolicitudEstado.enRuta,
         extra: {'startedAt': FieldValue.serverTimestamp()},
       );
     } catch (e) {
@@ -248,7 +252,7 @@ class FirebaseService {
     try {
       await _solicitudDatasource.actualizarEstado(
         solicitudId: solicitudId,
-        estado: 'completado',
+        estado: SolicitudEstado.completado,
       );
     } catch (e) {
       throw Exception('Error al finalizar el viaje: $e');
@@ -303,7 +307,7 @@ class FirebaseService {
 
       await _solicitudDatasource.actualizarEstado(
         solicitudId: solicitudId,
-        estado: 'asignado',
+        estado: SolicitudEstado.asignado,
         extra: updateData,
       );
     } catch (e) {
@@ -327,5 +331,16 @@ class FirebaseService {
     } catch (e) {
       throw Exception('Error al obtener estado de la solicitud: $e');
     }
+  }
+
+  /// Escucha el documento completo de una solicitud en tiempo real.
+  ///
+  /// A diferencia de [escucharEstadoViaje] (que solo emite el estado como
+  /// String), este expone el snapshot entero para consumidores que necesitan
+  /// reaccionar a más de un campo (ej. detectar cuándo pasa a completado).
+  Stream<DocumentSnapshot<Map<String, dynamic>>> watchSolicitud(
+    String solicitudId,
+  ) {
+    return _solicitudDatasource.watch(solicitudId);
   }
 }

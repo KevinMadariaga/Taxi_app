@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/services/admin_fcm_service.dart';
+import 'package:taxi_app/features/phone_auth/services/user_data_service.dart';
 import 'package:taxi_app/widgets/boton.dart';
+import 'package:taxi_app/core/utils/error_reporter.dart';
 
 // ============================================================================
 // Datos de pago del gremio.
@@ -23,20 +24,21 @@ Future<void> _marcarSolicitudActivacion() async {
   final uid = FirebaseAuth.instance.currentUser?.uid;
   if (uid == null) return;
   try {
-    final doc = await FirebaseFirestore.instance.collection('usuarios').doc(uid).get();
-    final nombre = (doc.data()?['nombre'] ?? 'Conductor').toString();
+    final data = await UserDataService().getUsuario(uid);
+    final nombre = (data?['nombre'] ?? 'Conductor').toString();
 
-    await FirebaseFirestore.instance.collection('usuarios').doc(uid).set({
-      'solicitudConductor': true,
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    await UserDataService().marcarSolicitudActivacion(uid);
 
-    AdminFcmService.instance.sendToAllAdmins(
-      title: 'Nuevo conductor registrado',
-      body: '$nombre quiere activar el servicio, revisa.',
-      type: 'solicitud_conductor',
-    ).ignore();
-  } catch (_) {}
+    AdminFcmService.instance
+        .sendToAllAdmins(
+          title: 'Nuevo conductor registrado',
+          body: '$nombre quiere activar el servicio, revisa.',
+          type: 'solicitud_conductor',
+        )
+        .ignore();
+  } catch (e, st) {
+    ErrorReporter.report(e, st, reason: 'activacion_servicio_view');
+  }
 }
 
 /// Modal de bienvenida/activación que se muestra sobre [InicioConductor]
@@ -156,8 +158,10 @@ class ActivacionServicioView extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   const _MetodoPago(
-                    icono: Icon(Icons.account_balance,
-                        color: AppColores.primary),
+                    icono: Icon(
+                      Icons.account_balance,
+                      color: AppColores.primary,
+                    ),
                     titulo: 'Bancolombia',
                     numero: kBancolombiaNumero,
                   ),
@@ -202,17 +206,19 @@ class _MetodoPago extends StatelessWidget {
       margin: EdgeInsets.zero,
       child: ListTile(
         leading: SizedBox(width: 38, height: 38, child: Center(child: icono)),
-        title: Text(titulo,
-            style: const TextStyle(fontWeight: FontWeight.w600)),
+        title: Text(
+          titulo,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
         subtitle: Text(numero, style: const TextStyle(fontSize: 15)),
         trailing: IconButton(
           icon: const Icon(Icons.copy, size: 20),
           tooltip: 'Copiar',
           onPressed: () {
             Clipboard.setData(ClipboardData(text: numero));
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('$titulo copiado')),
-            );
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text('$titulo copiado')));
           },
         ),
       ),

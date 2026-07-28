@@ -3,6 +3,21 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:taxi_app/core/constants/solicitud_estado.dart';
+import 'package:taxi_app/core/utils/error_reporter.dart';
+
+/// Resumen agregado de una lista de viajes completados: promedio de
+/// calificación, cantidad de viajes calificados y total ganado.
+class HistorialConductorResumen {
+  const HistorialConductorResumen({
+    required this.promedio,
+    required this.ratedCount,
+    required this.totalGanado,
+  });
+
+  final double promedio;
+  final int ratedCount;
+  final double totalGanado;
+}
 
 class HistorialConductorViewModel extends ChangeNotifier {
   String get conductorId => FirebaseAuth.instance.currentUser?.uid ?? '';
@@ -15,16 +30,21 @@ class HistorialConductorViewModel extends ChangeNotifier {
         .where('conductor.id', isEqualTo: uid)
         .get();
 
-    final completados = snap.docs.where((doc) {
-      final estado = SolicitudEstado.normalize(
-        (doc.data()['estado'] ?? doc.data()['status'] ?? '').toString(),
-      );
-      return estado == SolicitudEstado.completado;
-    }).map((doc) => {'id': doc.id, ...doc.data()}).toList();
+    final completados = snap.docs
+        .where((doc) {
+          final estado = SolicitudEstado.normalize(
+            (doc.data()['estado'] ?? doc.data()['status'] ?? '').toString(),
+          );
+          return estado == SolicitudEstado.completado;
+        })
+        .map((doc) => {'id': doc.id, ...doc.data()})
+        .toList();
 
     completados.sort((a, b) {
-      final aTime = (a['completedAt'] ?? a['fecha de terminacion']) as Timestamp?;
-      final bTime = (b['completedAt'] ?? b['fecha de terminacion']) as Timestamp?;
+      final aTime =
+          (a['completedAt'] ?? a['fecha de terminacion']) as Timestamp?;
+      final bTime =
+          (b['completedAt'] ?? b['fecha de terminacion']) as Timestamp?;
       if (aTime == null && bTime == null) return 0;
       if (aTime == null) return 1;
       if (bTime == null) return -1;
@@ -41,15 +61,14 @@ class HistorialConductorViewModel extends ChangeNotifier {
   }) async {
     if (uid.isEmpty) return;
     try {
-      await FirebaseFirestore.instance
-          .collection('usuarios')
-          .doc(uid)
-          .set({
-            'calificacionPromedio': averageRating,
-            'totalCalificaciones': ratingsCount,
-            'ultimaActualizacionCalificacion': FieldValue.serverTimestamp(),
-          }, SetOptions(merge: true));
-    } catch (_) {}
+      await FirebaseFirestore.instance.collection('usuarios').doc(uid).set({
+        'calificacionPromedio': averageRating,
+        'totalCalificaciones': ratingsCount,
+        'ultimaActualizacionCalificacion': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'historial_conductor_viewmodel');
+    }
   }
 
   double extraerCalificacion(Map<String, dynamic> data) {
@@ -132,10 +151,34 @@ class HistorialConductorViewModel extends ChangeNotifier {
     return 'Origen desconocido';
   }
 
+  /// Agrega [viajes] (ya filtrados a completados) en promedio de
+  /// calificación y total ganado. Antes este cálculo vivía inline en
+  /// `build()` de `HistorialConductor`.
+  HistorialConductorResumen resumenDe(List<Map<String, dynamic>> viajes) {
+    double scoreTotal = 0.0;
+    int ratedCount = 0;
+    double totalGanado = 0.0;
+    for (final viaje in viajes) {
+      final score = extraerCalificacion(viaje).clamp(0, 5).toDouble();
+      if (score > 0) {
+        scoreTotal += score;
+        ratedCount++;
+      }
+      totalGanado += extraerValorServicio(viaje);
+    }
+    final promedio = ratedCount > 0 ? (scoreTotal / ratedCount) : 0.0;
+    return HistorialConductorResumen(
+      promedio: promedio,
+      ratedCount: ratedCount,
+      totalGanado: totalGanado,
+    );
+  }
+
   String formatearDinero(double value) {
     final rounded = value.round();
-    return rounded
-        .toString()
-        .replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => '.');
+    return rounded.toString().replaceAllMapped(
+      RegExp(r'\B(?=(\d{3})+(?!\d))'),
+      (_) => '.',
+    );
   }
 }

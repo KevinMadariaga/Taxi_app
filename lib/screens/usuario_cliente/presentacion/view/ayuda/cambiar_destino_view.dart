@@ -1,9 +1,9 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/features/trip_tracking_cliente/services/trip_tracking_firestore_service.dart';
 import 'package:taxi_app/widgets/MapaGoogle.dart';
 
 /// Permite al cliente elegir un nuevo destino tocando el mapa. Hace
@@ -130,18 +130,11 @@ class _CambiarDestinoViewState extends State<CambiarDestinoView> {
     if (sel == null || _guardando) return;
     setState(() => _guardando = true);
     try {
-      await FirebaseFirestore.instance
-          .collection('solicitudes')
-          .doc(widget.solicitudId)
-          .set({
-            'destino': {
-              'lat': sel.latitude,
-              'lng': sel.longitude,
-              'direccion': _direccion,
-            },
-            'destinoDireccion': _direccion,
-            'updatedAt': FieldValue.serverTimestamp(),
-          }, SetOptions(merge: true));
+      await TripTrackingFirebaseService().actualizarDestino(
+        solicitudId: widget.solicitudId,
+        destino: sel,
+        direccion: _direccion,
+      );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Destino actualizado')),

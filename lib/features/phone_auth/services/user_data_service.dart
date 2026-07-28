@@ -9,6 +9,8 @@ import 'package:taxi_app/firebase_options.dart';
 
 import '../models/admin_model.dart';
 import '../models/driver_model.dart';
+import 'package:taxi_app/core/services/admin_fcm_service.dart';
+import 'package:taxi_app/core/utils/error_reporter.dart';
 
 class ConductorCredentials {
   const ConductorCredentials({required this.email, required this.password});
@@ -66,6 +68,251 @@ class UserDataService {
     }, SetOptions(merge: true));
   }
 
+  /// Lectura puntual (no-stream) del documento `usuarios/{uid}`. Antes
+  /// `CompletarRegistroConductorView` y `activacion_servicio_view` leían
+  /// Firestore directo desde el widget.
+  Future<Map<String, dynamic>?> getUsuario(String uid) async {
+    final doc = await _firestore.collection('usuarios').doc(uid).get();
+    return doc.data();
+  }
+
+  /// Resuelve el perfil de `uid` con fallback a colecciones legacy
+  /// (`conductores`/`conductor`/`cliente`) cuando `usuarios/{uid}` no tiene
+  /// nombre — antes esta lógica de resolución vivía en `PaginaPerfilUsuario`
+  /// (widget de UI). `usuarios` tiene prioridad: los fallback solo rellenan
+  /// campos ausentes. No incluye el fallback final a Firebase Auth
+  /// (displayName/photoURL) — eso es responsabilidad de la capa de Auth, no
+  /// de este repositorio de Firestore.
+  Future<Map<String, dynamic>> getPerfilConFallback(String uid) async {
+    final data = <String, dynamic>{};
+
+    try {
+      final snap = await _firestore.collection('usuarios').doc(uid).get();
+      final d = snap.data();
+      if (snap.exists && d != null) data.addAll(d);
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'UserDataService.getPerfilConFallback');
+    }
+
+    final faltaNombre = (data['nombre'] ?? '').toString().trim().isEmpty;
+    if (faltaNombre) {
+      for (final col in const ['conductores', 'conductor', 'cliente']) {
+        try {
+          final s = await _firestore.collection(col).doc(uid).get();
+          final d = s.data();
+          if (s.exists && d != null) {
+            for (final e in d.entries) {
+              data.putIfAbsent(e.key, () => e.value);
+            }
+            break;
+          }
+        } catch (e, st) {
+          ErrorReporter.report(
+            e,
+            st,
+            reason: 'UserDataService.getPerfilConFallback',
+          );
+        }
+      }
+    }
+
+    return data;
+  }
+
+  /// Guarda foto + placa de un tipo de vehículo (carro/moto) del conductor
+  /// SIN cambiar cuál está activo. Antes `CambiarVehiculoView` escribía a
+  /// Firestore directo desde el widget.
+  Future<void> guardarVehiculo({
+    required String uid,
+    required String tipo,
+    required String foto,
+    required String placa,
+  }) async {
+    await _firestore.collection('usuarios').doc(uid).set({
+      'vehiculos': {
+        tipo: {'foto': foto, 'placa': placa},
+      },
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  /// Guarda foto + placa de un tipo de vehículo Y lo activa (campos raíz
+  /// `tipoVehiculo`/`fotoVehiculo`/`placa`, leídos por el resto de la app).
+  Future<void> activarVehiculo({
+    required String uid,
+    required String tipo,
+    required String foto,
+    required String placa,
+  }) async {
+    await _firestore.collection('usuarios').doc(uid).set({
+      'vehiculos': {
+        tipo: {'foto': foto, 'placa': placa},
+      },
+      'tipoVehiculo': tipo,
+      'fotoVehiculo': foto,
+      'placa': placa,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  /// Merge genérico de campos editados desde `PaginaPerfilUsuario` /
+  /// `EditarPerfilScreen`.
+  Future<void> actualizarDatosUsuario(
+    String uid,
+    Map<String, dynamic> datos,
+  ) async {
+    await _firestore
+        .collection('usuarios')
+        .doc(uid)
+        .set(datos, SetOptions(merge: true));
+  }
+
+  /// Guarda la lista de contactos de emergencia del usuario (cliente o
+  /// conductor, ambos viven en `usuarios/{uid}`). Antes `SeguridadView` /
+  /// `SeguridadConductorView` los guardaban solo en memoria del State y se
+  /// perdían al salir de la pantalla.
+  Future<void> guardarContactosEmergencia({
+    required String uid,
+    required List<String> contactos,
+  }) async {
+    await _firestore.collection('usuarios').doc(uid).set({
+      'contactosEmergencia': contactos,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  /// Lee los contactos de emergencia guardados de `usuarios/{uid}`.
+  Future<List<String>> obtenerContactosEmergencia(String uid) async {
+    final data = await getUsuario(uid);
+    final raw = data?['contactosEmergencia'];
+    if (raw is List) {
+      return raw.map((e) => e.toString()).toList();
+    }
+    return const [];
+  }
+
+  /// Cambia el rol guardado a conductor (el usuario ya tiene placa + foto de
+  /// vehículo registradas). Fire-and-forget en el llamador, igual que antes.
+  Future<void> cambiarRolAConductor(String uid) async {
+    await _firestore.collection('usuarios').doc(uid).set({
+      'rol': 'conductor',
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  /// Vuelve el rol a cliente y retira la solicitud de conductor pendiente
+  /// (deja de notificar al admin). Fire-and-forget en el llamador.
+  Future<void> volverACliente(String uid) async {
+    await _firestore.collection('usuarios').doc(uid).set({
+      'rol': 'cliente',
+      'solicitudConductor': false,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  /// Auto-registro de un cliente como conductor (foto, vehículo, placa) desde
+  /// `CompletarRegistroConductorView`. Distinto de `guardarConductor` (ese es
+  /// el alta que hace un administrador con credenciales propias).
+  Future<void> guardarSolicitudConductor({
+    required String uid,
+    required String foto,
+    required String fotoVehiculo,
+    required String placa,
+    required String tipoVehiculo,
+  }) async {
+    await _firestore.collection('usuarios').doc(uid).set({
+      'foto': foto,
+      'fotoVehiculo': fotoVehiculo,
+      'placa': placa.toUpperCase(),
+      'tipoVehiculo': tipoVehiculo,
+      'rol': 'conductor',
+      'solicitudConductor': true,
+      'servicioActivo': false,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  /// Marca que el conductor pidió activar el servicio (paga membresía), desde
+  /// `activacion_servicio_view`.
+  Future<void> marcarSolicitudActivacion(String uid) async {
+    await _firestore.collection('usuarios').doc(uid).set({
+      'solicitudConductor': true,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  /// Desactiva la membresía al vencer el plazo (idempotente): usado por
+  /// InicioConductorView cuando expira el timer de vencimiento.
+  Future<void> expirarMembresia(String uid) async {
+    await _firestore.collection('usuarios').doc(uid).set({
+      'membresia': '',
+      'servicioActivo': false,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  /// Aprueba la solicitud de activación de un conductor: activa su membresía
+  /// por [dias] y le notifica por FCM si tiene token. Antes esta lógica (fecha
+  /// de vencimiento + escritura Firestore + disparo FCM) vivía dentro de
+  /// `_ConductorCard`, un `StatelessWidget` de `admin_home_screen.dart`.
+  Future<void> aprobarMembresiaConductor({
+    required String uid,
+    required int dias,
+    required String nombre,
+    String? fcmToken,
+  }) async {
+    final inicio = DateTime.now();
+    await _firestore.collection('usuarios').doc(uid).set({
+      'membresia': 'activa',
+      'membresiaDias': dias,
+      'membresiaInicio': Timestamp.fromDate(inicio),
+      'membresiaVence': Timestamp.fromDate(inicio.add(Duration(days: dias))),
+      'servicioActivo': true,
+      'solicitudConductor': false,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    if (fcmToken != null && fcmToken.isNotEmpty) {
+      AdminFcmService.instance
+          .sendToToken(
+            token: fcmToken,
+            title: '¡Membresía activada!',
+            body:
+                'Hola $nombre, tu membresía de conductor ya está activa por $dias días.',
+            type: 'membresia_activada',
+          )
+          .ignore();
+    }
+  }
+
+  /// Revoca la membresía activa de un conductor desde el panel de admin.
+  /// Mismo efecto en datos que [expirarMembresia] (usado para el vencimiento
+  /// automático); se expone con nombre propio para dejar clara la intención
+  /// de cada llamador.
+  Future<void> revocarMembresiaConductor(String uid) {
+    return expirarMembresia(uid);
+  }
+
+  /// Quita el rol de conductor y resetea membresía/solicitud — acción de
+  /// administrador. Distinto de [volverACliente] (autoservicio del propio
+  /// conductor desde su perfil), que no limpia membresía/servicioActivo.
+  Future<void> quitarRolConductorComoAdmin(String uid) async {
+    await _firestore.collection('usuarios').doc(uid).set({
+      'rol': 'cliente',
+      'solicitudConductor': false,
+      'membresia': '',
+      'servicioActivo': false,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  /// Elimina el registro de un usuario (cliente o conductor) desde el panel
+  /// de administración. Antes esto era `doc.reference.delete()` directo desde
+  /// `_ClienteCard`/`_ConductorCard` en `admin_home_screen.dart`.
+  Future<void> eliminarUsuario(String uid) {
+    return _firestore.collection('usuarios').doc(uid).delete();
+  }
+
   Stream<Map<String, dynamic>?> streamUsuario(String uid) {
     return _firestore
         .collection('usuarios')
@@ -115,10 +362,10 @@ class UserDataService {
       data['email'] = correo.trim().toLowerCase();
     }
 
-    await _firestore.collection('administradores').doc(uid).set(
-      data,
-      SetOptions(merge: true),
-    );
+    await _firestore
+        .collection('administradores')
+        .doc(uid)
+        .set(data, SetOptions(merge: true));
   }
 
   Stream<AdminModel?> streamAdministrador(String uid) {
@@ -223,7 +470,9 @@ class UserDataService {
     } finally {
       try {
         await FirebaseAuth.instanceFor(app: app).signOut();
-      } catch (_) {}
+      } catch (e, st) {
+        ErrorReporter.report(e, st, reason: 'user_data_service');
+      }
       await app.delete();
     }
   }
@@ -330,7 +579,8 @@ class UserDataService {
           FirebaseCrashlytics.instance.recordError(
             e,
             st,
-            reason: 'UserDataService: fallo al re-autenticar con credenciales previas en actualizarCredencialesConductor',
+            reason:
+                'UserDataService: fallo al re-autenticar con credenciales previas en actualizarCredencialesConductor',
           );
         }
       }
@@ -356,7 +606,9 @@ class UserDataService {
         resolvedConductorId = createdUid;
         try {
           await authUser.delete();
-        } catch (_) {}
+        } catch (e, st) {
+          ErrorReporter.report(e, st, reason: 'user_data_service');
+        }
         return;
       }
 
@@ -406,7 +658,8 @@ class UserDataService {
         FirebaseCrashlytics.instance.recordError(
           e,
           st,
-          reason: 'UserDataService: fallo al eliminar documento de conductor con id anterior tras cambio de correo',
+          reason:
+              'UserDataService: fallo al eliminar documento de conductor con id anterior tras cambio de correo',
         );
       }
     }

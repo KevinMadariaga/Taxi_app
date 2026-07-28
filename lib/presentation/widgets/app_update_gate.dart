@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:taxi_app/core/constants/app_constants.dart';
 import 'package:taxi_app/core/services/services.dart';
 import 'package:taxi_app/presentation/widgets/update_available_dialog.dart';
+import 'package:taxi_app/core/utils/error_reporter.dart';
 
 /// Envuelve la app y vuelve a chequear si hay una nueva versión cada vez que la
 /// app regresa de segundo plano (además del chequeo de arranque en el splash).
@@ -77,7 +78,8 @@ class _AppUpdateGateState extends State<AppUpdateGate>
       if (action == UpdateDialogAction.updateNow) {
         await _updateService.openStore(result);
       }
-    } catch (_) {
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'app_update_gate');
     } finally {
       _checking = false;
       _dialogVisible = false;

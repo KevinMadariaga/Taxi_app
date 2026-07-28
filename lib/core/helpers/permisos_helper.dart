@@ -136,7 +136,9 @@ class PermissionsHelper {
         if (!whenInUse.isGranted) {
           final result = await Permission.locationWhenInUse.request();
           if (!result.isGranted) {
-            debugPrint('❌ [iOS] locationWhenInUse no concedido via permission_handler');
+            debugPrint(
+              '❌ [iOS] locationWhenInUse no concedido via permission_handler',
+            );
             return false;
           }
         }
@@ -156,6 +158,37 @@ class PermissionsHelper {
         }
         return false;
       }
+    });
+  }
+
+  /// Solicita exención de optimización de batería (solo Android, solo
+  /// conductores). Sin esto, fabricantes con administración agresiva de
+  /// batería (MIUI/Xiaomi, EMUI/Huawei, ColorOS/Oppo, etc.) pueden congelar
+  /// las actualizaciones de ubicación del foreground service en segundo
+  /// plano — el tracking se ve "trabado" o directamente no llega al
+  /// cliente aunque el código de la app esté corriendo correctamente.
+  ///
+  /// Es un permiso especial (no aparece en `requestAllPermissions`
+  /// results de forma bloqueante): si el usuario lo rechaza, el tracking
+  /// sigue funcionando en la mayoría de dispositivos, solo con más riesgo
+  /// de cortes en fabricantes agresivos.
+  static Future<bool> requestIgnoreBatteryOptimizations() async {
+    if (!Platform.isAndroid) return true;
+    return await _runExclusive(() async {
+      final status = await Permission.ignoreBatteryOptimizations.status;
+      if (status.isGranted) return true;
+
+      final result = await Permission.ignoreBatteryOptimizations.request();
+      if (result.isGranted) {
+        debugPrint('✅ Exención de optimización de batería concedida');
+      } else {
+        debugPrint(
+          '⚠️ Exención de optimización de batería no concedida — el '
+          'tracking en background puede ser menos confiable en este '
+          'dispositivo.',
+        );
+      }
+      return result.isGranted;
     });
   }
 
@@ -287,6 +320,8 @@ class PermissionsHelper {
     if (isDriver) {
       results['backgroundLocation'] =
           await requestBackgroundLocationPermission();
+      results['ignoreBatteryOptimizations'] =
+          await requestIgnoreBatteryOptimizations();
     }
 
     return results;

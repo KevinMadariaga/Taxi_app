@@ -8,7 +8,7 @@ import 'package:taxi_app/screens/usuario_conductor/presentacion/view/soporte_con
 import 'package:taxi_app/features/driver_trip/screens/driver_trip_screen.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/historial_viaje_conductor.dart';
 import 'package:taxi_app/widgets/intermediate_transition_view.dart';
-import 'package:taxi_app/widgets/perfil.dart';
+import 'package:taxi_app/screens/perfil/perfil.dart';
 
 class InicioConductorNavigation {
   static Future<void> irARutaConductor(

@@ -1,7 +1,7 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/services/reportes_service.dart';
 
 class ReportarProblemaScreen extends StatefulWidget {
   const ReportarProblemaScreen({super.key, required this.solicitudId});
@@ -43,14 +43,12 @@ class _ReportarProblemaScreenState extends State<ReportarProblemaScreen> {
 
     setState(() => _enviando = true);
     try {
-      await FirebaseFirestore.instance.collection('reportes').add({
-        'solicitudId': widget.solicitudId,
-        'conductorId': uid,
-        'rol': 'conductor',
-        'tipo': _tipoSeleccionado,
-        'descripcion': _descController.text.trim(),
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+      await ReportesService.instance.enviarReporteDeConductor(
+        solicitudId: widget.solicitudId,
+        conductorId: uid,
+        tipo: _tipoSeleccionado!,
+        descripcion: _descController.text.trim(),
+      );
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

@@ -51,6 +51,23 @@ View → ViewModel/Controller → UseCase/Repository/Service → Firebase → no
 
 ---
 
+## Patrón arquitectónico oficial
+
+Todo código **nuevo** debe seguir el patrón de `caracteristicas/` (ver `caracteristicas/autenticacion/` como referencia — ejemplo concreto: `dominio/repositorios/client_auth_repository.dart` es la interfaz abstracta, `datos/repositorios/client_auth_repository_impl.dart` es su implementación separada, y `dominio/casos_uso/sign_in_google_client_usecase.dart` es un caso de uso que depende solo de la interfaz):
+
+- Capas separadas de datos/dominio/presentación.
+- Repositorios abstractos con implementación inyectada (nunca una clase concreta usada directo como si fuera el contrato).
+- ViewModels sin lógica de negocio — excepto ifs simples de UI, lógica de animación propia del widget, lógica de layout por tamaño/orientación, y routing simple.
+- Modelos inmutables.
+
+`features/` es el árbol donde vive hoy la mayoría del código funcional en producción, pero **no** es el patrón a replicar en código nuevo — su arquitectura interna es inconsistente entre módulos (algunos sin repository abstracto, algunos sin ViewModel).
+
+Esta es una regla para desarrollo futuro; no implica una migración ni refactorización obligatoria del código existente en `features/` en este momento.
+
+`presentation/` es el shell de arranque de la app (splash + update gate), no una arquitectura alternativa.
+
+---
+
 ## Flujo de la solicitud (estados)
 
 ```
@@ -128,6 +145,21 @@ flutter build appbundle --release
 # Build iOS (App Store)
 flutter build ios --release
 ```
+
+---
+
+## Análisis de grafo del código (Graphify)
+
+El proyecto tiene un grafo de conocimiento del código generado con Graphify en `graphify-out/`:
+
+- `GRAPH_REPORT.md` — reporte completo: god nodes, comunidades por cohesión, conexiones inferidas, ciclos de imports, nodos aislados.
+- `graph-summary.md` — resumen curado en formato Obsidian (wikilinks) de ese reporte.
+- `graph.html` — visualización interactiva (abrir en navegador).
+- `graph.json` / `manifest.json` — datos crudos del grafo.
+
+**Cuándo consultarlo:** antes de una revisión de arquitectura, un refactor grande, o al evaluar si un módulo está bien encapsulado, leer `graphify-out/GRAPH_REPORT.md` (o `graph-summary.md`) en vez de solo grepear el código — el reporte ya tiene cohesión por comunidad, god nodes y relaciones cross-módulo que no son obvias archivo por archivo.
+
+**Regenerar el grafo:** el CLI `graphify` corre en la máquina del usuario (no en el sandbox del agente), instalado vía `uv` (`graphifyy`). Si el reporte está desactualizado respecto al código, pedirle al usuario que corra `graphify` de nuevo en la raíz del proyecto y avisar cuando esté listo para releer.
 
 ---
 

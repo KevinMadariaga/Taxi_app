@@ -1,21 +1,29 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:taxi_app/core/helpers/session_helper.dart';
+import 'package:taxi_app/core/utils/error_reporter.dart';
 
 /// Fuente de datos para autenticación y limpieza de sesión usando Firebase.
 class FirebaseDataSource {
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   /// Inicia sesión con email y contraseña usando Firebase Auth.
-  Future<void> login(String email, String password) async {
-    await _auth.signInWithEmailAndPassword(email: email, password: password);
+  /// Devuelve el uid del usuario recién autenticado.
+  Future<String> login(String email, String password) async {
+    final credential = await _auth.signInWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
+    return credential.user?.uid ?? _auth.currentUser?.uid ?? '';
   }
 
   /// Cierra sesión y limpia datos locales y de sesión.
   Future<void> logout() async {
     try {
       await _auth.signOut();
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'firebaseDB');
+    }
     await _clearLocalSessionAndCache();
   }
 
@@ -24,11 +32,15 @@ class FirebaseDataSource {
     // Limpiar sesión guardada
     try {
       await SessionHelper.clearSession();
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'firebaseDB');
+    }
     // Limpiar solicitud activa
     try {
       await SessionHelper.clearActiveSolicitud();
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'firebaseDB');
+    }
     // Limpiar caché de rutas y claves legacy
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -43,6 +55,8 @@ class FirebaseDataSource {
           await prefs.remove(k);
         }
       }
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'firebaseDB');
+    }
   }
 }

@@ -1,6 +1,6 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/features/trip_tracking_cliente/services/trip_tracking_firestore_service.dart';
 
 /// Permite al cliente revisar y modificar el método de pago del viaje.
 /// Actualiza el campo `paymentMethod` del documento `solicitudes/{id}`.
@@ -46,14 +46,10 @@ class _MetodoPagoViewState extends State<MetodoPagoView> {
     if (_seleccion.isEmpty || _guardando) return;
     setState(() => _guardando = true);
     try {
-      await FirebaseFirestore.instance
-          .collection('solicitudes')
-          .doc(widget.solicitudId)
-          .set({
-            'paymentMethod': _seleccion,
-            'metodoPago': _seleccion,
-            'updatedAt': FieldValue.serverTimestamp(),
-          }, SetOptions(merge: true));
+      await TripTrackingFirebaseService().actualizarMetodoPago(
+        solicitudId: widget.solicitudId,
+        metodo: _seleccion,
+      );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Método de pago actualizado')),

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:taxi_app/core/helpers/permisos_helper.dart';
+import 'package:taxi_app/core/utils/error_reporter.dart';
 
 class UbicacionService {
   UbicacionService._internal();
@@ -93,7 +94,9 @@ class UbicacionService {
     if (latlng != null && onResult != null) {
       try {
         onResult(latlng);
-      } catch (_) {}
+      } catch (e, st) {
+        ErrorReporter.report(e, st, reason: 'ubicacion_servicio');
+      }
     }
     return latlng;
   }

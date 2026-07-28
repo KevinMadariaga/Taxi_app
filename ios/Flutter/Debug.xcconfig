@@ -2,3 +2,7 @@
 #include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.debug.xcconfig"
 #include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.profile.xcconfig"
 #include "Generated.xcconfig"
+
+// GoogleMLKit no trae slice arm64 para simulador -> forzar x86_64/Rosetta en sim
+// TEMP disabled: bloquea sim por completo (varios pods de Google ya no traen x86_64 tampoco)
+// EXCLUDED_ARCHS[sdk=iphonesimulator*] = arm64

@@ -7,6 +7,7 @@ import 'package:taxi_app/presentation/widgets/update_available_dialog.dart';
 import 'package:taxi_app/routes/app_routes.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/presentacion/vistas/home_screen.dart';
 import 'package:taxi_app/core/services/services.dart';
+import 'package:taxi_app/core/services/initial_screen_resolver.dart';
 
 /// Fondo del splash: blanco, en sintonía con el splash nativo para que NO
 /// haya salto de color ni pantalla negra entre el arranque nativo y el primer
@@ -133,7 +134,7 @@ class _SplashViewState extends State<SplashView>
   Future<void> _navigateFromSessionState() async {
     if (_hasNavigated) return;
     _hasNavigated = true;
-    final next = await AuthService().determineInitialScreen();
+    final next = await InitialScreenResolver().determineInitialScreen();
     if (!mounted) return;
 
     if (next is HomeView) {

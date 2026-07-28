@@ -88,4 +88,14 @@ class SoporteChatService {
         .orderBy('ultimoMensajeAt', descending: true)
         .snapshots();
   }
+
+  /// Cantidad de chats con mensajes nuevos sin leer por el admin (badge de
+  /// `AdminHubScreen`).
+  Stream<int> watchChatsConMensajesNuevosCount() {
+    return _firestore
+        .collection('soporte_chats')
+        .where('hayMensajesNuevosAdmin', isEqualTo: true)
+        .snapshots()
+        .map((snap) => snap.docs.length);
+  }
 }

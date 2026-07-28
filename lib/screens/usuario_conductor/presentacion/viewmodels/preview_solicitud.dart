@@ -1,4 +1,4 @@
-import 'package:taxi_app/data/models/solicitud_id.dart';
+import 'package:taxi_app/data/models/solicitud_item.dart';
 
 class PreviewSolicitud {
   final SolicitudItem solicitud;

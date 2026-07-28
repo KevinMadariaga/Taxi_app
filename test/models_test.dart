@@ -1,22 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:taxi_app/caracteristicas/autenticacion/datos/modelos/registro_cliente_model.dart';
-import 'package:taxi_app/data/models/solicitud_id.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/registro_cliente_viewmodel.dart';
+import 'package:taxi_app/data/models/solicitud_item.dart';
 import 'package:taxi_app/features/resumen_viaje/models/resumen_viaje_model.dart';
 
 void main() {
   group('Modelos de datos', () {
-    test('RegistroClienteModel puede instanciarse', () {
-      final model = RegistroClienteModel(
-        nombre: 'Test',
-        apellido: 'app',
-        telefono: '123456789',
-        correo: 'test@email.com',
-        password: '123456',
-      );
-      expect(model, isNotNull);
-    });
     test('SolicitudItem puede instanciarse', () {
       // GeoPoint requiere valores dummy
       final model = SolicitudItem(
@@ -24,10 +12,6 @@ void main() {
         clienteId: 'cliente',
         ubicacionInicial: const GeoPoint(0, 0),
       );
-      expect(model, isNotNull);
-    });
-    test('RegistroClienteViewModel puede instanciarse', () {
-      final model = RegistroClienteViewModel();
       expect(model, isNotNull);
     });
 

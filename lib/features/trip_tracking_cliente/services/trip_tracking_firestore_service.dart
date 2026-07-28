@@ -4,6 +4,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:taxi_app/core/services/solicitud_firestore_datasource.dart';
 
 import '../models/solicitud_model.dart';
+import 'package:taxi_app/core/utils/error_reporter.dart';
 
 class TripTrackingFirebaseService {
   // Nota de costos:
@@ -82,7 +83,6 @@ class TripTrackingFirebaseService {
     required String solicitudId,
     required LatLng location,
     required int timestampMs,
-    bool appendRouteHistory = true,
   }) async {
     final updateData = <String, dynamic>{
       'conductor.lat': location.latitude,
@@ -94,23 +94,11 @@ class TripTrackingFirebaseService {
     };
 
     try {
-      // Log exact payload being persisted for runtime validation during testing.
-      // This helps confirm writes happen roughly every meter as configured.
-      // Remove or lower verbosity in production if needed.
-      // ignore: avoid_print
       debugPrint(
-        '[TripTrackingFirebaseService] Persistiendo ubicación conductor -> solicitud:$solicitudId lat:${location.latitude} lng:${location.longitude} ts:$timestampMs appendHistory:$appendRouteHistory',
+        '[TripTrackingFirebaseService] Persistiendo ubicación conductor -> solicitud:$solicitudId lat:${location.latitude} lng:${location.longitude} ts:$timestampMs',
       );
-    } catch (_) {}
-
-    if (appendRouteHistory) {
-      updateData['tracking.driverHistory'] = FieldValue.arrayUnion([
-        {
-          'lat': location.latitude,
-          'lng': location.longitude,
-          'timestampMs': timestampMs,
-        },
-      ]);
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'trip_tracking_firestore_service');
     }
 
     await _solicitudRef(solicitudId).set(updateData, SetOptions(merge: true));
@@ -138,5 +126,36 @@ class TripTrackingFirebaseService {
 
   Future<void> eliminarSolicitud({required String solicitudId}) async {
     await _solicitudDatasource.eliminarSolicitud(solicitudId: solicitudId);
+  }
+
+  /// Actualiza el destino del viaje (usado desde `CambiarDestinoView`, antes
+  /// escribía a Firestore directo desde el widget).
+  Future<void> actualizarDestino({
+    required String solicitudId,
+    required LatLng destino,
+    required String direccion,
+  }) async {
+    await _solicitudRef(solicitudId).set({
+      'destino': {
+        'lat': destino.latitude,
+        'lng': destino.longitude,
+        'direccion': direccion,
+      },
+      'destinoDireccion': direccion,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  /// Actualiza el método de pago del viaje (usado desde `MetodoPagoView`,
+  /// antes escribía a Firestore directo desde el widget).
+  Future<void> actualizarMetodoPago({
+    required String solicitudId,
+    required String metodo,
+  }) async {
+    await _solicitudRef(solicitudId).set({
+      'paymentMethod': metodo,
+      'metodoPago': metodo,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
   }
 }

@@ -118,8 +118,28 @@ class HistorialConductorState extends State<HistorialConductor> {
         future: _vm.cargarHistorial(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(color: AppColores.primary),
+            return Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 700),
+                child: Column(
+                  children: [
+                    const _ResumenConductorSkeleton(),
+                    Expanded(
+                      child: ListView.builder(
+                        padding: EdgeInsets.fromLTRB(
+                          12,
+                          4,
+                          12,
+                          MediaQuery.of(context).padding.bottom + 90,
+                        ),
+                        itemCount: 6,
+                        itemBuilder: (context, index) =>
+                            const _HistorialViajeCardSkeleton(),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             );
           }
           if (snapshot.hasError) {
@@ -131,25 +151,15 @@ class HistorialConductorState extends State<HistorialConductor> {
           }
 
           final viajes = snapshot.data ?? [];
-
-          double scoreTotal = 0.0;
-          int ratedCount = 0;
-          double totalGanado = 0.0;
-          for (final viaje in viajes) {
-            final score = _vm.extraerCalificacion(viaje).clamp(0, 5).toDouble();
-            if (score > 0) {
-              scoreTotal += score;
-              ratedCount++;
-            }
-            totalGanado += _vm.extraerValorServicio(viaje);
-          }
-          final promedio = ratedCount > 0 ? (scoreTotal / ratedCount) : 0.0;
+          final resumen = _vm.resumenDe(viajes);
+          final promedio = resumen.promedio;
+          final totalGanado = resumen.totalGanado;
 
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!mounted) return;
             _scheduleConductorRatingSync(
               averageRating: promedio,
-              ratingsCount: ratedCount,
+              ratingsCount: resumen.ratedCount,
             );
           });
 
@@ -211,6 +221,154 @@ String _fallbackDestino(dynamic field) {
         .toString();
   }
   return field?.toString() ?? 'Destino';
+}
+
+/// Placeholder del mismo alto/estructura aproximados que [HistorialViajeCard],
+/// usado mientras el historial está cargando en vez de bloquear con un
+/// spinner centrado.
+class _HistorialViajeCardSkeleton extends StatelessWidget {
+  const _HistorialViajeCardSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 0,
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: AppColores.borderSubtle),
+      ),
+      color: AppColores.surface,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: const BoxDecoration(
+                color: AppColores.grey200,
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    height: 15,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: AppColores.grey200,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    height: 12,
+                    width: 120,
+                    decoration: BoxDecoration(
+                      color: AppColores.grey200,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Container(
+                  height: 15,
+                  width: 48,
+                  decoration: BoxDecoration(
+                    color: AppColores.grey200,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  height: 20,
+                  width: 40,
+                  decoration: BoxDecoration(
+                    color: AppColores.grey200,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Placeholder del resumen del conductor mientras el historial carga.
+class _ResumenConductorSkeleton extends StatelessWidget {
+  const _ResumenConductorSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+      decoration: BoxDecoration(
+        color: AppColores.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColores.borderSubtle),
+      ),
+      child: const Row(
+        children: [
+          Expanded(child: _ResumenItemSkeleton()),
+          _SeparadorVertical(),
+          Expanded(child: _ResumenItemSkeleton()),
+          _SeparadorVertical(),
+          Expanded(child: _ResumenItemSkeleton()),
+        ],
+      ),
+    );
+  }
+}
+
+class _ResumenItemSkeleton extends StatelessWidget {
+  const _ResumenItemSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Container(
+          width: 22,
+          height: 22,
+          decoration: const BoxDecoration(
+            color: AppColores.grey200,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          height: 16,
+          width: 36,
+          decoration: BoxDecoration(
+            color: AppColores.grey200,
+            borderRadius: BorderRadius.circular(4),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          height: 11,
+          width: 44,
+          decoration: BoxDecoration(
+            color: AppColores.grey200,
+            borderRadius: BorderRadius.circular(4),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _ResumenConductor extends StatelessWidget {

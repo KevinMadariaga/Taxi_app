@@ -366,39 +366,10 @@ class PreviewSolicitudCard extends StatelessWidget {
               ],
               const SizedBox(height: 14),
               // Botones de acción
-              Row(
-                children: [
-                  Expanded(
-                    child: CustomButton(
-                      text: 'Ofertar',
-                      color: AppColores.surface,
-                      textColor: isAcceptLoading
-                          ? AppColores.grey400
-                          : AppColores.buttonPrimary,
-                      borderColor: isAcceptLoading
-                          ? AppColores.grey300
-                          : AppColores.buttonPrimary,
-                      isLoading: false,
-                      onPressed: isAcceptLoading ? null : onCounterOffer,
-                      width: double.infinity,
-                      height: 48,
-                      fontSize: 14,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: CustomButton(
-                      text: 'Aceptar',
-                      color: AppColores.buttonPrimary,
-                      textColor: AppColores.textWhite,
-                      isLoading: isAcceptLoading,
-                      onPressed: isAcceptLoading ? null : onAccept,
-                      width: double.infinity,
-                      height: 48,
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
+              _AcceptButtonsRow(
+                isAcceptLoading: isAcceptLoading,
+                onAccept: onAccept,
+                onCounterOffer: onCounterOffer,
               ),
               const SizedBox(height: 4),
             ],
@@ -461,6 +432,56 @@ class PreviewSolicitudCard extends StatelessWidget {
       return null;
     }
     return text;
+  }
+}
+
+class _AcceptButtonsRow extends StatelessWidget {
+  const _AcceptButtonsRow({
+    required this.isAcceptLoading,
+    required this.onAccept,
+    required this.onCounterOffer,
+  });
+
+  final bool isAcceptLoading;
+  final VoidCallback onAccept;
+  final VoidCallback onCounterOffer;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: CustomButton(
+            text: 'Ofertar',
+            color: AppColores.surface,
+            textColor: isAcceptLoading
+                ? AppColores.grey400
+                : AppColores.buttonPrimary,
+            borderColor: isAcceptLoading
+                ? AppColores.grey300
+                : AppColores.buttonPrimary,
+            isLoading: false,
+            onPressed: isAcceptLoading ? null : onCounterOffer,
+            width: double.infinity,
+            height: 48,
+            fontSize: 14,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: CustomButton(
+            text: 'Aceptar',
+            color: AppColores.buttonPrimary,
+            textColor: AppColores.textWhite,
+            isLoading: isAcceptLoading,
+            onPressed: isAcceptLoading ? null : onAccept,
+            width: double.infinity,
+            height: 48,
+            fontSize: 14,
+          ),
+        ),
+      ],
+    );
   }
 }
 

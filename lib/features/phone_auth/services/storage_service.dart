@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:taxi_app/core/utils/error_reporter.dart';
 
 class StorageService {
   StorageService({FirebaseStorage? storage})
@@ -54,7 +55,9 @@ class StorageService {
         if (current.length <= _maxBytes) {
           return current;
         }
-      } catch (_) {}
+      } catch (e, st) {
+        ErrorReporter.report(e, st, reason: 'storage_service');
+      }
     }
 
     return best;

@@ -105,4 +105,25 @@ class AppAuthAdapter extends LegacyAuthRepository
       email: email,
     );
   }
+
+  @override
+  Future<String> loginWithEmail({
+    required String email,
+    required String password,
+  }) {
+    // Reutiliza el login legado heredado de LegacyAuthRepository.
+    return login(email, password);
+  }
+
+  @override
+  Future<String> resolveUserRole(String uid) {
+    return _clientRepo.resolveUserRole(uid);
+  }
+
+  @override
+  Future<bool> isRegisteredAdmin(String uid) {
+    return _clientRepo.isRegisteredAdmin(uid);
+  }
+
+  // logout() ya lo satisface el implementado heredado de LegacyAuthRepository.
 }

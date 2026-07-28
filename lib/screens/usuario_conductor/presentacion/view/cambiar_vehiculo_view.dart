@@ -1,15 +1,17 @@
 import 'dart:io';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart' as fb_storage;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/services/image_cropper_service.dart';
 import 'package:taxi_app/core/services/image_processing_service.dart';
+import 'package:taxi_app/core/services/image_upload_service.dart';
+import 'package:taxi_app/features/phone_auth/services/user_data_service.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/vehicle_type.dart';
 import 'package:taxi_app/widgets/boton.dart';
+import 'package:taxi_app/core/utils/error_reporter.dart';
 
 /// Gestión de DOS vehículos (carro y moto).
 /// Cada tipo tiene su propia foto y placa almacenadas en
@@ -28,6 +30,8 @@ class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
   final ImageCropperService _cropper = const ImageCropperService();
   final ImageProcessingService _imageProcessingService =
       const ImageProcessingService();
+  final ImageUploadService _imageUploadService = ImageUploadService();
+  final UserDataService _userDataService = UserDataService();
 
   VehicleType _tipo = VehicleType.carro;
   VehicleType? _tipoActivo; // tipo activo guardado en Firestore
@@ -65,11 +69,7 @@ class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
       return;
     }
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('usuarios')
-          .doc(uid)
-          .get();
-      final data = doc.data();
+      final data = await _userDataService.getUsuario(uid);
       if (data != null && mounted) {
         final tipoStr = (data['tipoVehiculo'] ?? '').toString().toLowerCase();
         _tipoActivo = tipoStr == 'moto' ? VehicleType.moto : VehicleType.carro;
@@ -100,7 +100,8 @@ class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
           }
         }
       }
-    } catch (_) {
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'cambiar_vehiculo_view');
     } finally {
       if (mounted) setState(() => _cargando = false);
     }
@@ -150,16 +151,13 @@ class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
     final previousUrl = _fotosUrl[_tipo];
     final path =
         'usuarios/$uid/fotoVehiculo_${_tipo.firestoreKey}_${DateTime.now().millisecondsSinceEpoch}.webp';
-    final ref = fb_storage.FirebaseStorage.instance.ref().child(path);
-    await ref.putFile(File(file.path));
-    final url = await ref.getDownloadURL();
+    final url = await _imageUploadService.uploadFile(
+      file: File(file.path),
+      storagePath: path,
+    );
 
     if (previousUrl != null && previousUrl.isNotEmpty && previousUrl != url) {
-      try {
-        await fb_storage.FirebaseStorage.instance
-            .refFromURL(previousUrl)
-            .delete();
-      } catch (_) {}
+      await _imageUploadService.deleteByUrl(previousUrl);
     }
 
     return url;
@@ -179,7 +177,10 @@ class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
     if (!_validar()) return;
 
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) { _mostrarError('Sesión no válida.'); return; }
+    if (uid == null) {
+      _mostrarError('Sesión no válida.');
+      return;
+    }
 
     setState(() => _guardando = true);
     try {
@@ -188,23 +189,17 @@ class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
           : _fotosUrl[_tipo]!;
       final placaUp = _placas[_tipo]!.text.trim().toUpperCase();
 
-      await FirebaseFirestore.instance
-          .collection('usuarios')
-          .doc(uid)
-          .set({
-            'vehiculos': {
-              _tipo.firestoreKey: {'foto': fotoUrl, 'placa': placaUp},
-            },
-            'updatedAt': FieldValue.serverTimestamp(),
-          }, SetOptions(merge: true));
+      await _userDataService.guardarVehiculo(
+        uid: uid,
+        tipo: _tipo.firestoreKey,
+        foto: fotoUrl,
+        placa: placaUp,
+      );
 
       // Confirma que el doc realmente quedó con estos datos antes de avisar
       // "guardado" — evita mostrar éxito si Firestore rechazó el merge.
-      final verifyDoc = await FirebaseFirestore.instance
-          .collection('usuarios')
-          .doc(uid)
-          .get();
-      final verifyVehiculos = verifyDoc.data()?['vehiculos'];
+      final verifyData = await _userDataService.getUsuario(uid);
+      final verifyVehiculos = verifyData?['vehiculos'];
       final verifyEntry = verifyVehiculos is Map
           ? verifyVehiculos[_tipo.firestoreKey]
           : null;
@@ -247,7 +242,10 @@ class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
     if (!_validar()) return;
 
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) { _mostrarError('Sesión no válida.'); return; }
+    if (uid == null) {
+      _mostrarError('Sesión no válida.');
+      return;
+    }
 
     setState(() => _activando = true);
     try {
@@ -256,26 +254,16 @@ class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
           : _fotosUrl[_tipo]!;
       final placaUp = _placas[_tipo]!.text.trim().toUpperCase();
 
-      await FirebaseFirestore.instance
-          .collection('usuarios')
-          .doc(uid)
-          .set({
-            'vehiculos': {
-              _tipo.firestoreKey: {'foto': fotoUrl, 'placa': placaUp},
-            },
-            'tipoVehiculo': _tipo.firestoreKey,
-            'fotoVehiculo': fotoUrl,
-            'placa': placaUp,
-            'updatedAt': FieldValue.serverTimestamp(),
-          }, SetOptions(merge: true));
+      await _userDataService.activarVehiculo(
+        uid: uid,
+        tipo: _tipo.firestoreKey,
+        foto: fotoUrl,
+        placa: placaUp,
+      );
 
       // Confirma que el doc realmente quedó activo con estos datos antes de
       // avisar éxito y cerrar la pantalla.
-      final verifyDoc = await FirebaseFirestore.instance
-          .collection('usuarios')
-          .doc(uid)
-          .get();
-      final verifyData = verifyDoc.data();
+      final verifyData = await _userDataService.getUsuario(uid);
       final activadoOk =
           (verifyData?['tipoVehiculo'] ?? '').toString() ==
               _tipo.firestoreKey &&
@@ -389,7 +377,9 @@ class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
         foregroundColor: Colors.white,
       ),
       body: _cargando
-          ? const Center(child: CircularProgressIndicator(color: AppColores.primary))
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColores.primary),
+            )
           : SafeArea(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(16),
@@ -399,12 +389,18 @@ class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
                     // ── Selección de tipo ──────────────────────────────────
                     const Text(
                       'Selecciona el vehículo',
-                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     const Text(
                       'Puedes registrar carro y moto de forma independiente.',
-                      style: TextStyle(fontSize: 12.5, color: AppColores.textSecondary),
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: AppColores.textSecondary,
+                      ),
                     ),
                     const SizedBox(height: 12),
                     Row(
@@ -430,7 +426,10 @@ class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
                     // ── Foto ──────────────────────────────────────────────
                     Text(
                       'Foto del ${_tipo.label.toLowerCase()}',
-                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 15,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     GestureDetector(
@@ -444,45 +443,49 @@ class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
                               width: double.infinity,
                               color: AppColores.grey200,
                               child: fotoNueva != null
-                                  ? Image.file(File(fotoNueva.path), fit: BoxFit.cover)
+                                  ? Image.file(
+                                      File(fotoNueva.path),
+                                      fit: BoxFit.cover,
+                                    )
                                   : fotoUrl.isNotEmpty
-                                      ? Image.network(
-                                          fotoUrl,
-                                          fit: BoxFit.cover,
-                                          loadingBuilder: (context, child, progress) {
-                                            if (progress == null) return child;
-                                            return const Center(
-                                              child: CircularProgressIndicator(
-                                                color: AppColores.primary,
-                                              ),
-                                            );
-                                          },
-                                          errorBuilder: (context, error, stack) =>
-                                              const Center(
-                                                child: Icon(
-                                                  Icons.broken_image_outlined,
-                                                  size: 40,
-                                                  color: Colors.black38,
-                                                ),
-                                              ),
-                                        )
-                                      : Column(
-                                          mainAxisAlignment: MainAxisAlignment.center,
-                                          children: [
-                                            Icon(
-                                              _tipo == VehicleType.moto
-                                                  ? Icons.two_wheeler_rounded
-                                                  : Icons.directions_car,
+                                  ? CachedNetworkImage(
+                                      imageUrl: fotoUrl,
+                                      fit: BoxFit.cover,
+                                      memCacheWidth: 780,
+                                      memCacheHeight: 340,
+                                      placeholder: (context, url) =>
+                                          const Center(
+                                            child: CircularProgressIndicator(
+                                              color: AppColores.primary,
+                                            ),
+                                          ),
+                                      errorWidget: (context, url, error) =>
+                                          const Center(
+                                            child: Icon(
+                                              Icons.broken_image_outlined,
                                               size: 40,
-                                              color: Colors.black54,
+                                              color: Colors.black38,
                                             ),
-                                            const SizedBox(height: 8),
-                                            Text(
-                                              'Agregar foto del ${_tipo.label.toLowerCase()}',
-                                              style: const TextStyle(fontSize: 13),
-                                            ),
-                                          ],
+                                          ),
+                                    )
+                                  : Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          _tipo == VehicleType.moto
+                                              ? Icons.two_wheeler_rounded
+                                              : Icons.directions_car,
+                                          size: 40,
+                                          color: Colors.black54,
                                         ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          'Agregar foto del ${_tipo.label.toLowerCase()}',
+                                          style: const TextStyle(fontSize: 13),
+                                        ),
+                                      ],
+                                    ),
                             ),
                           ),
                           Positioned(
@@ -495,7 +498,10 @@ class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
                                 color: AppColores.buttonPrimary,
                                 borderRadius: BorderRadius.circular(8),
                               ),
-                              child: const Icon(Icons.camera_alt, color: AppColores.textPrimary),
+                              child: const Icon(
+                                Icons.camera_alt,
+                                color: AppColores.textPrimary,
+                              ),
                             ),
                           ),
                           if (_tipoGuardadoOk == _tipo)
@@ -514,7 +520,11 @@ class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
                                 child: const Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Icon(Icons.check_circle, size: 14, color: Colors.white),
+                                    Icon(
+                                      Icons.check_circle,
+                                      size: 14,
+                                      color: Colors.white,
+                                    ),
                                     SizedBox(width: 4),
                                     Text(
                                       'Guardado en BD',
@@ -572,7 +582,9 @@ class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
                                 ? const SizedBox(
                                     width: 18,
                                     height: 18,
-                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
                                   )
                                 : Text(
                                     'Guardar datos',
@@ -616,7 +628,11 @@ class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Icon(Icons.info_outline, size: 16, color: AppColores.primary),
+                          const Icon(
+                            Icons.info_outline,
+                            size: 16,
+                            color: AppColores.primary,
+                          ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(

@@ -57,8 +57,16 @@ class HistorialClienteState extends State<HistorialCliente> {
         future: _vm.cargarHistorial(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(color: AppColores.primary),
+            return Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 700),
+                child: ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+                  itemCount: 6,
+                  itemBuilder: (context, index) =>
+                      const _HistorialViajeCardSkeleton(),
+                ),
+              ),
             );
           }
           if (snapshot.hasError) {
@@ -119,4 +127,87 @@ String _fallbackDestino(dynamic field) {
         .toString();
   }
   return field?.toString() ?? 'Destino';
+}
+
+/// Placeholder del mismo alto/estructura aproximados que [HistorialViajeCard],
+/// usado mientras el historial está cargando en vez de bloquear con un
+/// spinner centrado.
+class _HistorialViajeCardSkeleton extends StatelessWidget {
+  const _HistorialViajeCardSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 0,
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: AppColores.borderSubtle),
+      ),
+      color: AppColores.surface,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: const BoxDecoration(
+                color: AppColores.grey200,
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    height: 15,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: AppColores.grey200,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    height: 12,
+                    width: 120,
+                    decoration: BoxDecoration(
+                      color: AppColores.grey200,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Container(
+                  height: 15,
+                  width: 48,
+                  decoration: BoxDecoration(
+                    color: AppColores.grey200,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  height: 20,
+                  width: 40,
+                  decoration: BoxDecoration(
+                    color: AppColores.grey200,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

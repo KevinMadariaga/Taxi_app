@@ -6,6 +6,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:taxi_app/core/constants/app_constants.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/entidades/auth_identity_entity.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/modelos/phone_verification_result.dart';
+import 'package:taxi_app/core/utils/error_reporter.dart';
 
 class ClientAuthFirebaseDataSource {
   ClientAuthFirebaseDataSource({FirebaseAuth? auth, GoogleSignIn? googleSignIn})
@@ -23,9 +24,17 @@ class ClientAuthFirebaseDataSource {
       if (_googleSignIn.currentUser != null) {
         try {
           await _googleSignIn.signOut();
-        } catch (_) {}
+        } catch (e, st) {
+          ErrorReporter.report(
+            e,
+            st,
+            reason: 'client_auth_firebase_datasource',
+          );
+        }
       }
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'client_auth_firebase_datasource');
+    }
 
     final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
     if (googleUser == null) return null;

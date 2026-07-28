@@ -3,6 +3,7 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show FilteringTextInputFormatter;
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -20,6 +21,8 @@ import 'package:taxi_app/widgets/preview_solicitud_card.dart';
 import 'package:taxi_app/widgets/solicitud_card.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/activacion_servicio_view.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/home_cliente_view.dart';
+import 'package:taxi_app/core/utils/error_reporter.dart';
+import 'package:taxi_app/features/phone_auth/services/user_data_service.dart';
 
 class InicioConductor extends StatefulWidget {
   const InicioConductor({Key? key, this.mostrarBienvenida = false})
@@ -34,10 +37,16 @@ class InicioConductor extends StatefulWidget {
 class _InicioConductorState extends State<InicioConductor>
     with WidgetsBindingObserver {
   GoogleMapController? _mapController;
-  int _selectedIndex = 1;
+  // ValueNotifier en vez de bool+setState: solo el BottomNavigationBar
+  // (envuelto en un ValueListenableBuilder acotado) debe reconstruirse al
+  // cambiar el tab seleccionado, no las ~2000 líneas del Scaffold.
+  final ValueNotifier<int> _selectedIndexNotifier = ValueNotifier<int>(1);
   bool _hasCentered = false;
   bool _navigatingToRuta = false;
-  bool _isAcceptingRequest = false;
+  // ValueNotifier en vez de bool+setState: solo el `PreviewSolicitudCard`
+  // (envuelto en un ValueListenableBuilder acotado) debe reconstruirse al
+  // cambiar el spinner de aceptar, no las ~2000 líneas del Scaffold.
+  final ValueNotifier<bool> _isAcceptingRequest = ValueNotifier<bool>(false);
   bool _gpsPromptShown = false;
   bool _isGpsDialogOpen = false;
   bool _isRequestingPermissions = false;
@@ -50,7 +59,7 @@ class _InicioConductorState extends State<InicioConductor>
   DateTime? _backgroundedAt;
   static const Duration _miniReloadThreshold = Duration(minutes: 3);
 
-  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _membresiaSub;
+  StreamSubscription<Map<String, dynamic>?>? _membresiaSub;
   Timer? _membresiaExpiryTimer;
   bool _expirandoMembresia = false;
   bool _dialogMembresiaVisible = false;
@@ -101,7 +110,9 @@ class _InicioConductorState extends State<InicioConductor>
         await _mapController?.animateCamera(
           CameraUpdate.newLatLngZoom(vm.currentLocation!, 16),
         );
-      } catch (_) {}
+      } catch (e, st) {
+        ErrorReporter.report(e, st, reason: 'InicioConductorView');
+      }
     }
   }
 
@@ -114,7 +125,9 @@ class _InicioConductorState extends State<InicioConductor>
     try {
       final vm = Provider.of<InicioConductorViewmodel>(context, listen: false);
       vm.ensureSolicitudesSubscription();
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'InicioConductorView');
+    }
   }
 
   Future<bool> _validateGpsAndPermissionsOnStart() async {
@@ -276,20 +289,46 @@ class _InicioConductorState extends State<InicioConductor>
           target: driver,
           bearing: bearing,
           tilt: 10.0,
-          zoom: _zoomForDistance(distance),
+          zoom: vm.zoomForDistance(distance),
         ),
       ),
     );
   }
 
-  double _zoomForDistance(double meters) {
-    if (meters <= 150) return 17.5;
-    if (meters <= 300) return 16.8;
-    if (meters <= 600) return 16.0;
-    if (meters <= 1200) return 15.0;
-    if (meters <= 2500) return 14.0;
-    if (meters <= 5000) return 13.0;
-    return 12.0;
+  /// Callback de `onMapCreated` del `_HomeConductorMap`. Vive en el State (no
+  /// en el widget aislado) para tener acceso directo a `_mapController` y
+  /// `_hasCentered` sin tener que pasarlos como parámetros mutables.
+  Future<void> _onMapCreated(
+    InicioConductorViewmodel vm,
+    GoogleMapController controller,
+  ) async {
+    _mapController = controller;
+
+    // If driver location is already available, center map.
+    if (vm.currentLocation == null) return;
+
+    final preview = vm.selectedPreview;
+    if (preview != null) {
+      final driver = vm.currentLocation!;
+      final client = LatLng(
+        preview.solicitud.ubicacionInicial.latitude,
+        preview.solicitud.ubicacionInicial.longitude,
+      );
+      final bearing = vm.calculateBearing(driver, client);
+      await controller.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(
+            target: driver,
+            zoom: 16,
+            bearing: bearing,
+            tilt: 0,
+          ),
+        ),
+      );
+    } else if (!_hasCentered) {
+      _hasCentered = true;
+      await vm.centerMapOnMarker(controller, zoom: 16.0);
+    }
   }
 
   Future<void> _navegarARutaConductor(
@@ -314,7 +353,8 @@ class _InicioConductorState extends State<InicioConductor>
         return;
       }
       await InicioConductorNavigation.irARutaConductor(context, solicitudId);
-    } catch (_) {
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'InicioConductorView');
     } finally {
       if (mounted) {
         setState(() {
@@ -337,7 +377,9 @@ class _InicioConductorState extends State<InicioConductor>
           () async {
             try {
               await NotificacionesServicio.instance.init();
-            } catch (_) {}
+            } catch (e, st) {
+              ErrorReporter.report(e, st, reason: 'InicioConductorView');
+            }
           }();
 
           // Start viewmodel initialization in background so UI isn't blocked
@@ -416,7 +458,8 @@ class _InicioConductorState extends State<InicioConductor>
           });
 
           final selectedPreview = vm.isConnected ? vm.selectedPreview : null;
-          final bool previewVisible = vm.isConnected && vm.selectedPreview != null;
+          final bool previewVisible =
+              vm.isConnected && vm.selectedPreview != null;
           // Padding inferior del mapa = alto real de la card (medido). Hasta
           // medir, se usa un estimado (~42%) para evitar saltos grandes.
           final double mapBottomPadding = _previewCardHeight > 0
@@ -539,9 +582,7 @@ class _InicioConductorState extends State<InicioConductor>
                                                           );
                                                         })
                                                         ..add(
-                                                          SizedBox(
-                                                            width: 6.w,
-                                                          ),
+                                                          SizedBox(width: 6.w),
                                                         )
                                                         ..add(
                                                           Text(
@@ -600,12 +641,37 @@ class _InicioConductorState extends State<InicioConductor>
 
                                       if (photoUrl.isNotEmpty) {
                                         return ClipOval(
-                                          child: Image.network(
-                                            photoUrl,
+                                          child: CachedNetworkImage(
+                                            imageUrl: photoUrl,
                                             width: 100.w,
                                             height: 100.h,
                                             fit: BoxFit.cover,
-                                            errorBuilder: (ctx2, error, stack) {
+                                            // ~100x100 visual a densidad 2x.
+                                            memCacheWidth: 200,
+                                            memCacheHeight: 200,
+                                            placeholder: (ctx2, url) {
+                                              return Container(
+                                                width: 100.w,
+                                                height: 100.h,
+                                                decoration: const BoxDecoration(
+                                                  color: AppColores.grey200,
+                                                  shape: BoxShape.circle,
+                                                ),
+                                                alignment: Alignment.center,
+                                                child: SizedBox(
+                                                  width: 22,
+                                                  height: 22,
+                                                  child: CircularProgressIndicator(
+                                                    strokeWidth: 2,
+                                                    valueColor:
+                                                        AlwaysStoppedAnimation<
+                                                          Color
+                                                        >(AppColores.primary),
+                                                  ),
+                                                ),
+                                              );
+                                            },
+                                            errorWidget: (ctx2, url, error) {
                                               return Container(
                                                 width: 100.w,
                                                 height: 100.h,
@@ -692,155 +758,20 @@ class _InicioConductorState extends State<InicioConductor>
                                     borderRadius: vm.selectedPreview == null
                                         ? BorderRadius.circular(12.r)
                                         : BorderRadius.zero,
-                                    child: Builder(
-                                      builder: (context) {
-                                        final markers = <Marker>{};
-                                        final polylines = <Polyline>{};
-                                        // We use the map's default my-location blue dot (`myLocationEnabled`) instead
-                                        // of adding a custom driver marker to avoid duplicate/red markers.
-                                        final preview = vm.selectedPreview;
-                                        if (preview != null) {
-                                          final s = preview.solicitud;
-                                          final clientPos = LatLng(
-                                            s.ubicacionInicial.latitude,
-                                            s.ubicacionInicial.longitude,
-                                          );
-                                          markers.add(
-                                            Marker(
-                                              markerId: MarkerId(
-                                                'client_${s.id}',
-                                              ),
-                                              position: clientPos,
-                                              infoWindow: InfoWindow(
-                                                title:
-                                                    s.nombreCliente ??
-                                                    'Cliente',
-                                                snippet: s.direccion,
-                                              ),
-                                            ),
-                                          );
-                                          if (vm.currentLocation != null) {
-                                            final hasRouted = vm.routePolylines
-                                                .any(
-                                                  (p) =>
-                                                      p.polylineId.value ==
-                                                      'route_${s.id}',
-                                                );
-                                            if (!hasRouted) {
-                                              polylines.add(
-                                                Polyline(
-                                                  polylineId: PolylineId(
-                                                    'route_${s.id}',
-                                                  ),
-                                                  points: [
-                                                    vm.currentLocation!,
-                                                    clientPos,
-                                                  ],
-                                                  color: AppColores.primary,
-                                                  width: 4,
-                                                ),
-                                              );
-                                            }
-                                          }
-                                        }
-
-                                        return AppGoogleMap(
-                                          initialTarget:
-                                              vm.currentLocation ??
-                                              const LatLng(
-                                                8.2595534,
-                                                -73.353469,
-                                              ),
-                                          initialZoom:
-                                              vm.currentLocation != null
-                                              ? 16.0
-                                              : 14.5,
-                                          // Deja libre el alto de la card para
-                                          // centrar los marcadores arriba.
-                                          padding: previewVisible
-                                              ? EdgeInsets.only(
-                                                  bottom: mapBottomPadding,
-                                                )
-                                              : EdgeInsets.zero,
-                                          myLocationEnabled: true,
-                                          myLocationButtonEnabled: true,
-                                          compassEnabled: true,
-                                          rotateGesturesEnabled: true,
-                                          tiltGesturesEnabled: false,
-                                          markers: markers.union(
-                                            vm.extraMarkers,
-                                          ),
-                                          polylines: polylines.union(
-                                            vm.routePolylines,
-                                          ),
-                                          circles: vm.currentLocation != null
-                                              ? {
-                                                  Circle(
-                                                    circleId: const CircleId(
-                                                      'driver_radius',
-                                                    ),
-                                                    center: vm.currentLocation!,
-                                                    radius: 3000, // meters
-                                                    strokeWidth: 2,
-                                                    strokeColor: AppColores
-                                                        .primary
-                                                        .withValues(alpha: 0.7),
-                                                    fillColor: AppColores
-                                                        .primary
-                                                        .withValues(alpha: 0.06),
-                                                  ),
-                                                }
-                                              : const <Circle>{},
-                                          onMapCreated: (controller) async {
-                                            _mapController = controller;
-
-                                            // If driver location is already available, center map.
-                                            if (vm.currentLocation != null) {
-                                              if (preview != null) {
-                                                final driver =
-                                                    vm.currentLocation!;
-                                                final client = LatLng(
-                                                  preview
-                                                      .solicitud
-                                                      .ubicacionInicial
-                                                      .latitude,
-                                                  preview
-                                                      .solicitud
-                                                      .ubicacionInicial
-                                                      .longitude,
-                                                );
-                                                final bearing = vm
-                                                    .calculateBearing(
-                                                      driver,
-                                                      client,
-                                                    );
-                                                await _mapController!.animateCamera(
-                                                  CameraUpdate.newCameraPosition(
-                                                    CameraPosition(
-                                                      target: driver,
-                                                      zoom: 16,
-                                                      bearing: bearing,
-                                                      tilt: 0,
-                                                    ),
-                                                  ),
-                                                );
-                                              } else if (!_hasCentered) {
-                                                _hasCentered = true;
-                                                await vm.centerMapOnMarker(
-                                                  _mapController!,
-                                                  zoom: 16.0,
-                                                );
-                                              }
-                                            }
-                                          },
-                                        );
-                                      },
+                                    child: _HomeConductorMap(
+                                      vm: vm,
+                                      previewVisible: previewVisible,
+                                      mapBottomPadding: mapBottomPadding,
+                                      onMapCreated: (controller) =>
+                                          _onMapCreated(vm, controller),
                                     ),
                                   ),
                                   if (vm.isLoadingPreviewRoute)
                                     Positioned.fill(
                                       child: Container(
-                                        color: Colors.white.withValues(alpha: 0.6),
+                                        color: Colors.white.withValues(
+                                          alpha: 0.6,
+                                        ),
                                         child: Center(
                                           child: Column(
                                             mainAxisSize: MainAxisSize.min,
@@ -881,15 +812,16 @@ class _InicioConductorState extends State<InicioConductor>
                                             children: [
                                               // Encabezado único
                                               Container(
-                                                padding:
-                                                    EdgeInsets.symmetric(
-                                                      horizontal: 10.w,
-                                                      vertical: 6.h,
-                                                    ),
+                                                padding: EdgeInsets.symmetric(
+                                                  horizontal: 10.w,
+                                                  vertical: 6.h,
+                                                ),
                                                 decoration: BoxDecoration(
                                                   color: AppColores.error,
                                                   borderRadius:
-                                                      BorderRadius.circular(20.r),
+                                                      BorderRadius.circular(
+                                                        20.r,
+                                                      ),
                                                   boxShadow: [
                                                     BoxShadow(
                                                       color: AppColores
@@ -950,22 +882,31 @@ class _InicioConductorState extends State<InicioConductor>
                                                               solicitud: s,
                                                               expanded: false,
                                                               onTap: (preview) {
-                                                                final s = preview.solicitud;
+                                                                final s = preview
+                                                                    .solicitud;
                                                                 // selectPreview llama internamente a preloadClientePhoto
-                                                                vm.selectPreview(preview);
+                                                                vm.selectPreview(
+                                                                  preview,
+                                                                );
 
                                                                 // Iniciar listener sin bloquear la animación de la card
                                                                 unawaited(
                                                                   vm.listenPreviewSolicitudStatus(
-                                                                    solicitudId: s.id,
+                                                                    solicitudId:
+                                                                        s.id,
                                                                     onCanceladoOrRemoved: () async {
-                                                                      if (!mounted) return;
+                                                                      if (!mounted)
+                                                                        return;
                                                                       // Estaba en la preview: cerrarla y avisar con snackbar,
                                                                       // permaneciendo en el mapa para seguir recibiendo solicitudes.
-                                                                      await _closePreview(vm);
-                                                                      if (!mounted) return;
-                                                                      ScaffoldMessenger.of(context)
-                                                                          .showSnackBar(
+                                                                      await _closePreview(
+                                                                        vm,
+                                                                      );
+                                                                      if (!mounted)
+                                                                        return;
+                                                                      ScaffoldMessenger.of(
+                                                                        context,
+                                                                      ).showSnackBar(
                                                                         const SnackBar(
                                                                           content: Text(
                                                                             'El cliente canceló la solicitud.',
@@ -975,21 +916,40 @@ class _InicioConductorState extends State<InicioConductor>
                                                                         ),
                                                                       );
                                                                     },
-                                                                    onAsignado: () async {
-                                                                      await _navegarARutaConductor(vm, s.id);
-                                                                    },
+                                                                    onAsignado:
+                                                                        () async {
+                                                                          await _navegarARutaConductor(
+                                                                            vm,
+                                                                            s.id,
+                                                                          );
+                                                                        },
                                                                   ),
                                                                 );
 
                                                                 // Animar cámara sin await para no bloquear la UI
-                                                                if (vm.currentLocation != null) {
-                                                                  final driver = vm.currentLocation!;
+                                                                if (vm.currentLocation !=
+                                                                    null) {
+                                                                  final driver =
+                                                                      vm.currentLocation!;
                                                                   final client = LatLng(
-                                                                    s.ubicacionInicial.latitude,
-                                                                    s.ubicacionInicial.longitude,
+                                                                    s
+                                                                        .ubicacionInicial
+                                                                        .latitude,
+                                                                    s
+                                                                        .ubicacionInicial
+                                                                        .longitude,
                                                                   );
-                                                                  unawaited(_centerPreviewOnConductorToClient(vm, preview));
-                                                                  vm.fetchRouteOSRM(s.id, driver, client);
+                                                                  unawaited(
+                                                                    _centerPreviewOnConductorToClient(
+                                                                      vm,
+                                                                      preview,
+                                                                    ),
+                                                                  );
+                                                                  vm.fetchRouteOSRM(
+                                                                    s.id,
+                                                                    driver,
+                                                                    client,
+                                                                  );
                                                                 } else {
                                                                   unawaited(
                                                                     _mapController?.animateCamera(
@@ -1045,7 +1005,9 @@ class _InicioConductorState extends State<InicioConductor>
                                           ? AppColores.buttonPrimary
                                           : AppColores.grey400,
                                       shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8.r),
+                                        borderRadius: BorderRadius.circular(
+                                          8.r,
+                                        ),
                                       ),
                                     ),
                                     icon: vm.isTogglingConnection
@@ -1106,7 +1068,9 @@ class _InicioConductorState extends State<InicioConductor>
                                       preview.solicitud.clienteId,
                                     );
                               WidgetsBinding.instance.addPostFrameCallback((_) {
-                                final h = _previewCardKey.currentContext?.size
+                                final h = _previewCardKey
+                                    .currentContext
+                                    ?.size
                                     ?.height;
                                 if (mounted &&
                                     h != null &&
@@ -1117,60 +1081,76 @@ class _InicioConductorState extends State<InicioConductor>
                               });
                               return Container(
                                 key: _previewCardKey,
-                                child: PreviewSolicitudCard(
-                                preview: preview,
-                                clientPhotoUrl: foto,
-                                isAcceptLoading: _isAcceptingRequest,
-                                onClose: () async {
-                                  if (!_navigatingToRuta) {
-                                    await _closePreview(vm);
-                                  }
-                                },
-                                onCancel: () async {
-                                  if (!_navigatingToRuta) {
-                                    await _closePreview(vm);
-                                  }
-                                },
-                                onAccept: () async {
-                                  if (_isAcceptingRequest || _navigatingToRuta) return;
-                                  setState(() => _isAcceptingRequest = true);
-                                  final id = preview.solicitud.id;
-                                  final messenger = ScaffoldMessenger.of(context);
-                                  try {
-                                    await vm.aceptarSolicitud(id);
-                                    if (mounted) setState(() => _isAcceptingRequest = false);
-                                    await _navegarARutaConductor(vm, id);
-                                  } on StateError catch (e) {
-                                    if (mounted) {
-                                      setState(() => _isAcceptingRequest = false);
-                                      messenger.showSnackBar(
-                                        SnackBar(
-                                          content: Text(e.message),
-                                          backgroundColor: Colors.orange,
-                                        ),
-                                      );
-                                    }
-                                  } catch (e) {
-                                    if (mounted) {
-                                      setState(() => _isAcceptingRequest = false);
-                                      messenger.showSnackBar(
-                                        SnackBar(
-                                          content: Text(
-                                            'Error al aceptar servicio: $e',
-                                          ),
-                                        ),
-                                      );
-                                    }
-                                  }
-                                },
-                                onCounterOffer: () async {
-                                  if (!_navigatingToRuta) {
-                                    await _abrirContraofertaModal(
-                                      vm,
-                                      preview,
+                                child: ValueListenableBuilder<bool>(
+                                  valueListenable: _isAcceptingRequest,
+                                  builder: (context, isAccepting, _) {
+                                    return PreviewSolicitudCard(
+                                      preview: preview,
+                                      clientPhotoUrl: foto,
+                                      isAcceptLoading: isAccepting,
+                                      onClose: () async {
+                                        if (!_navigatingToRuta) {
+                                          await _closePreview(vm);
+                                        }
+                                      },
+                                      onCancel: () async {
+                                        if (!_navigatingToRuta) {
+                                          await _closePreview(vm);
+                                        }
+                                      },
+                                      onAccept: () async {
+                                        if (_isAcceptingRequest.value ||
+                                            _navigatingToRuta) {
+                                          return;
+                                        }
+                                        _isAcceptingRequest.value = true;
+                                        final id = preview.solicitud.id;
+                                        final messenger = ScaffoldMessenger.of(
+                                          context,
+                                        );
+                                        try {
+                                          await vm.aceptarSolicitud(id);
+                                          if (mounted) {
+                                            _isAcceptingRequest.value = false;
+                                          }
+                                          await _navegarARutaConductor(
+                                            vm,
+                                            id,
+                                          );
+                                        } on StateError catch (e) {
+                                          if (mounted) {
+                                            _isAcceptingRequest.value = false;
+                                            messenger.showSnackBar(
+                                              SnackBar(
+                                                content: Text(e.message),
+                                                backgroundColor:
+                                                    Colors.orange,
+                                              ),
+                                            );
+                                          }
+                                        } catch (e) {
+                                          if (mounted) {
+                                            _isAcceptingRequest.value = false;
+                                            messenger.showSnackBar(
+                                              SnackBar(
+                                                content: Text(
+                                                  'Error al aceptar servicio: $e',
+                                                ),
+                                              ),
+                                            );
+                                          }
+                                        }
+                                      },
+                                      onCounterOffer: () async {
+                                        if (!_navigatingToRuta) {
+                                          await _abrirContraofertaModal(
+                                            vm,
+                                            preview,
+                                          );
+                                        }
+                                      },
                                     );
-                                  }
-                                },
+                                  },
                                 ),
                               );
                             },
@@ -1184,25 +1164,30 @@ class _InicioConductorState extends State<InicioConductor>
               // floatingActionButton removed — button is placed below the map in the Column
               bottomNavigationBar:
                   !vm.isMapExpanded && vm.selectedPreview == null
-                  ? BottomNavigationBar(
-                      currentIndex: _selectedIndex,
-                      selectedItemColor: AppColores.primary,
-                      unselectedItemColor: AppColores.textSecondary,
-                      items: const [
-                        BottomNavigationBarItem(
-                          icon: Icon(Icons.menu),
-                          label: 'Mas opciones',
-                        ),
-                        BottomNavigationBarItem(
-                          icon: Icon(Icons.map),
-                          label: 'Mapa',
-                        ),
-                        BottomNavigationBarItem(
-                          icon: Icon(Icons.person_outline),
-                          label: 'Tú',
-                        ),
-                      ],
-                      onTap: _onBottomNavTap,
+                  ? ValueListenableBuilder<int>(
+                      valueListenable: _selectedIndexNotifier,
+                      builder: (context, selectedIndex, _) {
+                        return BottomNavigationBar(
+                          currentIndex: selectedIndex,
+                          selectedItemColor: AppColores.primary,
+                          unselectedItemColor: AppColores.textSecondary,
+                          items: const [
+                            BottomNavigationBarItem(
+                              icon: Icon(Icons.menu),
+                              label: 'Mas opciones',
+                            ),
+                            BottomNavigationBarItem(
+                              icon: Icon(Icons.map),
+                              label: 'Mapa',
+                            ),
+                            BottomNavigationBarItem(
+                              icon: Icon(Icons.person_outline),
+                              label: 'Tú',
+                            ),
+                          ],
+                          onTap: _onBottomNavTap,
+                        );
+                      },
                     )
                   : null,
             ),
@@ -1218,80 +1203,73 @@ class _InicioConductorState extends State<InicioConductor>
   void _initMembresiaWatcher() {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
-    _membresiaSub = FirebaseFirestore.instance
-        .collection('usuarios')
-        .doc(uid)
-        .snapshots()
-        .listen((doc) {
-          if (!mounted) return;
-          final data = doc.data();
-          final flagActiva =
-              (data?['membresia'] ?? '').toString().toLowerCase() == 'activa';
-          final venceRaw = data?['membresiaVence'];
-          final DateTime? vence = venceRaw is Timestamp
-              ? venceRaw.toDate()
-              : null;
-          final now = DateTime.now();
-          // Vencida = marcada activa pero ya pasó la fecha de vencimiento.
-          final vencida = flagActiva && vence != null && !vence.isAfter(now);
+    _membresiaSub = UserDataService().streamUsuario(uid).listen((data) {
+      if (!mounted) return;
+      final flagActiva =
+          (data?['membresia'] ?? '').toString().toLowerCase() == 'activa';
+      final venceRaw = data?['membresiaVence'];
+      final DateTime? vence = venceRaw is Timestamp ? venceRaw.toDate() : null;
+      final now = DateTime.now();
+      // Vencida = marcada activa pero ya pasó la fecha de vencimiento.
+      final vencida = flagActiva && vence != null && !vence.isAfter(now);
 
-          // El snapshot NO se re-dispara por el solo paso del tiempo: programa
-          // un Timer que corte exactamente al vencer (ej. activada el 7 a las
-          // 14:00 por 1 día → corta el 8 a las 14:00).
-          _membresiaExpiryTimer?.cancel();
-          if (flagActiva && vence != null && vence.isAfter(now)) {
-            _membresiaExpiryTimer = Timer(
-              vence.difference(now),
-              () => _expirarMembresia(uid),
+      // El snapshot NO se re-dispara por el solo paso del tiempo: programa
+      // un Timer que corte exactamente al vencer (ej. activada el 7 a las
+      // 14:00 por 1 día → corta el 8 a las 14:00).
+      _membresiaExpiryTimer?.cancel();
+      if (flagActiva && vence != null && vence.isAfter(now)) {
+        _membresiaExpiryTimer = Timer(
+          vence.difference(now),
+          () => _expirarMembresia(uid),
+        );
+      }
+
+      // Si ya venció (incluido al reabrir la app tras el plazo), persiste la
+      // desactivación; eso re-dispara el snapshot con membresia vacía.
+      if (vencida) {
+        _expirarMembresia(uid);
+      }
+
+      final activa = flagActiva && !vencida;
+
+      if (!activa && !_dialogMembresiaVisible) {
+        _dialogMembresiaVisible = true;
+        mostrarBienvenidaConductorDialog(
+          context,
+          onVolverCliente: _volverACliente,
+        ).whenComplete(() {
+          _dialogMembresiaVisible = false;
+        });
+      } else if (activa) {
+        if (_dialogMembresiaVisible) {
+          _dialogMembresiaVisible = false;
+          Navigator.of(context).popUntil((route) => route.isFirst);
+        }
+
+        // Detectar activación: primera apertura con mostrarBienvenida=true
+        // (tap en notificación FCM) o transición inactivo → activo en vivo.
+        final primeraVezActiva =
+            _membresiaPreviamenteActiva == null && widget.mostrarBienvenida;
+        final recienActivada = _membresiaPreviamenteActiva == false;
+
+        if (primeraVezActiva || recienActivada) {
+          if (recienActivada) {
+            // Conductor tiene la app abierta en este momento: notificación local.
+            NotificacionesServicio.instance.showNotification(
+              id: 'membresia_activada'.hashCode,
+              title: '¡Membresía activada!',
+              body:
+                  'Tu membresía de conductor está activa. ¡Ya puedes recibir solicitudes!',
             );
           }
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _mostrarDialogBienvenidaActivacion();
+          });
+        }
+      }
 
-          // Si ya venció (incluido al reabrir la app tras el plazo), persiste la
-          // desactivación; eso re-dispara el snapshot con membresia vacía.
-          if (vencida) {
-            _expirarMembresia(uid);
-          }
-
-          final activa = flagActiva && !vencida;
-
-          if (!activa && !_dialogMembresiaVisible) {
-            _dialogMembresiaVisible = true;
-            mostrarBienvenidaConductorDialog(
-              context,
-              onVolverCliente: _volverACliente,
-            ).whenComplete(() {
-              _dialogMembresiaVisible = false;
-            });
-          } else if (activa) {
-            if (_dialogMembresiaVisible) {
-              _dialogMembresiaVisible = false;
-              Navigator.of(context).popUntil((route) => route.isFirst);
-            }
-
-            // Detectar activación: primera apertura con mostrarBienvenida=true
-            // (tap en notificación FCM) o transición inactivo → activo en vivo.
-            final primeraVezActiva =
-                _membresiaPreviamenteActiva == null && widget.mostrarBienvenida;
-            final recienActivada = _membresiaPreviamenteActiva == false;
-
-            if (primeraVezActiva || recienActivada) {
-              if (recienActivada) {
-                // Conductor tiene la app abierta en este momento: notificación local.
-                NotificacionesServicio.instance.showNotification(
-                  id: 'membresia_activada'.hashCode,
-                  title: '¡Membresía activada!',
-                  body:
-                      'Tu membresía de conductor está activa. ¡Ya puedes recibir solicitudes!',
-                );
-              }
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (mounted) _mostrarDialogBienvenidaActivacion();
-              });
-            }
-          }
-
-          _membresiaPreviamenteActiva = activa;
-        });
+      _membresiaPreviamenteActiva = activa;
+    });
   }
 
   /// Muestra explicación antes de pedir permiso de ubicación en segundo plano.
@@ -1423,8 +1401,9 @@ class _InicioConductorState extends State<InicioConductor>
     await showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.r)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20.r),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1510,7 +1489,9 @@ class _InicioConductorState extends State<InicioConductor>
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.r)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20.r),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1576,12 +1557,9 @@ class _InicioConductorState extends State<InicioConductor>
     if (_expirandoMembresia) return;
     _expirandoMembresia = true;
     try {
-      await FirebaseFirestore.instance.collection('usuarios').doc(uid).set({
-        'membresia': '',
-        'servicioActivo': false,
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-    } catch (_) {
+      await UserDataService().expirarMembresia(uid);
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'InicioConductorView');
     } finally {
       _expirandoMembresia = false;
     }
@@ -1600,11 +1578,7 @@ class _InicioConductorState extends State<InicioConductor>
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid != null) {
       // rol cliente + quitar solicitud para retirar la notificación del admin.
-      FirebaseFirestore.instance.collection('usuarios').doc(uid).set({
-        'rol': 'cliente',
-        'solicitudConductor': false,
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      UserDataService().volverACliente(uid);
       // Sincronizar caché para que al reiniciar abra como cliente.
       SessionHelper.updateRole('cliente');
     }
@@ -1621,6 +1595,8 @@ class _InicioConductorState extends State<InicioConductor>
     _membresiaSub?.cancel();
     _membresiaExpiryTimer?.cancel();
     _mapController = null;
+    _isAcceptingRequest.dispose();
+    _selectedIndexNotifier.dispose();
     super.dispose();
   }
 
@@ -1839,17 +1815,17 @@ class _InicioConductorState extends State<InicioConductor>
 
   Future<void> _onBottomNavTap(int index) async {
     if (index == 0) {
-      setState(() => _selectedIndex = 0);
+      _selectedIndexNotifier.value = 0;
       await _showMoreOptionsSheet();
       if (!mounted) return;
-      setState(() => _selectedIndex = 1);
+      _selectedIndexNotifier.value = 1;
     } else if (index == 2) {
-      setState(() => _selectedIndex = 2);
+      _selectedIndexNotifier.value = 2;
       await _navigateToPerfilConductor();
       if (!mounted) return;
-      setState(() => _selectedIndex = 1);
+      _selectedIndexNotifier.value = 1;
     } else {
-      setState(() => _selectedIndex = index);
+      _selectedIndexNotifier.value = index;
     }
   }
 
@@ -1921,19 +1897,8 @@ class _InicioConductorState extends State<InicioConductor>
     );
   }
 
-  String _fmtMoneda(int v) {
-    final s = v.toString();
-    final buf = StringBuffer();
-    for (int i = 0; i < s.length; i++) {
-      final rev = s.length - i;
-      buf.write(s[i]);
-      if (rev > 1 && rev % 3 == 1) buf.write('.');
-    }
-    return buf.toString();
-  }
-
   /// Modal de confirmación que se cierra solo a los 3 segundos.
-  void _mostrarConfirmacionContraoferta(int valor) {
+  void _mostrarConfirmacionContraoferta(InicioConductorViewmodel vm, int valor) {
     showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -1942,13 +1907,17 @@ class _InicioConductorState extends State<InicioConductor>
           if (Navigator.of(ctx).canPop()) Navigator.of(ctx).pop();
         });
         return AlertDialog(
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(18.r)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18.r),
+          ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.check_circle,
-                  color: AppColores.success, size: 56),
+              const Icon(
+                Icons.check_circle,
+                color: AppColores.success,
+                size: 56,
+              ),
               SizedBox(height: 12.h),
               Text(
                 'Contraoferta enviada',
@@ -1956,7 +1925,7 @@ class _InicioConductorState extends State<InicioConductor>
               ),
               SizedBox(height: 6.h),
               Text(
-                'Se hizo contraoferta de \$${_fmtMoneda(valor)}',
+                'Se hizo contraoferta de \$${vm.formatMoneda(valor)}',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: AppColores.textSecondary,
@@ -1975,13 +1944,9 @@ class _InicioConductorState extends State<InicioConductor>
     PreviewSolicitud preview,
   ) async {
     final valorBase = (preview.valorServicio ?? 0).round();
-    final base = valorBase > 0 ? valorBase : 10000;
     final controller = TextEditingController();
 
-    final opciones =
-        <int>{base + 1000, base + 2000, base + 3000, base + 5000, base + 7000}
-            .toList()
-          ..sort();
+    final opciones = vm.contraofertaOpciones(valorBase);
 
     void setValor(int v) {
       final t = v.toString();
@@ -2016,11 +1981,14 @@ class _InicioConductorState extends State<InicioConductor>
                 children: [
                   Text(
                     'Enviar contraoferta',
-                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18.sp),
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 18.sp,
+                    ),
                   ),
                   SizedBox(height: 8.h),
                   Text(
-                    'Oferta actual del cliente: \$${_fmtMoneda(valorBase)}',
+                    'Oferta actual del cliente: \$${vm.formatMoneda(valorBase)}',
                     style: const TextStyle(color: Colors.black54),
                   ),
                   SizedBox(height: 10.h),
@@ -2042,7 +2010,7 @@ class _InicioConductorState extends State<InicioConductor>
                     children: opciones
                         .map(
                           (o) => ActionChip(
-                            label: Text('\$${_fmtMoneda(o)}'),
+                            label: Text('\$${vm.formatMoneda(o)}'),
                             onPressed: () => setValor(o),
                           ),
                         )
@@ -2073,7 +2041,7 @@ class _InicioConductorState extends State<InicioConductor>
                           );
                           if (!mounted) return;
                           Navigator.of(ctx).pop();
-                          _mostrarConfirmacionContraoferta(valor.round());
+                          _mostrarConfirmacionContraoferta(vm, valor.round());
                         } catch (e) {
                           if (!mounted) return;
                           ScaffoldMessenger.of(context).showSnackBar(
@@ -2092,6 +2060,112 @@ class _InicioConductorState extends State<InicioConductor>
               ),
             ),
           ),
+        );
+      },
+    );
+  }
+}
+
+/// Capa del `GoogleMap` de la home del conductor, desacoplada del
+/// `Consumer<InicioConductorViewmodel>` que envuelve las ~2000 líneas del
+/// Scaffold: escucha directamente los `ValueNotifier`s del VM dedicados al
+/// mapa (ubicación actual, preview seleccionada, marcadores extra y
+/// polylines de ruta) para reconstruirse solo cuando esos datos cambian, no
+/// cuando cambia cualquier otra cosa del VM (perfil, lista de solicitudes
+/// pendientes, toggles de conexión, etc). Mismo patrón que
+/// `_AnimatedConductorMap` en trip_tracking_screen.dart.
+class _HomeConductorMap extends StatelessWidget {
+  const _HomeConductorMap({
+    required this.vm,
+    required this.previewVisible,
+    required this.mapBottomPadding,
+    required this.onMapCreated,
+  });
+
+  final InicioConductorViewmodel vm;
+  final bool previewVisible;
+  final double mapBottomPadding;
+  final void Function(GoogleMapController controller) onMapCreated;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: Listenable.merge([
+        vm.currentLocationNotifier,
+        vm.selectedPreviewNotifier,
+        vm.extraMarkersNotifier,
+        vm.routePolylinesNotifier,
+      ]),
+      builder: (context, _) {
+        final currentLocation = vm.currentLocationNotifier.value;
+        final preview = vm.selectedPreviewNotifier.value;
+
+        final markers = <Marker>{};
+        final polylines = <Polyline>{};
+        // We use the map's default my-location blue dot (`myLocationEnabled`)
+        // instead of adding a custom driver marker to avoid duplicate/red
+        // markers.
+        if (preview != null) {
+          final s = preview.solicitud;
+          final clientPos = LatLng(
+            s.ubicacionInicial.latitude,
+            s.ubicacionInicial.longitude,
+          );
+          markers.add(
+            Marker(
+              markerId: MarkerId('client_${s.id}'),
+              position: clientPos,
+              infoWindow: InfoWindow(
+                title: s.nombreCliente ?? 'Cliente',
+                snippet: s.direccion,
+              ),
+            ),
+          );
+          if (currentLocation != null) {
+            final hasRouted = vm.routePolylinesNotifier.value.any(
+              (p) => p.polylineId.value == 'route_${s.id}',
+            );
+            if (!hasRouted) {
+              polylines.add(
+                Polyline(
+                  polylineId: PolylineId('route_${s.id}'),
+                  points: [currentLocation, clientPos],
+                  color: AppColores.primary,
+                  width: 4,
+                ),
+              );
+            }
+          }
+        }
+
+        return AppGoogleMap(
+          initialTarget:
+              currentLocation ?? const LatLng(8.2595534, -73.353469),
+          initialZoom: currentLocation != null ? 16.0 : 14.5,
+          // Deja libre el alto de la card para centrar los marcadores arriba.
+          padding: previewVisible
+              ? EdgeInsets.only(bottom: mapBottomPadding)
+              : EdgeInsets.zero,
+          myLocationEnabled: true,
+          myLocationButtonEnabled: true,
+          compassEnabled: true,
+          rotateGesturesEnabled: true,
+          tiltGesturesEnabled: false,
+          markers: markers.union(vm.extraMarkersNotifier.value),
+          polylines: polylines.union(vm.routePolylinesNotifier.value),
+          circles: currentLocation != null
+              ? {
+                  Circle(
+                    circleId: const CircleId('driver_radius'),
+                    center: currentLocation,
+                    radius: 3000, // meters
+                    strokeWidth: 2,
+                    strokeColor: AppColores.primary.withValues(alpha: 0.7),
+                    fillColor: AppColores.primary.withValues(alpha: 0.06),
+                  ),
+                }
+              : const <Circle>{},
+          onMapCreated: onMapCreated,
         );
       },
     );

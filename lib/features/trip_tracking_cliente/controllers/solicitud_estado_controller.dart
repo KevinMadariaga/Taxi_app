@@ -8,6 +8,7 @@ import 'package:taxi_app/core/services/services.dart';
 
 import '../services/trip_tracking_firestore_service.dart';
 import '../widgets/waiting_driver_modal.dart';
+import 'package:taxi_app/core/utils/error_reporter.dart';
 
 class SolicitudEstadoController {
   SolicitudEstadoController({
@@ -99,7 +100,9 @@ class SolicitudEstadoController {
 
     try {
       waitModalVisible.value = true;
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'solicitud_estado_controller');
+    }
 
     await showModalBottomSheet<void>(
       context: context,
@@ -143,7 +146,9 @@ class SolicitudEstadoController {
       _isUpdatingEstado = false;
       try {
         waitModalVisible.value = false;
-      } catch (_) {}
+      } catch (e, st) {
+        ErrorReporter.report(e, st, reason: 'solicitud_estado_controller');
+      }
     });
   }
 
@@ -197,7 +202,9 @@ class SolicitudEstadoController {
 
     try {
       Navigator.of(ctx).pop();
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'solicitud_estado_controller');
+    }
   }
 
   Future<void> _notify({required String title, required String body}) async {
@@ -220,7 +227,8 @@ class SolicitudEstadoController {
       FirebaseCrashlytics.instance.recordError(
         e,
         st,
-        reason: 'SolicitudEstadoController: fallo al mostrar notificación local ($title)',
+        reason:
+            'SolicitudEstadoController: fallo al mostrar notificación local ($title)',
       );
     }
   }
@@ -235,6 +243,8 @@ class SolicitudEstadoController {
     _remainingSeconds.dispose();
     try {
       waitModalVisible.dispose();
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'solicitud_estado_controller');
+    }
   }
 }

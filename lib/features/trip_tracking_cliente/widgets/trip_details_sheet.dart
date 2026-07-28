@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:taxi_app/core/app_colores.dart';
@@ -256,7 +257,23 @@ class _VehiculoChip extends StatelessWidget {
             height: 54,
             color: AppColores.grey200,
             child: foto.isNotEmpty
-                ? Image.network(foto, fit: BoxFit.cover)
+                ? CachedNetworkImage(
+                    imageUrl: foto,
+                    fit: BoxFit.cover,
+                    memCacheWidth: 144,
+                    memCacheHeight: 108,
+                    placeholder: (context, url) => const Center(
+                      child: SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ),
+                    errorWidget: (context, url, error) => const Icon(
+                      Icons.local_taxi,
+                      color: AppColores.grey400,
+                    ),
+                  )
                 : const Icon(Icons.local_taxi, color: AppColores.grey400),
           ),
         ),

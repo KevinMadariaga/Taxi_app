@@ -30,6 +30,12 @@ class MapHelper {
   }
 
   /// Distancia en metros entre dos puntos usando Geolocator.
+  ///
+  /// Única fuente de cálculo de distancia del proyecto: antes la fórmula de
+  /// Haversine estaba reimplementada a mano (con resultados numéricamente
+  /// equivalentes) en `TripRouteMathService`, `MapService`,
+  /// `DriverRouteService`, `RutaClienteDestinoView`, `preview_route_controller`
+  /// y `pending_solicitudes_controller` — todos delegan aquí ahora.
   static double distanceMeters(LatLng from, LatLng to) {
     return Geolocator.distanceBetween(
       from.latitude,
@@ -37,6 +43,14 @@ class MapHelper {
       to.latitude,
       to.longitude,
     );
+  }
+
+  /// Formatea una distancia en metros como "123 m" o "1.23 km" (umbral 1000m).
+  /// Única fuente: antes duplicada idéntica en `TripRouteMathService`,
+  /// `MapService`, `DriverRouteService` y `RutaClienteDestinoView`.
+  static String formatDistanceMeters(double meters) {
+    if (meters < 1000) return '${meters.round()} m';
+    return '${(meters / 1000).toStringAsFixed(2)} km';
   }
 
   /// Distancia total en metros de una lista de puntos (ruta polilínea).
@@ -51,6 +65,12 @@ class MapHelper {
 
   /// Calcula el rumbo (bearing) en grados desde `from` hacia `to`.
   /// Devuelve un valor en [0, 360).
+  ///
+  /// Única fuente de la fórmula de bearing del proyecto: antes estaba
+  /// reimplementada de forma idéntica en `TripRouteMathService`,
+  /// `RutaClienteDestinoViewModel`, `RutaDestinoViewModel` y
+  /// `preview_route_controller` (y con una variante plana menos precisa en
+  /// `RutaClienteDestinoView`) — todos delegan aquí ahora.
   static double bearingDegrees(LatLng from, LatLng to) {
     final lat1 = from.latitude * math.pi / 180;
     final lat2 = to.latitude * math.pi / 180;
@@ -61,5 +81,15 @@ class MapHelper {
         math.sin(lat1) * math.cos(lat2) * math.cos(dLon);
     final brng = math.atan2(y, x);
     return (brng * 180 / math.pi + 360) % 360;
+  }
+
+  /// Interpola angularmente de `from` a `to` por el camino más corto (nunca
+  /// más de 180°), avanzando una fracción `t` (0..1). Usado para suavizar la
+  /// rotación de un marker tick a tick sin que "gire por el lado largo" al
+  /// cruzar el límite 0°/360°.
+  static double lerpAngle(double from, double to, double t) {
+    final diff = ((to - from + 540) % 360) - 180;
+    final result = (from + diff * t) % 360;
+    return result < 0 ? result + 360 : result;
   }
 }

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:taxi_app/core/utils/error_reporter.dart';
 
 class SessionHelper {
   SessionHelper._();
@@ -19,7 +20,9 @@ class SessionHelper {
       await prefs.setBool(_keyIsLogged, true);
       await prefs.setString(_keyRole, role);
       await prefs.setString(_keyUid, uid);
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'session_helper');
+    }
   }
 
   /// Actualiza solo el rol en caché (mantiene uid y sesión). Útil cuando un
@@ -29,7 +32,9 @@ class SessionHelper {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_keyRole, role);
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'session_helper');
+    }
   }
 
   static Future<void> clearSession() async {
@@ -51,7 +56,9 @@ class SessionHelper {
               await f.delete();
             }
           }
-        } catch (_) {}
+        } catch (e, st) {
+          ErrorReporter.report(e, st, reason: 'session_helper');
+        }
       }
 
       await prefs.remove(_keyIsLogged);
@@ -73,11 +80,17 @@ class SessionHelper {
 
       try {
         _cachedNameController.add(null);
-      } catch (_) {}
+      } catch (e, st) {
+        ErrorReporter.report(e, st, reason: 'session_helper');
+      }
       try {
         _activeSolicitudController.add(null);
-      } catch (_) {}
-    } catch (_) {}
+      } catch (e, st) {
+        ErrorReporter.report(e, st, reason: 'session_helper');
+      }
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'session_helper');
+    }
   }
 
   static Future<void> saveCachedName(String name) async {
@@ -86,8 +99,12 @@ class SessionHelper {
       await prefs.setString(_keyCachedName, name);
       try {
         _cachedNameController.add(name);
-      } catch (_) {}
-    } catch (_) {}
+      } catch (e, st) {
+        ErrorReporter.report(e, st, reason: 'session_helper');
+      }
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'session_helper');
+    }
   }
 
   // Stream controller to notify listeners when cached name changes
@@ -111,8 +128,12 @@ class SessionHelper {
       await prefs.remove(_keyCachedName);
       try {
         _cachedNameController.add(null);
-      } catch (_) {}
-    } catch (_) {}
+      } catch (e, st) {
+        ErrorReporter.report(e, st, reason: 'session_helper');
+      }
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'session_helper');
+    }
   }
 
   static Future<bool> isLoggedIn() async {
@@ -148,8 +169,12 @@ class SessionHelper {
       await prefs.setString(_keyActiveSolicitud, solicitudId);
       try {
         _activeSolicitudController.add(solicitudId);
-      } catch (_) {}
-    } catch (_) {}
+      } catch (e, st) {
+        ErrorReporter.report(e, st, reason: 'session_helper');
+      }
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'session_helper');
+    }
   }
 
   static final StreamController<String?> _activeSolicitudController =
@@ -173,8 +198,12 @@ class SessionHelper {
       await prefs.remove(_keyActiveSolicitud);
       try {
         _activeSolicitudController.add(null);
-      } catch (_) {}
-    } catch (_) {}
+      } catch (e, st) {
+        ErrorReporter.report(e, st, reason: 'session_helper');
+      }
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'session_helper');
+    }
   }
 
   // Persist the last active pantalla for a solicitud so the app can restore
@@ -183,7 +212,9 @@ class SessionHelper {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_keyActiveSolicitudScreen, screenId);
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'session_helper');
+    }
   }
 
   static Future<String?> getActiveSolicitudScreen() async {
@@ -199,7 +230,9 @@ class SessionHelper {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_keyActiveSolicitudScreen);
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'session_helper');
+    }
   }
 
   // Backwards-compatible thin wrappers: keep original names but notify as well
@@ -218,13 +251,17 @@ class SessionHelper {
     try {
       await setActiveSolicitud(solicitudId);
       _activeSolicitudController.add(solicitudId);
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'session_helper');
+    }
   }
 
   static Future<void> clearActiveSolicitudAndNotify() async {
     try {
       await clearActiveSolicitud();
       _activeSolicitudController.add(null);
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'session_helper');
+    }
   }
 }

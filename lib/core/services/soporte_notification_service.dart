@@ -72,6 +72,7 @@ class SoporteNotificationService {
 
     _adminSub = FirebaseFirestore.instance
         .collection('soporte_chats')
+        .where('hayMensajesNuevosAdmin', isEqualTo: true)
         .snapshots()
         .listen((snap) {
           for (final change in snap.docChanges) {

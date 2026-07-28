@@ -13,8 +13,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../viewmodels/inicio_cliente_viewmodel.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/widgets/bienvenida_dialog.dart';
 import 'package:taxi_app/core/app_colores.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/model/MapaClienteModel.dart';
-import 'package:taxi_app/widgets/perfil.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/model/ubicacion_resultado.dart';
+import 'package:taxi_app/screens/perfil/perfil.dart';
+import 'package:taxi_app/core/utils/error_reporter.dart';
 
 class InicioClienteView extends StatefulWidget {
   const InicioClienteView({super.key, this.authUid});
@@ -35,7 +36,12 @@ class _InicioClienteViewState extends State<InicioClienteView>
   final PageController _carouselController = PageController(
     viewportFraction: 0.92,
   );
-  bool _isPreparingNavigation = false;
+  // Aislado en su propio ValueNotifier (Tarea 3): togglear este flag no debe
+  // forzar un setState() del árbol completo de 1400+ líneas, solo el overlay
+  // de carga que lo consume vía AnimatedBuilder.
+  final ValueNotifier<bool> _isPreparingNavigationNotifier = ValueNotifier<bool>(
+    false,
+  );
   bool _gpsPromptShown = false;
   bool _isRequestingPermissions = false;
   bool _isGpsDialogOpen = false;
@@ -79,7 +85,9 @@ class _InicioClienteViewState extends State<InicioClienteView>
       await prefs.setBool(key, true);
       if (!mounted) return;
       await mostrarBienvenida(context);
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'InicioClienteView');
+    }
   }
 
   /// Aplica el estilo de la barra de estado según la pestaña activa.
@@ -96,6 +104,7 @@ class _InicioClienteViewState extends State<InicioClienteView>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _carouselController.dispose();
+    _isPreparingNavigationNotifier.dispose();
     vm.removeListener(_vmListener);
     vm.dispose();
     super.dispose();
@@ -157,9 +166,7 @@ class _InicioClienteViewState extends State<InicioClienteView>
         final granted = await PermissionsHelper.requestLocationPermission();
         if (!granted && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Permiso de ubicación no concedido.'),
-            ),
+            const SnackBar(content: Text('Permiso de ubicación no concedido.')),
           );
         }
         if (!granted) return false;
@@ -336,9 +343,9 @@ class _InicioClienteViewState extends State<InicioClienteView>
 
   Future<void> _onFavoriteSelected(UbicacionResultado fav) async {
     if (fav.location == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Ubicación no disponible')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Ubicación no disponible')));
       return;
     }
     final origenPos = vm.currentLocation ?? fav.location!;
@@ -358,7 +365,9 @@ class _InicioClienteViewState extends State<InicioClienteView>
     if (!mounted) return;
     try {
       FocusScope.of(context).unfocus();
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'InicioClienteView');
+    }
     await InicioClienteNavigation.irAMapaPreview(
       context,
       origenModel,
@@ -368,11 +377,13 @@ class _InicioClienteViewState extends State<InicioClienteView>
   }
 
   Future<void> _navigateToDestinoSeleccion() async {
-    if (_isPreparingNavigation) return;
+    if (_isPreparingNavigationNotifier.value) return;
     try {
       FocusScope.of(context).unfocus();
-    } catch (_) {}
-    if (mounted) setState(() => _isPreparingNavigation = true);
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'InicioClienteView');
+    }
+    if (mounted) _isPreparingNavigationNotifier.value = true;
     try {
       String? origenDireccionInicial;
       final currentLocation = vm.currentLocation;
@@ -393,7 +404,7 @@ class _InicioClienteViewState extends State<InicioClienteView>
       // buscar por GPS): el mapa sigue vivo, solo reubicamos la cámara.
       if (mounted) _recentrarMapaEnUbicacionActual();
     } finally {
-      if (mounted) setState(() => _isPreparingNavigation = false);
+      if (mounted) _isPreparingNavigationNotifier.value = false;
     }
   }
 
@@ -402,16 +413,37 @@ class _InicioClienteViewState extends State<InicioClienteView>
   void _recentrarMapaEnUbicacionActual() {
     final loc = vm.currentLocation;
     if (loc != null && _mapController != null) {
-      _mapController!.animateCamera(
-        CameraUpdate.newLatLngZoom(loc, 16),
-      );
+      _mapController!.animateCamera(CameraUpdate.newLatLngZoom(loc, 16));
     }
+  }
+
+  /// Maneja el tap sobre una sugerencia ("Casa", "Trabajo", "Otros") del
+  /// bloque de favoritos. Vive en el State porque necesita `context` y el
+  /// estado actual de `vm.favoritos`.
+  Future<void> _onSugerenciaTap(String label) async {
+    if (label == 'Casa') {
+      final casa = vm.favoritos
+          .where((f) => f.nombre.trim().toLowerCase() == 'casa')
+          .cast<UbicacionResultado?>()
+          .firstWhere((f) => f != null, orElse: () => null);
+      if (casa != null && casa.location != null) {
+        await InicioClienteNavigation.irAMapaPreviewFavoritoCasa(
+          context,
+          casa.location!,
+          casa.direccion,
+        );
+        return;
+      }
+    }
+    _navigateToDestinoSeleccion();
   }
 
   Future<void> _onBottomNavTap(int index) async {
     try {
       FocusScope.of(context).unfocus();
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'InicioClienteView');
+    }
     if (!mounted) return;
     // Item 0 es "Más opciones": abre el menú sin cambiar de pestaña.
     if (index == 0) {
@@ -494,9 +526,9 @@ class _InicioClienteViewState extends State<InicioClienteView>
   Future<void> _centerOnMarker() async {
     if (!mounted) return;
     if (vm.currentLocation == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Ubicación no disponible')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Ubicación no disponible')));
       return;
     }
     if (_mapController != null) {
@@ -504,7 +536,9 @@ class _InicioClienteViewState extends State<InicioClienteView>
         await _mapController!.animateCamera(
           CameraUpdate.newLatLngZoom(vm.currentLocation!, 16),
         );
-      } catch (_) {}
+      } catch (e, st) {
+        ErrorReporter.report(e, st, reason: 'InicioClienteView');
+      }
     }
   }
 
@@ -527,8 +561,8 @@ class _InicioClienteViewState extends State<InicioClienteView>
     final double hPad = screenW > anchoMaxContenido
         ? (screenW - anchoMaxContenido) / 2
         : (isTablet ? 32.0 : 16.0);
-    final double carouselHeight =
-        (size.height * (isTablet ? 0.30 : 0.29)).clamp(160.0, 240.0);
+    final double carouselHeight = (size.height * (isTablet ? 0.30 : 0.29))
+        .clamp(160.0, 240.0);
 
     return PopScope(
       canPop: false,
@@ -562,11 +596,23 @@ class _InicioClienteViewState extends State<InicioClienteView>
                               mainAxisSize: MainAxisSize.min,
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                _buildHeader(isTablet),
+                                _HeaderSection(
+                                  isTablet: isTablet,
+                                  clientName: vm.clientName,
+                                ),
                                 SizedBox(height: 12.h),
-                                _buildSearchBox(isTablet),
+                                _SearchBox(
+                                  isTablet: isTablet,
+                                  onTap: _navigateToDestinoSeleccion,
+                                ),
                                 SizedBox(height: 16.h),
-                                _buildFavoritos(isTablet),
+                                _FavoritosSection(
+                                  isTablet: isTablet,
+                                  favoritos: vm.favoritos,
+                                  isLoading: vm.isLoadingFavoritos,
+                                  onFavoriteTap: _onFavoriteSelected,
+                                  onSugerenciaTap: _onSugerenciaTap,
+                                ),
                               ],
                             ),
                           ),
@@ -577,18 +623,28 @@ class _InicioClienteViewState extends State<InicioClienteView>
                           // desbordarse (sin overflow ni "el mapa se sale").
                           Expanded(
                             child: Padding(
-                              padding:
-                                  EdgeInsets.fromLTRB(hPad, 16, hPad, 12),
+                              padding: EdgeInsets.fromLTRB(hPad, 16, hPad, 12),
                               child: Column(
-                                crossAxisAlignment:
-                                    CrossAxisAlignment.stretch,
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
                                   SizedBox(
                                     height: carouselHeight,
-                                    child: _buildCarousel(),
+                                    child: _CarouselSection(
+                                      controller: _carouselController,
+                                      onTap: _mostrarPromoWhatsApp,
+                                    ),
                                   ),
                                   SizedBox(height: 18.h),
-                                  Expanded(child: _buildMap()),
+                                  Expanded(
+                                    child: _HomeClienteMap(
+                                      currentLocationNotifier:
+                                          vm.currentLocationNotifier,
+                                      conductoresMarkersNotifier:
+                                          vm.conductoresMarkersNotifier,
+                                      onMapCreated: _handleMapCreated,
+                                      onCenterPressed: _centerOnMarker,
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
@@ -600,23 +656,501 @@ class _InicioClienteViewState extends State<InicioClienteView>
                       const PaginaPerfilUsuario(tipoUsuario: 'cliente'),
                     ],
                   ),
-                  if (vm.isLoadingLocation) _buildLoader(),
-                  if (_isPreparingNavigation) _buildNavigationLoader(),
+                  // Aislado (Tarea 3): solo este overlay se reconstruye
+                  // cuando cambian los flags de carga, no el Scaffold entero.
+                  _LoadersOverlay(
+                    isLoadingLocation: vm.isLoadingLocationNotifier,
+                    isPreparingNavigation: _isPreparingNavigationNotifier,
+                  ),
                   _UbicacionOkBanner(visible: _mostrarUbicacionOk),
                 ],
               ),
             ),
           ],
         ),
-        bottomNavigationBar: _buildBottomNavigationBar(),
+        bottomNavigationBar: _BottomNavBar(
+          selectedIndex: _selectedIndex,
+          onTap: _onBottomNavTap,
+        ),
       ),
     );
   }
 
   // ── Secciones visuales ────────────────────────────────────────────────────
+  // Los builders privados que devolvían Widget se extrajeron a clases
+  // StatelessWidget dedicadas (ver el final del archivo): así cada sección
+  // es un nodo real del árbol de widgets en vez de un método que se
+  // re-ejecuta como parte del build() del State en cada notifyListeners().
 
-  Widget _buildHeader(bool isTablet) {
-    final rawName = vm.clientName.trim();
+  Future<void> _mostrarPromoWhatsApp() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24.r)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 14, 24, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40.w,
+                  height: 4.h,
+                  decoration: BoxDecoration(
+                    color: AppColores.grey300,
+                    borderRadius: BorderRadius.circular(2.r),
+                  ),
+                ),
+                SizedBox(height: 20.h),
+                Container(
+                  width: 64.w,
+                  height: 64.h,
+                  decoration: BoxDecoration(
+                    color: AppColores.primary.withValues(alpha: 0.18),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.campaign_rounded,
+                    color: Color(0xFFB38F00),
+                    size: 34,
+                  ),
+                ),
+                SizedBox(height: 16.h),
+                Text(
+                  '¿Quieres promocionar tu negocio?',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 18.sp,
+                    fontWeight: FontWeight.w800,
+                    color: AppColores.textPrimary,
+                  ),
+                ),
+                SizedBox(height: 8.h),
+                Text(
+                  'Escríbenos por WhatsApp y te ayudamos a llegar a más clientes.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    color: AppColores.textSecondary,
+                  ),
+                ),
+                SizedBox(height: 22.h),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.of(ctx).pop();
+                      _abrirWhatsAppPromo();
+                    },
+                    icon: const Icon(Icons.chat_rounded, size: 20),
+                    label: Text(
+                      'Contactar por WhatsApp',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15.sp,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF25D366),
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size.fromHeight(52),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16.r),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _abrirWhatsAppPromo() async {
+    final mensaje = Uri.encodeComponent(
+      'Quiero contratar para promocionar mi negocio',
+    );
+    final uri = Uri.parse('https://wa.me/573152987320?text=$mensaje');
+    try {
+      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!ok && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No se pudo abrir WhatsApp')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No se pudo abrir WhatsApp')),
+        );
+      }
+    }
+  }
+
+  /// Callback de `onMapCreated` del `GoogleMap` embebido (ver
+  /// `_HomeClienteMap` al final del archivo). Vive en el State porque
+  /// necesita `_mapController`/`_pendingCenter`/`mounted`, que son estado
+  /// imperativo de esta pantalla, no del ViewModel.
+  Future<void> _handleMapCreated(GoogleMapController controller) async {
+    _mapController = controller;
+    // Short delay: lets SharedPreferences cache load (~10ms)
+    // and avoids animateCamera during the route transition frame.
+    await Future.delayed(const Duration(milliseconds: 150));
+    if (!mounted) return;
+    final loc = vm.currentLocation;
+    if (loc != null || _pendingCenter) {
+      _pendingCenter = false;
+      final target = vm.currentLocation;
+      if (target != null) {
+        await controller.animateCamera(CameraUpdate.newLatLngZoom(target, 16));
+      }
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Aviso "Ubicación encontrada" — píldora superior, animada y auto-ocultable
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Flecha del botón de búsqueda con un leve nudge horizontal recurrente para
+/// insinuar "tócame para continuar". Honra la preferencia de reducir movimiento.
+class _NudgingArrow extends StatefulWidget {
+  const _NudgingArrow();
+
+  @override
+  State<_NudgingArrow> createState() => _NudgingArrowState();
+}
+
+class _NudgingArrowState extends State<_NudgingArrow>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  );
+  late final Animation<double> _dx = Tween<double>(
+    begin: 0,
+    end: 4,
+  ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final reduce = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    if (reduce) {
+      _controller.stop();
+      _controller.value = 0;
+    } else if (!_controller.isAnimating) {
+      _controller.repeat(reverse: true);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _dx,
+      builder: (_, child) =>
+          Transform.translate(offset: Offset(_dx.value, 0), child: child),
+      child: Container(
+        padding: EdgeInsets.all(11.w),
+        decoration: BoxDecoration(
+          color: AppColores.primary,
+          borderRadius: BorderRadius.circular(13.r),
+        ),
+        child: const Icon(
+          Icons.arrow_forward_rounded,
+          size: 18,
+          color: Colors.black,
+        ),
+      ),
+    );
+  }
+}
+
+class _UbicacionOkBanner extends StatelessWidget {
+  const _UbicacionOkBanner({required this.visible});
+
+  final bool visible;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      top: 12.h,
+      left: 0.w,
+      right: 0.w,
+      child: IgnorePointer(
+        child: AnimatedSlide(
+          duration: const Duration(milliseconds: 340),
+          curve: Curves.easeOutCubic,
+          offset: visible ? Offset.zero : const Offset(0, -1.6),
+          child: AnimatedOpacity(
+            duration: const Duration(milliseconds: 260),
+            opacity: visible ? 1 : 0,
+            child: Center(
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 10.h),
+                decoration: BoxDecoration(
+                  color: AppColores.surface,
+                  borderRadius: BorderRadius.circular(30.r),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.12),
+                      blurRadius: 16,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 24.w,
+                      height: 24.h,
+                      decoration: BoxDecoration(
+                        color: AppColores.success.withValues(alpha: 0.15),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.check_rounded,
+                        size: 16,
+                        color: AppColores.success,
+                      ),
+                    ),
+                    SizedBox(width: 10.w),
+                    Text(
+                      'Ubicación encontrada',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13.5.sp,
+                        color: AppColores.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Mapa embebido — aislado del build() del Scaffold (1400+ líneas)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Capa del `GoogleMap` desacoplada del resto de la pantalla: escucha
+/// directamente los `ValueNotifier`s de ubicación/marcadores del VM (vía
+/// `AnimatedBuilder`) en vez de depender del `setState` disparado por
+/// `vm.addListener` en el State, que reconstruye las 1400+ líneas de
+/// `build()`. Replica el patrón de `_AnimatedConductorMap` en
+/// `trip_tracking_screen.dart`.
+class _HomeClienteMap extends StatelessWidget {
+  const _HomeClienteMap({
+    required this.currentLocationNotifier,
+    required this.conductoresMarkersNotifier,
+    required this.onMapCreated,
+    required this.onCenterPressed,
+  });
+
+  final ValueNotifier<LatLng?> currentLocationNotifier;
+  final ValueNotifier<Set<Marker>> conductoresMarkersNotifier;
+  final void Function(GoogleMapController controller) onMapCreated;
+  final VoidCallback onCenterPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18.r),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(18.r),
+        child: Stack(
+          children: [
+            RepaintBoundary(
+              child: AnimatedBuilder(
+                animation: Listenable.merge([
+                  currentLocationNotifier,
+                  conductoresMarkersNotifier,
+                ]),
+                builder: (context, _) {
+                  return AppGoogleMap(
+                    initialTarget:
+                        currentLocationNotifier.value ??
+                        const LatLng(8.2595534, -73.353469),
+                    initialZoom: 14.5,
+                    myLocationEnabled: true,
+                    myLocationButtonEnabled: false,
+                    compassEnabled: false,
+                    markers: conductoresMarkersNotifier.value,
+                    onMapCreated: onMapCreated,
+                  );
+                },
+              ),
+            ),
+            // Label "Estás aquí"
+            Positioned(
+              top: 10.h,
+              left: 10.w,
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.92),
+                  borderRadius: BorderRadius.circular(20.r),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.08),
+                      blurRadius: 4,
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.location_on,
+                      size: 12,
+                      color: AppColores.primary,
+                    ),
+                    SizedBox(width: 4.w),
+                    Text(
+                      'Estás aquí',
+                      style: TextStyle(
+                        fontSize: 12.sp,
+                        fontWeight: FontWeight.w600,
+                        color: AppColores.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            // Botón centrar mapa
+            Positioned(
+              right: 8.w,
+              bottom: 8.h,
+              child: Material(
+                color: Colors.transparent,
+                child: Container(
+                  width: 32.w,
+                  height: 32.h,
+                  decoration: const BoxDecoration(
+                    color: AppColores.surface,
+                    shape: BoxShape.circle,
+                  ),
+                  child: IconButton(
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    iconSize: 21.sp,
+                    onPressed: onCenterPressed,
+                    icon: const Icon(
+                      Icons.my_location,
+                      color: AppColores.primary,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Overlays de carga — aislados en su propio ValueNotifier/AnimatedBuilder
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Envuelve los dos loaders de pantalla completa (ubicación / navegación) en
+/// un único `AnimatedBuilder` que escucha sus propios `ValueNotifier<bool>`.
+/// Togglear estos flags ya no requiere reevaluar el `build()` del Scaffold.
+class _LoadersOverlay extends StatelessWidget {
+  const _LoadersOverlay({
+    required this.isLoadingLocation,
+    required this.isPreparingNavigation,
+  });
+
+  final ValueNotifier<bool> isLoadingLocation;
+  final ValueNotifier<bool> isPreparingNavigation;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: Listenable.merge([isLoadingLocation, isPreparingNavigation]),
+      builder: (context, _) {
+        return Stack(
+          children: [
+            if (isLoadingLocation.value)
+              const _LoadingOverlay(message: 'Obteniendo ubicación...'),
+            if (isPreparingNavigation.value)
+              const _LoadingOverlay(message: 'Preparando destino...'),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _LoadingOverlay extends StatelessWidget {
+  const _LoadingOverlay({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: Container(
+        color: AppColores.overlayDark,
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(),
+              SizedBox(height: 12.h),
+              Text(
+                message,
+                style: TextStyle(color: AppColores.textWhite, fontSize: 16.sp),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Secciones del bloque superior (header, búsqueda, favoritos) y carousel
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _HeaderSection extends StatelessWidget {
+  const _HeaderSection({required this.isTablet, required this.clientName});
+
+  final bool isTablet;
+  final String clientName;
+
+  @override
+  Widget build(BuildContext context) {
+    final rawName = clientName.trim();
     String firstName = rawName;
     if (rawName.isNotEmpty) {
       final parts = rawName.split(RegExp(r'\s+'));
@@ -633,36 +1167,44 @@ class _InicioClienteViewState extends State<InicioClienteView>
           child: Padding(
             padding: EdgeInsets.only(left: 12.w),
             child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Hola${formattedName.isNotEmpty ? ", $formattedName" : ""}',
-                style: TextStyle(
-                  fontSize: isTablet ? 27 : 25,
-                  fontWeight: FontWeight.w800,
-                  color: AppColores.textPrimary,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Hola${formattedName.isNotEmpty ? ", $formattedName" : ""}',
+                  style: TextStyle(
+                    fontSize: isTablet ? 27 : 25,
+                    fontWeight: FontWeight.w800,
+                    color: AppColores.textPrimary,
+                  ),
                 ),
-              ),
-              SizedBox(height: 2.h),
-            ],
+                SizedBox(height: 2.h),
+              ],
             ),
           ),
         ),
       ],
     );
   }
+}
 
-  /// Botón "¿A dónde vamos?" con patrón de campo de búsqueda (estilo Uber/DiDi/
-  /// Cabify): la lupa + el texto tipo placeholder comunican que al tocar se
-  /// elige el destino. Material + InkWell dan ripple táctil; la flecha hace un
-  /// micro-movimiento para reforzar la acción.
-  Widget _buildSearchBox(bool isTablet) {
+/// Botón "¿A dónde vamos?" con patrón de campo de búsqueda (estilo Uber/DiDi/
+/// Cabify): la lupa + el texto tipo placeholder comunican que al tocar se
+/// elige el destino. Material + InkWell dan ripple táctil; la flecha hace un
+/// micro-movimiento para reforzar la acción.
+class _SearchBox extends StatelessWidget {
+  const _SearchBox({required this.isTablet, required this.onTap});
+
+  final bool isTablet;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
     return Material(
       color: AppColores.surface,
       elevation: 0,
       borderRadius: BorderRadius.circular(18.r),
       child: InkWell(
-        onTap: () => _navigateToDestinoSeleccion(),
+        onTap: onTap,
         borderRadius: BorderRadius.circular(18.r),
         child: Ink(
           decoration: BoxDecoration(
@@ -731,10 +1273,26 @@ class _InicioClienteViewState extends State<InicioClienteView>
       ),
     );
   }
+}
 
-  Widget _buildFavoritos(bool isTablet) {
-    final favs = vm.favoritos;
-    final hasFavorites = favs.isNotEmpty;
+class _FavoritosSection extends StatelessWidget {
+  const _FavoritosSection({
+    required this.isTablet,
+    required this.favoritos,
+    required this.isLoading,
+    required this.onFavoriteTap,
+    required this.onSugerenciaTap,
+  });
+
+  final bool isTablet;
+  final List<UbicacionResultado> favoritos;
+  final bool isLoading;
+  final ValueChanged<UbicacionResultado> onFavoriteTap;
+  final ValueChanged<String> onSugerenciaTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasFavorites = favoritos.isNotEmpty;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -750,7 +1308,7 @@ class _InicioClienteViewState extends State<InicioClienteView>
           ),
         ),
         SizedBox(height: 8.h),
-        if (vm.isLoadingFavoritos) ...[
+        if (isLoading) ...[
           const LinearProgressIndicator(minHeight: 2),
           SizedBox(height: 8.h),
         ],
@@ -758,9 +1316,19 @@ class _InicioClienteViewState extends State<InicioClienteView>
           scrollDirection: Axis.horizontal,
           child: Row(
             children: hasFavorites
-                ? favs.map((f) => _buildFavoritoItem(f)).toList()
+                ? favoritos
+                      .map(
+                        (f) =>
+                            _FavoritoItem(favorito: f, onTap: () => onFavoriteTap(f)),
+                      )
+                      .toList()
                 : ['Casa', 'Trabajo', 'Otros']
-                      .map((label) => _buildSugerenciaItem(label))
+                      .map(
+                        (label) => _SugerenciaItem(
+                          label: label,
+                          onTap: () => onSugerenciaTap(label),
+                        ),
+                      )
                       .toList(),
           ),
         ),
@@ -768,9 +1336,19 @@ class _InicioClienteViewState extends State<InicioClienteView>
       ],
     );
   }
+}
 
-  Widget _buildFavoritoItem(UbicacionResultado f) {
-    final label = f.nombre.isNotEmpty ? f.nombre : f.direccion;
+class _FavoritoItem extends StatelessWidget {
+  const _FavoritoItem({required this.favorito, required this.onTap});
+
+  final UbicacionResultado favorito;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = favorito.nombre.isNotEmpty
+        ? favorito.nombre
+        : favorito.direccion;
     final icon = label.trim().toLowerCase() == 'casa'
         ? Icons.home_rounded
         : Icons.star_rounded;
@@ -778,7 +1356,7 @@ class _InicioClienteViewState extends State<InicioClienteView>
     return Padding(
       padding: EdgeInsets.only(right: 8.w),
       child: GestureDetector(
-        onTap: () => _onFavoriteSelected(f),
+        onTap: onTap,
         child: Container(
           padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
           decoration: BoxDecoration(
@@ -811,8 +1389,16 @@ class _InicioClienteViewState extends State<InicioClienteView>
       ),
     );
   }
+}
 
-  Widget _buildSugerenciaItem(String label) {
+class _SugerenciaItem extends StatelessWidget {
+  const _SugerenciaItem({required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
     final IconData icon;
     switch (label) {
       case 'Casa':
@@ -828,23 +1414,7 @@ class _InicioClienteViewState extends State<InicioClienteView>
     return Padding(
       padding: EdgeInsets.only(right: 8.w),
       child: GestureDetector(
-        onTap: () async {
-          if (label == 'Casa') {
-            final casa = vm.favoritos
-                .where((f) => f.nombre.trim().toLowerCase() == 'casa')
-                .cast<UbicacionResultado?>()
-                .firstWhere((f) => f != null, orElse: () => null);
-            if (casa != null && casa.location != null) {
-              await InicioClienteNavigation.irAMapaPreviewFavoritoCasa(
-                context,
-                casa.location!,
-                casa.direccion,
-              );
-              return;
-            }
-          }
-          _navigateToDestinoSeleccion();
-        },
+        onTap: onTap,
         child: Container(
           padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
           decoration: BoxDecoration(
@@ -877,8 +1447,16 @@ class _InicioClienteViewState extends State<InicioClienteView>
       ),
     );
   }
+}
 
-  Widget _buildCarousel() {
+class _CarouselSection extends StatelessWidget {
+  const _CarouselSection({required this.controller, required this.onTap});
+
+  final PageController controller;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
     final items = [
       {
         'title': '¿Quieres promocionar\ntu negocio?',
@@ -894,79 +1472,88 @@ class _InicioClienteViewState extends State<InicioClienteView>
           child: Stack(
             children: [
               PageView.builder(
-                controller: _carouselController,
+                controller: controller,
                 itemCount: items.length,
                 itemBuilder: (context, index) {
                   final item = items[index];
                   return GestureDetector(
-                    onTap: _mostrarPromoWhatsApp,
+                    onTap: onTap,
                     child: Card(
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16.r),
-                    ),
-                    clipBehavior: Clip.hardEdge,
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        // Fondo amarillo de marca
-                        Container(
-                          decoration: const BoxDecoration(
-                            color: AppColores.primary,
-                          ),
-                        ),
-                        // Círculo decorativo top-right
-                        Positioned(
-                          right: -20,
-                          top: -20,
-                          child: Container(
-                            width: 110.w,
-                            height: 110.h,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Colors.white.withValues(alpha: 0.12),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      clipBehavior: Clip.hardEdge,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          // Fondo amarillo de marca
+                          Container(
+                            decoration: const BoxDecoration(
+                              color: AppColores.primary,
                             ),
                           ),
-                        ),
-                        // Contenido
-                        Padding(
-                          padding: EdgeInsets.all(16.w),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Icon(
-                                item['icon'] as IconData,
-                                size: 30,
-                                color: AppColores.textPrimary.withValues(
-                                  alpha: 0.85,
-                                ),
+                          // Círculo decorativo top-right
+                          Positioned(
+                            right: -20,
+                            top: -20,
+                            child: Container(
+                              width: 110,
+                              height: 110,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.white.withValues(alpha: 0.12),
                               ),
-                              SizedBox(height: 10.h),
-                              Text(
-                                item['title'].toString(),
-                                style: TextStyle(
-                                  fontSize: 16.sp,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColores.textPrimary,
-                                ),
-                              ),
-                              SizedBox(height: 4.h),
-                              Text(
-                                item['subtitle'].toString(),
-                                style: TextStyle(
-                                  fontSize: 12.sp,
+                            ),
+                          ),
+                          // Contenido
+                          //
+                          // Nota: esta card vive dentro de un SizedBox con
+                          // altura clampeada en px crudos (`carouselHeight`,
+                          // 160-240, independiente del diseño), así que su
+                          // contenido usa tamaños fijos (no `.w/.h/.sp` de
+                          // ScreenUtil) para no desbordar en pantallas cuyo
+                          // factor de escala se dispare (tablets/pantallas
+                          // muy anchas) mientras el contenedor no escala.
+                          Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  item['icon'] as IconData,
+                                  size: 30,
                                   color: AppColores.textPrimary.withValues(
-                                    alpha: 0.7,
+                                    alpha: 0.85,
                                   ),
                                 ),
-                              ),
-                            ],
+                                const SizedBox(height: 8),
+                                Text(
+                                  item['title'].toString(),
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColores.textPrimary,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  item['subtitle'].toString(),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: AppColores.textPrimary.withValues(
+                                      alpha: 0.7,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
                   );
                 },
               ),
@@ -976,230 +1563,20 @@ class _InicioClienteViewState extends State<InicioClienteView>
       ],
     );
   }
+}
 
-  Future<void> _mostrarPromoWhatsApp() async {
-    await showModalBottomSheet<void>(
-      context: context,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24.r)),
-      ),
-      builder: (ctx) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 14, 24, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 40.w,
-                  height: 4.h,
-                  decoration: BoxDecoration(
-                    color: AppColores.grey300,
-                    borderRadius: BorderRadius.circular(2.r),
-                  ),
-                ),
-                SizedBox(height: 20.h),
-                Container(
-                  width: 64.w,
-                  height: 64.h,
-                  decoration: BoxDecoration(
-                    color: AppColores.primary.withValues(alpha: 0.18),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.campaign_rounded,
-                    color: Color(0xFFB38F00),
-                    size: 34,
-                  ),
-                ),
-                SizedBox(height: 16.h),
-                Text(
-                  '¿Quieres promocionar tu negocio?',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 18.sp,
-                    fontWeight: FontWeight.w800,
-                    color: AppColores.textPrimary,
-                  ),
-                ),
-                SizedBox(height: 8.h),
-                Text(
-                  'Escríbenos por WhatsApp y te ayudamos a llegar a más clientes.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 14.sp,
-                    color: AppColores.textSecondary,
-                  ),
-                ),
-                SizedBox(height: 22.h),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.of(ctx).pop();
-                      _abrirWhatsAppPromo();
-                    },
-                    icon: const Icon(Icons.chat_rounded, size: 20),
-                    label: Text(
-                      'Contactar por WhatsApp',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15.sp),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF25D366),
-                      foregroundColor: Colors.white,
-                      minimumSize: const Size.fromHeight(52),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16.r),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
+// ─────────────────────────────────────────────────────────────────────────────
+// Bottom navigation bar
+// ─────────────────────────────────────────────────────────────────────────────
 
-  Future<void> _abrirWhatsAppPromo() async {
-    final mensaje = Uri.encodeComponent(
-      'Quiero contratar para promocionar mi negocio',
-    );
-    final uri = Uri.parse('https://wa.me/573152987320?text=$mensaje');
-    try {
-      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-      if (!ok && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No se pudo abrir WhatsApp')),
-        );
-      }
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No se pudo abrir WhatsApp')),
-        );
-      }
-    }
-  }
+class _BottomNavBar extends StatelessWidget {
+  const _BottomNavBar({required this.selectedIndex, required this.onTap});
 
-  Widget _buildMap() {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18.r),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(18.r),
-        child: Stack(
-          children: [
-            RepaintBoundary(
-              child: AppGoogleMap(
-                initialTarget:
-                    vm.currentLocation ?? const LatLng(8.2595534, -73.353469),
-                initialZoom: 14.5,
-                myLocationEnabled: true,
-                myLocationButtonEnabled: false,
-                compassEnabled: false,
-                markers: vm.conductoresMarkers,
-                onMapCreated: (controller) async {
-                  _mapController = controller;
-                  // Short delay: lets SharedPreferences cache load (~10ms)
-                  // and avoids animateCamera during the route transition frame.
-                  await Future.delayed(const Duration(milliseconds: 150));
-                  if (!mounted) return;
-                  final loc = vm.currentLocation;
-                  if (loc != null || _pendingCenter) {
-                    _pendingCenter = false;
-                    final target = vm.currentLocation;
-                    if (target != null) {
-                      await controller.animateCamera(
-                        CameraUpdate.newLatLngZoom(target, 16),
-                      );
-                    }
-                  }
-                },
-              ),
-            ),
-            // Label "Estás aquí"
-            Positioned(
-              top: 10.h,
-              left: 10.w,
-              child: Container(
-                padding: EdgeInsets.symmetric(
-                  horizontal: 10.w,
-                  vertical: 5.h,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.92),
-                  borderRadius: BorderRadius.circular(20.r),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.08),
-                      blurRadius: 4,
-                    ),
-                  ],
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.location_on,
-                      size: 12,
-                      color: AppColores.primary,
-                    ),
-                    SizedBox(width: 4.w),
-                    Text(
-                      'Estás aquí',
-                      style: TextStyle(
-                        fontSize: 12.sp,
-                        fontWeight: FontWeight.w600,
-                        color: AppColores.textPrimary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            // Botón centrar mapa
-            Positioned(
-              right: 8.w,
-              bottom: 8.h,
-              child: Material(
-                color: Colors.transparent,
-                child: Container(
-                  width: 32.w,
-                  height: 32.h,
-                  decoration: const BoxDecoration(
-                    color: AppColores.surface,
-                    shape: BoxShape.circle,
-                  ),
-                  child: IconButton(
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                    iconSize: 21.sp,
-                    onPressed: _centerOnMarker,
-                    icon: const Icon(
-                      Icons.my_location,
-                      color: AppColores.primary,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  final int selectedIndex;
+  final ValueChanged<int> onTap;
 
-  Widget _buildBottomNavigationBar() {
+  @override
+  Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
         color: AppColores.surface,
@@ -1217,8 +1594,8 @@ class _InicioClienteViewState extends State<InicioClienteView>
         type: BottomNavigationBarType.fixed,
         selectedItemColor: AppColores.primary,
         unselectedItemColor: AppColores.textSecondary,
-        currentIndex: _selectedIndex,
-        onTap: _onBottomNavTap,
+        currentIndex: selectedIndex,
+        onTap: onTap,
         selectedLabelStyle: TextStyle(
           fontWeight: FontWeight.w700,
           fontSize: 11.sp,
@@ -1238,183 +1615,6 @@ class _InicioClienteViewState extends State<InicioClienteView>
             label: 'Perfil',
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildLoader() {
-    return Positioned.fill(
-      child: Container(
-        color: AppColores.overlayDark,
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 12.h),
-              Text(
-                'Obteniendo ubicación...',
-                style: TextStyle(color: AppColores.textWhite, fontSize: 16.sp),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNavigationLoader() {
-    return Positioned.fill(
-      child: Container(
-        color: AppColores.overlayDark,
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 12.h),
-              Text(
-                'Preparando destino...',
-                style: TextStyle(color: AppColores.textWhite, fontSize: 16.sp),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Aviso "Ubicación encontrada" — píldora superior, animada y auto-ocultable
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// Flecha del botón de búsqueda con un leve nudge horizontal recurrente para
-/// insinuar "tócame para continuar". Honra la preferencia de reducir movimiento.
-class _NudgingArrow extends StatefulWidget {
-  const _NudgingArrow();
-
-  @override
-  State<_NudgingArrow> createState() => _NudgingArrowState();
-}
-
-class _NudgingArrowState extends State<_NudgingArrow>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 900),
-  );
-  late final Animation<double> _dx = Tween<double>(begin: 0, end: 4).animate(
-    CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-  );
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final reduce = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
-    if (reduce) {
-      _controller.stop();
-      _controller.value = 0;
-    } else if (!_controller.isAnimating) {
-      _controller.repeat(reverse: true);
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _dx,
-      builder: (_, child) =>
-          Transform.translate(offset: Offset(_dx.value, 0), child: child),
-      child: Container(
-        padding: EdgeInsets.all(11.w),
-        decoration: BoxDecoration(
-          color: AppColores.primary,
-          borderRadius: BorderRadius.circular(13.r),
-        ),
-        child: const Icon(
-          Icons.arrow_forward_rounded,
-          size: 18,
-          color: Colors.black,
-        ),
-      ),
-    );
-  }
-}
-
-class _UbicacionOkBanner extends StatelessWidget {
-  const _UbicacionOkBanner({required this.visible});
-
-  final bool visible;
-
-  @override
-  Widget build(BuildContext context) {
-    return Positioned(
-      top: 12.h,
-      left: 0.w,
-      right: 0.w,
-      child: IgnorePointer(
-        child: AnimatedSlide(
-          duration: const Duration(milliseconds: 340),
-          curve: Curves.easeOutCubic,
-          offset: visible ? Offset.zero : const Offset(0, -1.6),
-          child: AnimatedOpacity(
-            duration: const Duration(milliseconds: 260),
-            opacity: visible ? 1 : 0,
-            child: Center(
-              child: Container(
-                padding: EdgeInsets.symmetric(
-                  horizontal: 16.w,
-                  vertical: 10.h,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColores.surface,
-                  borderRadius: BorderRadius.circular(30.r),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.12),
-                      blurRadius: 16,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 24.w,
-                      height: 24.h,
-                      decoration: BoxDecoration(
-                        color: AppColores.success.withValues(alpha: 0.15),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.check_rounded,
-                        size: 16,
-                        color: AppColores.success,
-                      ),
-                    ),
-                    SizedBox(width: 10.w),
-                    Text(
-                      'Ubicación encontrada',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13.5.sp,
-                        color: AppColores.textPrimary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
       ),
     );
   }

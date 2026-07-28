@@ -1,19 +1,21 @@
 import 'dart:io';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart' as fb_storage;
 import 'package:image_picker/image_picker.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/helpers/permisos_helper.dart';
 import 'package:taxi_app/core/helpers/session_helper.dart';
 import 'package:taxi_app/core/services/admin_fcm_service.dart';
 import 'package:taxi_app/core/services/image_cropper_service.dart';
+import 'package:taxi_app/core/services/image_upload_service.dart';
+import 'package:taxi_app/features/phone_auth/services/user_data_service.dart';
 import 'package:taxi_app/widgets/boton.dart';
 import 'package:taxi_app/widgets/flip_preview_view.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/vehicle_type.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioConductorView.dart';
+import 'package:taxi_app/core/utils/error_reporter.dart';
 
 /// Pantalla para que un cliente complete su registro como conductor:
 /// foto de perfil, foto del vehículo y placa. Al guardar, sube las imágenes
@@ -31,6 +33,7 @@ class _CompletarRegistroConductorViewState
     extends State<CompletarRegistroConductorView> {
   final ImagePicker _picker = ImagePicker();
   final ImageCropperService _cropper = const ImageCropperService();
+  final ImageUploadService _imageUploadService = ImageUploadService();
   final TextEditingController _placaController = TextEditingController();
 
   XFile? _fotoPerfil;
@@ -50,15 +53,10 @@ class _CompletarRegistroConductorViewState
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('usuarios')
-          .doc(uid)
-          .get();
-      final data = doc.data();
+      final data = await UserDataService().getUsuario(uid);
       if (data == null || !mounted) return;
       setState(() {
-        _fotoExistenteUrl =
-            (data['foto'] ?? data['fotoUrl'] ?? '').toString();
+        _fotoExistenteUrl = (data['foto'] ?? data['fotoUrl'] ?? '').toString();
         _fotoVehiculoExistenteUrl = (data['fotoVehiculo'] ?? '').toString();
         final placa = (data['placa'] ?? '').toString();
         if (placa.isNotEmpty) _placaController.text = placa;
@@ -69,7 +67,9 @@ class _CompletarRegistroConductorViewState
           _tipoVehiculo = VehicleType.carro;
         }
       });
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'completar_registro_conductor_view');
+    }
   }
 
   @override
@@ -110,31 +110,34 @@ class _CompletarRegistroConductorViewState
       });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error seleccionando imagen: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error seleccionando imagen: $e')));
     }
   }
 
   Future<String> _subirImagen(XFile file, String campo, String uid) async {
     final path =
         'usuarios/$uid/${campo}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-    final ref = fb_storage.FirebaseStorage.instance.ref().child(path);
-    await ref.putFile(File(file.path));
-    return ref.getDownloadURL();
+    return _imageUploadService.uploadFile(
+      file: File(file.path),
+      storagePath: path,
+    );
   }
 
   Future<void> _guardar() async {
     if (_guardando) return;
 
     final placa = _placaController.text.trim();
-    final tieneFotoPerfil = _fotoPerfil != null ||
+    final tieneFotoPerfil =
+        _fotoPerfil != null ||
         (_fotoExistenteUrl != null && _fotoExistenteUrl!.isNotEmpty);
     if (!tieneFotoPerfil) {
       _mostrarError('Agrega tu foto de perfil.');
       return;
     }
-    final tieneFotoVehiculo = _fotoVehiculo != null ||
+    final tieneFotoVehiculo =
+        _fotoVehiculo != null ||
         (_fotoVehiculoExistenteUrl != null &&
             _fotoVehiculoExistenteUrl!.isNotEmpty);
     if (!tieneFotoVehiculo) {
@@ -165,23 +168,22 @@ class _CompletarRegistroConductorViewState
           (FirebaseAuth.instance.currentUser?.displayName ?? 'Conductor')
               .toString();
 
-      await FirebaseFirestore.instance.collection('usuarios').doc(uid).set({
-        'foto': fotoUrl,
-        'fotoVehiculo': vehUrl,
-        'placa': placa.toUpperCase(),
-        'tipoVehiculo': _tipoVehiculo.firestoreKey,
-        'rol': 'conductor',
-        'solicitudConductor': true,
-        'servicioActivo': false,
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      await UserDataService().guardarSolicitudConductor(
+        uid: uid,
+        foto: fotoUrl,
+        fotoVehiculo: vehUrl,
+        placa: placa,
+        tipoVehiculo: _tipoVehiculo.firestoreKey,
+      );
 
       // Notificar al admin que hay un nuevo conductor pendiente de revisión.
-      AdminFcmService.instance.sendToAllAdmins(
-        title: 'Nuevo conductor registrado',
-        body: '$nombre quiere activar el servicio, revisa.',
-        type: 'solicitud_conductor',
-      ).ignore();
+      AdminFcmService.instance
+          .sendToAllAdmins(
+            title: 'Nuevo conductor registrado',
+            body: '$nombre quiere activar el servicio, revisa.',
+            type: 'solicitud_conductor',
+          )
+          .ignore();
 
       // Sincronizar rol en caché para que al reiniciar abra como conductor.
       await SessionHelper.updateRole('conductor');
@@ -273,12 +275,14 @@ class _CompletarRegistroConductorViewState
                         radius: 65,
                         backgroundColor: Colors.grey.shade200,
                         backgroundImage: _fotoPerfil != null
-                            ? FileImage(File(_fotoPerfil!.path)) as ImageProvider
+                            ? FileImage(File(_fotoPerfil!.path))
+                                  as ImageProvider
                             : (_fotoExistenteUrl != null &&
-                                    _fotoExistenteUrl!.isNotEmpty)
-                                ? NetworkImage(_fotoExistenteUrl!)
-                                : null,
-                        child: (_fotoPerfil == null &&
+                                  _fotoExistenteUrl!.isNotEmpty)
+                            ? NetworkImage(_fotoExistenteUrl!)
+                            : null,
+                        child:
+                            (_fotoPerfil == null &&
                                 (_fotoExistenteUrl == null ||
                                     _fotoExistenteUrl!.isEmpty))
                             ? Column(
@@ -308,10 +312,7 @@ class _CompletarRegistroConductorViewState
                           decoration: BoxDecoration(
                             color: AppColores.buttonPrimary,
                             shape: BoxShape.circle,
-                            border: Border.all(
-                              color: Colors.white,
-                              width: 2,
-                            ),
+                            border: Border.all(color: Colors.white, width: 2),
                             boxShadow: const [
                               BoxShadow(
                                 color: Colors.black26,
@@ -353,22 +354,41 @@ class _CompletarRegistroConductorViewState
                                 fit: BoxFit.cover,
                               )
                             : (_fotoVehiculoExistenteUrl != null &&
-                                    _fotoVehiculoExistenteUrl!.isNotEmpty)
-                                ? Image.network(
-                                    _fotoVehiculoExistenteUrl!,
-                                    fit: BoxFit.cover,
-                                  )
-                                : Column(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.center,
-                                    children: const [
-                                      Icon(Icons.directions_car,
-                                          size: 40, color: Colors.black54),
-                                      SizedBox(height: 8),
-                                      Text('Agregar foto del vehículo',
-                                          style: TextStyle(fontSize: 13)),
-                                    ],
+                                  _fotoVehiculoExistenteUrl!.isNotEmpty)
+                            ? CachedNetworkImage(
+                                imageUrl: _fotoVehiculoExistenteUrl!,
+                                fit: BoxFit.cover,
+                                memCacheWidth: 780,
+                                memCacheHeight: 340,
+                                placeholder: (context, url) => const Center(
+                                  child: CircularProgressIndicator(
+                                    color: AppColores.primary,
                                   ),
+                                ),
+                                errorWidget: (context, url, error) =>
+                                    const Center(
+                                      child: Icon(
+                                        Icons.broken_image_outlined,
+                                        size: 40,
+                                        color: Colors.black38,
+                                      ),
+                                    ),
+                              )
+                            : Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: const [
+                                  Icon(
+                                    Icons.directions_car,
+                                    size: 40,
+                                    color: Colors.black54,
+                                  ),
+                                  SizedBox(height: 8),
+                                  Text(
+                                    'Agregar foto del vehículo',
+                                    style: TextStyle(fontSize: 13),
+                                  ),
+                                ],
+                              ),
                       ),
                     ),
                     Positioned(

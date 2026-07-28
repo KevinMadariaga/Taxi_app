@@ -1,7 +1,7 @@
+import 'package:taxi_app/core/helpers/map_helper.dart';
 import 'package:taxi_app/core/services/map_service_adapter.dart';
 import 'package:taxi_app/data/solicitud_repository.dart';
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -13,6 +13,7 @@ import 'package:taxi_app/screens/usuario_cliente/presentacion/view/ResumenClient
 import 'package:taxi_app/widgets/intermediate_transition_view.dart';
 import 'package:taxi_app/core/services/services.dart';
 import 'package:taxi_app/core/constants/solicitud_estado.dart';
+import 'package:taxi_app/core/utils/error_reporter.dart';
 
 class Rutaclientedestinoviewmodel extends ChangeNotifier {
   bool _disposed = false;
@@ -46,17 +47,8 @@ class Rutaclientedestinoviewmodel extends ChangeNotifier {
     }
   }
 
-  double calculateBearing(LatLng from, LatLng to) {
-    final lat1 = from.latitude * math.pi / 180;
-    final lat2 = to.latitude * math.pi / 180;
-    final dLon = (to.longitude - from.longitude) * math.pi / 180;
-    final y = math.sin(dLon) * math.cos(lat2);
-    final x =
-        math.cos(lat1) * math.sin(lat2) -
-        math.sin(lat1) * math.cos(lat2) * math.cos(dLon);
-    final brng = math.atan2(y, x);
-    return (brng * 180 / math.pi + 360) % 360;
-  }
+  double calculateBearing(LatLng from, LatLng to) =>
+      MapHelper.bearingDegrees(from, to);
 
   CameraPosition? getCameraPerspective() {
     if (latConductor == null ||
@@ -94,7 +86,7 @@ class Rutaclientedestinoviewmodel extends ChangeNotifier {
     return await _mapService.calcularTiempoEstimado(origen, destino);
   }
 
-  final SolicitudRepository _solicitudRepository = SolicitudRepository();
+  final SolicitudRepository _solicitudRepository = SolicitudRepositoryImpl();
   StreamSubscription<Map<String, dynamic>?>? _conductorUbicacionSub;
   bool _navegandoAResumen = false;
 
@@ -420,6 +412,8 @@ class Rutaclientedestinoviewmodel extends ChangeNotifier {
         title: titulo,
         body: cuerpo,
       );
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'RutaClienteDestinoViewModel');
+    }
   }
 }

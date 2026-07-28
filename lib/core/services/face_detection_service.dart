@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
+import 'package:taxi_app/core/utils/error_reporter.dart';
 
 /// Valida que una foto de perfil contenga un rostro humano real y
 /// razonablemente enmarcado, para evitar que clientes/conductores suban
@@ -39,6 +40,8 @@ class FaceDetectionService {
   Future<void> dispose() async {
     try {
       await _detector.close();
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'face_detection_service');
+    }
   }
 }

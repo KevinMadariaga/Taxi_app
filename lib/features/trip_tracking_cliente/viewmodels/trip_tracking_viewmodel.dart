@@ -1,9 +1,13 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import '../controllers/conductor_movement_simulator.dart';
+import '../controllers/trip_chat_controller.dart';
 import '../services/trip_route_math_service.dart';
 import 'package:taxi_app/core/services/services.dart';
 
@@ -13,6 +17,7 @@ import '../services/chat_service.dart';
 import '../services/trip_tracking_firestore_service.dart';
 import '../services/local_cache_service.dart';
 import '../services/map_service.dart';
+import 'package:taxi_app/core/utils/error_reporter.dart';
 
 enum MapFocusMode { clientOnly, both }
 
@@ -31,8 +36,23 @@ class TripTrackingViewModel extends ChangeNotifier {
     LocalCacheService? localCacheService,
   }) : _firebaseService = firebaseService ?? TripTrackingFirebaseService(),
        _mapService = mapService ?? MapService(),
-       _chatService = chatService ?? ChatService(),
-       _localCacheService = localCacheService ?? LocalCacheService();
+       _localCacheService = localCacheService ?? LocalCacheService(),
+       _chatController = TripChatController(
+         solicitudId: solicitudId,
+         currentUserId: currentUserId,
+         chatService: chatService,
+         localCacheService: localCacheService,
+       ) {
+    _movementEngine.onTick = _notifyTickThrottled;
+    _movementEngine.onSnap = () {
+      _safeNotify();
+      unawaited(_updateRouteIfNeeded(forceRefresh: true));
+    };
+    _movementEngine.remainingRoutePointsNotifier.addListener(
+      _onRemainingRouteChanged,
+    );
+    _chatController.onChanged = _safeNotify;
+  }
 
   final String solicitudId;
   final String currentUserId;
@@ -41,16 +61,24 @@ class TripTrackingViewModel extends ChangeNotifier {
   final TripTrackingFirebaseService _firebaseService;
   final MapService _mapService;
   final TripRouteMathService _mathService = const TripRouteMathService();
-  final ChatService _chatService;
   final LocalCacheService _localCacheService;
 
+  /// Motor de animación/smoothing de la posición del conductor (timer 50ms,
+  /// backlog, saltos grandes, snap-to-route). Ver
+  /// `controllers/conductor_movement_simulator.dart`.
+  final ConductorMovementSimulator _movementEngine =
+      ConductorMovementSimulator();
+
+  /// Chat del viaje (binding, cache, no-leídos, notificación). Ver
+  /// `controllers/trip_chat_controller.dart`.
+  final TripChatController _chatController;
+
   SolicitudModel? solicitud;
-  List<LatLng> routePoints = const [];
   double? distanceMeters;
   Duration? eta;
 
-  List<MensajeModel> messages = const [];
-  int unreadCount = 0;
+  List<MensajeModel> get messages => _chatController.messages;
+  int get unreadCount => _chatController.unreadCount;
 
   bool isLoading = true;
   bool isUpdatingRoute = false;
@@ -62,66 +90,75 @@ class TripTrackingViewModel extends ChangeNotifier {
   String? errorText;
 
   StreamSubscription<SolicitudModel>? _solicitudSub;
-  StreamSubscription<List<MensajeModel>>? _messagesSub;
   StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
 
   bool _disposed = false;
-  bool _chatBootstrapped = false;
   bool _proximityNotified = false;
 
-  // Heading (degrees) for the conductor marker; 0 = north, 90 = east.
-  double conductorHeading = 0.0;
+  /// Notifiers de alta frecuencia (posición/heading/ruta restante) del motor
+  /// de movimiento, expuestos tal cual para que la View pueda animar solo la
+  /// capa del mapa sin reconstruir toda la pantalla. Ver comentario original
+  /// en `ConductorMovementSimulator`: notificar por este medio evita 20
+  /// rebuilds/seg de Scaffold+Card+overlays.
+  ValueNotifier<LatLng?> get conductorPositionNotifier =>
+      _movementEngine.positionNotifier;
+  ValueNotifier<double> get conductorHeadingNotifier =>
+      _movementEngine.headingNotifier;
+  ValueNotifier<List<LatLng>> get routePointsNotifier =>
+      _movementEngine.remainingRoutePointsNotifier;
 
-  // Smoothed marker state.
-  LatLng? _smoothedConductorLatLng;
-  final List<LatLng> _pendingConductorTargets = <LatLng>[];
-  List<LatLng> _activePathPoints = const [];
-  int _activePathIndex = 0;
-  Timer? _movementTimer;
-  double _movementSpeedMps = 8.0;
-  LatLng? _lastRawConductor;
-  DateTime? _lastRawConductorAt;
+  DateTime? _lastTickNotifyAt;
+  static const _tickNotifyInterval = Duration(milliseconds: 400);
+
+  // Distancia total de la ruta al calcularla por primera vez; junto con
+  // `distanceMeters` (restante) permite derivar el progreso real 0..1 hacia
+  // el punto de recogida para la barra direccional de la card.
+  double? _initialRouteDistance;
+
+  /// Progreso real (0..1) del conductor hacia el punto de recogida, para la
+  /// barra direccional de `UserTripInfoCard` (antes era un shimmer decorativo
+  /// sin relación con la posición real).
+  double get pickupProgress {
+    final total = _initialRouteDistance;
+    if (total == null || total <= 0) return 0.0;
+    final remaining = distanceMeters ?? total;
+    final done = (total - remaining).clamp(0.0, total);
+    return (done / total).clamp(0.0, 1.0);
+  }
 
   LatLng? _lastFrom;
   LatLng? _lastTo;
   bool _routeCalculatedOnce = false;
-  List<LatLng> _fullRoutePoints = const [];
-  int _routeProgressIndex = 0;
 
   Future<void> init() async {
     await _restoreFromCache();
     await _bindConnectivity();
     _bindSolicitud();
-    _bindMessages();
+    _chatController.bind();
   }
 
-  void _updateConductorHeading() {
-    try {
-      final current = conductorLatLng;
-      final headingPoints = _fullRoutePoints.length >= 2
-          ? _fullRoutePoints
-          : routePoints;
-      if (current == null || headingPoints.length < 2) {
-        conductorHeading = 0.0;
-        return;
-      }
+  /// Recalcula distancia/ETA cada vez que el motor de movimiento publica una
+  /// nueva ruta restante (throttled a 200ms internamente, o forzado tras un
+  /// fetch de ruta/snap). Reemplaza el cálculo que antes vivía duplicado en
+  /// `_tickMovement`/`_snapConductorTo`.
+  void _onRemainingRouteChanged() {
+    final remaining = _movementEngine.remainingRoutePointsNotifier.value;
+    final remainingDistance = _mapService.routeDistanceMeters(remaining);
+    distanceMeters = remainingDistance;
+    eta = _mapService.etaFromDistance(remainingDistance);
+  }
 
-      final nearest = _nearestForwardIndex(current, headingPoints);
-      LatLng? target;
-      final lookAhead = nearest + 3;
-      if (lookAhead < headingPoints.length) {
-        target = headingPoints[lookAhead];
-      } else if (nearest < headingPoints.length - 1) {
-        target = headingPoints[nearest + 1];
-      } else if (nearest > 0) {
-        target = headingPoints[nearest];
-      }
-      if (target != null) {
-        conductorHeading = _mathService.bearingBetween(current, target);
-      }
-    } catch (_) {
-      conductorHeading = 0.0;
+  /// Notifica a los listeners "pesados" (Consumer de toda la pantalla) con
+  /// throttle: el motor de movimiento tickea a 50ms pero la card/ETA/texto no
+  /// necesitan refrescarse más rápido que esto para verse fluidos, y evita
+  /// reconstruir Scaffold+GoogleMap+overlays 20 veces por segundo.
+  void _notifyTickThrottled() {
+    final now = DateTime.now();
+    if (_lastTickNotifyAt != null &&
+        now.difference(_lastTickNotifyAt!) < _tickNotifyInterval) {
+      return;
     }
+    _lastTickNotifyAt = now;
     _safeNotify();
   }
 
@@ -138,7 +175,7 @@ class TripTrackingViewModel extends ChangeNotifier {
   }
 
   LatLng? get conductorLatLng =>
-      _smoothedConductorLatLng ?? _rawConductorLatLng;
+      _movementEngine.currentPosition ?? _rawConductorLatLng;
 
   bool get hasBothLocations =>
       clienteLatLng != null && _rawConductorLatLng != null;
@@ -228,11 +265,13 @@ class TripTrackingViewModel extends ChangeNotifier {
       );
       if (placemarks.isEmpty) return;
       final pm = placemarks.first;
-      final friendly = [
-        pm.street?.trim(),
-        pm.subLocality?.trim(),
-        pm.locality?.trim(),
-      ].whereType<String>().where((v) => v.isNotEmpty).take(2).join(', ').trim();
+      final friendly =
+          [pm.street?.trim(), pm.subLocality?.trim(), pm.locality?.trim()]
+              .whereType<String>()
+              .where((v) => v.isNotEmpty)
+              .take(2)
+              .join(', ')
+              .trim();
       if (friendly.isNotEmpty) {
         _direccionClienteResuelta = friendly;
         _safeNotify();
@@ -281,38 +320,9 @@ class TripTrackingViewModel extends ChangeNotifier {
     return 12.0;
   }
 
-  Future<void> sendMessage(String text) {
-    return _chatService.sendMessage(
-      solicitudId: solicitudId,
-      senderId: currentUserId,
-      texto: text,
-    );
-  }
+  Future<void> sendMessage(String text) => _chatController.sendMessage(text);
 
-  Future<void> markChatAsRead() async {
-    if (messages.isEmpty) return;
-    await _chatService.markAllAsRead(
-      solicitudId: solicitudId,
-      userId: currentUserId,
-      messages: messages,
-    );
-
-    messages = messages
-        .map(
-          (m) => m.senderId == currentUserId
-              ? m
-              : MensajeModel(
-                  id: m.id,
-                  senderId: m.senderId,
-                  texto: m.texto,
-                  timestamp: m.timestamp,
-                  readBy: {...m.readBy, currentUserId: true},
-                ),
-        )
-        .toList(growable: false);
-    _computeUnreadCount();
-    _safeNotify();
-  }
+  Future<void> markChatAsRead() => _chatController.markAllAsRead();
 
   Future<void> cancelSolicitud() async {
     if (isCancelling) return;
@@ -352,7 +362,9 @@ class TripTrackingViewModel extends ChangeNotifier {
                   '[TripTrackingViewModel] Conductor location update: none',
                 );
               }
-            } catch (_) {}
+            } catch (e, st) {
+              ErrorReporter.report(e, st, reason: 'trip_tracking_viewmodel');
+            }
             isLoading = false;
             errorText = null;
             _safeNotify();
@@ -362,7 +374,8 @@ class TripTrackingViewModel extends ChangeNotifier {
             // ─── Actualización de ruta y heading ───
 
             await _updateRouteIfNeeded();
-            _updateConductorHeading();
+            _movementEngine.refreshHeading();
+            _safeNotify();
           },
           onError: (error) async {
             isLoading = false;
@@ -376,49 +389,6 @@ class TripTrackingViewModel extends ChangeNotifier {
             }
 
             _safeNotify();
-          },
-        );
-  }
-
-  void _bindMessages() {
-    _messagesSub?.cancel();
-    _messagesSub = _chatService
-        .watchMessages(solicitudId)
-        .listen(
-          (incoming) async {
-            if (_chatBootstrapped) {
-              final previousIds = messages.map((m) => m.id).toSet();
-              final newIncoming = incoming.where(
-                (m) =>
-                    !previousIds.contains(m.id) && m.senderId != currentUserId,
-              );
-
-              for (final item in newIncoming) {
-                await _showMessageNotification(item.texto);
-              }
-            } else {
-              _chatBootstrapped = true;
-            }
-
-            messages = incoming;
-            _computeUnreadCount();
-
-            await _localCacheService.saveMessages(
-              solicitudId: solicitudId,
-              messages: incoming,
-            );
-
-            _safeNotify();
-          },
-          onError: (error) async {
-            final cachedMessages = await _localCacheService.readMessages(
-              solicitudId,
-            );
-            if (cachedMessages.isNotEmpty) {
-              messages = cachedMessages;
-              _computeUnreadCount();
-              _safeNotify();
-            }
           },
         );
   }
@@ -450,25 +420,24 @@ class TripTrackingViewModel extends ChangeNotifier {
     if (cachedSolicitud != null) {
       solicitud = cachedSolicitud;
       isLoading = false;
-      _smoothedConductorLatLng ??= _rawConductorLatLng;
+      final raw = _rawConductorLatLng;
+      if (_movementEngine.currentPosition == null && raw != null) {
+        _movementEngine.restorePosition(raw);
+      }
     }
 
     final cachedRoute = await _localCacheService.readRoute(solicitudId);
     if (cachedRoute != null && cachedRoute.points.length >= 2) {
-      routePoints = cachedRoute.points;
-      _fullRoutePoints = _densifyPolyline(cachedRoute.points);
-      _routeProgressIndex = 0;
+      _movementEngine.restoreRemainingRoute(cachedRoute.points);
+      _movementEngine.setFullRoute(_mathService.densifyPolyline(cachedRoute.points));
       distanceMeters = cachedRoute.distanceMeters;
+      _initialRouteDistance = cachedRoute.distanceMeters;
       eta = cachedRoute.etaSeconds != null
           ? Duration(seconds: cachedRoute.etaSeconds!)
           : null;
     }
 
-    final cachedMessages = await _localCacheService.readMessages(solicitudId);
-    if (cachedMessages.isNotEmpty) {
-      messages = cachedMessages;
-      _computeUnreadCount();
-    }
+    await _chatController.restoreFromCache();
 
     _safeNotify();
   }
@@ -491,7 +460,7 @@ class TripTrackingViewModel extends ChangeNotifier {
 
     if (!forceRefresh && !shouldRefresh) return;
 
-    if (isOffline && routePoints.length >= 2 && !forceRefresh) {
+    if (isOffline && routePointsNotifier.value.length >= 2 && !forceRefresh) {
       return;
     }
 
@@ -502,12 +471,16 @@ class TripTrackingViewModel extends ChangeNotifier {
       final points = await _mapService.fetchRoadPolyline(from: from, to: to);
       final distance = _mapService.routeDistanceMeters(points);
 
-      _fullRoutePoints = _densifyPolyline(points);
-      _routeProgressIndex = 0;
+      _movementEngine.setFullRoute(_mathService.densifyPolyline(points));
       final current = conductorLatLng ?? from;
-      routePoints = _buildRemainingRoutePoints(current);
-      final remainingDistance = _mapService.routeDistanceMeters(routePoints);
+      _movementEngine.publishRemainingRoute(current, force: true);
+      final remainingDistance = _mapService.routeDistanceMeters(
+        routePointsNotifier.value,
+      );
       distanceMeters = remainingDistance > 0 ? remainingDistance : distance;
+      // Nueva línea base de progreso: cada (re)cálculo de ruta (incluyendo
+      // por desvío) reinicia el 100% de la barra direccional.
+      _initialRouteDistance = distance;
       eta = _mapService.etaFromDistance(distanceMeters!);
 
       await _localCacheService.saveRoute(
@@ -520,29 +493,25 @@ class TripTrackingViewModel extends ChangeNotifier {
       _lastFrom = from;
       _lastTo = to;
       _routeCalculatedOnce = true;
-    } catch (_) {
-      // No rompe la UI: conserva la ultima ruta valida.
+    } catch (e, st) {
+      // No rompe la UI: conserva la ultima ruta valida. Pero antes esto era
+      // 100% silencioso — si Directions/OSRM fallaban, la traza (polyline)
+      // simplemente no aparecía nunca y no había forma de saber por qué.
+      developer.log(
+        'Fallo al actualizar ruta (polyline no se actualizará esta vez): $e',
+        name: 'TripTrackingViewModel',
+        level: 1000,
+      );
+      FirebaseCrashlytics.instance.recordError(
+        e,
+        st,
+        reason:
+            'TripTrackingViewModel: fallo _updateRouteIfNeeded (sin ruta/polyline)',
+      );
     } finally {
       isUpdatingRoute = false;
       _safeNotify();
     }
-  }
-
-  Future<void> _showMessageNotification(String body) async {
-    try {
-      await NotificacionesServicio.instance.showChatNotification(
-        senderName: '\u{1F4AC} Nuevo mensaje del conductor',
-        message: body,
-      );
-    } catch (_) {
-      // Sin bloquear la UX si notificaciones no estan disponibles.
-    }
-  }
-
-  void _computeUnreadCount() {
-    unreadCount = messages
-        .where((m) => m.senderId != currentUserId && !m.isReadBy(currentUserId))
-        .length;
   }
 
   DateTime? _lastRouteRecalcAt;
@@ -561,7 +530,8 @@ class TripTrackingViewModel extends ChangeNotifier {
         id: 77701,
         title: 'Tu conductor está cerca',
         body: 'El conductor esta por llegar. ¡Prepárate para abordar!',
-        payload: 'soporte_chat', // payload genérico; redirige al inicio del cliente si toca
+        payload:
+            'soporte_chat', // payload genérico; redirige al inicio del cliente si toca
       );
     }
   }
@@ -576,7 +546,7 @@ class TripTrackingViewModel extends ChangeNotifier {
     // Desvío: si el conductor se aleja >40 m de la ruta trazada, recalcular la
     // ruta con la API (con cooldown para no spamear). El cliente verá la nueva
     // trayectoria de su conductor.
-    final desvio = _distanceToRoute(next);
+    final desvio = _movementEngine.distanceToRoute(next);
     final now = DateTime.now();
     final cooldownOk =
         _lastRouteRecalcAt == null ||
@@ -586,292 +556,33 @@ class TripTrackingViewModel extends ChangeNotifier {
       unawaited(_updateRouteIfNeeded(forceRefresh: true));
     }
 
-    _enqueueConductorTarget(next);
-  }
-
-  /// Distancia mínima (m) del punto a la polilínea de ruta (vértice más cercano,
-  /// suficiente porque la ruta está densificada).
-  double? _distanceToRoute(LatLng p) {
-    final source = _fullRoutePoints.length >= 2 ? _fullRoutePoints : routePoints;
-    if (source.length < 2) return null;
-    double min = double.infinity;
-    for (final pt in source) {
-      final d = _mapService.distanceMeters(p, pt);
-      if (d < min) min = d;
-    }
-    return min.isFinite ? min : null;
-  }
-
-  void _enqueueConductorTarget(LatLng target) {
-    final now = DateTime.now();
-    if (_lastRawConductor != null && _lastRawConductorAt != null) {
-      final elapsedMs = now.difference(_lastRawConductorAt!).inMilliseconds;
-      if (elapsedMs > 0) {
-        final distance = _mapService.distanceMeters(_lastRawConductor!, target);
-        final speed = distance / (elapsedMs / 1000.0);
-        _movementSpeedMps = speed.clamp(3.0, 18.0);
-      }
-    }
-    _lastRawConductor = target;
-    _lastRawConductorAt = now;
-
-    if (_smoothedConductorLatLng == null) {
-      _smoothedConductorLatLng = target;
-      _safeNotify();
-      return;
-    }
-
-    final snappedTarget = _snapTargetToRouteForward(target);
-
-    if (_pendingConductorTargets.isNotEmpty) {
-      final lastQueued = _pendingConductorTargets.last;
-      final delta = _mapService.distanceMeters(lastQueued, snappedTarget);
-      if (delta < 1.2) {
-        return;
-      }
-    }
-
-    if (_pendingConductorTargets.isEmpty && _smoothedConductorLatLng != null) {
-      final deltaFromCurrent = _mapService.distanceMeters(
-        _smoothedConductorLatLng!,
-        snappedTarget,
-      );
-      if (deltaFromCurrent < 1.2) {
-        return;
-      }
-    }
-
-    // Encola cada update para reproducir correctamente la trayectoria.
-    _pendingConductorTargets.add(snappedTarget);
-
-    _ensureMovementTimer();
-  }
-
-  void _ensureMovementTimer() {
-    if (_movementTimer != null) return;
-    _movementTimer = Timer.periodic(
-      const Duration(milliseconds: 50),
-      (_) => _tickMovement(),
-    );
-  }
-
-  void _prepareActivePath(LatLng from, LatLng to) {
-    final source = _fullRoutePoints.length >= 2
-        ? _fullRoutePoints
-        : routePoints;
-    if (source.length < 2) {
-      _activePathPoints = <LatLng>[to];
-      _activePathIndex = 0;
-      return;
-    }
-
-    final startIdx = _mathService.nearestPointIndex(from, source);
-    final endIdx = _mathService.nearestPointIndex(to, source);
-
-    if (startIdx <= endIdx) {
-      final segment = source.sublist(startIdx, endIdx + 1);
-      _activePathPoints = <LatLng>[...segment, to];
-    } else {
-      final segment = source.sublist(endIdx, startIdx + 1).reversed;
-      _activePathPoints = <LatLng>[...segment, to];
-    }
-
-    _activePathIndex = 0;
-  }
-
-  void _tickMovement() {
-    if (_smoothedConductorLatLng == null) {
-      _stopMovement();
-      return;
-    }
-
-    if (_activePathPoints.isEmpty) {
-      if (_pendingConductorTargets.isEmpty) {
-        _stopMovement();
-        return;
-      }
-      _prepareActivePath(
-        _smoothedConductorLatLng!,
-        _pendingConductorTargets.first,
-      );
-    }
-
-    var current = _smoothedConductorLatLng!;
-    final effectiveSpeed = _effectiveSpeedForBacklog(current);
-    final stepMeters = effectiveSpeed * 0.05;
-    var remaining = stepMeters;
-
-    while (remaining > 0 && _activePathIndex < _activePathPoints.length) {
-      final next = _activePathPoints[_activePathIndex];
-      final segmentDistance = _mapService.distanceMeters(current, next);
-
-      if (segmentDistance <= 0.1) {
-        current = next;
-        _activePathIndex += 1;
-        continue;
-      }
-
-      if (remaining >= segmentDistance) {
-        current = next;
-        remaining -= segmentDistance;
-        _activePathIndex += 1;
-      } else {
-        final t = remaining / segmentDistance;
-        current = LatLng(
-          current.latitude + (next.latitude - current.latitude) * t,
-          current.longitude + (next.longitude - current.longitude) * t,
-        );
-        remaining = 0;
-      }
-    }
-
-    _smoothedConductorLatLng = current;
-    routePoints = _buildRemainingRoutePoints(current);
-    final remainingDistance = _mapService.routeDistanceMeters(routePoints);
-    distanceMeters = remainingDistance;
-    eta = _mapService.etaFromDistance(remainingDistance);
-    _updateConductorHeading();
-
-    if (_activePathIndex >= _activePathPoints.length) {
-      if (_pendingConductorTargets.isNotEmpty) {
-        _pendingConductorTargets.removeAt(0);
-      }
-      _activePathPoints = const [];
-      _activePathIndex = 0;
-    }
-  }
-
-  void _stopMovement() {
-    _movementTimer?.cancel();
-    _movementTimer = null;
-  }
-
-  double _effectiveSpeedForBacklog(LatLng current) {
-    var speed = _movementSpeedMps;
-    final backlog = _pendingConductorTargets.length;
-
-    if (backlog >= 2) {
-      speed *= (1.0 + (backlog - 1) * 0.35).clamp(1.0, 2.8);
-    }
-
-    if (backlog > 0) {
-      final lagDistance = _mapService.distanceMeters(
-        current,
-        _pendingConductorTargets.first,
-      );
-      if (lagDistance > 70) {
-        speed *= 1.5;
-      } else if (lagDistance > 40) {
-        speed *= 1.3;
-      } else if (lagDistance > 20) {
-        speed *= 1.15;
-      }
-    }
-
-    return speed.clamp(3.0, 28.0);
-  }
-
-  LatLng _snapTargetToRouteForward(LatLng target) {
-    final source = _fullRoutePoints;
-    if (source.length < 2 || _smoothedConductorLatLng == null) {
-      return target;
-    }
-
-    final start = _routeProgressIndex.clamp(0, source.length - 1);
-    final end = (start + 240) < source.length
-        ? (start + 240)
-        : (source.length - 1);
-    var nearest = start;
-    var best = double.infinity;
-
-    for (var i = start; i <= end; i++) {
-      final p = source[i];
-      final dist = _mapService.distanceMeters(target, p);
-      if (dist < best) {
-        best = dist;
-        nearest = i;
-      }
-    }
-
-    if (best > 80) {
-      return target;
-    }
-
-    if (nearest > _routeProgressIndex) {
-      _routeProgressIndex = nearest;
-    }
-
-    return source[_routeProgressIndex];
-  }
-
-  List<LatLng> _buildRemainingRoutePoints(LatLng current) {
-    final source = _fullRoutePoints;
-    if (source.length < 2) {
-      return source;
-    }
-
-    final nearest = _nearestForwardIndex(current, source);
-    if (nearest >= source.length - 1) {
-      return <LatLng>[current, source.last];
-    }
-
-    final tail = source.sublist(nearest + 1);
-    return <LatLng>[current, ...tail];
-  }
-
-  int _nearestForwardIndex(LatLng current, List<LatLng> source) {
-    if (source.isEmpty) return 0;
-    final nearest = _mathService.nearestPointIndex(current, source);
-    if (nearest > _routeProgressIndex) {
-      _routeProgressIndex = nearest;
-    }
-    if (_routeProgressIndex >= source.length) {
-      _routeProgressIndex = source.length - 1;
-    }
-    return _routeProgressIndex;
-  }
-
-  List<LatLng> _densifyPolyline(List<LatLng> points) {
-    if (points.length < 2) return points;
-    const stepMeters = 6.0;
-    final dense = <LatLng>[points.first];
-
-    for (var i = 0; i < points.length - 1; i++) {
-      final a = points[i];
-      final b = points[i + 1];
-      final segment = _mapService.distanceMeters(a, b);
-      if (segment <= stepMeters) {
-        dense.add(b);
-        continue;
-      }
-
-      final steps = (segment / stepMeters).floor();
-      for (var s = 1; s <= steps; s++) {
-        final t = s / (steps + 1);
-        dense.add(
-          LatLng(
-            a.latitude + (b.latitude - a.latitude) * t,
-            a.longitude + (b.longitude - a.longitude) * t,
-          ),
-        );
-      }
-      dense.add(b);
-    }
-
-    return dense;
+    _movementEngine.enqueueTarget(next);
   }
 
   void _safeNotify() {
     if (!_disposed) notifyListeners();
   }
 
+  void pauseForBackground() {
+    _movementEngine.pause();
+  }
+
+  void resumeFromBackground() {
+    final raw = _rawConductorLatLng;
+    _movementEngine.resume(raw);
+    if (raw == null) _safeNotify();
+  }
+
   @override
   void dispose() {
     _disposed = true;
     _solicitudSub?.cancel();
-    _messagesSub?.cancel();
     _connectivitySub?.cancel();
-    _movementTimer?.cancel();
+    _chatController.dispose();
+    _movementEngine.remainingRoutePointsNotifier.removeListener(
+      _onRemainingRouteChanged,
+    );
+    _movementEngine.dispose();
     super.dispose();
   }
 }
