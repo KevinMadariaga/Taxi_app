@@ -1,0 +1,9 @@
+## Copiar a android/local.properties (NO trackeado en git) y completar valores reales.
+
+## Ruta al Flutter SDK — normalmente la genera Flutter automáticamente al
+## correr `flutter run`/`flutter build`, no hace falta setearla a mano.
+# flutter.sdk=/ruta/a/flutter
+
+## Google Maps API key (Android). Nunca poner esto en gradle.properties
+## (ese SÍ está trackeado en git) — siempre acá, en local.properties.
+MAPS_API_KEY=TU_API_KEY_AQUI
