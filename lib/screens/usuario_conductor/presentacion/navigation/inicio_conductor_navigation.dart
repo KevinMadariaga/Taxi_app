@@ -5,7 +5,7 @@ import 'package:taxi_app/screens/usuario_conductor/presentacion/view/comentarios
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/notificaciones_conductor_view.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/seguridad_conductor_view.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/soporte_conductor_view.dart';
-import 'package:taxi_app/features/driver_trip/screens/driver_trip_screen.dart';
+import 'package:taxi_app/caracteristicas/viaje_conductor/presentacion/vistas/viaje_conductor_screen.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/historial_viaje_conductor.dart';
 import 'package:taxi_app/widgets/intermediate_transition_view.dart';
 import 'package:taxi_app/screens/perfil/perfil.dart';
@@ -23,7 +23,7 @@ class InicioConductorNavigation {
           delay: const Duration(seconds: 2),
           title: 'Servicio aceptado',
           subtitle: 'Abriendo ruta hacia el cliente...',
-          nextBuilder: (_) => DriverTripScreen(tripId: idSolicitud),
+          nextBuilder: (_) => ViajeConductorScreen(viajeId: idSolicitud),
           icon: Icons.local_taxi,
         ),
         transitionsBuilder: (_, animation, __, child) {
@@ -46,21 +46,21 @@ class InicioConductorNavigation {
   }
 
   static Future<void> irASeguridad(BuildContext context) {
-    return Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const SeguridadConductorView()),
-    );
+    return Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const SeguridadConductorView()));
   }
 
   static Future<void> irAAyuda(BuildContext context) {
-    return Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const AyudaConductorView()),
-    );
+    return Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const AyudaConductorView()));
   }
 
   static Future<void> irASoporte(BuildContext context) {
-    return Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const SoporteConductorView()),
-    );
+    return Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const SoporteConductorView()));
   }
 
   static Future<void> irANotificaciones(BuildContext context) {

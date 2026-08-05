@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:taxi_app/caracteristicas/confirmar_solicitud/presentacion/vistas/confirmar_solicitud_view.dart';
+import 'package:taxi_app/caracteristicas/seleccion_destino/presentacion/vistas/seleccion_destino_screen.dart';
+import 'package:taxi_app/core/utils/transicion_pagina.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/location_model.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/view/SeleccionDestino.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/view/DetailsSolicitud.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/MapaPreviewView.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/ayuda_view.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/configuracion_aplicacion_view.dart';
@@ -13,31 +14,6 @@ import 'package:taxi_app/screens/usuario_cliente/presentacion/view/soporte_view.
 import 'package:taxi_app/screens/perfil/perfil.dart';
 
 class InicioClienteNavigation {
-  static PageRouteBuilder<T> _buildSmoothRoute<T>(Widget page) {
-    return PageRouteBuilder<T>(
-      pageBuilder: (context, animation, secondaryAnimation) => page,
-      transitionDuration: const Duration(milliseconds: 260),
-      reverseTransitionDuration: const Duration(milliseconds: 220),
-      transitionsBuilder: (context, animation, secondaryAnimation, child) {
-        final curved = CurvedAnimation(
-          parent: animation,
-          curve: Curves.easeOutCubic,
-          reverseCurve: Curves.easeInCubic,
-        );
-        return FadeTransition(
-          opacity: curved,
-          child: SlideTransition(
-            position: Tween<Offset>(
-              begin: const Offset(0, 0.02),
-              end: Offset.zero,
-            ).animate(curved),
-            child: child,
-          ),
-        );
-      },
-    );
-  }
-
   static Future<void> irAPerfil(BuildContext context) {
     return Navigator.of(context).push(
       PageRouteBuilder(
@@ -107,8 +83,8 @@ class InicioClienteNavigation {
     String? origenDireccionInicial,
   }) {
     return Navigator.of(context).push(
-      _buildSmoothRoute(
-        DestinoSeleccionView(
+      transicionSuave(
+        SeleccionDestinoScreen(
           currentLocation: currentLocation,
           origenDireccionInicial: origenDireccionInicial,
         ),
@@ -121,9 +97,9 @@ class InicioClienteNavigation {
     LocationModel origen,
     LocationModel destino,
   ) {
-    return Navigator.of(
-      context,
-    ).push(_buildSmoothRoute(MapPreview(origen: origen, destino: destino)));
+    return Navigator.of(context).push(
+      transicionSuave(ConfirmarSolicitudView(origen: origen, destino: destino)),
+    );
   }
 
   static Future<void> irAMapaPreviewFavoritoCasa(
@@ -132,7 +108,7 @@ class InicioClienteNavigation {
     String direccion,
   ) {
     return Navigator.of(context).push(
-      _buildSmoothRoute(
+      transicionSuave(
         MapaPreviewView(location: location, direccion: direccion),
       ),
     );

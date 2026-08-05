@@ -235,6 +235,12 @@ class InicioConductorViewmodel extends ChangeNotifier {
   void refreshSelectedPreviewDistance() =>
       _previewController.refreshSelectedPreviewDistance();
 
+  /// Refleja localmente el valor recién contraofertado en la preview abierta,
+  /// para que `PrecioOfertaBox` lo muestre de inmediato sin esperar el
+  /// snapshot de Firestore.
+  void applyLocalContraoferta(double valor) =>
+      _previewController.applyLocalContraoferta(valor);
+
   void selectPreview(PreviewSolicitud preview) =>
       _previewController.selectPreview(preview);
 

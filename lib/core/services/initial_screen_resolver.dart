@@ -7,14 +7,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:taxi_app/core/helpers/session_helper.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/presentacion/vistas/home_screen.dart';
-import 'package:taxi_app/features/trip_tracking_cliente/views/trip_tracking_screen.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/presentacion/vistas/complete_profile_page.dart';
 import 'package:taxi_app/features/admin/admin_home_screen.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/home_cliente_view.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/view/RutaClienteDestinoView.dart';
-import 'package:taxi_app/screens/usuario_conductor/presentacion/view/RutaDestinoView.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioConductorView.dart';
-import 'package:taxi_app/features/driver_trip/screens/driver_trip_screen.dart';
+import 'package:taxi_app/caracteristicas/viaje_cliente/presentacion/vistas/viaje_cliente_screen.dart';
+import 'package:taxi_app/caracteristicas/viaje_conductor/presentacion/vistas/viaje_conductor_screen.dart';
 
 import 'package:taxi_app/core/services/services.dart';
 import 'package:taxi_app/core/constants/solicitud_estado.dart';
@@ -63,7 +61,17 @@ class InitialScreenResolver {
       // Verificar autenticación
       final currentUser = FirebaseAuth.instance.currentUser;
       final isLogged = prefs.getBool('is_logged_in') ?? false;
-      String? role = prefs.getString('user_role');
+      // Rol cacheado del último login (guardado por AuthService.saveUserSession).
+      // Solo se usa para: (a) detectar residuos de sesión cuando ya no hay
+      // usuario de Firebase, y (b) como fallback si Firestore no es alcanzable
+      // más abajo. NUNCA es la fuente de verdad del rol de un usuario
+      // autenticado — ese siempre se re-deriva de Firestore (ver bloque
+      // `if (currentUser != null)`), porque el rol pudo cambiar server-side
+      // (promoción/democión de admin, alta como conductor, etc.) desde el
+      // último login, y confiar en el caché podía rutear a un usuario a un
+      // panel/rol que ya no le corresponde.
+      final cachedRole = prefs.getString('user_role');
+      String? role = cachedRole;
       final persistedUid = prefs.getString('user_uid');
 
       // Si no hay usuario Firebase pero hay residuos locales de sesión,
@@ -93,8 +101,11 @@ class InitialScreenResolver {
         return const HomeView();
       }
 
-      // Si hay un usuario autenticado, intentar detectar su rol basado en Firestore
+      // Si hay un usuario autenticado, el rol SIEMPRE se re-deriva de
+      // Firestore desde cero (nunca se parte del cacheado) — ver comentario
+      // de `cachedRole` arriba.
       if (currentUser != null) {
+        role = null;
         try {
           final uid = currentUser.uid;
           final adminDoc = await FirebaseFirestore.instance
@@ -136,7 +147,8 @@ class InitialScreenResolver {
             }
           }
 
-          // Si usuarios.rol/tipoUsuario no resolvió, usar tipoUsuario como fallback.
+          // Si usuarios.rol/role no resolvió, usar tipoUsuario como fallback
+          // (campo alterno que sí usa, por ejemplo, el alta de conductor).
           if (role != 'administrador' &&
               role != 'conductor' &&
               role != 'cliente') {
@@ -150,6 +162,26 @@ class InitialScreenResolver {
               role = 'cliente';
             }
           }
+
+          // Ni admin, ni usuarios.rol/role, ni tipoUsuario resolvieron nada
+          // reconocible (doc inexistente, campo vacío, valor inesperado):
+          // default explícito a 'cliente' (el de menor privilegio) en vez de
+          // dejar `role` en null — null ahí terminaría reusando el rol
+          // cacheado más abajo en el resto de la función, que es justo lo
+          // que este bloque existe para evitar.
+          role ??= 'cliente';
+
+          // Firestore fue alcanzable y dio un rol confiable: sincronizar el
+          // caché para que, si alguna vez Firestore no es alcanzable (ver
+          // catch abajo), el fallback offline sea el último rol REAL
+          // conocido, no uno arbitrariamente viejo.
+          if (role != cachedRole) {
+            try {
+              await prefs.setString('user_role', role);
+            } catch (e, st) {
+              ErrorReporter.report(e, st, reason: 'auth_service');
+            }
+          }
         } catch (e, st) {
           debugPrint('Error al resolver rol de usuario desde Firestore: $e');
           FirebaseCrashlytics.instance.recordError(
@@ -158,6 +190,12 @@ class InitialScreenResolver {
             reason:
                 'AuthService: fallo al resolver rol de usuario desde Firestore',
           );
+          // Sin conectividad (u otro fallo) para confirmar el rol real: usar
+          // el último rol cacheado como fallback degradado, mejor que dejar
+          // a un usuario ya autenticado varado en el login. No es el camino
+          // feliz — el rol real se re-confirma en el siguiente cold start
+          // con red disponible.
+          role = cachedRole;
         }
       }
 
@@ -196,22 +234,26 @@ class InitialScreenResolver {
           candidateSolicitudId != null &&
           candidateSolicitudId.isNotEmpty) {
         if (await _isSolicitudRestaurable(candidateSolicitudId)) {
-          // If the user had a specific view open (client or driver), restore it.
-          if (savedActiveScreen == 'trip_tracking') {
-            return TripTrackingScreen(
-              solicitudId: candidateSolicitudId,
+          // If the user had a specific view open (client or driver), restore
+          // it. 'trip_tracking'/'ruta_cliente_destino': valores legacy de
+          // antes de unificar el cliente en una sola pantalla — se
+          // mantienen como fallback por si quedó un flag guardado de una
+          // versión anterior.
+          if (savedActiveScreen == 'viaje_cliente' ||
+              savedActiveScreen == 'trip_tracking' ||
+              savedActiveScreen == 'ruta_cliente_destino') {
+            return ViajeClienteScreen(
+              viajeId: candidateSolicitudId,
               currentUserId: currentUid ?? '',
-              cancelledBy: 'cliente',
             );
           }
-          if (savedActiveScreen == 'ruta_cliente_destino') {
-            return RutaClienteDestino(idSolicitud: candidateSolicitudId);
-          }
-          if (savedActiveScreen == 'driver_trip') {
-            return DriverTripScreen(tripId: candidateSolicitudId);
-          }
-          if (savedActiveScreen == 'ruta_destino') {
-            return RutaDestino(idSolicitud: candidateSolicitudId);
+          // 'driver_trip'/'ruta_destino': valores legacy de antes de
+          // unificar el conductor en una sola pantalla — se mantienen como
+          // fallback por si quedó un flag guardado de una versión anterior.
+          if (savedActiveScreen == 'viaje_conductor' ||
+              savedActiveScreen == 'driver_trip' ||
+              savedActiveScreen == 'ruta_destino') {
+            return ViajeConductorScreen(viajeId: candidateSolicitudId);
           }
         } else {
           try {
@@ -478,55 +520,28 @@ class InitialScreenResolver {
       final isCurrentClient =
           clienteId != null && currentUid != null && currentUid == clienteId;
 
-      // Conductor: rol explícito o coincide con el asignado
+      // Conductor: rol explícito o coincide con el asignado. Antes esto
+      // elegía entre `DriverTripScreen` (camino al cliente) y `RutaDestino`
+      // (camino al destino) según `conductorInProgressForEstado` — con
+      // `ViajeConductorScreen` unificado ya no hay dos pantallas entre las
+      // que elegir, el propio viewmodel reacciona al estado en vivo.
       if (role == 'conductor' || isCurrentDriver) {
-        final conductorInProgress = conductorInProgressForEstado(estado);
-
-        // Try to restore cached route data to preserve UI state after reload (non in-progress)
-        try {
-          final cache = await RouteCacheService.loadForSolicitud(solicitudId);
-          if (cache != null) {
-            // If the cached role is 'conductor' and the trip is already in-progress,
-            // restore the in-route UI (`RutaDestino`). Otherwise, restore the
-            // driver trip UI (`RutaConductor`) which maps to `DriverTripScreen`.
-            if (cache.role == 'conductor') {
-              if (conductorInProgress) {
-                return RutaDestino(idSolicitud: solicitudId);
-              }
-              return DriverTripScreen(tripId: solicitudId);
-            }
-            // Fallback: return the legacy conductor wrapper
-            return DriverTripScreen(tripId: solicitudId);
-          }
-        } catch (e, st) {
-          ErrorReporter.report(e, st, reason: 'auth_service');
-        }
-
-        return DriverTripScreen(tripId: solicitudId);
+        return ViajeConductorScreen(viajeId: solicitudId);
       }
 
-      // Cliente: rol explícito, rol desconocido o coincide con el cliente
+      // Cliente: rol explícito, rol desconocido o coincide con el cliente.
+      // Antes elegía entre `TripTrackingScreen`/`RutaClienteDestino` según
+      // la caché de ruta — con `ViajeClienteScreen` unificado ya no hay dos
+      // pantallas entre las que elegir.
       if (role == 'cliente' || role == null || isCurrentClient) {
         final estadoNormalizado = SolicitudEstado.normalize(estado);
         if (SolicitudEstado.isSesionActiva(estadoNormalizado)) {
           await _notifyActiveSolicitudOnAppOpen();
         }
 
-        // If we have cached route UI for this solicitud (cliente), restore RutaClienteDestino
-        try {
-          final cache = await RouteCacheService.loadForSolicitud(solicitudId);
-          if (cache != null && cache.role == 'cliente') {
-            return RutaClienteDestino(idSolicitud: solicitudId);
-          }
-        } catch (e, st) {
-          ErrorReporter.report(e, st, reason: 'auth_service');
-        }
-
-        // Fallback: default tracking screen
-        return TripTrackingScreen(
-          solicitudId: solicitudId,
+        return ViajeClienteScreen(
+          viajeId: solicitudId,
           currentUserId: currentUid ?? clienteId ?? '',
-          cancelledBy: 'cliente',
         );
       }
     } catch (e, st) {

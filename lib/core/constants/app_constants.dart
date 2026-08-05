@@ -12,6 +12,15 @@ class AppConstants {
     defaultValue: false,
   );
 
+  // Key para Google Static Maps API (imagen estática del mapa de inicio del
+  // cliente). Distinta de la key nativa de Android/iOS embebida en
+  // AndroidManifest/AppDelegate: esa está restringida por package/bundle id
+  // y no sirve para peticiones HTTP directas desde Dart. Pasar por build:
+  // flutter run --dart-define=STATIC_MAPS_API_KEY=TU_KEY
+  static const String staticMapsApiKey = String.fromEnvironment(
+    'STATIC_MAPS_API_KEY',
+  );
+
   // Identificadores de la app en cada tienda, usados por UpdateService para
   // consultar la versión publicada. No son secretos (son públicos en la
   // ficha de cada tienda) ni cambian entre builds de la misma app, así que

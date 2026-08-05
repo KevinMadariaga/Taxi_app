@@ -5,6 +5,7 @@ import 'package:taxi_app/caracteristicas/autenticacion/dominio/modelos/auth_flow
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/casos_uso/sign_in_google_client_usecase.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/casos_uso/sign_in_apple_client_usecase.dart';
 import 'package:taxi_app/core/services/services.dart';
+import 'package:taxi_app/core/utils/network_error_helper.dart';
 
 class HomeAuthController extends ChangeNotifier {
   HomeAuthController({
@@ -76,11 +77,31 @@ class HomeAuthController extends ChangeNotifier {
     }
   }
 
+  /// Última barrera antes de mostrar un error en la UI: nunca debe llegar
+  /// texto crudo de una excepción (nombres de clase, códigos de Play
+  /// Services, "null, null", etc.) — si algo no vino ya traducido desde el
+  /// datasource, se cae a un mensaje genérico en español.
   String _toUiError(Object error) {
-    final raw = error.toString();
-    return raw
+    if (esErrorDeConexion(error)) {
+      return 'No tienes conexión a internet. Verifica tu conexión e intenta de nuevo.';
+    }
+
+    final raw = error
+        .toString()
         .replaceFirst('Bad state: ', '')
         .replaceFirst('Exception: ', '')
         .trim();
+
+    final pareceCrudo =
+        raw.isEmpty ||
+        raw.contains('PlatformException') ||
+        raw.contains('Instance of ') ||
+        raw.contains('null, null') ||
+        RegExp(r'^[A-Za-z_]+Exception').hasMatch(raw);
+
+    if (pareceCrudo) {
+      return 'No se pudo iniciar sesión. Intenta de nuevo en unos minutos.';
+    }
+    return raw;
   }
 }

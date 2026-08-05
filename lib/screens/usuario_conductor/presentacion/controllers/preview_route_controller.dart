@@ -148,6 +148,18 @@ class PreviewRouteController {
     onChanged?.call();
   }
 
+  /// Refleja localmente una contraoferta recién enviada, sin esperar el
+  /// round-trip del listener de Firestore (que puede tardar y deja la
+  /// tarjeta mostrando el precio viejo justo después de que el conductor
+  /// confirma el envío).
+  void applyLocalContraoferta(double valor) {
+    final preview = selectedPreview;
+    if (preview == null) return;
+    preview.solicitud.valorContraoferta = valor;
+    preview.solicitud.estadoContraoferta = 'pendiente_cliente';
+    onChanged?.call();
+  }
+
   Future<void> fetchRouteOSRM(String id, LatLng origin, LatLng dest) async {
     isLoadingPreviewRoute = true;
     onChanged?.call();

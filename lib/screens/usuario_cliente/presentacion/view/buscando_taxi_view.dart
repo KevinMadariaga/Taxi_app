@@ -1,18 +1,22 @@
+import 'dart:math' as math;
+
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart' hide DeviceType;
 import 'package:geolocator/geolocator.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart' show LatLng;
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:taxi_app/core/app_colores.dart';
-import 'package:taxi_app/features/trip_tracking_cliente/views/trip_tracking_screen.dart';
-import 'package:taxi_app/core/helpers/responsive_helper.dart';
+import 'package:taxi_app/core/services/app_remote_config_service.dart';
+import 'package:taxi_app/core/services/map_service_adapter.dart' as adapter;
+import 'package:taxi_app/caracteristicas/viaje_cliente/presentacion/vistas/viaje_cliente_screen.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/view/editar_oferta_busqueda_view.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/home_cliente_view.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/buscando_taxi_viewmodel.dart'
     show BuscandoTaxiViewModel;
 import 'package:taxi_app/screens/usuario_cliente/presentacion/widgets/contraofertas_modal.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/widgets/sonar_map_widget.dart';
 import 'package:taxi_app/widgets/intermediate_transition_view.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
 
@@ -22,8 +26,7 @@ import 'package:taxi_app/core/utils/error_reporter.dart';
 
 class BuscandoTaxiView extends StatefulWidget {
   final String? solicitudId;
-  final double defaultMarkerHue;
-  // Ubicación de recogida elegida en DetailsSolicitud (widget.origen). Al
+  // Ubicación de recogida elegida en ConfirmarSolicitudView (widget.origen). Al
   // llegar aquí ya no hace falta esperar GPS/caché para centrar el mapa: se
   // usa directamente el punto que el cliente ya confirmó como su recogida.
   final LatLng? initialClientLocation;
@@ -31,7 +34,6 @@ class BuscandoTaxiView extends StatefulWidget {
   const BuscandoTaxiView({
     Key? key,
     this.solicitudId,
-    this.defaultMarkerHue = BitmapDescriptor.hueYellow,
     this.initialClientLocation,
   }) : super(key: key);
 
@@ -43,8 +45,6 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
     with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final BuscandoTaxiViewModel _vm;
   late final AnimationController _dotsController;
-
-  GoogleMapController? _mapController;
 
   LatLng? _clientLocation;
 
@@ -80,14 +80,16 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
     )..repeat();
 
     // Centra de una vez con el punto de recogida ya elegido en
-    // DetailsSolicitud — no hay que esperar a caché/GPS para dibujar el mapa.
+    // ConfirmarSolicitudView — no hay que esperar a caché/GPS para dibujar el mapa.
     _clientLocation = widget.initialClientLocation;
 
     _vm.startSearchTimer();
     if (widget.initialClientLocation == null) {
-      // Solo si no llegó ubicación desde DetailsSolicitud recurrimos a
+      // Solo si no llegó ubicación desde ConfirmarSolicitudView recurrimos a
       // caché/GPS como respaldo (compatibilidad con navegación antigua).
       _initClientLocation();
+    } else {
+      _maybeCalcularRuta();
     }
     _vm.subscribeConductores();
     _vm.subscribeConductoresConectados();
@@ -103,9 +105,21 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
     if (!mounted) return;
     setState(() {});
     _maybeMostrarModalContraofertas();
+    _maybeCalcularRuta();
   }
 
   // ── Ubicación ─────────────────────────────────────────────────────────────
+
+  /// Dispara el cálculo de la ruta origen→destino en el ViewModel apenas se
+  /// conoce la ubicación del cliente (el destino llega por Firestore, ya
+  /// hidratado en el vm). Es seguro llamarla varias veces desde distintos
+  /// puntos (caché, GPS fresco, snapshot de la solicitud): `calcularRuta` es
+  /// idempotente y no repite la petición de red.
+  void _maybeCalcularRuta() {
+    final origen = _clientLocation;
+    if (origen == null) return;
+    _vm.calcularRuta(origen);
+  }
 
   Future<void> _initClientLocation() async {
     // 1. Mostrar posición cacheada inmediatamente (sin esperar GPS)
@@ -114,11 +128,12 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
       final lat = prefs.getDouble('cli_last_lat');
       final lng = prefs.getDouble('cli_last_lng');
       if (lat != null && lng != null && mounted) {
-        // Recentrar queda a cargo de SonarMapWidget.didUpdateWidget al
-        // recibir el nuevo clientLocation (ver _maybeRecenter) — así hay un
-        // solo lugar decidiendo cuándo mover la cámara, con el umbral de
-        // distancia mínima que evita el "salto" por ruido de GPS.
+        // Recentrar/encuadrar queda a cargo de
+        // SearchRouteMapWidget.didUpdateWidget al recibir el nuevo
+        // clientLocation — así hay un solo lugar decidiendo cuándo mover la
+        // cámara.
         setState(() => _clientLocation = LatLng(lat, lng));
+        _maybeCalcularRuta();
       }
     } catch (e, st) {
       ErrorReporter.report(e, st, reason: 'buscando_taxi_view');
@@ -134,6 +149,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
       if (!mounted) return;
       final fresh = LatLng(position.latitude, position.longitude);
       setState(() => _clientLocation = fresh);
+      _maybeCalcularRuta();
       final prefs = await SharedPreferences.getInstance();
       await prefs.setDouble('cli_last_lat', fresh.latitude);
       await prefs.setDouble('cli_last_lng', fresh.longitude);
@@ -160,10 +176,9 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
     _vm.finalizarTrackingConductores();
     await navigateWithIntermediateLoader(
       context: context,
-      nextBuilder: (_) => TripTrackingScreen(
-        solicitudId: solicitudId,
+      nextBuilder: (_) => ViajeClienteScreen(
+        viajeId: solicitudId,
         currentUserId: FirebaseAuth.instance.currentUser?.uid ?? '',
-        cancelledBy: 'cliente',
       ),
       title: 'Conductor encontrado',
       subtitle: 'Preparando tu ruta y detalles del viaje...',
@@ -257,162 +272,18 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
     return buf.toString();
   }
 
-  Future<void> _abrirModalEditarValor() async {
-    String formatInput(String raw) {
-      final digits = raw.replaceAll(RegExp(r'[^0-9]'), '');
-      if (digits.isEmpty) return '';
-      final parsed = int.tryParse(digits) ?? 0;
-      return _formatCurrency(parsed);
-    }
-
-    final initialDigits = _vm.valorServicioActual > 0
-        ? _vm.valorServicioActual.round().toString()
-        : '10000';
-    final initialFormatted = formatInput(initialDigits);
-    final controller = TextEditingController(text: initialFormatted)
-      ..selection = TextSelection(
-        baseOffset: 0,
-        extentOffset: initialFormatted.length,
-      );
-    bool isFormatting = false;
-
-    List<int> buildSuggestions() {
-      final current = int.tryParse(initialDigits) ?? 5000;
-      final base = current < 5000 ? 5000 : current;
-      return [base + 500, base + 1000, base + 1500, base + 2000];
-    }
-
+  /// Abre `EditarOfertaBusquedaView` como pantalla propia (no modal): pasa
+  /// el mismo `_vm` en vivo, así que guardar ahí ya actualiza esta pantalla
+  /// en tiempo real (el listener de Firestore de este State también lo
+  /// confirma apenas llega el eco). Al volver, `setState` fuerza además un
+  /// refresh inmediato aunque el eco de Firestore todavía no haya llegado.
+  Future<void> _abrirEditarOferta() async {
     _modalEditarAbierto = true;
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) {
-        final media = MediaQuery.of(ctx);
-        final keyboardInset = media.viewInsets.bottom;
-        final bottomGap = keyboardInset > 0
-            ? keyboardInset + 12
-            : media.viewPadding.bottom + 12;
-
-        return Padding(
-          padding: EdgeInsets.fromLTRB(12, 16, 12, bottomGap),
-          child: Material(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16.r),
-            clipBehavior: Clip.antiAlias,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Actualizar valor del servicio',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 18.sp,
-                    ),
-                  ),
-                  SizedBox(height: 8.h),
-                  TextField(
-                    controller: controller,
-                    keyboardType: TextInputType.number,
-                    onChanged: (value) {
-                      if (isFormatting) return;
-                      final formatted = formatInput(value);
-                      if (formatted == value) return;
-                      isFormatting = true;
-                      controller.value = TextEditingValue(
-                        text: formatted,
-                        selection: TextSelection.collapsed(
-                          offset: formatted.length,
-                        ),
-                      );
-                      isFormatting = false;
-                    },
-                    decoration: const InputDecoration(
-                      prefixText: '\$ ',
-                      hintText: 'Ej: 11.000',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  SizedBox(height: 10.h),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: buildSuggestions().map((value) {
-                      return ActionChip(
-                        label: Text(
-                          '\$${_formatCurrency(value)}',
-                          style: TextStyle(fontSize: 13.sp),
-                        ),
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 10.w,
-                          vertical: 3.h,
-                        ),
-                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        onPressed: () {
-                          final formatted = _formatCurrency(value);
-                          controller.value = TextEditingValue(
-                            text: formatted,
-                            selection: TextSelection.collapsed(
-                              offset: formatted.length,
-                            ),
-                          );
-                        },
-                      );
-                    }).toList(),
-                  ),
-                  SizedBox(height: 12.h),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _vm.isUpdatingValor
-                          ? null
-                          : () async {
-                              final digits = controller.text.replaceAll(
-                                RegExp(r'[^0-9]'),
-                                '',
-                              );
-                              if (digits.isEmpty) return;
-                              final next = double.tryParse(digits);
-                              if (next == null || next <= 0) return;
-                              final messenger = ScaffoldMessenger.of(context);
-                              final navigator = Navigator.of(ctx);
-                              final ok = await _vm.actualizarValorServicio(
-                                next,
-                              );
-                              if (!mounted) return;
-                              navigator.pop();
-                              messenger.showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    ok
-                                        ? 'Valor actualizado, seguimos buscando conductor.'
-                                        : 'No se pudo actualizar el valor.',
-                                  ),
-                                ),
-                              );
-                            },
-                      child: _vm.isUpdatingValor
-                          ? SizedBox(
-                              width: 18.w,
-                              height: 18.h,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Text('Guardar nuevo valor'),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
+    await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => EditarOfertaBusquedaView(vm: _vm)),
     );
     _modalEditarAbierto = false;
-    controller.dispose();
+    if (mounted) setState(() {});
   }
 
   // ── Dispose ───────────────────────────────────────────────────────────────
@@ -420,7 +291,6 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _mapController?.dispose();
     _vm.removeListener(_onVmChanged);
     _vm.dispose();
     _dotsController.dispose();
@@ -434,10 +304,6 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
     final media = MediaQuery.of(context);
     final screenW = media.size.width;
     final isTablet = screenW >= 600;
-    final mapHeight = ResponsiveHelper.hp(
-      context,
-      isTablet ? 42 : 46,
-    ).clamp(200.0, 620.0);
 
     return PopScope(
       canPop: false,
@@ -452,61 +318,39 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
         _cancelSolicitud();
       },
       child: Scaffold(
+        // El modal "Actualizar valor" tiene su propio TextField con
+        // autofocus — sin esto, el Scaffold de ATRÁS (con el mapa) se
+        // encogía para "evitar" el teclado que en realidad es del modal de
+        // arriba, deformando el mapa mientras el teclado estaba abierto. El
+        // modal ya calcula su propio padding con `viewInsets.bottom`, no
+        // necesita que este Scaffold también reaccione. Mismo patrón que ya
+        // usa `confirmar_solicitud_view.dart`.
+        resizeToAvoidBottomInset: false,
         backgroundColor: AppColores.background,
         body: SafeArea(
           bottom: false,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Encabezado fijo arriba
-              Padding(
-                padding: EdgeInsets.fromLTRB(
-                  isTablet ? 32 : 16,
-                  12,
-                  isTablet ? 32 : 16,
-                  0,
-                ),
-                child: _buildHeader(isTablet),
-              ),
-              // Oferta + mapa centrados; el texto "buscando" queda equidistante
-              // entre el mapa y el botón cancelar (mismos Spacer arriba/abajo).
+              SizedBox(height: 12.h),
+              // Mapa: ocupa todo el espacio disponible arriba (Expanded evita
+              // cualquier cálculo de altura por porcentaje de pantalla — y con
+              // eso, cualquier riesgo de overflow por ese cálculo).
               Expanded(
                 child: Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: isTablet ? 32 : 16,
-                    vertical: 8.h,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const Spacer(),
-                      _buildOfertaActual(isTablet),
-                      SizedBox(height: 16.h),
-                      SonarMapWidget(
-                        clientLocation: _clientLocation,
-                        conductoresPositions: _vm.conductoresPositions,
-                        conectadosPositions: _vm.conectadosPositions,
-                        isMoto: _vm.isMotoSolicitud,
-                        ampliarRango: _vm.searchSeconds >= BuscandoTaxiViewModel.segundosAviso5min,
-                        mapHeight: mapHeight,
-                        onMapCreated: (controller) {
-                          // El zoom/centro inicial ya lo fija Mapagoogle con
-                          // initialTarget/initialZoom; re-animar aquí a otro
-                          // zoom (14) lo deshacía apenas se creaba el mapa.
-                          // Los siguientes cambios de ubicación los recentra
-                          // el propio SonarMapWidget (ver _maybeRecenter).
-                          _mapController = controller;
-                        },
-                      ),
-                      const Spacer(),
-                      _buildSearchingSection(isTablet),
-                      const Spacer(),
-                    ],
+                  padding: EdgeInsets.symmetric(horizontal: isTablet ? 32 : 16),
+                  child: _BuscandoTaxiStaticMap(
+                    clientLocation: _clientLocation,
+                    destinoLocation: _vm.destinoLocation,
+                    routePoints: _vm.routePoints,
+                    isMoto: _vm.isMotoSolicitud,
                   ),
                 ),
               ),
-              // Botón cancelar siempre visible en el borde inferior
-              _buildBottomCancelBar(isTablet, media),
+              // Tarjeta inferior: oferta (compacta, editable), "Buscando
+              // conductor", contador y botón cancelar — todo en un solo
+              // bloque fijo al borde inferior.
+              _buildBottomCard(isTablet, media),
             ],
           ),
         ),
@@ -516,154 +360,77 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
 
   // ── Secciones del build ───────────────────────────────────────────────────
 
-  Widget _buildHeader(bool isTablet) {
-    return Row(
-      children: [
-        const Icon(Icons.search, color: AppColores.primary, size: 22),
-        SizedBox(width: 8.w),
-        Text(
-          'Buscando...',
-          style: TextStyle(
-            fontSize: isTablet ? 22 : 18,
-            fontWeight: FontWeight.w800,
-            color: AppColores.textPrimary,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildOfertaActual(bool isTablet) {
-    const Color verde = Color(0xFF1F9D55);
-    return GestureDetector(
-      onTap: _vm.isUpdatingValor ? null : _abrirModalEditarValor,
+  /// Chip compacto de la oferta actual — tocable para editar el valor.
+  /// Antes era una tarjeta grande con gradiente arriba del mapa; ahora vive
+  /// dentro de la tarjeta inferior única, junto al resto del estado de
+  /// búsqueda.
+  Widget _buildOfertaChip(bool isTablet) {
+    return InkWell(
+      onTap: _vm.isUpdatingValor ? null : _abrirEditarOferta,
+      borderRadius: BorderRadius.circular(12.r),
       child: Container(
-        padding: EdgeInsets.symmetric(
-          horizontal: 18.w,
-          vertical: isTablet ? 18 : 16,
-        ),
+        padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 10.h),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF22B567), verde],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(16.r),
-          boxShadow: [
-            BoxShadow(
-              color: verde.withValues(alpha: 0.35),
-              blurRadius: 14,
-              offset: const Offset(0, 6),
-            ),
-          ],
+          color: AppColores.primary.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(12.r),
+          border: Border.all(color: AppColores.primary.withValues(alpha: 0.25)),
         ),
         child: Row(
           children: [
-            Container(
-              width: 44.w,
-              height: 44.h,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.20),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.local_offer_rounded,
-                color: Colors.white,
-                size: 22,
+            Icon(
+              Icons.local_offer_rounded,
+              size: isTablet ? 20 : 18,
+              color: AppColores.primary,
+            ),
+            SizedBox(width: 8.w),
+            Text(
+              'Tu oferta',
+              style: TextStyle(
+                fontSize: isTablet ? 13 : 12,
+                fontWeight: FontWeight.w600,
+                color: AppColores.textSecondary,
               ),
             ),
-            SizedBox(width: 14.w),
+            SizedBox(width: 6.w),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Tu oferta',
-                    style: TextStyle(
-                      fontSize: isTablet ? 14 : 12.5,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white.withValues(alpha: 0.9),
-                    ),
-                  ),
-                  SizedBox(height: 2.h),
-                  Text(
-                    '\$${_formatCurrency(_vm.valorServicioActual)}',
-                    style: TextStyle(
-                      fontSize: isTablet ? 32 : 28,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -0.5,
-                      color: Colors.white,
-                    ),
-                  ),
-                ],
+              child: Text(
+                '\$${_formatCurrency(_vm.valorServicioActual)}',
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: isTablet ? 16 : 14.5,
+                  fontWeight: FontWeight.w800,
+                  color: AppColores.textPrimary,
+                ),
               ),
             ),
             if (_vm.isUpdatingValor)
               SizedBox(
-                width: 20.w,
-                height: 20.h,
+                width: 16.w,
+                height: 16.h,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  color: Colors.white,
+                  color: AppColores.primary,
                 ),
               )
             else
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 6.h),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.20),
-                  borderRadius: BorderRadius.circular(20.r),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.edit, size: 14, color: Colors.white),
-                    SizedBox(width: 4.w),
-                    Text(
-                      'Editar',
-                      style: TextStyle(
-                        fontSize: 12.5.sp,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.edit, size: 14, color: AppColores.primary),
+                  SizedBox(width: 4.w),
+                  Text(
+                    'Editar',
+                    style: TextStyle(
+                      fontSize: 12.5.sp,
+                      fontWeight: FontWeight.w700,
+                      color: AppColores.primary,
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildSearchingSection(bool isTablet) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          'Buscando el conductor más cercano para ti.',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: AppColores.textSecondary,
-            fontSize: isTablet ? 17 : 15,
-            fontWeight: FontWeight.w600,
-            height: 1.4.h,
-          ),
-        ),
-        SizedBox(height: 14.h),
-        _buildSearchingDots(isTablet),
-        SizedBox(height: 10.h),
-        Text(
-          _formatDuration(_vm.searchSeconds),
-          style: TextStyle(
-            fontSize: isTablet ? 28 : 24,
-            fontWeight: FontWeight.w700,
-            color: AppColores.primary,
-            letterSpacing: 2,
-          ),
-        ),
-      ],
     );
   }
 
@@ -714,14 +481,18 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
     Navigator.of(context).maybePop();
   }
 
-  Widget _buildBottomCancelBar(bool isTablet, MediaQueryData media) {
+  /// Tarjeta única del borde inferior: oferta compacta, "Buscando conductor"
+  /// + puntos animados, contador de tiempo, y botón cancelar. Reemplaza a los
+  /// tres bloques separados que antes se repartían con `Spacer`s alrededor
+  /// del mapa (oferta arriba, texto+contador al medio, cancelar al fondo).
+  Widget _buildBottomCard(bool isTablet, MediaQueryData media) {
     // Inset real de la barra de navegación + separación, para que el botón
     // no quede pegado a la barra de Android (gestos o 3 botones).
     final bottomPad = media.padding.bottom + 14.0;
     return Container(
       padding: EdgeInsets.fromLTRB(
         isTablet ? 32 : 16,
-        isTablet ? 20 : 14,
+        16,
         isTablet ? 32 : 16,
         bottomPad,
       ),
@@ -729,7 +500,49 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
         color: AppColores.background,
         border: Border(top: BorderSide(color: AppColores.borderSubtle)),
       ),
-      child: _buildCancelButton(isTablet),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildOfertaChip(isTablet),
+          SizedBox(height: 16.h),
+          Text(
+            'Buscando conductor',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: isTablet ? 18 : 16,
+              fontWeight: FontWeight.w800,
+              color: AppColores.textPrimary,
+            ),
+          ),
+          SizedBox(height: 4.h),
+          Text(
+            'Buscamos al conductor más cercano para ti.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: AppColores.textSecondary,
+              fontSize: isTablet ? 14 : 12.5,
+              fontWeight: FontWeight.w600,
+              height: 1.3.h,
+            ),
+          ),
+          SizedBox(height: 12.h),
+          _buildSearchingDots(isTablet),
+          SizedBox(height: 10.h),
+          Text(
+            _formatDuration(_vm.searchSeconds),
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: isTablet ? 26 : 22,
+              fontWeight: FontWeight.w700,
+              color: AppColores.primary,
+              letterSpacing: 2,
+            ),
+          ),
+          SizedBox(height: 16.h),
+          _buildCancelButton(isTablet),
+        ],
+      ),
     );
   }
 
@@ -789,6 +602,415 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
           }),
         );
       },
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Mapa estático de búsqueda (Static Maps API)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Mapa de la pantalla "buscando taxi" construido con una imagen estática de
+/// Google Static Maps API en vez de un `GoogleMap` embebido: un mapa en vivo
+/// gasta GPU/RAM en tiles renderizados solo para mostrar dos puntos fijos
+/// (origen y destino) que no se mueven mientras se busca conductor — mismo
+/// criterio ya aplicado en `_HomeClienteMap`/`_HomeConductorIdleMap`.
+///
+/// Reemplaza a `SearchRouteMapWidget` (que queda huérfano/sin caller, no se
+/// borró por si se necesita como referencia). Decisiones tomadas acá:
+///
+/// - **Encuadre**: se calcula el bounding box de origen+destino y se deriva
+///   un zoom continuo (fórmula estándar `getBoundsZoomLevel` de Google, misma
+///   familia de proyección Mercator que usa `_boundsZoom` abajo) para que
+///   ambos puntos quepan
+///   con margen — sin escalones fijos ni zoom constante: sigue funcionando
+///   igual de bien cerca que lejos.
+/// - **Marcador del cliente**: Static Maps no puede dibujar un ícono que es
+///   un asset local de Flutter (necesitaría URL pública), así que se
+///   proyecta la coordenada a un offset en píxeles respecto al centro de la
+///   imagen (misma familia de fórmula que el zoom) y se overlay-ea con
+///   `Positioned` el ícono real de carro/moto según `isMoto` (mismos assets
+///   que ya usaba `SearchRouteMapWidget`).
+/// - **Marcador de destino**: se overlay-ea con el mismo mecanismo (en vez
+///   del parámetro nativo `markers=` de Static Maps) para poder usar el pin
+///   de marca (`map_pin_red.png`, el mismo asset que el resto de la app) en
+///   vez del pin genérico de Google — el offset de proyección ya hacía
+///   falta para el ícono del cliente, así que reusarlo acá no cuesta
+///   matemática adicional.
+/// - **Ruta**: se dibuja también sobre la imagen vía `path=enc:<polyline>`,
+///   codificando `routePoints` (ya resuelto por calles en el ViewModel) con
+///   el algoritmo estándar de Google Polyline (`MapService.encodePolyline`,
+///   inverso de `decodePolyline`).
+/// - **Conductores cercanos/conectados**: a propósito NO se dibujan en este
+///   mapa — el pedido explícito fue solo los dos marcadores (cliente +
+///   destino). Las suscripciones de Firestore que alimentan esos datos en
+///   el ViewModel (`subscribeConductores`/`subscribeConductoresConectados`)
+///   siguen intactas; solo se dejó de visualizarlos acá.
+class _BuscandoTaxiStaticMap extends StatelessWidget {
+  const _BuscandoTaxiStaticMap({
+    required this.clientLocation,
+    required this.destinoLocation,
+    required this.routePoints,
+    required this.isMoto,
+  });
+
+  final LatLng? clientLocation;
+  final LatLng? destinoLocation;
+  final List<LatLng> routePoints;
+  final bool isMoto;
+
+  static const adapter.MapService _mapService = adapter.MapService();
+
+  // Zoom fijo mientras solo se conoce el cliente (destino aún hidratándose
+  // desde Firestore) — mismo valor que usan los mapas estáticos de los home.
+  static const double _zoomSinDestino = 16;
+  static const double _zoomMin = 3;
+  static const double _zoomMax = 20;
+
+  static const double _vehicleIconSize = 40;
+  static const double _destinoIconSize = 44;
+
+  // ── Proyección Web Mercator (mismas fórmulas que usa Google Maps/Static
+  // Maps internamente para pasar de lat/lng a píxeles) ───────────────────
+
+  static Offset _project(LatLng point) {
+    final double sinLat = math
+        .sin(point.latitude * math.pi / 180)
+        .clamp(-0.9999, 0.9999)
+        .toDouble();
+    final double x = 128.0 + point.longitude * (256.0 / 360.0);
+    final double y =
+        128.0 -
+        (math.log((1.0 + sinLat) / (1.0 - sinLat)) / (4.0 * math.pi)) * 256.0;
+    return Offset(x, y);
+  }
+
+  /// Offset en píxeles (respecto a [center]) de [point], al [zoom] dado.
+  /// Misma unidad de píxeles que el parámetro `size` de Static Maps: el
+  /// `scale=2` de retina no afecta esta cuenta, solo aumenta la densidad de
+  /// la imagen, no el área geográfica que cubre.
+  static Offset _pixelOffset({
+    required LatLng center,
+    required LatLng point,
+    required double zoom,
+  }) {
+    final double scale = math.pow(2, zoom).toDouble();
+    final Offset centerPx = _project(center);
+    final Offset pointPx = _project(point);
+    return Offset(
+      (pointPx.dx - centerPx.dx) * scale,
+      (pointPx.dy - centerPx.dy) * scale,
+    );
+  }
+
+  static double _latRad(double lat) {
+    final double sinLat = math
+        .sin(lat * math.pi / 180)
+        .clamp(-0.9999, 0.9999)
+        .toDouble();
+    final double radX2 = math.log((1.0 + sinLat) / (1.0 - sinLat)) / 2.0;
+    return radX2.clamp(-math.pi, math.pi) / 2.0;
+  }
+
+  /// Zoom continuo que encuadra el bounding box de [a] y [b] dentro de un
+  /// viewport de [widthPx]x[heightPx] (fórmula estándar `getBoundsZoomLevel`
+  /// de Google): el zoom sigue bajando de forma continua a medida que crece
+  /// la distancia entre los puntos, sin techo/piso a mitad de escala.
+  static double _boundsZoom(
+    LatLng a,
+    LatLng b,
+    double widthPx,
+    double heightPx,
+  ) {
+    const double worldDim = 256.0;
+    // Margen para que los íconos (que tienen alto/ancho propio, no son
+    // puntos infinitesimales) no queden pegados al borde de la imagen.
+    final double effectiveWidth = math.max(40.0, widthPx - 90.0);
+    final double effectiveHeight = math.max(40.0, heightPx - 120.0);
+
+    final LatLng sw = LatLng(
+      math.min(a.latitude, b.latitude),
+      math.min(a.longitude, b.longitude),
+    );
+    final LatLng ne = LatLng(
+      math.max(a.latitude, b.latitude),
+      math.max(a.longitude, b.longitude),
+    );
+
+    final double latFraction =
+        (_latRad(ne.latitude) - _latRad(sw.latitude)) / math.pi;
+    final double lngDiff = ne.longitude - sw.longitude;
+    final double lngFraction =
+        (lngDiff < 0 ? lngDiff + 360.0 : lngDiff) / 360.0;
+
+    double zoomFor(double mapPx, double fraction) {
+      if (fraction <= 0) return _zoomMax;
+      return math.log(mapPx / worldDim / fraction) / math.ln2;
+    }
+
+    final double latZoom = zoomFor(effectiveHeight, latFraction.abs());
+    final double lngZoom = zoomFor(effectiveWidth, lngFraction.abs());
+
+    return math.min(latZoom, lngZoom).clamp(_zoomMin, _zoomMax).toDouble();
+  }
+
+  String _staticMapUrl({
+    required LatLng center,
+    required double zoom,
+    required int width,
+    required int height,
+    required String apiKey,
+    String? encodedPath,
+  }) {
+    final uri = Uri.https('maps.googleapis.com', '/maps/api/staticmap', {
+      'center': '${center.latitude},${center.longitude}',
+      'zoom': zoom.floor().toString(),
+      'size': '${width}x$height',
+      'scale': '2',
+      'maptype': 'roadmap',
+      'key': apiKey,
+      // Static Maps espera RRGGBBAA (hex, sin '#', alpha al final) — se
+      // arma desde `AppColores.primary` (naranja de marca) en vez de un
+      // hex suelto para no volver a desincronizarse si el color cambia.
+      // Un solo `path=` (sin doble trazo): para una ruta corta de búsqueda
+      // no hace falta la técnica de doble polyline que sí usa el mapa de
+      // tracking en vivo.
+      if (encodedPath != null)
+        'path': 'color:0x${_routePathHex()}|weight:5|enc:$encodedPath',
+    });
+    return uri.toString();
+  }
+
+  /// `RRGGBBAA` (Static Maps) desde `AppColores.primary` con ~80% opacidad
+  /// — el `Color` de Flutter guarda alpha primero (`AARRGGBB`).
+  String _routePathHex() {
+    final rgb = (AppColores.primary.toARGB32() & 0xFFFFFF)
+        .toRadixString(16)
+        .padLeft(6, '0');
+    return '${rgb}CC';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColores.cardBackground,
+        borderRadius: BorderRadius.circular(16.r),
+        border: Border.all(color: AppColores.borderSubtle),
+        boxShadow: const [
+          BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 2)),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final client = clientLocation;
+          if (client == null) {
+            return const _MapaBusquedaCargando();
+          }
+
+          // Static Maps API acepta como máximo 640x640 en "size" (antes de
+          // aplicar "scale") — mismo límite que ya respetan los mapas
+          // estáticos de los home de cliente/conductor.
+          final double width = constraints.maxWidth
+              .clamp(100.0, 640.0)
+              .toDouble();
+          final double height = constraints.maxHeight
+              .clamp(100.0, 640.0)
+              .toDouble();
+
+          final destino = destinoLocation;
+          final bool hasDestino = destino != null;
+          final LatLng center = hasDestino
+              ? LatLng(
+                  (client.latitude + destino.latitude) / 2,
+                  (client.longitude + destino.longitude) / 2,
+                )
+              : client;
+          // Redondeado ACÁ, una sola vez: Static Maps solo acepta zoom
+          // entero, así que la imagen real siempre se renderiza al valor
+          // truncado. Si los offsets de los íconos se calculan con el zoom
+          // sin truncar (ej. 14.9) mientras la imagen se pidió a 14, la
+          // matemática de posición asume una imagen más acercada de la que
+          // realmente llegó — los íconos terminan empujados fuera del
+          // cuadro. Truncar antes de derivar todo lo demás mantiene la
+          // imagen pedida y los offsets consistentes entre sí.
+          final double zoom =
+              (hasDestino
+                      ? _boundsZoom(client, destino, width, height)
+                      : _zoomSinDestino)
+                  .floorToDouble();
+
+          // El routing (OSRM/Directions) "engancha" la ruta al punto
+          // ruteable más cercano, que casi nunca es exactamente la
+          // coordenada del cliente/destino — sin esto, la línea quedaba
+          // flotando a un tramo del ícono de vehículo y del pin en vez de
+          // salir/llegar justo desde/hacia ellos. Se antepone/agrega la
+          // coordenada exacta como primer/último punto para que la traza
+          // siempre toque los dos íconos.
+          final String? encodedPath = (hasDestino && routePoints.length >= 2)
+              ? _mapService.encodePolyline([client, ...routePoints, destino])
+              : null;
+
+          return FutureBuilder<String>(
+            future: AppRemoteConfigService.instance.fetchStaticMapsApiKey(),
+            builder: (context, keySnapshot) {
+              if (keySnapshot.connectionState != ConnectionState.done) {
+                return const _MapaBusquedaCargando();
+              }
+              final apiKey = keySnapshot.data ?? '';
+              if (apiKey.isEmpty) {
+                return const _MapaBusquedaPlaceholder();
+              }
+
+              final url = _staticMapUrl(
+                center: center,
+                zoom: zoom,
+                width: width.round(),
+                height: height.round(),
+                apiKey: apiKey,
+                encodedPath: encodedPath,
+              );
+
+              return Stack(
+                fit: StackFit.expand,
+                children: [
+                  CachedNetworkImage(
+                    key: ValueKey(url),
+                    imageUrl: url,
+                    fit: BoxFit.cover,
+                    placeholder: (context, _) => const _MapaBusquedaCargando(),
+                    errorWidget: (context, _, error) {
+                      ErrorReporter.report(
+                        error,
+                        StackTrace.current,
+                        reason:
+                            'buscando_taxi_view: falló imagen de Static Maps',
+                      );
+                      return const _MapaBusquedaPlaceholder();
+                    },
+                  ),
+                  if (hasDestino)
+                    _MapPinOverlay(
+                      offset: _pixelOffset(
+                        center: center,
+                        point: destino,
+                        zoom: zoom,
+                      ),
+                      boxWidth: width,
+                      boxHeight: height,
+                      iconSize: _destinoIconSize,
+                      child: Image.asset(
+                        'assets/img/map_pin_red.png',
+                        width: _destinoIconSize,
+                        height: _destinoIconSize,
+                      ),
+                    ),
+                  _MapPinOverlay(
+                    offset: hasDestino
+                        ? _pixelOffset(
+                            center: center,
+                            point: client,
+                            zoom: zoom,
+                          )
+                        : Offset.zero,
+                    boxWidth: width,
+                    boxHeight: height,
+                    iconSize: _vehicleIconSize,
+                    anchorBottom: false,
+                    child: Image.asset(
+                      isMoto
+                          ? 'assets/img/icono_moto.png'
+                          : 'assets/img/icono_carro.png',
+                      width: _vehicleIconSize,
+                      height: _vehicleIconSize,
+                    ),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// Posiciona un ícono exacto sobre un punto del mapa, dado su [offset] en
+/// píxeles respecto al centro de la imagen.
+///
+/// [anchorBottom] controla qué parte del ícono cae sobre el punto:
+/// - `true` (pin/gota, ej. `map_pin_red.png`): la PUNTA, borde inferior
+///   central del asset — `Center` sola centraría el cuadrado del ícono, no
+///   la punta (mismo criterio que el pin de `_HomeClienteMap`).
+/// - `false` (vista cenital, ej. `icono_carro.png`/`icono_moto.png`): el
+///   CENTRO del asset, porque ahí es donde está el vehículo en un ícono
+///   visto desde arriba — anclarlo por la punta lo desplazaría ~medio alto
+///   de ícono hacia arriba de su ubicación real.
+class _MapPinOverlay extends StatelessWidget {
+  const _MapPinOverlay({
+    required this.offset,
+    required this.boxWidth,
+    required this.boxHeight,
+    required this.iconSize,
+    required this.child,
+    this.anchorBottom = true,
+  });
+
+  final Offset offset;
+  final double boxWidth;
+  final double boxHeight;
+  final double iconSize;
+  final Widget child;
+  final bool anchorBottom;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      left: boxWidth / 2 + offset.dx - iconSize / 2,
+      top: boxHeight / 2 + offset.dy - (anchorBottom ? iconSize : iconSize / 2),
+      width: iconSize,
+      height: iconSize,
+      child: child,
+    );
+  }
+}
+
+/// Fondo mostrado si falla la imagen (sin red / sin key configurada) o si la
+/// key de Remote Config está vacía. Evita el ícono de imagen rota y deja la
+/// pantalla usable sin mapa.
+class _MapaBusquedaPlaceholder extends StatelessWidget {
+  const _MapaBusquedaPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: AppColores.grey300.withValues(alpha: 0.35),
+      alignment: Alignment.center,
+      child: Icon(
+        Icons.map_outlined,
+        size: 40,
+        color: AppColores.textSecondary.withValues(alpha: 0.6),
+      ),
+    );
+  }
+}
+
+/// Loader acotado al cuadro del mapa mientras no hay ubicación del cliente
+/// todavía, o mientras se descarga la imagen estática ya con ubicación.
+class _MapaBusquedaCargando extends StatelessWidget {
+  const _MapaBusquedaCargando();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: AppColores.grey300.withValues(alpha: 0.35),
+      alignment: Alignment.center,
+      child: const SizedBox(
+        width: 28,
+        height: 28,
+        child: CircularProgressIndicator(strokeWidth: 2.4),
+      ),
     );
   }
 }

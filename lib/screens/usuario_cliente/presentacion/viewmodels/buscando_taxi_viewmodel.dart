@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart' show AppLifecycleState;
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import 'package:taxi_app/core/services/services.dart';
+import 'package:taxi_app/core/services/map_service_adapter.dart' as adapter;
 import 'package:taxi_app/core/helpers/session_helper.dart';
 import 'package:taxi_app/core/constants/solicitud_estado.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
@@ -36,10 +37,14 @@ class ContraofertaItem {
 }
 
 class BuscandoTaxiViewModel extends ChangeNotifier {
-  BuscandoTaxiViewModel({FirebaseFirestore? firestore})
-    : _firestore = firestore ?? FirebaseFirestore.instance;
+  BuscandoTaxiViewModel({
+    FirebaseFirestore? firestore,
+    adapter.MapService? mapService,
+  }) : _firestore = firestore ?? FirebaseFirestore.instance,
+       _mapService = mapService ?? const adapter.MapService();
 
   final FirebaseFirestore _firestore;
+  final adapter.MapService _mapService;
 
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _solicitudSub;
   bool _disposed = false;
@@ -50,6 +55,14 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
   String? _solicitudId;
   double _valorServicioActual = 0;
   String? _tipoVehiculo;
+
+  // ── Destino + trazado de ruta (búsqueda) ────────────────────────────────
+  // Se hidrata desde `data['destino']` (mismo snapshot de la solicitud que ya
+  // se escucha en `iniciarEscucha`), y la ruta se calcula una sola vez que se
+  // conocen origen (lo aporta la View, vía GPS/caché) y destino.
+  LatLng? _destinoLocation;
+  List<LatLng> _routePoints = [];
+  bool _isLoadingRoute = false;
 
   // Lista de contraofertas activas (una por conductor)
   List<ContraofertaItem> _contraofertas = [];
@@ -102,6 +115,9 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
       (_valorContraofertaPendiente != null &&
           _estadoContraoferta == 'pendiente_cliente');
   String? get counterOfferToken => _counterOfferToken;
+  LatLng? get destinoLocation => _destinoLocation;
+  List<LatLng> get routePoints => List.unmodifiable(_routePoints);
+  bool get isLoadingRoute => _isLoadingRoute;
 
   void iniciarEscucha({
     required String? solicitudId,
@@ -155,6 +171,15 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
     valor ??= _toDouble(data['valor']);
     _valorServicioActual = valor ?? 0;
     _tipoVehiculo = data['tipoVehiculo']?.toString();
+
+    final destino = data['destino'];
+    if (destino is Map) {
+      final lat = destino['lat'];
+      final lng = destino['lng'];
+      if (lat is num && lng is num) {
+        _destinoLocation = LatLng(lat.toDouble(), lng.toDouble());
+      }
+    }
 
     // ── Nuevo: mapa de contraofertas por conductor ──
     final contMap = data['contraofertas'];
@@ -281,6 +306,28 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
     return double.tryParse(value?.toString() ?? '');
   }
 
+  /// Calcula (una sola vez) la ruta por calle entre [origen] y el destino de
+  /// la solicitud, para trazarla en el mapa de búsqueda. Idempotente: llamarla
+  /// de nuevo con la ruta ya calculada (o sin destino aún conocido, o
+  /// mientras hay una carga en curso) no hace nada — así la View puede
+  /// invocarla desde varios puntos (cache/GPS, snapshot de Firestore) sin
+  /// duplicar peticiones de red.
+  Future<void> calcularRuta(LatLng origen) async {
+    final destino = _destinoLocation;
+    if (destino == null || _isLoadingRoute || _routePoints.isNotEmpty) return;
+
+    _isLoadingRoute = true;
+    _safeNotify();
+    try {
+      _routePoints = await _mapService.getRoutePolyline(origen, destino);
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'buscando_taxi_viewmodel');
+    } finally {
+      _isLoadingRoute = false;
+      _safeNotify();
+    }
+  }
+
   Future<void> _mostrarNotificacionContraoferta(double valor) async {
     try {
       final valorTxt = _formatMiles(valor.round());
@@ -303,6 +350,33 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
       if (reverseIndex > 1 && reverseIndex % 3 == 1) buf.write('.');
     }
     return buf.toString();
+  }
+
+  /// Cambia el tipo de vehículo de la solicitud en curso ('carro'/'moto').
+  /// No recalcula el valor ofrecido — el cliente lo ajusta por separado,
+  /// mismo criterio que ya usa `MapapreviewViewModel` (valor y vehículo son
+  /// controles independientes, no atados).
+  Future<bool> actualizarTipoVehiculo(String tipo) async {
+    final solicitudId = _solicitudId;
+    if (solicitudId == null || solicitudId.isEmpty) return false;
+    if (_tipoVehiculo == tipo) return true;
+    if (_isUpdatingValor) return false;
+
+    _isUpdatingValor = true;
+    _safeNotify();
+    try {
+      await _firestore.collection('solicitudes').doc(solicitudId).set({
+        'tipoVehiculo': tipo,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      _tipoVehiculo = tipo;
+      return true;
+    } catch (_) {
+      return false;
+    } finally {
+      _isUpdatingValor = false;
+      _safeNotify();
+    }
   }
 
   Future<bool> actualizarValorServicio(double nuevoValor) async {

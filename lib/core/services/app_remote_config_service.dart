@@ -13,9 +13,22 @@ class AppRemoteConfigService {
   /// Configúrala en Firebase Remote Config console con nombre `fcm_server_key`.
   static const String fcmServerKeyKey = 'fcm_server_key';
 
+  /// Key de Google Static Maps API (mapa estático de los home de cliente y
+  /// conductor). Vive acá y no en `--dart-define` para que funcione sin
+  /// importar cómo se corra/compile la app (terminal, botón visual, CI) —
+  /// un dart-define exige recordar pasar el flag siempre, esto no.
+  /// Configúrala en Firebase Remote Config console con nombre
+  /// `static_maps_api_key`.
+  static const String staticMapsApiKeyKey = 'static_maps_api_key';
+
   final FirebaseRemoteConfig _remoteConfig = FirebaseRemoteConfig.instance;
 
   bool _configured = false;
+
+  // Memoiza el Future para que los widgets del mapa (que pueden reconstruirse
+  // seguido) no disparen un fetch nuevo cada vez — se resuelve una sola vez
+  // por sesión de la app.
+  Future<String>? _staticMapsKeyFuture;
 
   Future<void> _ensureConfigured() async {
     if (_configured) return;
@@ -31,6 +44,7 @@ class AppRemoteConfigService {
       minimumRequiredVersionKey: '',
       latestVersionKey: '',
       fcmServerKeyKey: '',
+      staticMapsApiKeyKey: '',
     });
     _configured = true;
   }
@@ -45,6 +59,14 @@ class AppRemoteConfigService {
 
   Future<String?> fetchFcmServerKey() async {
     return _fetchString(fcmServerKeyKey);
+  }
+
+  /// Devuelve '' (nunca null) si no se pudo resolver, para que los widgets
+  /// del mapa solo necesiten chequear `.isEmpty`.
+  Future<String> fetchStaticMapsApiKey() {
+    return _staticMapsKeyFuture ??= _fetchString(
+      staticMapsApiKeyKey,
+    ).then((value) => value ?? '');
   }
 
   Future<String?> _fetchString(String key) async {

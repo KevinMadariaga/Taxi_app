@@ -130,8 +130,9 @@ Punto de entrada de auth: `lib/core/auth/app_auth_adapter.dart` implementa `Clie
 # Instalar dependencias
 flutter pub get
 
-# Ejecutar en modo debug
-flutter run
+# Ejecutar en modo debug (mapa estático del home de cliente necesita la key,
+# ver env.json.example más abajo)
+flutter run --dart-define-from-file=env.json
 
 # QA de OTP telefónico con números ficticios (solo no-release)
 flutter run --dart-define=PHONE_AUTH_TEST_MODE=true
@@ -139,12 +140,20 @@ flutter run --dart-define=PHONE_AUTH_TEST_MODE=true
 # Tests
 flutter test
 
-# Build Android (Google Play)
-flutter build appbundle --release
+# Build Android (Google Play) — el flag es obligatorio: sin él, el bundle
+# queda con STATIC_MAPS_API_KEY vacía compilada adentro para siempre en esa
+# versión (no se puede corregir sin subir una versión nueva).
+flutter build appbundle --release --dart-define-from-file=env.json
 
-# Build iOS (App Store)
-flutter build ios --release
+# Build iOS (App Store) — mismo flag
+flutter build ios --release --dart-define-from-file=env.json
 ```
+
+**`env.json`** (no trackeado en git, copiar de `env.json.example`): contiene `STATIC_MAPS_API_KEY`, la key de Google Static Maps API usada por el mapa estático del home de cliente (`InicioClienteView`). Es una key HTTP distinta de la nativa de Android/iOS (esa está restringida por package/bundle id y no sirve para peticiones HTTP planas desde Dart) — necesita "Maps Static API" habilitada en Cloud Console y sin restricción de aplicación Android/iOS. VS Code: usar la config "taxi_app" en `.vscode/launch.json` (ya incluye el flag).
+
+**Para no tener que escribir `--dart-define-from-file=env.json` cada vez** (el flag es fácil de olvidar y sin él el mapa estático cae al placeholder):
+- **VS Code**: `.vscode/launch.json` ya trae el flag — correr con F5/Run usando la config "taxi_app" en vez de un `flutter run` suelto en la terminal integrada.
+- **Terminal**: usar el `Makefile` de la raíz — `make run` (equivale a `flutter run` con el flag), `make run-release`, `make build-android`, `make build-ios`.
 
 ---
 

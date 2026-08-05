@@ -88,7 +88,8 @@ class NotificacionesServicio {
     // arranque, no solo cuando se dispara la primera notificación local.
     final androidPlugin = _plugin
         .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>();
+          AndroidFlutterLocalNotificationsPlugin
+        >();
 
     await androidPlugin?.createNotificationChannel(
       const AndroidNotificationChannel(
@@ -183,6 +184,7 @@ class NotificacionesServicio {
   Future<void> showChatNotification({
     required String senderName,
     required String message,
+    String? payload,
   }) async {
     await _ensureInitialized();
 
@@ -217,6 +219,7 @@ class NotificacionesServicio {
       senderName,
       message,
       notificationDetails,
+      payload: payload,
     );
   }
 

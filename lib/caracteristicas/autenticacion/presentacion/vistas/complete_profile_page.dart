@@ -50,10 +50,10 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
   void initState() {
     super.initState();
     _nombreController = TextEditingController(text: widget.initialNombre ?? '');
-    _apellidoController =
-        TextEditingController(text: widget.initialApellido ?? '');
-    _correoController =
-        TextEditingController(text: widget.initialCorreo ?? '');
+    _apellidoController = TextEditingController(
+      text: widget.initialApellido ?? '',
+    );
+    _correoController = TextEditingController(text: widget.initialCorreo ?? '');
     _telefonoController = TextEditingController(
       text: _normalizeToTenDigits(widget.initialTelefono),
     );
@@ -89,9 +89,9 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
             ),
             completeClientProfileUseCase:
                 Provider.of<CompleteClientProfileUseCase>(
-              context,
-              listen: false,
-            ),
+                  context,
+                  listen: false,
+                ),
           )..loadInitialData();
         } catch (_) {
           return CompleteProfileController(uid: widget.uid)..loadInitialData();
@@ -126,8 +126,9 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
                             padding: const EdgeInsets.fromLTRB(22, 8, 22, 24),
                             child: Center(
                               child: ConstrainedBox(
-                                constraints:
-                                    const BoxConstraints(maxWidth: 520),
+                                constraints: const BoxConstraints(
+                                  maxWidth: 520,
+                                ),
                                 child: _buildForm(context, vm),
                               ),
                             ),
@@ -264,8 +265,9 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColores.buttonPrimary,
             foregroundColor: AppColores.textWhite,
-            disabledBackgroundColor:
-                AppColores.buttonPrimary.withValues(alpha: 0.6),
+            disabledBackgroundColor: AppColores.buttonPrimary.withValues(
+              alpha: 0.6,
+            ),
             elevation: 0,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),
@@ -515,16 +517,20 @@ class _LabeledField extends StatelessWidget {
             prefixIcon: Icon(icon, color: AppColores.textSecondary, size: 21),
             filled: true,
             fillColor: AppColores.surface,
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 16,
+            ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
               borderSide: BorderSide(color: AppColores.grey300),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
-              borderSide:
-                  const BorderSide(color: AppColores.primary, width: 1.6),
+              borderSide: const BorderSide(
+                color: AppColores.primary,
+                width: 1.6,
+              ),
             ),
             disabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
@@ -555,8 +561,11 @@ class _InlineError extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.error_outline_rounded,
-              size: 20, color: AppColores.error),
+          const Icon(
+            Icons.error_outline_rounded,
+            size: 20,
+            color: AppColores.error,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(

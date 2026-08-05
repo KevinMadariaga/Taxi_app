@@ -78,12 +78,32 @@ class _PanicButtonFabState extends State<PanicButtonFab> {
 
   @override
   Widget build(BuildContext context) {
-    return FloatingActionButton(
-      heroTag: 'panic_button',
-      backgroundColor: AppColores.error,
-      onPressed: _confirmarLlamada,
-      tooltip: 'Llamar al 123 — Emergencias',
-      child: const Icon(Icons.phone_in_talk_rounded, color: Colors.white, size: 26),
+    return Tooltip(
+      message: 'Llamar al 123 — Emergencias',
+      child: Material(
+        color: AppColores.danger,
+        shape: const CircleBorder(),
+        elevation: 6,
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: _confirmarLlamada,
+          child: const SizedBox(
+            width: 44,
+            height: 44,
+            child: Center(
+              child: Text(
+                'SOS',
+                style: TextStyle(
+                  color: AppColores.textWhite,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.4,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

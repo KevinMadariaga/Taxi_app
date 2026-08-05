@@ -48,5 +48,14 @@ app.*.map.json
 /ios/Flutter/Secrets.xcconfig
 /ios/build/
 
+# Dart-define secrets (Static Maps API key, etc.) — usar env.json.example
+# como plantilla y correr con --dart-define-from-file=env.json.
+/env.json
+
+# Plantilla real de Firebase Remote Config (contiene valores reales de
+# parámetros, ej. static_maps_api_key) — usar remoteconfig.template.json.example
+# como plantilla y `firebase deploy --only remoteconfig` para publicar.
+/remoteconfig.template.json
+
 # Reportes y archivos temporales
 android/build/reports/

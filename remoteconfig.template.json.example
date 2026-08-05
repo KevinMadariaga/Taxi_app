@@ -1,0 +1,13 @@
+{
+  "parameters": {
+    "static_maps_api_key": {
+      "defaultValue": {
+        "value": "TU_API_KEY_AQUI"
+      },
+      "description": "Google Static Maps API key — mapa estático de los home de cliente/conductor. Fetch en runtime vía AppRemoteConfigService (no dart-define): funciona sin importar cómo se corra/compile la app.",
+      "valueType": "STRING"
+    }
+  },
+  "parameterGroups": {},
+  "conditions": []
+}

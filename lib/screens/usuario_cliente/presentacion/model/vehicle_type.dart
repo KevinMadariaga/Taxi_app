@@ -19,6 +19,15 @@ enum VehicleType {
     VehicleType.moto => 5000,
   };
 
+  // Costo variable por kilómetro recorrido, sumado a la tarifa base
+  // (basePriceDia/basePriceNoche) — así el valor sugerido del servicio crece
+  // con la distancia real del viaje en vez de quedar fijo sin importar qué
+  // tan lejos sea el destino.
+  int get costoPorKm => switch (this) {
+    VehicleType.carro => 600,
+    VehicleType.moto => 500,
+  };
+
   // Valor a usar como string para Firestore
   String get firestoreKey => name; // 'carro' | 'moto'
 }

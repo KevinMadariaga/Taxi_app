@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_displaymode/flutter_displaymode.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_maps_flutter_android/google_maps_flutter_android.dart';
@@ -30,6 +32,7 @@ import 'package:taxi_app/core/services/fcm_service.dart';
 import 'package:taxi_app/core/app_navigator.dart';
 import 'package:taxi_app/features/phone_auth/screens/admin_hub_screen.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/soporte_chat_screen.dart';
+import 'package:taxi_app/caracteristicas/viaje_compartido/presentacion/vistas/chat_screen.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
 
 const SystemUiOverlayStyle _globalSystemOverlayStyle = SystemUiOverlayStyle(
@@ -54,6 +57,8 @@ bool _esErrorBenignoMapas(Object error) {
 ///   'admin_hub:N'       → AdminHubScreen con pestaña N
 ///   'admin_conductores' → pop al root (AdminHomeScreen lista de conductores)
 ///   'soporte_chat'      → SoporteChatScreen (usuario)
+///   'viaje_chat:`viajeId`:`currentUserId`:`otherPartyLabel`' → ChatScreen
+///     del viaje (ver `ChatController._showMessageNotification`)
 void _manejarTapNotificacion(String? payload) {
   if (payload == null) return;
   final nav = appNavigatorKey.currentState;
@@ -69,6 +74,21 @@ void _manejarTapNotificacion(String? payload) {
     nav.popUntil((route) => route.isFirst);
   } else if (payload == 'soporte_chat') {
     nav.push(MaterialPageRoute(builder: (_) => const SoporteChatScreen()));
+  } else if (payload.startsWith('viaje_chat:')) {
+    final partes = payload.split(':');
+    if (partes.length < 4) return;
+    final viajeId = partes[1];
+    final currentUserId = partes[2];
+    final otherPartyLabel = partes[3];
+    nav.push(
+      MaterialPageRoute(
+        builder: (_) => ChatScreen(
+          viajeId: viajeId,
+          currentUserId: currentUserId,
+          otherPartyLabel: otherPartyLabel,
+        ),
+      ),
+    );
   }
 }
 
@@ -99,6 +119,22 @@ Future<void> main() async {
   final mapsImplementation = GoogleMapsFlutterPlatform.instance;
   if (mapsImplementation is GoogleMapsFlutterAndroid) {
     mapsImplementation.useAndroidViewSurface = true;
+  }
+
+  // En Android, sin esto la app queda fija a 60Hz aunque el equipo tenga
+  // pantalla de 90/120Hz (a diferencia de iOS, que negocia ProMotion solo).
+  // Es un ajuste distinto e independiente del `useAndroidViewSurface` de
+  // arriba: uno resuelve qué tan seguido se puede refrescar el mapa, este
+  // resuelve a cuántos Hz refresca la pantalla en general. `flutter_displaymode`
+  // no tiene implementación iOS — se guarda detrás de `Platform.isAndroid`.
+  // Best-effort: si el equipo no soporta modos alternos, no debe bloquear el
+  // arranque.
+  if (Platform.isAndroid) {
+    try {
+      await FlutterDisplayMode.setHighRefreshRate();
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'main');
+    }
   }
 
   // Solo lo imprescindible antes del primer frame: Firebase es requerido por

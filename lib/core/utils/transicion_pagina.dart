@@ -1,5 +1,37 @@
 import 'package:flutter/material.dart';
 
+/// Transición suave genérica (fade + leve deslizamiento) para navegación
+/// entre pantallas dentro de un mismo flujo — más discreta que
+/// [transicionInicioCliente], sin escala, pensada para pushes frecuentes
+/// (ajustar ubicación, ir a confirmar solicitud, etc.).
+///
+/// Única fuente: antes vivía duplicada byte a byte como `_buildSmoothRoute`
+/// en `InicioClienteNavigation` y en la vista de "Confirmar solicitud".
+PageRouteBuilder<T> transicionSuave<T>(Widget pagina) {
+  return PageRouteBuilder<T>(
+    pageBuilder: (context, animation, secondaryAnimation) => pagina,
+    transitionDuration: const Duration(milliseconds: 260),
+    reverseTransitionDuration: const Duration(milliseconds: 220),
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      final curved = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutCubic,
+        reverseCurve: Curves.easeInCubic,
+      );
+      return FadeTransition(
+        opacity: curved,
+        child: SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0, 0.02),
+            end: Offset.zero,
+          ).animate(curved),
+          child: child,
+        ),
+      );
+    },
+  );
+}
+
 /// Transición profesional para entrar a la pantalla principal del cliente
 /// tras iniciar sesión: fade + leve desplazamiento hacia arriba + escala
 /// sutil. Da una sensación fluida y moderna, típica de apps de transporte,

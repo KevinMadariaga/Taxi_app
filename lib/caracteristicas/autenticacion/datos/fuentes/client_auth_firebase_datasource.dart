@@ -7,6 +7,7 @@ import 'package:taxi_app/core/constants/app_constants.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/entidades/auth_identity_entity.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/modelos/phone_verification_result.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
+import 'package:taxi_app/core/utils/network_error_helper.dart';
 
 class ClientAuthFirebaseDataSource {
   ClientAuthFirebaseDataSource({FirebaseAuth? auth, GoogleSignIn? googleSignIn})
@@ -36,30 +37,52 @@ class ClientAuthFirebaseDataSource {
       ErrorReporter.report(e, st, reason: 'client_auth_firebase_datasource');
     }
 
-    final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-    if (googleUser == null) return null;
+    try {
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      if (googleUser == null) return null;
 
-    final GoogleSignInAuthentication googleAuth =
-        await googleUser.authentication;
-    final credential = GoogleAuthProvider.credential(
-      accessToken: googleAuth.accessToken,
-      idToken: googleAuth.idToken,
-    );
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
 
-    final userCredential = await _auth.signInWithCredential(credential);
-    final user = userCredential.user;
+      final userCredential = await _auth.signInWithCredential(credential);
+      final user = userCredential.user;
 
-    if (user == null) {
-      throw StateError('No fue posible autenticar el usuario con Google.');
+      if (user == null) {
+        throw StateError('No fue posible autenticar el usuario con Google.');
+      }
+
+      return AuthIdentityEntity(
+        uid: user.uid,
+        displayName: user.displayName,
+        email: user.email,
+        phoneNumber: user.phoneNumber,
+        photoUrl: user.photoURL,
+      );
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'client_auth_firebase_datasource');
+      throw StateError(_mapGoogleSignInError(e));
     }
+  }
 
-    return AuthIdentityEntity(
-      uid: user.uid,
-      displayName: user.displayName,
-      email: user.email,
-      phoneNumber: user.phoneNumber,
-      photoUrl: user.photoURL,
-    );
+  /// Traduce excepciones técnicas del inicio de sesión con Google (códigos de
+  /// `PlatformException` de Google Play Services, `FirebaseAuthException`,
+  /// fallas de red) a un mensaje en español entendible. Nunca se debe dejar
+  /// pasar el `toString()` crudo de la excepción hasta la UI.
+  String _mapGoogleSignInError(Object error) {
+    if (esErrorDeConexion(error)) {
+      return 'No tienes conexión a internet. Verifica tu conexión e intenta de nuevo.';
+    }
+    if (error is FirebaseAuthException) {
+      if (error.code == 'account-exists-with-different-credential') {
+        return 'Ya existe una cuenta con este correo usando otro método de inicio de sesión.';
+      }
+      return 'No se pudo completar el inicio de sesión con Google. Intenta de nuevo.';
+    }
+    return 'No se pudo iniciar sesión con Google. Intenta de nuevo.';
   }
 
   Future<PhoneVerificationResult> sendPhoneOtp({

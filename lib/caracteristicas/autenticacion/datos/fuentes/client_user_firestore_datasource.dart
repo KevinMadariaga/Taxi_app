@@ -16,13 +16,16 @@ class ClientUserFirestoreDataSource {
     );
   }
 
-  /// Resuelve el rol crudo del documento `usuarios/{uid}`, aceptando los alias
-  /// legacy `tipoUsuario`/`rol`/`role` (usados por el login por
-  /// correo/contraseña). Devuelve 'cliente' si no se pudo determinar.
+  /// Resuelve el rol del documento `usuarios/{uid}`. `rol`/`role` son la
+  /// fuente de verdad; `tipoUsuario` es solo un alias legacy de respaldo
+  /// (login por correo/contraseña antiguo) y NO debe tener prioridad — un
+  /// doc con `rol: 'cliente'` pero un `tipoUsuario` legacy desactualizado
+  /// (ej. 'conductor') terminaba enrutando mal si `tipoUsuario` se miraba
+  /// primero. Devuelve 'cliente' si no se pudo determinar.
   Future<String> resolveRole(String uid) async {
     final doc = await _firestore.collection('usuarios').doc(uid).get();
     final data = doc.data() ?? <String, dynamic>{};
-    final raw = (data['tipoUsuario'] ?? data['rol'] ?? data['role'] ?? '')
+    final raw = (data['rol'] ?? data['role'] ?? data['tipoUsuario'] ?? '')
         .toString()
         .toLowerCase();
     if (raw == 'conductor') return 'conductor';
@@ -76,9 +79,7 @@ class ClientUserFirestoreDataSource {
 
     // Separar displayName en nombre + apellido (lo que venga del proveedor).
     final full = (displayName ?? '').trim();
-    final partes = full.isEmpty
-        ? <String>[]
-        : full.split(RegExp(r'\s+'));
+    final partes = full.isEmpty ? <String>[] : full.split(RegExp(r'\s+'));
     final nombre = partes.isNotEmpty ? partes.first : '';
     final apellido = partes.length > 1 ? partes.sublist(1).join(' ') : '';
 

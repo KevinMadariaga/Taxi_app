@@ -20,10 +20,10 @@ class SignInAppleClientUseCase {
 
     // Apple solo entrega el nombre la primera vez que autoriza la app.
     // Hay que usarlo ya (Directriz 4 de Apple) en vez de pedirlo de nuevo.
-    final appleFullName = [result.givenName, result.familyName]
-        .where((part) => (part ?? '').trim().isNotEmpty)
-        .join(' ')
-        .trim();
+    final appleFullName = [
+      result.givenName,
+      result.familyName,
+    ].where((part) => (part ?? '').trim().isNotEmpty).join(' ').trim();
 
     var displayName = firebaseUser.displayName;
     if ((displayName ?? '').trim().isEmpty && appleFullName.isNotEmpty) {

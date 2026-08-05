@@ -395,7 +395,7 @@ class _DirectionalBar extends StatelessWidget {
                       ? Icons.two_wheeler_rounded
                       : Icons.directions_car_filled_rounded,
                   color: Colors.white,
-                  size: 24,
+                  size: 30,
                 ),
               ),
 

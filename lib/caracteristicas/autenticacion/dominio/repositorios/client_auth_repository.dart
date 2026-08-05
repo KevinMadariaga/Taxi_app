@@ -53,7 +53,8 @@ abstract class ClientAuthRepository {
   });
 
   /// Resuelve el rol (cliente/conductor/administrador) de [uid] desde
-  /// `usuarios/{uid}`, aceptando los alias legacy `tipoUsuario`/`rol`/`role`.
+  /// `usuarios/{uid}`. `rol`/`role` son la fuente de verdad; `tipoUsuario`
+  /// es solo un alias legacy de respaldo si esos dos no vinieron.
   /// Devuelve 'cliente' si no se pudo determinar.
   Future<String> resolveUserRole(String uid);
 

@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart' show LatLng;
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:taxi_app/core/helpers/permisos_helper.dart';
+import 'package:taxi_app/core/services/app_remote_config_service.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/navigation/inicio_cliente_navigation.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/location_model.dart';
-import 'package:taxi_app/widgets/google_maps_widget.dart';
 import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../viewmodels/inicio_cliente_viewmodel.dart';
@@ -30,7 +31,6 @@ class _InicioClienteViewState extends State<InicioClienteView>
     with WidgetsBindingObserver {
   late InicioClienteViewModel vm;
   late VoidCallback _vmListener;
-  GoogleMapController? _mapController;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   int _selectedIndex = 1;
   final PageController _carouselController = PageController(
@@ -39,14 +39,12 @@ class _InicioClienteViewState extends State<InicioClienteView>
   // Aislado en su propio ValueNotifier (Tarea 3): togglear este flag no debe
   // forzar un setState() del árbol completo de 1400+ líneas, solo el overlay
   // de carga que lo consume vía AnimatedBuilder.
-  final ValueNotifier<bool> _isPreparingNavigationNotifier = ValueNotifier<bool>(
-    false,
-  );
+  final ValueNotifier<bool> _isPreparingNavigationNotifier =
+      ValueNotifier<bool>(false);
   bool _gpsPromptShown = false;
   bool _isRequestingPermissions = false;
   bool _isGpsDialogOpen = false;
   bool _mostrarUbicacionOk = false;
-  bool _pendingCenter = false;
 
   // ── Mini reload tras background prolongado ──────────────────────────────
   // Si la app pasa más de 3 min en background, al volver puede mostrar la
@@ -217,20 +215,15 @@ class _InicioClienteViewState extends State<InicioClienteView>
   /// reinicia el listener de conductores conectados y recentra el mapa,
   /// para que no queden marcador/ubicación desactualizados si el usuario se
   /// desplazó mientras la app estaba en background.
+  ///
+  /// El mapa es una imagen estática (Static Maps API) centrada en
+  /// `vm.currentLocationNotifier`: no hay cámara que animar, solo actualizar
+  /// la ubicación en el VM ya recentra la imagen.
   Future<void> _performMiniReload() async {
     await vm.forzarRecargaUbicacion();
     unawaited(vm.reiniciarConductoresConectados());
     if (!mounted) return;
-    final loc = vm.currentLocation;
-    if (loc != null) {
-      if (_mapController != null) {
-        _pendingCenter = false;
-        await _mapController!.animateCamera(
-          CameraUpdate.newLatLngZoom(loc, 16),
-        );
-      } else {
-        _pendingCenter = true;
-      }
+    if (vm.currentLocation != null) {
       _mostrarBannerUbicacionEncontrada();
     }
   }
@@ -314,15 +307,6 @@ class _InicioClienteViewState extends State<InicioClienteView>
     await vm.cargarUbicacionActual();
     if (!mounted) return;
     if (vm.currentLocation != null) {
-      if (_mapController != null) {
-        _pendingCenter = false;
-        await _mapController!.animateCamera(
-          CameraUpdate.newLatLngZoom(vm.currentLocation!, 16),
-        );
-      } else {
-        // Map not ready yet; onMapCreated will center when it fires.
-        _pendingCenter = true;
-      }
       // Solo avisar "Ubicación encontrada" si el GPS detectó una posición
       // nueva (distinta a la cacheada).
       if (vm.ubicacionFueActualizada) {
@@ -373,7 +357,6 @@ class _InicioClienteViewState extends State<InicioClienteView>
       origenModel,
       destinoModel,
     );
-    if (mounted) _recentrarMapaEnUbicacionActual();
   }
 
   Future<void> _navigateToDestinoSeleccion() async {
@@ -400,20 +383,8 @@ class _InicioClienteViewState extends State<InicioClienteView>
         vm.currentLocation,
         origenDireccionInicial: origenDireccionInicial,
       );
-      // Al volver, recentrar el mapa en la ubicación ya guardada (sin volver a
-      // buscar por GPS): el mapa sigue vivo, solo reubicamos la cámara.
-      if (mounted) _recentrarMapaEnUbicacionActual();
     } finally {
       if (mounted) _isPreparingNavigationNotifier.value = false;
-    }
-  }
-
-  /// Recentra la cámara en la ubicación actual ya conocida (cache/estado),
-  /// sin disparar una nueva búsqueda de GPS ni el loader.
-  void _recentrarMapaEnUbicacionActual() {
-    final loc = vm.currentLocation;
-    if (loc != null && _mapController != null) {
-      _mapController!.animateCamera(CameraUpdate.newLatLngZoom(loc, 16));
     }
   }
 
@@ -523,25 +494,6 @@ class _InicioClienteViewState extends State<InicioClienteView>
     );
   }
 
-  Future<void> _centerOnMarker() async {
-    if (!mounted) return;
-    if (vm.currentLocation == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Ubicación no disponible')));
-      return;
-    }
-    if (_mapController != null) {
-      try {
-        await _mapController!.animateCamera(
-          CameraUpdate.newLatLngZoom(vm.currentLocation!, 16),
-        );
-      } catch (e, st) {
-        ErrorReporter.report(e, st, reason: 'InicioClienteView');
-      }
-    }
-  }
-
   // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
@@ -639,10 +591,6 @@ class _InicioClienteViewState extends State<InicioClienteView>
                                     child: _HomeClienteMap(
                                       currentLocationNotifier:
                                           vm.currentLocationNotifier,
-                                      conductoresMarkersNotifier:
-                                          vm.conductoresMarkersNotifier,
-                                      onMapCreated: _handleMapCreated,
-                                      onCenterPressed: _centerOnMarker,
                                     ),
                                   ),
                                 ],
@@ -790,26 +738,6 @@ class _InicioClienteViewState extends State<InicioClienteView>
       }
     }
   }
-
-  /// Callback de `onMapCreated` del `GoogleMap` embebido (ver
-  /// `_HomeClienteMap` al final del archivo). Vive en el State porque
-  /// necesita `_mapController`/`_pendingCenter`/`mounted`, que son estado
-  /// imperativo de esta pantalla, no del ViewModel.
-  Future<void> _handleMapCreated(GoogleMapController controller) async {
-    _mapController = controller;
-    // Short delay: lets SharedPreferences cache load (~10ms)
-    // and avoids animateCamera during the route transition frame.
-    await Future.delayed(const Duration(milliseconds: 150));
-    if (!mounted) return;
-    final loc = vm.currentLocation;
-    if (loc != null || _pendingCenter) {
-      _pendingCenter = false;
-      final target = vm.currentLocation;
-      if (target != null) {
-        await controller.animateCamera(CameraUpdate.newLatLngZoom(target, 16));
-      }
-    }
-  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -949,24 +877,34 @@ class _UbicacionOkBanner extends StatelessWidget {
 // Mapa embebido — aislado del build() del Scaffold (1400+ líneas)
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Capa del `GoogleMap` desacoplada del resto de la pantalla: escucha
-/// directamente los `ValueNotifier`s de ubicación/marcadores del VM (vía
+/// Imagen estática (Google Static Maps API) desacoplada del resto de la
+/// pantalla: escucha directamente `currentLocationNotifier` (vía
 /// `AnimatedBuilder`) en vez de depender del `setState` disparado por
 /// `vm.addListener` en el State, que reconstruye las 1400+ líneas de
-/// `build()`. Replica el patrón de `_AnimatedConductorMap` en
-/// `trip_tracking_screen.dart`.
+/// `build()`.
+///
+/// Reemplaza al `GoogleMap` nativo embebido: ese widget mantenía una vista
+/// de plataforma viva con tiles renderizados por GPU + su propio proceso de
+/// mapa (RAM aparte) solo para mostrar "estás aquí" sin ruta ni
+/// interacción real. Una imagen ya centrada en el GPS actual logra lo mismo
+/// (mostrar la posición) sin ese costo — no hay cámara que animar ni mapa
+/// que mover, solo se re-pide la imagen cuando cambia la ubicación.
 class _HomeClienteMap extends StatelessWidget {
-  const _HomeClienteMap({
-    required this.currentLocationNotifier,
-    required this.conductoresMarkersNotifier,
-    required this.onMapCreated,
-    required this.onCenterPressed,
-  });
+  const _HomeClienteMap({required this.currentLocationNotifier});
 
   final ValueNotifier<LatLng?> currentLocationNotifier;
-  final ValueNotifier<Set<Marker>> conductoresMarkersNotifier;
-  final void Function(GoogleMapController controller) onMapCreated;
-  final VoidCallback onCenterPressed;
+
+  String _staticMapUrl(LatLng center, int width, int height, String apiKey) {
+    final uri = Uri.https('maps.googleapis.com', '/maps/api/staticmap', {
+      'center': '${center.latitude},${center.longitude}',
+      'zoom': '16',
+      'size': '${width}x$height',
+      'scale': '2',
+      'maptype': 'roadmap',
+      'key': apiKey,
+    });
+    return uri.toString();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -985,26 +923,103 @@ class _HomeClienteMap extends StatelessWidget {
         borderRadius: BorderRadius.circular(18.r),
         child: Stack(
           children: [
-            RepaintBoundary(
-              child: AnimatedBuilder(
-                animation: Listenable.merge([
-                  currentLocationNotifier,
-                  conductoresMarkersNotifier,
-                ]),
-                builder: (context, _) {
-                  return AppGoogleMap(
-                    initialTarget:
-                        currentLocationNotifier.value ??
-                        const LatLng(8.2595534, -73.353469),
-                    initialZoom: 14.5,
-                    myLocationEnabled: true,
-                    myLocationButtonEnabled: false,
-                    compassEnabled: false,
-                    markers: conductoresMarkersNotifier.value,
-                    onMapCreated: onMapCreated,
+            Positioned.fill(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  // Static Maps API acepta como máximo 640x640 por "size"
+                  // (antes de aplicar "scale"); no tiene sentido pedir más.
+                  final width = constraints.maxWidth
+                      .clamp(100.0, 640.0)
+                      .round();
+                  final height = constraints.maxHeight
+                      .clamp(100.0, 640.0)
+                      .round();
+                  // Key vía Remote Config (no dart-define): funciona sin
+                  // importar cómo se corra/compile la app. El fetch está
+                  // memoizado en el service, así que reconstruir este widget
+                  // no dispara pedidos nuevos.
+                  return FutureBuilder<String>(
+                    future: AppRemoteConfigService.instance
+                        .fetchStaticMapsApiKey(),
+                    builder: (context, keySnapshot) {
+                      final apiKey = keySnapshot.data ?? '';
+                      return AnimatedBuilder(
+                        animation: currentLocationNotifier,
+                        builder: (context, _) {
+                          final center = currentLocationNotifier.value;
+                          // Sin ubicación todavía: loader propio de este
+                          // cuadro en vez de dibujar el mapa sobre un centro
+                          // por defecto que no es la posición real del usuario.
+                          if (center == null) {
+                            return const _MapaCargandoUbicacion();
+                          }
+                          if (keySnapshot.connectionState !=
+                              ConnectionState.done) {
+                            return const _MapaCargandoUbicacion();
+                          }
+                          if (apiKey.isEmpty) {
+                            return const _MapaPlaceholder();
+                          }
+                          return CachedNetworkImage(
+                            key: ValueKey(
+                              '${center.latitude},${center.longitude},$width,$height',
+                            ),
+                            imageUrl: _staticMapUrl(
+                              center,
+                              width,
+                              height,
+                              apiKey,
+                            ),
+                            fit: BoxFit.cover,
+                            width: double.infinity,
+                            height: double.infinity,
+                            placeholder: (context, _) =>
+                                const _MapaCargandoUbicacion(),
+                            errorWidget: (context, _, error) {
+                              ErrorReporter.report(
+                                error,
+                                StackTrace.current,
+                                reason:
+                                    'InicioClienteView: falló imagen de Static Maps',
+                              );
+                              return const _MapaPlaceholder();
+                            },
+                          );
+                        },
+                      );
+                    },
                   );
                 },
               ),
+            ),
+            // Pin "estás aquí" fijo en el centro: la imagen ya llega
+            // centrada en esa coordenada, así que el centro visual del
+            // widget coincide siempre con la ubicación actual. Oculto
+            // mientras no haya ubicación (se ve el loader solo).
+            AnimatedBuilder(
+              animation: currentLocationNotifier,
+              builder: (context, _) {
+                if (currentLocationNotifier.value == null) {
+                  return const SizedBox.shrink();
+                }
+                // `Center` sola alinea el centro geométrico del ícono (un
+                // cuadrado de 36x36) con el centro del mapa, no la punta del
+                // pin — quedaba flotando arriba de la ubicación real en vez
+                // de señalarla. La punta de `Icons.location_on` está en el
+                // borde inferior de su bounding box, así que subir el ícono
+                // la mitad de su alto pone la punta exacto en el centro.
+                return Center(
+                  child: Transform.translate(
+                    offset: const Offset(0, -18),
+                    child: const Icon(
+                      Icons.location_on,
+                      size: 36,
+                      color: AppColores.primary,
+                      shadows: [Shadow(color: Colors.black45, blurRadius: 6)],
+                    ),
+                  ),
+                );
+              },
             ),
             // Label "Estás aquí"
             Positioned(
@@ -1043,34 +1058,62 @@ class _HomeClienteMap extends StatelessWidget {
                 ),
               ),
             ),
-            // Botón centrar mapa
-            Positioned(
-              right: 8.w,
-              bottom: 8.h,
-              child: Material(
-                color: Colors.transparent,
-                child: Container(
-                  width: 32.w,
-                  height: 32.h,
-                  decoration: const BoxDecoration(
-                    color: AppColores.surface,
-                    shape: BoxShape.circle,
-                  ),
-                  child: IconButton(
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                    iconSize: 21.sp,
-                    onPressed: onCenterPressed,
-                    icon: const Icon(
-                      Icons.my_location,
-                      color: AppColores.primary,
-                    ),
-                  ),
-                ),
-              ),
-            ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Fondo mostrado mientras carga la imagen estática, si falla (sin red / sin
+/// key configurada) o si la key de Remote Config está vacía. Evita el
+/// ícono de imagen rota y deja la pantalla usable sin mapa.
+class _MapaPlaceholder extends StatelessWidget {
+  const _MapaPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: AppColores.grey300.withValues(alpha: 0.35),
+      alignment: Alignment.center,
+      child: Icon(
+        Icons.map_outlined,
+        size: 40,
+        color: AppColores.textSecondary.withValues(alpha: 0.6),
+      ),
+    );
+  }
+}
+
+/// Loader acotado al cuadro del mapa: se muestra mientras no hay fix de GPS
+/// (o mientras se descarga la imagen estática ya con ubicación), en vez de
+/// dibujar el mapa sobre un centro por defecto que no es la posición real.
+class _MapaCargandoUbicacion extends StatelessWidget {
+  const _MapaCargandoUbicacion();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: AppColores.grey300.withValues(alpha: 0.35),
+      alignment: Alignment.center,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(
+            width: 26,
+            height: 26,
+            child: CircularProgressIndicator(strokeWidth: 2.5),
+          ),
+          SizedBox(height: 10.h),
+          Text(
+            'Cargando ubicación...',
+            style: TextStyle(
+              fontSize: 12.5.sp,
+              fontWeight: FontWeight.w600,
+              color: AppColores.textSecondary,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1318,8 +1361,10 @@ class _FavoritosSection extends StatelessWidget {
             children: hasFavorites
                 ? favoritos
                       .map(
-                        (f) =>
-                            _FavoritoItem(favorito: f, onTap: () => onFavoriteTap(f)),
+                        (f) => _FavoritoItem(
+                          favorito: f,
+                          onTap: () => onFavoriteTap(f),
+                        ),
                       )
                       .toList()
                 : ['Casa', 'Trabajo', 'Otros']
@@ -1519,7 +1564,7 @@ class _CarouselSection extends StatelessWidget {
                             padding: const EdgeInsets.all(16),
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                              crossAxisAlignment: CrossAxisAlignment.center,
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Icon(
@@ -1532,20 +1577,20 @@ class _CarouselSection extends StatelessWidget {
                                 const SizedBox(height: 8),
                                 Text(
                                   item['title'].toString(),
+                                  textAlign: TextAlign.center,
                                   style: const TextStyle(
                                     fontSize: 15,
                                     fontWeight: FontWeight.w700,
-                                    color: AppColores.textPrimary,
+                                    color: AppColores.textWhite,
                                   ),
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
                                   item['subtitle'].toString(),
-                                  style: TextStyle(
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
                                     fontSize: 12,
-                                    color: AppColores.textPrimary.withValues(
-                                      alpha: 0.7,
-                                    ),
+                                    color: AppColores.textWhiteMuted,
                                   ),
                                 ),
                               ],

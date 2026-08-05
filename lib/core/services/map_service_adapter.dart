@@ -153,6 +153,40 @@ class MapService {
     return poly;
   }
 
+  /// Codifica una lista de puntos con el algoritmo estándar de Google
+  /// Polyline — inverso de [decodePolyline]. Se usa para pasarle una ruta ya
+  /// resuelta (por calle) al parámetro `path=enc:...` de Google Static Maps
+  /// API, que no acepta una lista de coordenadas sueltas.
+  String encodePolyline(List<LatLng> points) {
+    final buffer = StringBuffer();
+    int prevLat = 0;
+    int prevLng = 0;
+    for (final point in points) {
+      final lat = (point.latitude * 1E5).round();
+      final lng = (point.longitude * 1E5).round();
+      _encodeSignedNumber(lat - prevLat, buffer);
+      _encodeSignedNumber(lng - prevLng, buffer);
+      prevLat = lat;
+      prevLng = lng;
+    }
+    return buffer.toString();
+  }
+
+  void _encodeSignedNumber(int value, StringBuffer buffer) {
+    int shifted = value << 1;
+    if (value < 0) shifted = ~shifted;
+    _encodeUnsignedNumber(shifted, buffer);
+  }
+
+  void _encodeUnsignedNumber(int value, StringBuffer buffer) {
+    int remaining = value;
+    while (remaining >= 0x20) {
+      buffer.writeCharCode((0x20 | (remaining & 0x1f)) + 63);
+      remaining >>= 5;
+    }
+    buffer.writeCharCode(remaining + 63);
+  }
+
   Future<Polyline?> createPolylineFromDirections({
     required String id,
     required LatLng origin,

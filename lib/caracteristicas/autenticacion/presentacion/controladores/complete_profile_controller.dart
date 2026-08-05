@@ -82,7 +82,10 @@ class CompleteProfileController extends ChangeNotifier {
     if (picked == null) return;
 
     if (!context.mounted) return;
-    final flipped = await showFlipPreview(context, imageFile: File(picked.path));
+    final flipped = await showFlipPreview(
+      context,
+      imageFile: File(picked.path),
+    );
     if (flipped == null) return;
 
     final cropped = await _imageCropperService.cropProfileImage(

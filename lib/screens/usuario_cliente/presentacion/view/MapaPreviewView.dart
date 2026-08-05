@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
+import 'package:taxi_app/caracteristicas/confirmar_solicitud/presentacion/vistas/confirmar_solicitud_view.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/location_model.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/view/DetailsSolicitud.dart';
 
 import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/mapapreview_viewmodel.dart';
 import 'package:taxi_app/core/app_colores.dart';
@@ -90,7 +90,8 @@ class _MapaPreviewViewState extends State<MapaPreviewView> {
 
     await navigator.push(
       MaterialPageRoute(
-        builder: (_) => MapPreview(origen: origenModel, destino: destinoModel),
+        builder: (_) =>
+            ConfirmarSolicitudView(origen: origenModel, destino: destinoModel),
       ),
     );
   }
