@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:taxi_app/core/validators/name_validator.dart';
 import 'package:taxi_app/core/validators/phone_validator.dart';
 import 'package:taxi_app/core/services/image_cropper_service.dart';
+import 'package:taxi_app/core/utils/error_reporter.dart';
 import 'package:taxi_app/widgets/flip_preview_view.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/repositorios/client_auth_repository.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/datos/repositorios/client_auth_repository_impl.dart';
@@ -71,31 +72,53 @@ class CompleteProfileController extends ChangeNotifier {
     }
   }
 
+  /// Toma la foto de perfil con la cámara.
+  ///
+  /// Va envuelto en try/catch porque se invoca fire-and-forget desde el `onTap`
+  /// del avatar: sin captura, un `PlatformException` (permiso de cámara
+  /// denegado — que esta app nunca solicita explícitamente —, equipo sin
+  /// cámara, o fallo del cropper) se convertía en un error async sin manejar y
+  /// al usuario **no le pasaba absolutamente nada** al tocar el avatar,
+  /// dejándolo atrapado en "Completa tu perfil" sin mensaje ni salida.
   Future<void> pickProfileImage(BuildContext context) async {
-    final picked = await _imagePicker.pickImage(
-      source: ImageSource.camera,
-      imageQuality: 100,
-      maxWidth: 512,
-      maxHeight: 512,
-    );
+    try {
+      final picked = await _imagePicker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 100,
+        maxWidth: 512,
+        maxHeight: 512,
+      );
 
-    if (picked == null) return;
+      if (picked == null) return;
 
-    if (!context.mounted) return;
-    final flipped = await showFlipPreview(
-      context,
-      imageFile: File(picked.path),
-    );
-    if (flipped == null) return;
+      if (!context.mounted) return;
+      final flipped = await showFlipPreview(
+        context,
+        imageFile: File(picked.path),
+      );
+      if (flipped == null) return;
 
-    final cropped = await _imageCropperService.cropProfileImage(
-      sourcePath: flipped.path,
-    );
-    if (cropped == null) return;
+      final cropped = await _imageCropperService.cropProfileImage(
+        sourcePath: flipped.path,
+      );
+      if (cropped == null) return;
 
-    _selectedImage = XFile(cropped.path);
-    notifyListeners();
+      _selectedImage = XFile(cropped.path);
+      _errorMessage = null;
+      notifyListeners();
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'complete_profile_controller');
+      _errorMessage = tieneFotoPrevia
+          ? 'No se pudo abrir la cámara. Puedes continuar con tu foto actual.'
+          : 'No se pudo abrir la cámara. Revisa los permisos de la app e '
+                'intenta de nuevo.';
+      notifyListeners();
+    }
   }
+
+  /// `true` si el usuario ya tiene una foto (p. ej. la de Google/Apple con la
+  /// que inició sesión), en cuyo caso no hace falta tomar una nueva.
+  bool get tieneFotoPrevia => (_currentUser?.fotoUrl ?? '').trim().isNotEmpty;
 
   Future<String?> saveProfile({
     required String nombre,
@@ -116,7 +139,11 @@ class CompleteProfileController extends ChangeNotifier {
     );
     if (apellidoError != null) return apellidoError;
 
-    if (_selectedImage == null) {
+    // Solo se exige foto nueva si el usuario tampoco tiene una previa. Antes
+    // era obligatoria siempre, así que quien no pudiera usar la cámara
+    // (permiso denegado, equipo sin cámara) quedaba encerrado en esta pantalla
+    // aunque ya tuviera la foto de Google/Apple.
+    if (_selectedImage == null && !tieneFotoPrevia) {
       return 'Toma una foto de perfil para continuar.';
     }
 

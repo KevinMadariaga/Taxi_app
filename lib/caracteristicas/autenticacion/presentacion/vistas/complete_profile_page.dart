@@ -146,7 +146,10 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
 
   Widget _buildForm(BuildContext context, CompleteProfileController vm) {
     final file = vm.selectedImage != null ? File(vm.selectedImage!.path) : null;
-    final tieneFoto = file != null;
+    // La foto previa (Google/Apple) cuenta como foto válida: es lo que
+    // `saveProfile` acepta cuando no se pudo tomar una nueva.
+    final fotoPreviaUrl = vm.tieneFotoPrevia ? vm.currentUser?.fotoUrl : null;
+    final tieneFoto = file != null || fotoPreviaUrl != null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -174,7 +177,7 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
         Center(
           child: _AvatarPicker(
             selectedFile: file,
-            networkUrl: null,
+            networkUrl: fotoPreviaUrl,
             enabled: !vm.saving,
             onTap: () => vm.pickProfileImage(context),
           ),
