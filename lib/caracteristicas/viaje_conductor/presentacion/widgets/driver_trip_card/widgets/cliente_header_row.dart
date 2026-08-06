@@ -18,7 +18,10 @@ class ClienteHeaderRow extends StatelessWidget {
   final String direccion;
 
   static String _iniciales(String nombre) {
-    final partes = nombre.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty);
+    final partes = nombre
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((p) => p.isNotEmpty);
     if (partes.isEmpty) return '?';
     final primera = partes.first[0];
     final segunda = partes.length > 1 ? partes.last[0] : '';

@@ -11,6 +11,7 @@ import 'package:taxi_app/caracteristicas/viaje_compartido/presentacion/utils/inf
 import 'package:taxi_app/caracteristicas/viaje_compartido/presentacion/vistas/chat_screen.dart';
 import 'package:taxi_app/caracteristicas/viaje_conductor/datos/fuentes/driver_ubicacion_datasource.dart';
 import 'package:taxi_app/caracteristicas/viaje_conductor/datos/fuentes/navegacion_externa_datasource.dart';
+import 'package:taxi_app/caracteristicas/viaje_cliente/dominio/casos_uso/cancelar_viaje_usecase.dart';
 import 'package:taxi_app/caracteristicas/viaje_conductor/dominio/casos_uso/finalizar_viaje_usecase.dart';
 import 'package:taxi_app/caracteristicas/viaje_conductor/dominio/casos_uso/iniciar_ruta_destino_usecase.dart';
 import 'package:taxi_app/caracteristicas/viaje_conductor/dominio/casos_uso/reportar_llegada_usecase.dart';
@@ -74,6 +75,7 @@ class _ViajeConductorScreenState extends State<ViajeConductorScreen>
       finalizarViaje: FinalizarViajeUseCase(
         ActualizarEstadoViajeUseCase(viajeRepository),
       ),
+      cancelarViaje: CancelarViajeUseCase(viajeRepository),
       ubicacionDatasource: DriverUbicacionDatasource(),
       rutaDatasource: RutaDatasource(),
       navegacionDatasource: NavegacionExternaDatasource(),
@@ -226,6 +228,34 @@ class _ViajeConductorScreenState extends State<ViajeConductorScreen>
     await _vm.finalizarViaje();
   }
 
+  Future<void> _onCancelarViaje() async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('¿Cancelar el viaje?'),
+        content: const Text(
+          'El cliente será notificado y la solicitud quedará cancelada. '
+          'Úsalo solo si no puedes completar la recogida.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Volver'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: TextButton.styleFrom(foregroundColor: AppColores.error),
+            child: const Text('Sí, cancelar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmar != true) return;
+    await _vm.cancelarViaje();
+    // No se navega acá: al pasar a `cancelado`, `_handleSalida` (que ya
+    // escucha los estados terminales) se encarga de sacar de la pantalla.
+  }
+
   void _openChat() {
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -314,6 +344,7 @@ class _ViajeConductorScreenState extends State<ViajeConductorScreen>
                               onReportarLlegada: _onReportarLlegada,
                               onComenzarRuta: _abrirCodigoVerificacion,
                               onTerminarViaje: _onTerminarViaje,
+                              onCancelar: _onCancelarViaje,
                             ),
                           ),
                         );

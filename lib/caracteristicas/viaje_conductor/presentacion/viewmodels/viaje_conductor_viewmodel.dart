@@ -12,6 +12,7 @@ import 'package:taxi_app/caracteristicas/viaje_compartido/dominio/entidades/viaj
 import 'package:taxi_app/caracteristicas/viaje_compartido/dominio/casos_uso/actualizar_estado_viaje_usecase.dart';
 import 'package:taxi_app/caracteristicas/viaje_compartido/dominio/casos_uso/watch_viaje_usecase.dart';
 import 'package:taxi_app/caracteristicas/viaje_compartido/datos/fuentes/ruta_datasource.dart';
+import 'package:taxi_app/caracteristicas/viaje_cliente/dominio/casos_uso/cancelar_viaje_usecase.dart';
 import 'package:taxi_app/caracteristicas/viaje_compartido/presentacion/controladores/chat_controller.dart';
 import 'package:taxi_app/caracteristicas/viaje_conductor/datos/fuentes/driver_ubicacion_datasource.dart';
 import 'package:taxi_app/caracteristicas/viaje_conductor/datos/fuentes/navegacion_externa_datasource.dart';
@@ -40,6 +41,7 @@ class ViajeConductorViewModel extends ChangeNotifier {
     required ReportarLlegadaUseCase reportarLlegada,
     required IniciarRutaDestinoUseCase iniciarRutaDestino,
     required FinalizarViajeUseCase finalizarViaje,
+    required CancelarViajeUseCase cancelarViaje,
     required DriverUbicacionDatasource ubicacionDatasource,
     required RutaDatasource rutaDatasource,
     required NavegacionExternaDatasource navegacionDatasource,
@@ -49,6 +51,7 @@ class ViajeConductorViewModel extends ChangeNotifier {
        _reportarLlegada = reportarLlegada,
        _iniciarRutaDestino = iniciarRutaDestino,
        _finalizarViaje = finalizarViaje,
+       _cancelarViaje = cancelarViaje,
        _ubicacion = ubicacionDatasource,
        _ruta = rutaDatasource,
        _navegacion = navegacionDatasource,
@@ -68,6 +71,7 @@ class ViajeConductorViewModel extends ChangeNotifier {
   final ReportarLlegadaUseCase _reportarLlegada;
   final IniciarRutaDestinoUseCase _iniciarRutaDestino;
   final FinalizarViajeUseCase _finalizarViaje;
+  final CancelarViajeUseCase _cancelarViaje;
   final DriverUbicacionDatasource _ubicacion;
   final RutaDatasource _ruta;
   final NavegacionExternaDatasource _navegacion;
@@ -226,6 +230,47 @@ class ViajeConductorViewModel extends ChangeNotifier {
     await _finalizarViaje(viajeId);
   }
 
+  bool isCancelling = false;
+
+  /// Se marca antes de escribir la cancelación para que, cuando el stream
+  /// devuelva el estado `cancelado`, se sepa que el origen fue este conductor.
+  bool _canceladoPorMi = false;
+
+  /// El conductor solo puede cancelar ANTES de recoger al pasajero. Una vez
+  /// `en ruta` el viaje ya está en curso y se termina con "Terminar viaje",
+  /// no se cancela.
+  bool get puedeCancelar {
+    final estado = viaje?.estado;
+    return estado == SolicitudEstado.asignado ||
+        estado == SolicitudEstado.enEspera ||
+        estado == SolicitudEstado.enCamino;
+  }
+
+  /// Cancela el viaje desde el lado del conductor.
+  ///
+  /// Antes no existía: la pantalla es `PopScope(canPop: false)` y el único
+  /// control era el botón de estado, así que un conductor cuyo cliente nunca
+  /// aparecía quedaba encerrado — no llegaba a tocar "Ya llegué", el timeout
+  /// de `sin respuesta` ni siquiera arrancaba, y matar la app lo devolvía a la
+  /// misma pantalla vía `SessionHelper`.
+  Future<void> cancelarViaje() async {
+    if (isCancelling || !puedeCancelar) return;
+    isCancelling = true;
+    _canceladoPorMi = true;
+    _safeNotify();
+    try {
+      await _cancelarViaje(viajeId: viajeId, canceladoPor: 'conductor');
+    } catch (_) {
+      // Si la escritura falla el viaje sigue vivo: no dejar la marca puesta,
+      // o una cancelación posterior del cliente se atribuiría a este conductor.
+      _canceladoPorMi = false;
+      rethrow;
+    } finally {
+      isCancelling = false;
+      _safeNotify();
+    }
+  }
+
   Future<void> abrirNavegacionExterna() async {
     final objetivo = objetivoActual;
     if (objetivo == null) return;
@@ -299,10 +344,17 @@ class ViajeConductorViewModel extends ChangeNotifier {
     if (estado == SolicitudEstado.cancelado) {
       _closeWaitingModal();
       debeSalir = true;
-      mensajeSalida = 'El cliente canceló la solicitud.';
-      unawaited(
-        _notify('Servicio cancelado', 'El cliente ha cancelado el servicio.'),
-      );
+      // Distinguir quién canceló: si fue este conductor, decirle que "el
+      // cliente canceló" sería directamente falso, y notificarlo por push de
+      // algo que acaba de hacer él, ruido.
+      if (_canceladoPorMi) {
+        mensajeSalida = 'Cancelaste el viaje.';
+      } else {
+        mensajeSalida = 'El cliente canceló la solicitud.';
+        unawaited(
+          _notify('Servicio cancelado', 'El cliente ha cancelado el servicio.'),
+        );
+      }
       _safeNotify();
       return;
     }
