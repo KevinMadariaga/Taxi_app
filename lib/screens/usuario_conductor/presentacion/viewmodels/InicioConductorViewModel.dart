@@ -14,6 +14,7 @@ import 'package:taxi_app/screens/usuario_conductor/presentacion/controllers/pend
 import 'package:taxi_app/core/services/tracking_service.dart';
 import 'package:taxi_app/core/services/services.dart';
 import 'package:taxi_app/core/services/soporte_notification_service.dart';
+import 'package:taxi_app/core/constants/estado_contraoferta.dart';
 import 'package:taxi_app/core/constants/solicitud_estado.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
 
@@ -502,9 +503,9 @@ class InicioConductorViewmodel extends ChangeNotifier {
       tx.update(ref, {
         'estado': SolicitudEstado.asignado,
         'conductor': conductorPayload,
-        'estadoContraoferta': 'sin_contraoferta',
+        'estadoContraoferta': EstadoContraoferta.sinContraoferta,
         'contraoferta': {
-          'estado': 'sin_contraoferta',
+          'estado': EstadoContraoferta.sinContraoferta,
           'updatedAt': FieldValue.serverTimestamp(),
         },
         'fecha de aceptacion conductor': FieldValue.serverTimestamp(),
@@ -565,7 +566,7 @@ class InicioConductorViewmodel extends ChangeNotifier {
       }
 
       final ofertaEntry = {
-        'estado': 'pendiente_cliente',
+        'estado': EstadoContraoferta.pendienteCliente,
         'valor': nuevoValor,
         'conductor': conductorPayload,
         'createdAt': FieldValue.serverTimestamp(),
@@ -574,7 +575,7 @@ class InicioConductorViewmodel extends ChangeNotifier {
 
       tx.set(ref, {
         'estado': SolicitudEstado.buscando,
-        'estadoContraoferta': 'pendiente_cliente',
+        'estadoContraoferta': EstadoContraoferta.pendienteCliente,
         'updatedAt': FieldValue.serverTimestamp(),
         // Legacy: un solo campo para compatibilidad
         'contraoferta': ofertaEntry,

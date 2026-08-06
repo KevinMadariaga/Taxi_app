@@ -8,6 +8,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:taxi_app/core/services/services.dart';
 import 'package:taxi_app/core/services/map_service_adapter.dart' as adapter;
 import 'package:taxi_app/core/helpers/session_helper.dart';
+import 'package:taxi_app/core/constants/estado_contraoferta.dart';
 import 'package:taxi_app/core/constants/solicitud_estado.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
 
@@ -114,7 +115,7 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
   bool get hasPendingCounteroffer =>
       _contraofertas.isNotEmpty ||
       (_valorContraofertaPendiente != null &&
-          _estadoContraoferta == 'pendiente_cliente');
+          _estadoContraoferta == EstadoContraoferta.pendienteCliente);
   String? get counterOfferToken => _counterOfferToken;
   LatLng? get destinoLocation => _destinoLocation;
   List<LatLng> get routePoints => List.unmodifiable(_routePoints);
@@ -148,10 +149,7 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
         .listen((snap) async {
           // Documento borrado: para el cliente equivale a una cancelación.
           if (!snap.exists) {
-            await _notificarTerminada(
-              SolicitudEstado.cancelado,
-              onTerminada,
-            );
+            await _notificarTerminada(SolicitudEstado.cancelado, onTerminada);
             return;
           }
           final data = snap.data();
@@ -228,7 +226,8 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
         if (raw is! Map) return;
         final entry = Map<String, dynamic>.from(raw);
         final estado = entry['estado']?.toString() ?? '';
-        if (estado != 'pendiente_cliente') return; // solo las activas
+        if (estado != EstadoContraoferta.pendienteCliente)
+          return; // solo las activas
 
         final conductorRaw = entry['conductor'];
         final Map<String, dynamic> conductorData = conductorRaw is Map
@@ -317,7 +316,7 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
       _counterOfferToken =
           '${_estadoContraoferta ?? ''}_${_valorContraofertaPendiente?.toStringAsFixed(0) ?? ''}_${_timestampToKey(stamp)}';
 
-      if (_estadoContraoferta == 'pendiente_cliente' &&
+      if (_estadoContraoferta == EstadoContraoferta.pendienteCliente &&
           _valorContraofertaPendiente != null) {
         if (_counterOfferToken != _lastNotifiedCounterOfferToken) {
           _lastNotifiedCounterOfferToken = _counterOfferToken;
@@ -429,7 +428,7 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
       await _firestore.collection('solicitudes').doc(solicitudId).set({
         'valorServicioPropuesto': nuevoValor,
         'estado': SolicitudEstado.buscando,
-        'estadoContraoferta': 'sin_contraoferta',
+        'estadoContraoferta': EstadoContraoferta.sinContraoferta,
         'updatedAt': FieldValue.serverTimestamp(),
         'tarifa': {
           'total': nuevoValor,
@@ -437,7 +436,7 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
           'updatedAt': FieldValue.serverTimestamp(),
         },
         'contraoferta': {
-          'estado': 'sin_contraoferta',
+          'estado': EstadoContraoferta.sinContraoferta,
           'valor': null,
           'updatedAt': FieldValue.serverTimestamp(),
         },
@@ -445,7 +444,7 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
       }, SetOptions(merge: true));
       _valorServicioActual = nuevoValor;
       _valorContraofertaPendiente = null;
-      _estadoContraoferta = 'sin_contraoferta';
+      _estadoContraoferta = EstadoContraoferta.sinContraoferta;
       _counterOfferToken = null;
       _contraofertas = [];
       return true;
@@ -500,7 +499,8 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
           );
         }
         final entry = Map<String, dynamic>.from(rawEntry);
-        if (entry['estado']?.toString() != 'pendiente_cliente') {
+        if (entry['estado']?.toString() !=
+            EstadoContraoferta.pendienteCliente) {
           throw StateError(
             'Esa oferta ya no está disponible, el conductor la retiró.',
           );
@@ -517,7 +517,7 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
           'estado': SolicitudEstado.asignado,
           'conductor': conductorPayloadFresco,
           'valorServicioPropuesto': valorFresco,
-          'estadoContraoferta': 'aceptada_cliente',
+          'estadoContraoferta': EstadoContraoferta.aceptadaCliente,
           'updatedAt': FieldValue.serverTimestamp(),
           'fechaAceptacionContraoferta': FieldValue.serverTimestamp(),
           'tarifa': {
@@ -526,7 +526,7 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
             'updatedAt': FieldValue.serverTimestamp(),
           },
           'contraoferta': {
-            'estado': 'aceptada_cliente',
+            'estado': EstadoContraoferta.aceptadaCliente,
             'valor': valorFresco,
             'conductor': conductorPayloadFresco,
             'respondedAt': FieldValue.serverTimestamp(),
@@ -593,7 +593,7 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
           'contraofertas.$conductorId': FieldValue.delete(),
           // Also update legacy field so the backward-compat path doesn't
           // re-fire a notification when the next snapshot arrives.
-          'contraoferta.estado': 'rechazada_cliente',
+          'contraoferta.estado': EstadoContraoferta.rechazadaCliente,
         });
       });
       _contraofertas.removeWhere((o) => o.conductorId == conductorId);
@@ -637,7 +637,7 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
 
         final estado = contraRaw['estado']?.toString();
         final valor = _toDouble(contraRaw['valor']);
-        if (estado != 'pendiente_cliente' || valor == null) {
+        if (estado != EstadoContraoferta.pendienteCliente || valor == null) {
           throw StateError('La contraoferta ya no está disponible');
         }
 
@@ -645,7 +645,7 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
         tx.set(ref, {
           'estado': SolicitudEstado.asignado,
           'valorServicioPropuesto': valor,
-          'estadoContraoferta': 'aceptada_cliente',
+          'estadoContraoferta': EstadoContraoferta.aceptadaCliente,
           'updatedAt': FieldValue.serverTimestamp(),
           'fechaAceptacionContraoferta': FieldValue.serverTimestamp(),
           'tarifa': {
@@ -655,7 +655,7 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
           },
           'contraoferta': {
             ...contraRaw,
-            'estado': 'aceptada_cliente',
+            'estado': EstadoContraoferta.aceptadaCliente,
             'respondedAt': FieldValue.serverTimestamp(),
             'updatedAt': FieldValue.serverTimestamp(),
           },
@@ -686,17 +686,17 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
     try {
       await _firestore.collection('solicitudes').doc(solicitudId).set({
         'estado': SolicitudEstado.buscando,
-        'estadoContraoferta': 'rechazada_cliente',
+        'estadoContraoferta': EstadoContraoferta.rechazadaCliente,
         'updatedAt': FieldValue.serverTimestamp(),
         'contraoferta': {
-          'estado': 'rechazada_cliente',
+          'estado': EstadoContraoferta.rechazadaCliente,
           'respondedAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
         },
       }, SetOptions(merge: true));
 
       _valorContraofertaPendiente = null;
-      _estadoContraoferta = 'rechazada_cliente';
+      _estadoContraoferta = EstadoContraoferta.rechazadaCliente;
       _counterOfferToken = null;
       return true;
     } catch (_) {
@@ -873,7 +873,8 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
       });
       return;
     }
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
       // App en segundo plano: cancelar tras 6 min sin volver.
       _bgCancelTimer?.cancel();
       _bgCancelTimer = Timer(_umbralBackgroundCancel, () {

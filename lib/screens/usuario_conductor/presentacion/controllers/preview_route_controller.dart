@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/constants/estado_contraoferta.dart';
 import 'package:taxi_app/core/helpers/map_helper.dart';
 import 'package:taxi_app/core/services/map_service_adapter.dart';
 import 'package:taxi_app/core/services/tracking_service.dart';
@@ -196,7 +197,7 @@ class PreviewRouteController {
     final preview = selectedPreview;
     if (preview == null) return;
     preview.solicitud.valorContraoferta = valor;
-    preview.solicitud.estadoContraoferta = 'pendiente_cliente';
+    preview.solicitud.estadoContraoferta = EstadoContraoferta.pendienteCliente;
     onChanged?.call();
   }
 

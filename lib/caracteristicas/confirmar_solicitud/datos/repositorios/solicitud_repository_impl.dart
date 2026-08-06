@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'package:taxi_app/core/constants/estado_contraoferta.dart';
 import 'package:taxi_app/core/constants/solicitud_estado.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/location_model.dart';
@@ -90,11 +91,14 @@ class SolicitudRepositoryImpl implements SolicitudRepository {
       'metodoPago': metodoPago,
       'comentario': comentario,
       'valorServicioPropuesto': valorServicio,
-      'estadoContraoferta': 'sin_contraoferta',
+      'estadoContraoferta': EstadoContraoferta.sinContraoferta,
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
       'tarifa': {'total': valorServicio, 'propuestaCliente': valorServicio},
-      'contraoferta': {'estado': 'sin_contraoferta', 'valor': null},
+      'contraoferta': {
+        'estado': EstadoContraoferta.sinContraoferta,
+        'valor': null,
+      },
     };
 
     final docRef = await _firestore.collection('solicitudes').add(solicitud);
