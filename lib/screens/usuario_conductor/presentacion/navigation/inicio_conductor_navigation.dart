@@ -11,11 +11,23 @@ import 'package:taxi_app/widgets/intermediate_transition_view.dart';
 import 'package:taxi_app/screens/perfil/perfil.dart';
 
 class InicioConductorNavigation {
+  /// Entra al viaje REEMPLAZANDO el home del conductor.
+  ///
+  /// Con `push` el home quedaba montado durante todo el viaje y seguían vivos
+  /// su listener de solicitudes en `buscando` (con las lecturas y el geocoding
+  /// por snapshot), el de solicitudes asignadas, el de perfil y el de
+  /// membresía. Peor: su `didChangeAppLifecycleState` podía abrir diálogos de
+  /// GPS encima de la pantalla de viaje, y el watcher de membresía hacía
+  /// `popUntil(isFirst)`, que sacaba al conductor del viaje en curso.
+  ///
+  /// Es seguro reemplazar porque toda salida del viaje (completado o
+  /// cancelado) navega con `clearStackOnNext`, reconstruyendo `InicioConductor`
+  /// desde cero.
   static Future<void> irARutaConductor(
     BuildContext context,
     String idSolicitud,
   ) {
-    return Navigator.of(context).push(
+    return Navigator.of(context).pushReplacement(
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 220),
         reverseTransitionDuration: const Duration(milliseconds: 180),

@@ -160,6 +160,48 @@ void main() {
       expect(data['conductor']['lat'], 10.0);
       expect(data['conductor']['lng'], 10.0);
     });
+
+    // El conductor debe salir del índice de despacho al tomar el viaje: si no,
+    // sigue contando como candidato para las notificaciones de proximidad y
+    // aparece libre en el mapa del cliente mientras conduce.
+    test('éxito: borra su presencia en conductores_conectados', () async {
+      await firestore.collection('usuarios').doc(_uid).set({
+        'membresia': 'activa',
+      });
+      await firestore.collection('conductores_conectados').doc(_uid).set({
+        'ubicacion': {'lat': 10.0, 'lng': 10.0},
+      });
+      await firestore.collection('solicitudes').doc('sol-1').set({
+        'estado': 'buscando',
+      });
+
+      vm.currentLocation = const LatLng(10.0, 10.0);
+      await vm.aceptarSolicitud('sol-1');
+
+      final presencia = await firestore
+          .collection('conductores_conectados')
+          .doc(_uid)
+          .get();
+      expect(presencia.exists, isFalse);
+    });
+
+    // `disponible` es la intención del conductor (su toggle online/offline).
+    // Apagarla al aceptar lo dejaría offline después de cada viaje.
+    test('éxito: NO apaga el toggle disponible del conductor', () async {
+      await firestore.collection('usuarios').doc(_uid).set({
+        'membresia': 'activa',
+        'disponible': true,
+      });
+      await firestore.collection('solicitudes').doc('sol-1').set({
+        'estado': 'buscando',
+      });
+
+      vm.currentLocation = const LatLng(10.0, 10.0);
+      await vm.aceptarSolicitud('sol-1');
+
+      final perfil = await firestore.collection('usuarios').doc(_uid).get();
+      expect(perfil.data()!['disponible'], isTrue);
+    });
   });
 
   group('enviarContraoferta', () {

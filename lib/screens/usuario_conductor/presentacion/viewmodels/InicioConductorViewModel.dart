@@ -510,6 +510,20 @@ class InicioConductorViewmodel extends ChangeNotifier {
         'fecha de aceptacion conductor': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
+      // Sale del índice de despacho al tomar el viaje, en la MISMA
+      // transacción, para que no exista un instante en el que ya tenga viaje
+      // pero el reparto lo siga considerando candidato: antes seguía contando
+      // como libre para las notificaciones de proximidad y para el mapa de
+      // conductores del cliente.
+      //
+      // Se borra su posición publicada en vez de poner `disponible: false`.
+      // `disponible` es la INTENCIÓN del conductor (su toggle online/offline);
+      // apagarla acá lo dejaría offline después de cada viaje y tendría que
+      // volver a conectarse a mano. La presencia en `conductores_conectados`
+      // es lo que significa "despachable ahora", y se restablece sola: el
+      // home la vuelve a publicar al montarse y cada 2 min mientras esté
+      // conectado.
+      tx.delete(_firestore.collection('conductores_conectados').doc(uid));
     });
   }
 
