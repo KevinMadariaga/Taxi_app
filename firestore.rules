@@ -165,9 +165,22 @@ service cloud.firestore {
     // hace un `.get()` sin filtro sobre toda la colección para juntar
     // `fcmToken` de todos los admins.
     // ---------------------------------------------------------------
+    // ESCALADA DE PRIVILEGIOS CERRADA: antes era
+    // `allow write: if isSignedIn() && request.auth.uid == uid`, que permite
+    // CREAR el documento propio. Como `isAdminRole()` se limita a comprobar
+    // que exista `administradores/{uid}`, cualquier usuario autenticado podía
+    // crearse el suyo y quedar como admin: acceso a todos los perfiles de
+    // conductor, chats de soporte, reportes y alertas de pánico.
+    //
+    // Se permite solo ACTUALIZAR un documento que ya existe (lo necesita
+    // `FcmService` para persistir el `fcmToken`, y solo escribe si el doc ya
+    // existía). La creación queda fuera de la app a propósito: se hace desde
+    // la consola o el backend. `UserDataService.guardarAdministrador` no
+    // tiene llamadores, así que esto no rompe ningún flujo.
     match /administradores/{uid} {
       allow read: if isSignedIn();
-      allow write: if isSignedIn() && request.auth.uid == uid;
+      allow update: if isSignedIn() && request.auth.uid == uid;
+      allow create, delete: if false;
     }
 
     // ---------------------------------------------------------------
