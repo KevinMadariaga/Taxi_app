@@ -1,7 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import '../../viewmodels/confirmar_solicitud_viewmodel.dart';
+
+/// Tope del comentario al conductor. Suficiente para una indicación de
+/// recogida ("portón blanco, timbre roto") sin desbordar la tarjeta de
+/// preview ni permitir texto arbitrariamente largo en el documento.
+const int _maxCaracteresComentario = 140;
 
 Future<void> mostrarComentarioSheet(
   BuildContext context,
@@ -77,6 +83,16 @@ Future<void> mostrarComentarioSheet(
                     TextField(
                       controller: controller,
                       maxLines: 3,
+                      // Sin tope, el único techo era el límite de 1 MiB por
+                      // documento de Firestore: se podía guardar un texto
+                      // arbitrariamente largo que además se renderiza sin
+                      // truncar en la preview del conductor.
+                      maxLength: _maxCaracteresComentario,
+                      inputFormatters: [
+                        LengthLimitingTextInputFormatter(
+                          _maxCaracteresComentario,
+                        ),
+                      ],
                       onChanged: (value) {
                         setSheetState(() {
                           draft = value.trim();

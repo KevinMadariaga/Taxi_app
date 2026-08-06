@@ -26,10 +26,19 @@ Future<void> mostrarValorServicioSheet(
     );
   final focusNode = FocusNode();
   bool isFormatting = false;
+  // Mensaje de validación visible bajo el campo. Se prefiere avisar a
+  // recortar el número en silencio: cambiarle el valor al usuario sin
+  // decírselo es peor que rechazarlo con un motivo.
+  String? errorTexto;
 
-  void guardar(BuildContext ctx) {
+  void guardar(BuildContext ctx, void Function(void Function()) setState) {
     final digits = controller.text.replaceAll(RegExp(r'[^0-9]'), '');
-    if (digits.isNotEmpty) vm.setValorServicio(digits);
+    final error = vm.validarValorServicio(digits);
+    if (error != null) {
+      setState(() => errorTexto = error);
+      return;
+    }
+    vm.setValorServicio(digits);
     Navigator.of(ctx).pop();
   }
 
@@ -39,7 +48,7 @@ Future<void> mostrarValorServicioSheet(
     backgroundColor: Colors.transparent,
     builder: (ctx) {
       return StatefulBuilder(
-        builder: (ctx, _) {
+        builder: (ctx, setState) {
           final bottomInset = MediaQuery.of(ctx).viewInsets.bottom;
           final safePad = MediaQuery.of(ctx).viewPadding.bottom;
           return Padding(
@@ -90,10 +99,11 @@ Future<void> mostrarValorServicioSheet(
                         );
                         isFormatting = false;
                       },
-                      onSubmitted: (_) => guardar(ctx),
+                      onSubmitted: (_) => guardar(ctx, setState),
                       decoration: InputDecoration(
                         prefixText: '\$ ',
                         hintText: 'Ej: ${vm.tipoVehiculo.basePriceDia}',
+                        errorText: errorTexto,
                         border: const OutlineInputBorder(),
                         focusedBorder: OutlineInputBorder(
                           borderSide: BorderSide(
@@ -115,7 +125,7 @@ Future<void> mostrarValorServicioSheet(
                             borderRadius: BorderRadius.circular(10.r),
                           ),
                         ),
-                        onPressed: () => guardar(ctx),
+                        onPressed: () => guardar(ctx, setState),
                         child: const Text(
                           'Guardar',
                           style: TextStyle(fontWeight: FontWeight.w700),

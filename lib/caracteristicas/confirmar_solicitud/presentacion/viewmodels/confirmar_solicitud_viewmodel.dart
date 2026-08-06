@@ -260,6 +260,49 @@ class ConfirmarSolicitudViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Mínimo aceptable: la tarifa base del vehículo (sin el variable por km).
+  /// Por debajo de eso ningún conductor tomaría el viaje, y ofertas de $1
+  /// solo sirven para spamear a todos los conductores del radio.
+  int get valorMinimoPermitido {
+    final hora = DateTime.now().hour;
+    final esNoche = hora >= 18 || hora < 6;
+    return esNoche ? tipoVehiculo.basePriceNoche : tipoVehiculo.basePriceDia;
+  }
+
+  /// Techo anti fat-finger: 20× el valor sugerido. No busca acotar la
+  /// negociación, solo evitar que un cero de más quede escrito en Firestore.
+  int get valorMaximoPermitido {
+    final sugerido = int.tryParse(previsualizarValor(tipoVehiculo)) ?? 10000;
+    return sugerido * 20;
+  }
+
+  /// `null` si [digits] es un valor aceptable; si no, el motivo para mostrar
+  /// en la UI. Antes no había ningún límite en toda la cadena: `1` y
+  /// `999999999999` se escribían igual en el documento.
+  String? validarValorServicio(String digits) {
+    final valor = int.tryParse(digits.replaceAll(RegExp(r'[^0-9]'), ''));
+    if (valor == null || valor <= 0) return 'Ingresa un valor válido.';
+    if (valor < valorMinimoPermitido) {
+      return 'El valor mínimo para ${tipoVehiculo.label.toLowerCase()} es '
+          '\$${_formatMiles(valorMinimoPermitido)}.';
+    }
+    if (valor > valorMaximoPermitido) {
+      return 'El valor máximo es \$${_formatMiles(valorMaximoPermitido)}.';
+    }
+    return null;
+  }
+
+  static String _formatMiles(int v) {
+    final s = v.toString();
+    final buf = StringBuffer();
+    for (var i = 0; i < s.length; i++) {
+      final rev = s.length - i;
+      buf.write(s[i]);
+      if (rev > 1 && rev % 3 == 1) buf.write('.');
+    }
+    return buf.toString();
+  }
+
   void setValorServicio(String value) {
     final digits = value.replaceAll(RegExp(r'[^0-9]'), '');
     if (digits.isEmpty) return;
