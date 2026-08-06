@@ -39,7 +39,22 @@ class FavoritosService {
     await _fs.collection('ubicaciones').add(payload);
   }
 
-  Future<QuerySnapshot<Map<String, dynamic>>> getTodasUbicaciones() {
-    return _fs.collection('ubicaciones').get();
+  /// Ubicaciones guardadas del usuario [uid].
+  ///
+  /// El filtro `userId` no es solo un ahorro: la regla de `ubicaciones` es
+  /// `resource.data.userId == request.auth.uid`, y Firestore rechaza con
+  /// `permission-denied` cualquier query de colección que no esté acotada de
+  /// forma demostrable cuando la regla depende de `resource.data`. Sin el
+  /// `where` esta consulta fallaba siempre (y de paso descargaba las
+  /// direcciones de todos los usuarios para filtrarlas en Dart).
+  Future<QuerySnapshot<Map<String, dynamic>>> getUbicacionesDeUsuario(
+    String uid, {
+    int limit = 50,
+  }) {
+    return _fs
+        .collection('ubicaciones')
+        .where('userId', isEqualTo: uid)
+        .limit(limit)
+        .get();
   }
 }

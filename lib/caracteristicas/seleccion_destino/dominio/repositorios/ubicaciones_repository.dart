@@ -16,8 +16,11 @@ abstract class UbicacionesRepository {
 
   Future<List<UbicacionEntity>> favoritosPorTipo(String tipo, {int? limit});
 
-  /// Todas las ubicaciones guardadas por cualquier usuario (colección
-  /// `ubicaciones`), sin filtrar todavía por dueño ni por texto de búsqueda —
-  /// eso lo hace el caso de uso que combina fuentes.
+  /// Ubicaciones guardadas por el usuario actual (colección `ubicaciones`),
+  /// sin filtrar todavía por texto de búsqueda — eso lo hace el caso de uso
+  /// que combina fuentes. Devuelve vacío si no hay sesión.
+  ///
+  /// El filtrado por dueño es parte de la QUERY, no un post-filtro en Dart:
+  /// las reglas de `ubicaciones` solo permiten leer los documentos propios.
   Future<List<UbicacionEntity>> todasLasGuardadas();
 }

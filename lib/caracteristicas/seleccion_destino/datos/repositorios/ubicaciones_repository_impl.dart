@@ -79,13 +79,12 @@ class UbicacionesRepositoryImpl implements UbicacionesRepository {
   @override
   Future<List<UbicacionEntity>> todasLasGuardadas() async {
     final uid = _auth.currentUser?.uid;
-    final snapshot = await _favoritos.getTodasUbicaciones();
+    if (uid == null || uid.isEmpty) return const [];
+    // El filtro por `userId` va en la query (no en Dart): además de ser lo
+    // único que las reglas de `ubicaciones` permiten leer, evita descargar la
+    // colección global entera en cada pulsación del buscador.
+    final snapshot = await _favoritos.getUbicacionesDeUsuario(uid);
     return snapshot.docs
-        .where((doc) {
-          final ownerId = doc.data()['userId'] as String?;
-          if (ownerId == null || ownerId.isEmpty) return true;
-          return uid != null && ownerId == uid;
-        })
         .map((doc) => _mapDoc(doc.data()))
         .whereType<UbicacionEntity>()
         .toList();
