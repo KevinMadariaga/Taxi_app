@@ -4,6 +4,7 @@ import 'package:taxi_app/caracteristicas/viaje_cliente/presentacion/viewmodels/v
 import 'package:taxi_app/caracteristicas/viaje_compartido/presentacion/widgets/barra_progreso_direccional.dart';
 import 'package:taxi_app/caracteristicas/viaje_compartido/presentacion/widgets/eta_distancia_row.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/constants/solicitud_estado.dart';
 import 'package:taxi_app/core/theme/ride_button_styles.dart';
 
 import 'widgets/codigo_verificacion_banner.dart';
@@ -77,7 +78,10 @@ class _TripInfoCardState extends State<TripInfoCard>
 
   String _titulo(ViajeClienteViewModel vm) {
     final estado = vm.viaje?.estado;
-    if (estado == 'en camino') return 'Vas en camino al vehículo';
+    // Constantes en vez del literal crudo `'en camino'`, que era la única
+    // comparación de estado sin normalizar que quedaba en el repo.
+    if (estado == SolicitudEstado.enRuta) return 'En viaje hacia tu destino';
+    if (estado == SolicitudEstado.enCamino) return 'Vas en camino al vehículo';
     return 'Conductor llegando a tu ubicación';
   }
 

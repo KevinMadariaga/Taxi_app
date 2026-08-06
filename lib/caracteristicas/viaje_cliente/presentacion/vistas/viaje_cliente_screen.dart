@@ -509,6 +509,23 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen> {
                             : BitmapDescriptor.hueAzure,
                       ),
                 ),
+              // Pin del objetivo actual: el punto de recogida mientras el
+              // conductor viene, y el destino una vez arrancó el viaje. Sin
+              // él la polilínea terminaba en la nada y el pasajero no tenía
+              // referencia de hacia dónde va.
+              if (_vm.objetivoActual != null)
+                Marker(
+                  markerId: const MarkerId('objetivo'),
+                  position: _vm.objetivoActual!,
+                  icon: BitmapDescriptor.defaultMarkerWithHue(
+                    BitmapDescriptor.hueRed,
+                  ),
+                  infoWindow: InfoWindow(
+                    title: _vm.viaje?.estado == SolicitudEstado.enRuta
+                        ? 'Tu destino'
+                        : 'Punto de recogida',
+                  ),
+                ),
             };
 
             final polylines = <Polyline>{

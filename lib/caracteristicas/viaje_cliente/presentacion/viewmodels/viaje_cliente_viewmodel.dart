@@ -101,8 +101,27 @@ class ViajeClienteViewModel extends ChangeNotifier {
 
   LatLng? get clienteLatLng => viaje?.cliente.ubicacion;
   LatLng? get conductorLatLngCrudo => viaje?.conductor.ubicacion;
+
+  /// Hacia dónde va el conductor AHORA: el punto de recogida mientras va a
+  /// buscar al pasajero, y el destino una vez arrancó el viaje.
+  ///
+  /// Antes la ruta apuntaba siempre a `clienteLatLng`, así que una vez en
+  /// `en ruta` el mapa, la polilínea, el ETA y la barra de progreso del
+  /// pasajero seguían señalando su propia dirección de recogida durante todo
+  /// el trayecto. Mismo criterio que `objetivoActual` en el ViewModel del
+  /// conductor. Si el viaje no tiene destino con coordenadas, se mantiene la
+  /// recogida como objetivo en vez de quedarse sin ruta.
+  LatLng? get objetivoActual {
+    final v = viaje;
+    if (v == null) return null;
+    if (v.estado == SolicitudEstado.enRuta) {
+      return v.destino.ubicacion ?? v.cliente.ubicacion;
+    }
+    return v.cliente.ubicacion;
+  }
+
   bool get hasBothLocations =>
-      clienteLatLng != null && conductorLatLngCrudo != null;
+      objetivoActual != null && conductorLatLngCrudo != null;
 
   String get distanceText =>
       distanceMeters == null ? '--' : _ruta.formatearDistancia(distanceMeters!);
@@ -179,8 +198,20 @@ class ViajeClienteViewModel extends ChangeNotifier {
   }
 
   void _handleEstadoTransition(String estado) {
-    if (_lastEstado == estado) return;
+    final anterior = _lastEstado;
+    if (anterior == estado) return;
     _lastEstado = estado;
+
+    // Arrancó el viaje: el objetivo pasa de la recogida al destino, así que
+    // hay que recalcular la ruta sí o sí. Sin esto `_routeCalculatedOnce`
+    // bloqueaba el recálculo y la ruta seguía apuntando al punto de recogida
+    // durante todo el trayecto.
+    if (estado == SolicitudEstado.enRuta && anterior != null) {
+      _routeCalculatedOnce = false;
+      _lastTo = null;
+      _initialRouteDistance = 0;
+      unawaited(_updateRouteIfNeeded(forceRefresh: true));
+    }
 
     if (estado == SolicitudEstado.enEspera) {
       _openWaitingModal();
@@ -252,7 +283,7 @@ class ViajeClienteViewModel extends ChangeNotifier {
     if (_routeCalculatedOnce && !forceRefresh) return;
 
     final from = conductorLatLngCrudo!;
-    final to = clienteLatLng!;
+    final to = objetivoActual!;
 
     final shouldRefresh =
         _lastFrom == null ||
