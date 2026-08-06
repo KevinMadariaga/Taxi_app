@@ -7,7 +7,9 @@ import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_navigator.dart';
+import 'package:taxi_app/core/helpers/session_helper.dart';
 import 'package:taxi_app/core/services/notificacion_servicio.dart';
+import 'package:taxi_app/core/utils/error_reporter.dart';
 import 'package:taxi_app/features/phone_auth/screens/admin_hub_screen.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioConductorView.dart';
 
@@ -280,10 +282,15 @@ class FcmService {
   /// está montada: SolicitudEstadoController, TripTrackingViewModel,
   /// InicioConductorViewModel). Este canal FCM existe para cubrir background
   /// y terminated — mostrarlo también en foreground duplicaría el aviso.
+  ///
+  /// `nueva_solicitud` NO está en esta lista: se sacó porque el aviso local
+  /// que la justificaba ya no existe — `PendingSolicitudesController` dejó de
+  /// mostrarlo y solo empuja el id a un stream sin consumidores. Con la
+  /// supresión activa el conductor no recibía **ningún** aviso de solicitud
+  /// nueva, ni en foreground ni en background: tenía que estar mirando la app.
   static const _tiposConAvisoLocalPropio = {
     'trip_status_change',
     'conductor_cerca',
-    'nueva_solicitud',
     'trip_chat_message',
     'soporte_chat_respuesta',
     'contraoferta',
@@ -330,6 +337,27 @@ class FcmService {
     _navigateFromMessage(message);
   }
 
+  /// Vuelve al home del conductor solo si NO hay un viaje en curso.
+  ///
+  /// `popUntil(isFirst)` es destructivo: como la pantalla de viaje se apila
+  /// con `push` sobre el home, aplicarlo durante un viaje activo expulsaría al
+  /// conductor de él.
+  Future<void> _irAInicioConductorSiNoHayViajeActivo(
+    NavigatorState nav,
+  ) async {
+    try {
+      final solicitudActiva = await SessionHelper.getActiveSolicitud();
+      if (solicitudActiva != null && solicitudActiva.isNotEmpty) return;
+    } catch (e, st) {
+      // Ante la duda, NO navegar: es preferible perder el atajo a la lista
+      // que arriesgarse a sacar al conductor de un viaje.
+      ErrorReporter.report(e, st, reason: 'fcm_service');
+      return;
+    }
+    if (!nav.mounted) return;
+    nav.popUntil((route) => route.isFirst);
+  }
+
   /// Navega a la pantalla correcta según el tipo de mensaje FCM.
   void _navigateFromMessage(RemoteMessage message) {
     final type = message.data['type'] as String? ?? '';
@@ -344,8 +372,13 @@ class FcmService {
 
     // Nueva solicitud cercana → llevar al conductor a su pantalla de inicio,
     // donde el listener en tiempo real ya muestra la solicitud entrante.
+    //
+    // PERO nunca si ya está en un viaje: la pantalla de viaje se abre con
+    // `push` sobre el home, así que `popUntil(isFirst)` lo **sacaría del
+    // viaje activo**. En ese caso la notificación se ignora — de todas formas
+    // no puede tomar otra solicitud mientras conduce.
     if (type == 'nueva_solicitud') {
-      nav.popUntil((route) => route.isFirst);
+      unawaited(_irAInicioConductorSiNoHayViajeActivo(nav));
       return;
     }
 
