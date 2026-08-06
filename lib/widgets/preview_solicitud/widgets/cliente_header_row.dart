@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import 'package:taxi_app/core/app_colores.dart';
 
@@ -11,11 +12,13 @@ class ClienteHeaderRow extends StatelessWidget {
     required this.nombre,
     required this.photoUrl,
     required this.distanciaKm,
+    this.compact = false,
   });
 
   final String nombre;
   final String? photoUrl;
   final double? distanciaKm;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -43,14 +46,18 @@ class ClienteHeaderRow extends StatelessWidget {
     return Row(
       children: [
         CircleAvatar(
-          radius: 28,
+          radius: compact ? 20.r : 28.r,
           backgroundColor: AppColores.grey400,
           backgroundImage: tienePhoto ? NetworkImage(photoUrl!) : null,
           child: tienePhoto
               ? null
-              : const Icon(Icons.person, color: AppColores.textWhite, size: 28),
+              : Icon(
+                  Icons.person,
+                  color: AppColores.textWhite,
+                  size: compact ? 20.sp : 28.sp,
+                ),
         ),
-        const SizedBox(width: 12),
+        SizedBox(width: 12.w),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -59,23 +66,23 @@ class ClienteHeaderRow extends StatelessWidget {
                 nombre.toUpperCase(),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
+                style: TextStyle(
                   fontWeight: FontWeight.w800,
-                  fontSize: 15,
+                  fontSize: (compact ? 13 : 15).sp,
                   color: AppColores.textPrimary,
                 ),
               ),
-              const SizedBox(height: 4),
+              SizedBox(height: 4.h),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 3.h),
                 decoration: BoxDecoration(
                   color: badgeColor,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(12.r),
                 ),
                 child: Text(
                   cercania,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: (compact ? 11 : 12).sp,
                     fontWeight: FontWeight.w600,
                     color: badgeTextColor,
                   ),

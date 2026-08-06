@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/widgets/boton.dart';
@@ -12,10 +13,12 @@ class AccionesSolicitudButtons extends StatelessWidget {
     super.key,
     required this.isAcceptLoading,
     required this.onAccept,
+    this.compact = false,
   });
 
   final bool isAcceptLoading;
   final VoidCallback onAccept;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -26,8 +29,8 @@ class AccionesSolicitudButtons extends StatelessWidget {
       isLoading: isAcceptLoading,
       onPressed: isAcceptLoading ? null : onAccept,
       width: double.infinity,
-      height: 56,
-      fontSize: 17,
+      height: (compact ? 46 : 56).h,
+      fontSize: (compact ? 15 : 17).sp,
     );
   }
 }

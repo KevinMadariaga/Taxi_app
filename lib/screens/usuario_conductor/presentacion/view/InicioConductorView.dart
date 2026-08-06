@@ -1947,10 +1947,24 @@ class _InicioConductorState extends State<InicioConductor>
     PreviewSolicitud preview,
   ) async {
     final valorBase = (preview.valorServicio ?? 0).round();
-    final controller = TextEditingController();
-    final isSubmitting = ValueNotifier<bool>(false);
-
     final opciones = vm.contraofertaOpciones(valorBase);
+
+    // El campo abre con un valor predeterminado ya escrito (la sugerencia
+    // más baja) y seleccionado por completo — el conductor puede borrarlo
+    // de un tirón y escribir el suyo, o dejarlo tal cual, en vez de
+    // arrancar de un campo vacío sin ninguna referencia.
+    final valorInicial = opciones.isNotEmpty ? opciones.first : valorBase;
+    final textoInicial = valorInicial.toString();
+    final controller = TextEditingController.fromValue(
+      TextEditingValue(
+        text: textoInicial,
+        selection: TextSelection(
+          baseOffset: 0,
+          extentOffset: textoInicial.length,
+        ),
+      ),
+    );
+    final isSubmitting = ValueNotifier<bool>(false);
 
     void setValor(int v) {
       final t = v.toString();
@@ -1963,148 +1977,151 @@ class _InicioConductorState extends State<InicioConductor>
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      // Sheet anclado abajo con esquinas redondeadas solo arriba (look
+      // estándar de Material) en vez de una tarjeta flotando con márgenes
+      // — y un scrim más claro que el `Colors.black54` por defecto para
+      // que el mapa/tarjeta de abajo sigan reconocibles detrás, no se
+      // vean "apagados" del todo mientras el conductor escribe el valor.
+      backgroundColor: Colors.white,
+      barrierColor: Colors.black.withValues(alpha: 0.32),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20.r)),
+      ),
       // Evita que la pantalla de fondo se desplace al abrir/cerrar teclado.
       builder: (ctx) {
         final media = MediaQuery.of(ctx);
         final keyboardInset = media.viewInsets.bottom;
         final bottomGap = keyboardInset > 0
-            ? keyboardInset + 12
-            : media.viewPadding.bottom + 12;
+            ? keyboardInset + 16
+            : media.viewPadding.bottom + 16;
 
         return Padding(
-          padding: EdgeInsets.fromLTRB(12, 16, 12, bottomGap),
-          child: Material(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16.r),
-            clipBehavior: Clip.antiAlias,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Enviar contraoferta',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 18.sp,
-                    ),
+          padding: EdgeInsets.fromLTRB(16, 16, 16, bottomGap),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 36.w,
+                  height: 4.h,
+                  margin: EdgeInsets.only(bottom: 12.h),
+                  decoration: BoxDecoration(
+                    color: AppColores.grey300,
+                    borderRadius: BorderRadius.circular(2.r),
                   ),
-                  SizedBox(height: 8.h),
-                  Text(
-                    'Oferta actual del cliente: \$${vm.formatMoneda(valorBase)}',
-                    style: const TextStyle(color: Colors.black54),
-                  ),
-                  SizedBox(height: 10.h),
-                  TextField(
-                    controller: controller,
-                    autofocus: true,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    enabled: !isSubmitting.value,
-                    decoration: const InputDecoration(
-                      prefixText: '\$ ',
-                      hintText: 'Ej: 11000',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  SizedBox(height: 10.h),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: opciones
-                        .map(
-                          (o) => ActionChip(
-                            label: Text('\$${vm.formatMoneda(o)}'),
-                            onPressed: isSubmitting.value ? null : () => setValor(o),
-                          ),
-                        )
-                        .toList(),
-                  ),
-                  SizedBox(height: 12.h),
-                  ValueListenableBuilder<bool>(
-                    valueListenable: isSubmitting,
-                    builder: (context, submitting, _) {
-                      return SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: submitting
-                                ? AppColores.grey400
-                                : AppColores.buttonPrimary,
-                            foregroundColor: AppColores.textWhite,
-                            minimumSize: const Size.fromHeight(48),
-                          ),
-                          onPressed: submitting
-                              ? null
-                              : () async {
-                                  final digits = controller.text.replaceAll(
-                                    RegExp(r'[^0-9]'),
-                                    '',
-                                  );
-                                  if (digits.isEmpty) return;
-                                  final valor = double.tryParse(digits);
-                                  if (valor == null || valor <= 0) {
-                                    ScaffoldMessenger.of(ctx)
-                                        .showSnackBar(
-                                          const SnackBar(
-                                            content: Text(
-                                              'Ingresa un valor válido',
-                                            ),
-                                          ),
-                                        );
-                                    return;
-                                  }
-
-                                  // Guardar referencia al messenger del builder
-                                  // antes del async gap.
-                                  final messenger = ScaffoldMessenger.of(ctx);
-                                  isSubmitting.value = true;
-                                  try {
-                                    await vm.enviarContraoferta(
-                                      solicitudId: preview.solicitud.id,
-                                      nuevoValor: valor,
-                                    );
-                                    vm.applyLocalContraoferta(valor);
-                                    if (!mounted) return;
-                                    Navigator.of(ctx).pop();
-                                    _mostrarConfirmacionContraoferta(
-                                      vm,
-                                      valor.round(),
-                                    );
-                                  } catch (e) {
-                                    if (!mounted) return;
-                                    isSubmitting.value = false;
-                                    messenger.showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          'Error: $e',
-                                        ),
-                                      ),
-                                    );
-                                  }
-                                },
-                          child: submitting
-                              ? const SizedBox(
-                                  height: 24,
-                                  width: 24,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    valueColor:
-                                        AlwaysStoppedAnimation<Color>(
-                                          AppColores.textWhite,
-                                        ),
-                                  ),
-                                )
-                              : const Text('Enviar contraoferta'),
-                        ),
-                      );
-                    },
-                  ),
-                ],
+                ),
               ),
-            ),
+              Text(
+                'Enviar contraoferta',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18.sp),
+              ),
+              SizedBox(height: 8.h),
+              Text(
+                'Oferta actual del cliente: \$${vm.formatMoneda(valorBase)}',
+                style: const TextStyle(color: Colors.black54),
+              ),
+              SizedBox(height: 10.h),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                enabled: !isSubmitting.value,
+                decoration: const InputDecoration(
+                  prefixText: '\$ ',
+                  hintText: 'Ej: 11000',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              SizedBox(height: 10.h),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: opciones
+                    .map(
+                      (o) => ActionChip(
+                        label: Text('\$${vm.formatMoneda(o)}'),
+                        onPressed: isSubmitting.value
+                            ? null
+                            : () => setValor(o),
+                      ),
+                    )
+                    .toList(),
+              ),
+              SizedBox(height: 12.h),
+              ValueListenableBuilder<bool>(
+                valueListenable: isSubmitting,
+                builder: (context, submitting, _) {
+                  return SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: submitting
+                            ? AppColores.grey400
+                            : AppColores.buttonPrimary,
+                        foregroundColor: AppColores.textWhite,
+                        minimumSize: const Size.fromHeight(48),
+                      ),
+                      onPressed: submitting
+                          ? null
+                          : () async {
+                              final digits = controller.text.replaceAll(
+                                RegExp(r'[^0-9]'),
+                                '',
+                              );
+                              if (digits.isEmpty) return;
+                              final valor = double.tryParse(digits);
+                              if (valor == null || valor <= 0) {
+                                ScaffoldMessenger.of(ctx).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Ingresa un valor válido'),
+                                  ),
+                                );
+                                return;
+                              }
+
+                              // Guardar referencia al messenger del builder
+                              // antes del async gap.
+                              final messenger = ScaffoldMessenger.of(ctx);
+                              isSubmitting.value = true;
+                              try {
+                                await vm.enviarContraoferta(
+                                  solicitudId: preview.solicitud.id,
+                                  nuevoValor: valor,
+                                );
+                                vm.applyLocalContraoferta(valor);
+                                if (!mounted) return;
+                                Navigator.of(ctx).pop();
+                                _mostrarConfirmacionContraoferta(
+                                  vm,
+                                  valor.round(),
+                                );
+                              } catch (e) {
+                                if (!mounted) return;
+                                isSubmitting.value = false;
+                                messenger.showSnackBar(
+                                  SnackBar(content: Text('Error: $e')),
+                                );
+                              }
+                            },
+                      child: submitting
+                          ? const SizedBox(
+                              height: 24,
+                              width: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  AppColores.textWhite,
+                                ),
+                              ),
+                            )
+                          : const Text('Enviar contraoferta'),
+                    ),
+                  );
+                },
+              ),
+            ],
           ),
         );
       },

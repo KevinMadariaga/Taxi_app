@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import 'package:taxi_app/core/app_colores.dart';
@@ -83,10 +84,65 @@ class PreviewSolicitudCard extends StatelessWidget {
     );
     final valorCliente = preview.valorServicio;
 
-    const mapFlex = 3;
-    const infoFlex = 2;
+    // `usableHeight` resta la barra de estado y la barra de navegación
+    // nativa de Android (`viewPadding`, cubre tanto la barra de 3 botones
+    // como el gesture bar) — un equipo con barra de navegación grande cae
+    // a `isCompactHeight` aunque `MediaQuery.size.height` sea "alto" en
+    // teoría, porque lo que importa es el espacio real disponible para el
+    // contenido.
     final viewPaddingBottom = MediaQuery.of(context).viewPadding.bottom;
     final statusBarHeight = MediaQuery.of(context).padding.top;
+    final usableHeight =
+        MediaQuery.of(context).size.height - viewPaddingBottom - statusBarHeight;
+    final isCompactHeight = usableHeight < 700;
+
+    // Con contraoferta, `PrecioOfertaBox` pasa de una fila simple a dos
+    // columnas (servicio tachado + contraoferta) — pero en modo compacto
+    // (`isCompactPanel`, más abajo) esas dos columnas usan fuentes y
+    // paddings más chicos, así que el contenido real termina siendo MÁS
+    // bajo que el de la fila simple sin contraoferta, no más alto — por
+    // eso ese caso necesita todavía más mapa (menos info) que el caso sin
+    // comentario "normal", no el mismo ratio.
+    final hayContraoferta = preview.valorContraoferta != null;
+    final isCompactPanel = isCompactHeight || hayContraoferta;
+
+    // Sin comentario el panel de info tiene menos contenido (solo tarjeta
+    // de cliente/dirección + precio) — si se le deja el mismo 50% que con
+    // comentario, sobra aire y ese aire termina como un `Spacer` en blanco
+    // antes de "Aceptar". En vez de dejar ese hueco, el mapa sube (más
+    // flex) y el panel de info baja al tamaño que su contenido real
+    // necesita — y baja todavía más (mapa más grande aún) si además hay
+    // contraoferta, por lo explicado arriba.
+    //
+    // Con comentario Y contraoferta juntos es el caso con MÁS contenido
+    // (tarjeta cliente/dirección + comentario + precio de dos columnas +
+    // botón) — ahí el mapa baja un poco más que el 50/50 base para darle
+    // a la info el aire que ese contenido extra necesita.
+    final comentarioVisible = comentario != null;
+    final int mapFlex;
+    final int infoFlex;
+    if (comentarioVisible && hayContraoferta) {
+      mapFlex = 46;
+      infoFlex = 54;
+    } else if (comentarioVisible) {
+      mapFlex = 50;
+      infoFlex = 50;
+    } else if (hayContraoferta) {
+      mapFlex = 68;
+      infoFlex = 32;
+    } else {
+      mapFlex = 60;
+      infoFlex = 40;
+    }
+
+    // Gap fijo y chico entre la tarjeta de cliente/dirección y la de
+    // precio, siempre — un `Spacer` ahí (probado y descartado) deja un
+    // hueco en blanco ENTRE dos tarjetas con borde que se lee como
+    // contenido faltante, no como diseño. El aire de sobra restante (si
+    // queda alguno) se concentra en un solo lugar: el `Spacer` antes de
+    // "Aceptar" — mismo patrón que un CTA anclado al fondo de una hoja
+    // (esperable, no se ve roto).
+    final espacioAntesDePrecio = isCompactPanel ? 8.h : 10.h;
 
     // Sin alto manual: el llamador (`InicioConductorView`) envuelve esta
     // tarjeta en un `Positioned.fill`, así que ya recibe exactamente el
@@ -221,7 +277,12 @@ class PreviewSolicitudCard extends StatelessWidget {
                       ),
                       child: IntrinsicHeight(
                         child: Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                          padding: EdgeInsets.fromLTRB(
+                            16.w,
+                            12.h,
+                            16.w,
+                            8.h,
+                          ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
@@ -234,10 +295,12 @@ class PreviewSolicitudCard extends StatelessWidget {
                               // de dirección se confunda con el fondo de
                               // la tarjeta.
                               Container(
-                                padding: const EdgeInsets.all(12),
+                                padding: EdgeInsets.all(
+                                  isCompactPanel ? 8.w : 12.w,
+                                ),
                                 decoration: BoxDecoration(
                                   color: AppColores.background,
-                                  borderRadius: BorderRadius.circular(14),
+                                  borderRadius: BorderRadius.circular(14.r),
                                   border: Border.all(
                                     color: AppColores.borderSubtle,
                                   ),
@@ -250,13 +313,14 @@ class PreviewSolicitudCard extends StatelessWidget {
                                       nombre: preview.clientName ?? 'Cliente',
                                       photoUrl: photoUrl,
                                       distanciaKm: preview.distanciaKm,
+                                      compact: isCompactPanel,
                                     ),
-                                    const SizedBox(height: 12),
+                                    SizedBox(height: isCompactPanel ? 8.h : 12.h),
                                     const Divider(
                                       color: AppColores.borderSubtle,
                                       height: 1,
                                     ),
-                                    const SizedBox(height: 12),
+                                    SizedBox(height: isCompactPanel ? 8.h : 12.h),
                                     InfoRecogidaPagoRow(
                                       direccionRecogida: _pickupText(preview),
                                       metodoPago: preview.paymentMethod,
@@ -265,21 +329,23 @@ class PreviewSolicitudCard extends StatelessWidget {
                                 ),
                               ),
                               if (comentario != null) ...[
-                                const SizedBox(height: 10),
+                                SizedBox(height: isCompactPanel ? 8.h : 10.h),
                                 ComentarioClienteBox(comentario: comentario),
                               ],
                               if (valorCliente != null) ...[
-                                const SizedBox(height: 10),
+                                SizedBox(height: espacioAntesDePrecio),
                                 PrecioOfertaBox(
                                   valorCliente: valorCliente,
                                   valorContraoferta: preview.valorContraoferta,
+                                  compact: isCompactPanel,
                                 ),
                               ],
                               const Spacer(),
-                              const SizedBox(height: 8),
+                              SizedBox(height: isCompactPanel ? 4.h : 8.h),
                               AccionesSolicitudButtons(
                                 isAcceptLoading: isAcceptLoading,
                                 onAccept: onAccept,
+                                compact: isCompactPanel,
                               ),
                             ],
                           ),
