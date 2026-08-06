@@ -609,13 +609,42 @@ exports.onNuevaSolicitudCreada = onDocumentCreated(
       return null;
     }
 
+    // La posición del conductor NO vive en `usuarios/{uid}.ubicacion`: ese
+    // campo no lo escribe nadie (`FirebaseService.guardarUbicacionConductor`
+    // no tiene llamadores y `TrackingService.enviarUbicacion` se niega
+    // explícitamente a escribir GPS en el doc de usuario). El único lugar con
+    // la posición es `conductores_conectados/{uid}`, que es lo que escribe
+    // `InicioConductorViewmodel.guardarUbicacionConectado`.
+    //
+    // Mientras se leyó el campo inexistente, `extractLatLng` devolvía null
+    // para TODOS los conductores y esta función terminaba siempre en
+    // "Ningún conductor conectado está dentro del radio de 3 km": ningún
+    // conductor recibía jamás un aviso de solicitud nueva.
+    const ubicacionesPorUid = new Map();
+    const uids = [...candidatos.keys()];
+    for (let i = 0; i < uids.length; i += 100) {
+      const refs = uids
+        .slice(i, i + 100)
+        .map((uid) => db.collection("conductores_conectados").doc(uid));
+      try {
+        const docs = await db.getAll(...refs);
+        docs.forEach((doc) => {
+          if (!doc.exists) return;
+          const pos = extractLatLng((doc.data() || {}).ubicacion);
+          if (pos) ubicacionesPorUid.set(doc.id, pos);
+        });
+      } catch (err) {
+        console.error("Error leyendo conductores_conectados:", err);
+      }
+    }
+
     const cercanos = [];
     for (const [uid, conductorData] of candidatos) {
       const tipoConductor = (conductorData.tipoVehiculo || "").toString().toLowerCase().trim();
       if (tipoVehiculoSolicitado && tipoConductor && tipoConductor !== tipoVehiculoSolicitado) {
         continue;
       }
-      const ubicacion = extractLatLng(conductorData.ubicacion);
+      const ubicacion = ubicacionesPorUid.get(uid);
       if (!ubicacion || !conductorData.fcmToken) continue;
 
       const distancia = haversineMeters(pickup.lat, pickup.lng, ubicacion.lat, ubicacion.lng);
@@ -1125,44 +1154,12 @@ exports.onReporteCreado = onDocumentCreated(
   }
 );
 
-/**
- * Función de diagnóstico: Permite enviar una notificación de prueba a un token.
- * URL: https://[region]-[project].cloudfunctions.net/debugPush?token=[FCM_TOKEN]
- */
-exports.debugPush = onRequest({ region: "us-central1" }, async (req, res) => {
-  const token = req.query.token;
-  if (!token) {
-    res.status(400).send("Falta el parámetro 'token'");
-    return;
-  }
-
-  const message = {
-    token: token,
-    notification: {
-      title: "Prueba de Conexión",
-      body: "Si ves esto, la comunicación Firebase -> iOS es exitosa.",
-    },
-    data: {
-      type: "debug",
-    },
-    apns: {
-      payload: {
-        aps: {
-          sound: "default",
-          badge: 0,
-          contentAvailable: true,
-        },
-      },
-    },
-  };
-
-  try {
-    const response = await getMessaging().send(message);
-    res.status(200).send(`✅ Mensaje enviado: ${response}`);
-  } catch (err) {
-    res.status(500).send(`❌ Error: ${err.message}`);
-  }
-});
+// `debugPush` (función de diagnóstico que enviaba una push a un token
+// arbitrario) se eliminó: era un `onRequest` sin verificación de auth ni App
+// Check, así que cualquiera con la URL podía mandar notificaciones a cualquier
+// token FCM suplantando a la app. Para probar pushes, usar la consola de
+// Firebase Cloud Messaging (permite enviar a un token concreto) en vez de
+// exponer un endpoint público.
 
 /**
  * Cloud Function programada: cancela automáticamente solicitudes que llevan
