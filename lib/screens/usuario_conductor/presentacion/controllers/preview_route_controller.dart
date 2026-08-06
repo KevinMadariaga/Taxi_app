@@ -10,6 +10,7 @@ import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/helpers/map_helper.dart';
 import 'package:taxi_app/core/services/map_service_adapter.dart';
 import 'package:taxi_app/core/services/tracking_service.dart';
+import 'package:taxi_app/data/models/solicitud_item.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodels/preview_solicitud.dart';
 
 /// Preview de una solicitud seleccionada + su ruta en el mapa.
@@ -62,6 +63,45 @@ class PreviewRouteController {
     // genérico en vez de la distancia real.
     refreshSelectedPreviewDistance();
     onChanged?.call();
+  }
+
+  /// Re-hidrata la preview abierta con el item recién construido desde el
+  /// último snapshot de Firestore.
+  ///
+  /// `selectedPreview` guardaba una referencia FIJA al `SolicitudItem` del
+  /// momento en que se abrió la tarjeta, y cada snapshot construye objetos
+  /// nuevos — así que la preview nunca reflejaba cambios posteriores. El
+  /// síntoma concreto: el conductor mandaba una contraoferta, el cliente la
+  /// rechazaba (o aceptaba la de otro, o editaba el precio base, lo que borra
+  /// el mapa `contraofertas` entero) y él seguía viendo "Tu contraoferta
+  /// $X / esperando" indefinidamente.
+  ///
+  /// Si la solicitud ya no está en la lista no se toca la selección: de esa
+  /// transición se encarga `listenPreviewSolicitudStatus`.
+  void resyncSelectedPreview(List<SolicitudItem> items) {
+    final actual = selectedPreview;
+    if (actual == null) return;
+
+    final id = actual.solicitud.id;
+    SolicitudItem? fresco;
+    for (final item in items) {
+      if (item.id == id) {
+        fresco = item;
+        break;
+      }
+    }
+    if (fresco == null) return;
+
+    // Comparar lo que la tarjeta realmente muestra evita reconstruir el
+    // objeto (y re-disparar el cálculo de ruta) en cada snapshot.
+    if (fresco.valorContraoferta == actual.valorContraoferta &&
+        fresco.estadoContraoferta == actual.estadoContraoferta &&
+        fresco.valorServicio == actual.valorServicio) {
+      return;
+    }
+
+    selectedPreview = PreviewSolicitud.fromSolicitud(fresco);
+    refreshSelectedPreviewDistance();
   }
 
   String? fotoClientePorId(String? clienteId) {

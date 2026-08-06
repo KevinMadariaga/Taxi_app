@@ -37,13 +37,31 @@ class SolicitudItem {
     this.tipoVehiculo,
   });
 
-  factory SolicitudItem.fromMap(String id, Map<String, dynamic> map) {
+  /// [conductorUid] es el conductor que está MIRANDO la solicitud. Se usa para
+  /// resolver `contraofertas[uid]` (su propia oferta) en vez del campo legacy
+  /// `contraoferta`, que guarda la ÚLTIMA oferta de cualquier conductor: sin
+  /// esto, el conductor A veía la oferta de B rotulada como "Tu contraoferta".
+  /// Si es `null` se cae al campo legacy (comportamiento anterior).
+  factory SolicitudItem.fromMap(
+    String id,
+    Map<String, dynamic> map, {
+    String? conductorUid,
+  }) {
     final cliente = _asMap(map['cliente']);
     final clienteUbicacion = _asMap(cliente?['ubicacion']);
     final origen = _asMap(map['origen']);
     final destino = _asMap(map['destino']);
     final tarifa = _asMap(map['tarifa']);
-    final contraoferta = _asMap(map['contraoferta']);
+
+    // Oferta propia (mapa nuevo por conductor) con fallback al campo legacy
+    // solo cuando no se sabe quién mira.
+    final contraofertasMap = _asMap(map['contraofertas']);
+    final Map<String, dynamic>? contraoferta;
+    if (conductorUid != null && conductorUid.isNotEmpty) {
+      contraoferta = _asMap(contraofertasMap?[conductorUid]);
+    } else {
+      contraoferta = _asMap(map['contraoferta']);
+    }
 
     String? clienteId = _firstText([
       cliente?['id'],
@@ -132,10 +150,14 @@ class SolicitudItem {
         _toDouble(map['valorServicioPropuesto']) ??
         _toDouble(map['valor']);
     final valorContraoferta = _toDouble(contraoferta?['valor']);
-    final estadoContraoferta = _firstText([
-      contraoferta?['estado'],
-      map['estadoContraoferta'],
-    ]);
+    // `estadoContraoferta` de nivel superior es GLOBAL (lo pisa el último
+    // conductor que oferta), así que solo sirve de fallback cuando no se sabe
+    // quién está mirando. Con `conductorUid` conocido, el estado sale
+    // exclusivamente de su propia entrada — si no tiene, no hay contraoferta
+    // suya que mostrar.
+    final estadoContraoferta = (conductorUid != null && conductorUid.isNotEmpty)
+        ? _firstText([contraoferta?['estado']])
+        : _firstText([contraoferta?['estado'], map['estadoContraoferta']]);
 
     return SolicitudItem(
       id: id,

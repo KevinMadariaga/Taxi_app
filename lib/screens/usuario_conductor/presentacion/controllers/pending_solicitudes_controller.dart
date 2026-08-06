@@ -49,6 +49,12 @@ class PendingSolicitudesController {
   LatLng? Function()? getCurrentLocation;
   String? Function()? getTipoVehiculoConductor;
 
+  /// uid del conductor logueado. Lo necesita `SolicitudItem.fromMap` para
+  /// resolver la contraoferta PROPIA (`contraofertas[uid]`) en vez del campo
+  /// legacy compartido, que mostraba la oferta de otro conductor como "Tu
+  /// contraoferta".
+  String? Function()? getConductorUid;
+
   void subscribe() {
     _sub?.cancel();
     // Suscribirse solo a solicitudes en estado "pendiente/buscando" para
@@ -167,7 +173,11 @@ class PendingSolicitudesController {
     final status = raw['estado'] ?? raw['status'];
     if (!_isPendingStatus(status)) return null;
 
-    final item = SolicitudItem.fromMap(doc.id, raw);
+    final item = SolicitudItem.fromMap(
+      doc.id,
+      raw,
+      conductorUid: getConductorUid?.call(),
+    );
     if (item.clienteId == null || item.clienteId!.isEmpty) return null;
 
     final lat = item.ubicacionInicial.latitude;

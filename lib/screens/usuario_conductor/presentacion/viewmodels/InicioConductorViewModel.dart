@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:taxi_app/data/models/solicitud_item.dart';
+import 'package:taxi_app/core/helpers/map_helper.dart';
 import 'package:taxi_app/core/helpers/permisos_helper.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -43,10 +44,17 @@ class InicioConductorViewmodel extends ChangeNotifier {
     _previewController.getCurrentLocation = () => currentLocation;
     _previewController.onLocationRefreshed = (loc) => currentLocation = loc;
     _profileController.onChanged = _safeNotify;
-    _solicitudesController.onChanged = _safeNotify;
+    // Cada snapshot de la lista re-hidrata la preview abierta: sin esto la
+    // tarjeta quedaba congelada con los datos del momento en que se abrió
+    // (ver `resyncSelectedPreview`).
+    _solicitudesController.onChanged = () {
+      _previewController.resyncSelectedPreview(_solicitudesController.solicitudes);
+      _safeNotify();
+    };
     _solicitudesController.getCurrentLocation = () => currentLocation;
     _solicitudesController.getTipoVehiculoConductor = () =>
         _profileController.tipoVehiculoConductor;
+    _solicitudesController.getConductorUid = () => _auth.currentUser?.uid;
   }
 
   /// Preview de solicitud seleccionada + su ruta en el mapa. Ver
@@ -357,6 +365,9 @@ class InicioConductorViewmodel extends ChangeNotifier {
           } catch (e, st) {
             ErrorReporter.report(e, st, reason: 'InicioConductorViewModel');
           }
+          // Desconectado: deja de publicar posición (si no, seguiría
+          // apareciendo como candidato con una posición que ya no se mueve).
+          _detenerRefrescoUbicacionConectado();
           _safeNotify();
         } else if (!previously && isConnected) {
           // Just became connected: start listening to solicitudes
@@ -365,6 +376,7 @@ class InicioConductorViewmodel extends ChangeNotifier {
           } catch (e, st) {
             ErrorReporter.report(e, st, reason: 'InicioConductorViewModel');
           }
+          _iniciarRefrescoUbicacionConectado();
         }
         _safeNotify();
       });
@@ -603,9 +615,29 @@ class InicioConductorViewmodel extends ChangeNotifier {
               return;
             }
 
-            if (normalizado == SolicitudEstado.asignado) {
+            // La solicitud ya tiene conductor: solo navegar al viaje si ESE
+            // conductor soy yo. Sin esta comprobación, todo conductor con la
+            // preview abierta era arrastrado al viaje que ganó otro — su GPS
+            // terminaba escribiéndose en un viaje ajeno (o, con las reglas
+            // desplegadas, quedaba encerrado en una pantalla de error con
+            // `PopScope(canPop: false)` y sin salida). Para él la solicitud
+            // simplemente dejó de estar disponible.
+            if (SolicitudEstado.isSesionActiva(normalizado) ||
+                SolicitudEstado.isTerminal(normalizado)) {
               _previewStatusHandled = true;
-              await onAsignado();
+              final conductor = data?['conductor'];
+              final conductorId = conductor is Map
+                  ? (conductor['id'] ?? conductor['uid'])?.toString()
+                  : null;
+              final esMio =
+                  conductorId != null &&
+                  conductorId.isNotEmpty &&
+                  conductorId == _auth.currentUser?.uid;
+              if (esMio && normalizado == SolicitudEstado.asignado) {
+                await onAsignado();
+              } else {
+                await onCanceladoOrRemoved();
+              }
               return;
             }
           } catch (e, st) {
@@ -654,6 +686,7 @@ class InicioConductorViewmodel extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _detenerRefrescoUbicacionConectado();
     _profileController.dispose();
     try {
       _solicitudesController.dispose();
@@ -698,6 +731,64 @@ class InicioConductorViewmodel extends ChangeNotifier {
         'ubicacion': {'lat': location.latitude, 'lng': location.longitude},
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'InicioConductorViewModel');
+    }
+  }
+
+  /// Cada cuánto se refresca la posición publicada en
+  /// `conductores_conectados`. 2 min es un compromiso: suficientemente fresco
+  /// para el radio de 3 km que usa el reparto de solicitudes, y lo bastante
+  /// espaciado para no castigar batería ni cuota de escrituras.
+  static const Duration _intervaloRefrescoUbicacion = Duration(minutes: 2);
+
+  /// Mínimo desplazamiento para escribir. Evita reescribir el documento
+  /// cuando el conductor está detenido (semáforo, esperando en un punto).
+  static const double _minMetrosParaRepublicar = 100;
+
+  Timer? _ubicacionConectadoTimer;
+  LatLng? _ultimaUbicacionPublicada;
+
+  /// Mantiene fresca la posición en `conductores_conectados` mientras el
+  /// conductor está conectado.
+  ///
+  /// Antes solo se escribía UNA vez, al arrancar la pantalla: el documento
+  /// quedaba congelado toda la sesión. Ahora que el reparto de solicitudes
+  /// (`onNuevaSolicitudCreada`) decide a quién notificar con ese dato, una
+  /// posición vieja significa avisar al conductor equivocado — o no avisar a
+  /// nadie.
+  void _iniciarRefrescoUbicacionConectado() {
+    _ubicacionConectadoTimer?.cancel();
+    _ubicacionConectadoTimer = Timer.periodic(
+      _intervaloRefrescoUbicacion,
+      (_) => unawaited(publicarUbicacionSiCambio()),
+    );
+  }
+
+  void _detenerRefrescoUbicacionConectado() {
+    _ubicacionConectadoTimer?.cancel();
+    _ubicacionConectadoTimer = null;
+    _ultimaUbicacionPublicada = null;
+  }
+
+  @visibleForTesting
+  Future<void> publicarUbicacionSiCambio() async {
+    if (_disposed || !isConnected) return;
+    try {
+      final pos = await _trackingService.obtenerUbicacionActual();
+      if (pos == null || _disposed || !isConnected) return;
+      final actual = LatLng(pos.latitude, pos.longitude);
+
+      final previa = _ultimaUbicacionPublicada;
+      if (previa != null &&
+          MapHelper.distanceMeters(previa, actual) <
+              _minMetrosParaRepublicar) {
+        return;
+      }
+
+      currentLocation = actual;
+      await guardarUbicacionConectado(actual);
+      _ultimaUbicacionPublicada = actual;
     } catch (e, st) {
       ErrorReporter.report(e, st, reason: 'InicioConductorViewModel');
     }
