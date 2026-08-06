@@ -40,6 +40,34 @@ function haversineMeters(lat1, lng1, lat2, lng2) {
 }
 
 /**
+ * Máximo de operaciones por `WriteBatch` en Firestore. Superarlo hace fallar
+ * el commit ENTERO, no las operaciones sobrantes.
+ */
+const MAX_OPS_POR_BATCH = 500;
+
+/**
+ * Aplica [aplicarOp] sobre [docs] repartiéndolos en batches de 500.
+ *
+ * Antes se metían todos los documentos en un solo `batch.commit()`. Con pocos
+ * documentos funciona, pero si el job queda caído un tiempo y se acumulan más
+ * de 500 vencidos, el commit falla completo y el barrido no limpia NADA — y
+ * como el backlog solo crece, no se recupera solo.
+ *
+ * Los lotes se envían en serie a propósito: en paralelo, un backlog grande
+ * dispararía cientos de commits simultáneos contra el mismo rango de
+ * documentos, con contención y riesgo de rate limiting.
+ */
+async function commitEnLotes(db, docs, aplicarOp) {
+  for (let i = 0; i < docs.length; i += MAX_OPS_POR_BATCH) {
+    const batch = db.batch();
+    for (const doc of docs.slice(i, i + MAX_OPS_POR_BATCH)) {
+      aplicarOp(batch, doc);
+    }
+    await batch.commit();
+  }
+}
+
+/**
  * Extrae {lat, lng} de un punto guardado como GeoPoint (con .latitude/.longitude)
  * o como mapa plano {lat, lng}.
  */
@@ -1294,17 +1322,14 @@ exports.cancelarSolicitudesBuscandoInactivas = onSchedule(
 
     if (snap.empty) return null;
 
-    const batch = db.batch();
-    snap.docs.forEach((doc) => {
-      batch.update(doc.ref, {
-        estado: "cancelado",
-        cancelledAt: FieldValue.serverTimestamp(),
-        cancelReason: "inactividad_timeout",
-      });
-    });
-
     try {
-      await batch.commit();
+      await commitEnLotes(db, snap.docs, (batch, doc) => {
+        batch.update(doc.ref, {
+          estado: "cancelado",
+          cancelledAt: FieldValue.serverTimestamp(),
+          cancelReason: "inactividad_timeout",
+        });
+      });
       console.log(
         `🛑 ${snap.size} solicitud(es) 'buscando' canceladas por inactividad.`
       );
@@ -1317,10 +1342,8 @@ exports.cancelarSolicitudesBuscandoInactivas = onSchedule(
     // cliente: da tiempo a que un conductor que ya estaba aceptando termine.
     await new Promise((resolve) => setTimeout(resolve, CANCELADA_DELETE_GRACE_MS));
 
-    const deleteBatch = db.batch();
-    snap.docs.forEach((doc) => deleteBatch.delete(doc.ref));
     try {
-      await deleteBatch.commit();
+      await commitEnLotes(db, snap.docs, (batch, doc) => batch.delete(doc.ref));
       console.log(`🗑️ ${snap.size} solicitud(es) vencidas eliminadas.`);
     } catch (err) {
       console.error("❌ Error eliminando solicitudes vencidas:", err.message);
@@ -1365,17 +1388,14 @@ exports.expirarMembresiasVencidas = onSchedule(
 
     if (snap.empty) return null;
 
-    const batch = db.batch();
-    snap.docs.forEach((doc) => {
-      batch.update(doc.ref, {
-        membresia: "",
-        servicioActivo: false,
-        updatedAt: FieldValue.serverTimestamp(),
-      });
-    });
-
     try {
-      await batch.commit();
+      await commitEnLotes(db, snap.docs, (batch, doc) => {
+        batch.update(doc.ref, {
+          membresia: "",
+          servicioActivo: false,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      });
       console.log(
         `🛑 ${snap.size} membresía(s) de conductor expiradas por vencimiento.`
       );
