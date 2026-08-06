@@ -100,6 +100,11 @@ class _MapaRutaCardState extends State<MapaRutaCard> {
       await controller.animateCamera(update);
     } catch (_) {
       await Future.delayed(const Duration(milliseconds: 300));
+      // El widget puede haberse disposed durante el delay (usuario navegó
+      // rápido a la siguiente pantalla) — sin este chequeo, `animateCamera`
+      // lanza "GoogleMapController ... used after ... disposed" en vez de
+      // simplemente abortar el reintento.
+      if (!mounted) return;
       try {
         await controller.animateCamera(update);
       } catch (e, st) {
