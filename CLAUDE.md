@@ -34,13 +34,29 @@ View → ViewModel/Controller → UseCase/Repository/Service → Firebase → no
 - **`domain/`** — Entidades, contratos de repositorio (`ClientAuthRepository`, `AuthRepository`) y casos de uso.
 - **`data/`** — Implementaciones concretas de repositorios y datasources (Firebase).
 - **`presentation/`** — Pantallas nuevas: splash, login, complete profile. ViewModels con Provider.
+- **`caracteristicas/`** — Patrón oficial (ver más abajo). Incluye **las dos pantallas
+  de viaje activo**, que son las vivas:
+  - `viaje_conductor/` — `ViajeConductorScreen`: el viaje completo del conductor,
+    `asignado → completado`.
+  - `viaje_cliente/` — `ViajeClienteScreen`: seguimiento del viaje del lado del cliente.
+  - `confirmar_solicitud/`, `seleccion_destino/`, `autenticacion/`, `viaje_compartido/`,
+    `verificacion_recogida/`.
 - **`features/`** — Módulos autocontenidos:
   - `phone_auth/` — Auth por teléfono OTP, registro de conductor, registro de admin, panel de admin.
-  - `trip_tracking_cliente/` — Tracking del viaje desde el lado del cliente.
-  - `driver_trip/` — Viaje activo desde el lado del conductor.
   - `resumen_viaje/` — Pantalla de resumen post-viaje con calificación.
+  - `admin/` — Panel de administrador.
   - `client/` — Data legacy de cliente.
-- **`screens/`** — Flujos legacy aún productivos: `usuario_cliente/` y `usuario_conductor/`.
+  - `trip_tracking_cliente/` y `driver_trip/` — **ya NO contienen pantallas.** Sus
+    views/controllers/viewmodels se eliminaron por código muerto; solo quedan
+    widgets, modelos y servicios que `caracteristicas/viaje_*` sigue usando
+    (`trip_details_sheet`, `panic_button_fab`, `waiting_driver_modal`,
+    `driver_waiting_client_modal`, `map_service`, `local_cache_service`,
+    `trip_route_math_service`, `solicitud_model`, `usuario_model`…).
+    No agregar pantallas nuevas ahí.
+- **`screens/`** — Flujos legacy aún productivos: `usuario_cliente/` y `usuario_conductor/`
+  (home del cliente, home del conductor, perfil, historial). Las pantallas de ruta
+  (`RutaDestinoView`, `RutaClienteDestinoView`) se eliminaron: las reemplazan
+  `caracteristicas/viaje_conductor/` y `caracteristicas/viaje_cliente/`.
 - **`widgets/`** — Componentes UI reutilizables globales.
 - **`helper/`** — Firebase init, permisos, sesión, mapas.
 - **`routes/`** — `AppRoutes` con `onGenerateRoute`.
@@ -190,9 +206,40 @@ El proyecto tiene un grafo de conocimiento del código generado con Graphify en 
 
 ---
 
-## Riesgos técnicos activos (al momento del análisis: 2026-04-28)
+## Riesgos técnicos activos (auditoría completa: 2026-08-06)
 
-1. Arquitectura híbrida: flujos legacy en `screens/` conviven con módulos modernos en `features/`. Riesgo de duplicidad.
+1. Arquitectura híbrida: flujos legacy en `screens/` conviven con `caracteristicas/` y
+   `features/`. Riesgo de duplicidad.
 2. Listeners de Firestore en algunas vistas (no en ViewModel). Refactorizar progresivamente.
-3. Normalización de estado de solicitud en múltiples puntos. `SolicitudEstado.normalize()` debe ser la fuente única.
+3. Normalización de estado de solicitud en múltiples puntos. `SolicitudEstado.normalize()`
+   debe ser la fuente única.
 4. Claves sensibles potencialmente embebidas en código; moverlas a configuración externa.
+5. **Esquema de `solicitudes` denormalizado.** El origen se escribe 3 veces en 3 tipos
+   (`cliente.ubicacion`, `origen`, `ubicacion_inicial` como `GeoPoint`) y nada los
+   mantiene sincronizados; `origen` y `destino` usan claves distintas para lo mismo
+   (`address`/`title` vs `direccion`); el precio vive en 4 campos. Los lectores prueban
+   todas las variantes, así que hoy no rompe, pero cualquier consumidor nuevo que elija
+   "la clave equivocada" recibe `null`. Ver `test/esquema_solicitud_contrato_test.dart`,
+   que fija el contrato actual.
+6. **Sin recuperación ante pérdida de datos**: la base de producción tiene Point-in-Time
+   Recovery y Delete Protection deshabilitados, y hay borrado duro de solicitudes.
+7. Nombres de campo con espacios en Firestore: `'fecha de terminacion'`,
+   `'fecha de aceptacion conductor'`.
+
+## Verificar antes de dar por hecho
+
+Cosas que el código afirma y que resultaron falsas en la auditoría de 2026-08-06 —
+comprobarlas contra el proyecto real, no contra los comentarios:
+
+- Que una Cloud Function exista en producción. Había **3 declaradas y no desplegadas**
+  (`cancelarSolicitudesBuscandoInactivas`, `expirarMembresiasVencidas`,
+  `cancelarSolicitudPorCierreApp`). Comparar `grep '^exports\.' functions/index.js`
+  contra `firebase functions:list`.
+- Que un índice compuesto declarado en `firestore.indexes.json` esté desplegado.
+  Estaban los dos declarados y **ninguno** desplegado (`firebase firestore:indexes`).
+- Que un campo de Firestore lo escriba alguien. `usuarios/{uid}.ubicacion` se leía en
+  dos sitios y **no lo escribe nadie**; la posición real vive en
+  `conductores_conectados/{uid}`.
+- Que `firebase.json` apunte a las apps correctas: apuntaba a apps fósiles
+  (`com.example.taxi_app`) en ambas plataformas. La fuente de verdad es
+  `firebase_options.dart` + los archivos nativos.
