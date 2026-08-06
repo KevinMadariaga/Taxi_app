@@ -122,12 +122,17 @@ class InitialScreenResolver {
               .doc(uid)
               .get();
 
+          final userData = usuariosDoc.data() ?? <String, dynamic>{};
+          // `isProfileComplete` se evalúa UNA sola vez y fuera de las ramas de
+          // rol. Antes vivía anidado dentro de `usuariosDoc.exists && rol ==
+          // 'cliente'`, así que el gate se saltaba por completo cuando el doc
+          // no existía o cuando el rol venía por el fallback `tipoUsuario`.
+          final perfilCompletoEnDoc = userData['isProfileComplete'] == true;
+
           if (usuariosDoc.exists && role != 'administrador') {
-            final userData = usuariosDoc.data() ?? <String, dynamic>{};
             final userRole = (userData['rol'] ?? userData['role'] ?? '')
                 .toString()
                 .toLowerCase();
-            final isProfileComplete = userData['isProfileComplete'] == true;
 
             if (userRole == 'admin' || userRole == 'administrador') {
               role = 'administrador';
@@ -135,15 +140,6 @@ class InitialScreenResolver {
               role = 'conductor';
             } else if (userRole == 'cliente') {
               role = 'cliente';
-
-              if (!isProfileComplete) {
-                return CompleteProfilePage(
-                  uid: uid,
-                  initialNombre: (userData['nombre'] ?? '').toString(),
-                  initialApellido: (userData['apellido'] ?? '').toString(),
-                  initialTelefono: (userData['telefono'] ?? '').toString(),
-                );
-              }
             }
           }
 
@@ -152,7 +148,6 @@ class InitialScreenResolver {
           if (role != 'administrador' &&
               role != 'conductor' &&
               role != 'cliente') {
-            final userData = usuariosDoc.data() ?? <String, dynamic>{};
             final tipoUsuario = (userData['tipoUsuario'] ?? '')
                 .toString()
                 .toLowerCase();
@@ -171,6 +166,13 @@ class InitialScreenResolver {
           // que este bloque existe para evitar.
           role ??= 'cliente';
 
+          // Un cliente autenticado SIN documento legible en `usuarios` tiene,
+          // por definición, el perfil incompleto: es el estado que queda si
+          // `ensureClientUserForGoogle` falló después de un sign-in exitoso.
+          // Tratarlo como completo lo dejaba entrar al home sin nombre, sin
+          // teléfono y sin foto.
+          final perfilCompleto = usuariosDoc.exists && perfilCompletoEnDoc;
+
           // Firestore fue alcanzable y dio un rol confiable: sincronizar el
           // caché para que, si alguna vez Firestore no es alcanzable (ver
           // catch abajo), el fallback offline sea el último rol REAL
@@ -181,6 +183,22 @@ class InitialScreenResolver {
             } catch (e, st) {
               ErrorReporter.report(e, st, reason: 'auth_service');
             }
+          }
+          // Se cachea también si el perfil está completo, para poder aplicar
+          // el mismo criterio cuando Firestore no responda (ver catch).
+          try {
+            await prefs.setBool('profile_complete', perfilCompleto);
+          } catch (e, st) {
+            ErrorReporter.report(e, st, reason: 'auth_service');
+          }
+
+          if (role == 'cliente' && !perfilCompleto) {
+            return CompleteProfilePage(
+              uid: uid,
+              initialNombre: (userData['nombre'] ?? '').toString(),
+              initialApellido: (userData['apellido'] ?? '').toString(),
+              initialTelefono: (userData['telefono'] ?? '').toString(),
+            );
           }
         } catch (e, st) {
           debugPrint('Error al resolver rol de usuario desde Firestore: $e');
@@ -196,6 +214,14 @@ class InitialScreenResolver {
           // feliz — el rol real se re-confirma en el siguiente cold start
           // con red disponible.
           role = cachedRole;
+
+          // El gate de perfil también se resuelve con el caché: antes este
+          // catch lo salteaba por completo, así que un perfil incompleto
+          // entraba al home cada vez que se arrancara sin red. Si nunca se
+          // confirmó que estuviera completo, se asume incompleto.
+          if (role == 'cliente' && prefs.getBool('profile_complete') != true) {
+            return CompleteProfilePage(uid: currentUser.uid);
+          }
         }
       }
 
