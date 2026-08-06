@@ -46,7 +46,13 @@ class FirebaseHelper {
       debugPrint('Firebase, Crashlytics y App Check iniciados correctamente');
     } catch (e) {
       debugPrint('Error initializing Firebase/Crashlytics: $e');
-      throw Exception('Error initializing Firebase/Crashlytics');
+      // Se conserva la causa original: `main()` la muestra en la pantalla de
+      // error de arranque, y un `Exception` genérico dejaba sin diagnóstico
+      // (no se sabía si fue red, config corrupta o App Check).
+      Error.throwWithStackTrace(
+        Exception('Error initializing Firebase/Crashlytics: $e'),
+        StackTrace.current,
+      );
     }
   }
 }

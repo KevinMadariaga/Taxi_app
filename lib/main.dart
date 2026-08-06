@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter_displaymode/flutter_displaymode.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -93,23 +94,88 @@ void _manejarTapNotificacion(String? payload) {
 }
 
 /// Entry point for the Taxi App.
+/// Instala los handlers globales de error. Debe llamarse **después** de
+/// `FirebaseHelper.initializeFirebase()`, que asigna su propio
+/// `FlutterError.onError` y pisaría cualquier handler anterior.
+void _instalarManejadoresDeError() {
+  // Encadena sobre el handler que dejó firebase_helper
+  // (`recordFlutterError`) en vez de reemplazarlo, filtrando el channel-error
+  // benigno de google_maps_flutter_ios.
+  final anterior = FlutterError.onError;
+  FlutterError.onError = (details) {
+    if (_esErrorBenignoMapas(details.exception)) return;
+    anterior?.call(details);
+  };
+
+  // Antes devolvía `false` para todo lo no-benigno ("no manejado"), así que
+  // los errores async sin capturar solo se imprimían por consola y NUNCA
+  // llegaban a Crashlytics — clases enteras de crashes de producción eran
+  // invisibles.
+  PlatformDispatcher.instance.onError = (error, stack) {
+    if (_esErrorBenignoMapas(error)) return true; // tragado a propósito
+    FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+    return true;
+  };
+}
+
+/// Pantalla mínima cuando Firebase no pudo inicializar. Sin esto la app
+/// quedaba en blanco sin explicación ni salida.
+class _ErrorArranqueApp extends StatelessWidget {
+  const _ErrorArranqueApp({required this.detalle});
+
+  final String detalle;
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: Scaffold(
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.cloud_off, size: 56, color: Colors.grey),
+                const SizedBox(height: 16),
+                const Text(
+                  'No se pudo iniciar la aplicación',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Revisa tu conexión a internet y vuelve a abrir la app.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.black54),
+                ),
+                if (kDebugMode) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    detalle,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 11, color: Colors.red),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Initializes services, handles permissions, and launches the app.
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   SystemChrome.setSystemUIOverlayStyle(_globalSystemOverlayStyle);
 
-  // Filtra el channel-error benigno de google_maps_flutter_ios
-  // (updateClusterManagers al destruir la vista). Todo lo demás propaga normal.
-  final flutterOnError = FlutterError.onError;
-  FlutterError.onError = (details) {
-    if (_esErrorBenignoMapas(details.exception)) return;
-    flutterOnError?.call(details);
-  };
-  PlatformDispatcher.instance.onError = (error, stack) {
-    if (_esErrorBenignoMapas(error)) return true; // tragado
-    return false; // no manejado → comportamiento por defecto
-  };
+  // Los handlers de error se instalan DESPUÉS de `initializeFirebase()`
+  // (ver `_instalarManejadoresDeError` más abajo): ese método asigna su propio
+  // `FlutterError.onError`, así que cualquier handler puesto acá arriba se
+  // perdería silenciosamente.
 
   // Fuerza hybrid composition (TextureLayer) en el GoogleMap de Android en vez
   // del SurfaceView por defecto. El SurfaceView pierde su superficie nativa
@@ -141,7 +207,17 @@ Future<void> main() async {
   // los providers (AppAuthAdapter). Todo lo demás (permisos, notificaciones,
   // tracking, FCM) se difiere para que el splash animado aparezca de inmediato
   // y NUNCA quede una pantalla negra/blanca mientras se piden permisos.
-  await FirebaseHelper.initializeFirebase();
+  // Si Firebase no arranca, `initializeFirebase` lanza. Sin este guard la
+  // excepción salía de `main()` y `runApp()` nunca corría: pantalla en blanco
+  // permanente, sin mensaje ni forma de reintentar.
+  try {
+    await FirebaseHelper.initializeFirebase();
+  } catch (e) {
+    runApp(_ErrorArranqueApp(detalle: e.toString()));
+    return;
+  }
+
+  _instalarManejadoresDeError();
 
   if (!kReleaseMode && AppConstants.phoneAuthTestMode) {
     // In non-release environments this avoids Play Integrity/SafetyNet blocks
