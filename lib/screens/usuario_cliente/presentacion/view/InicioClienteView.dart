@@ -332,7 +332,15 @@ class _InicioClienteViewState extends State<InicioClienteView>
       ).showSnackBar(const SnackBar(content: Text('Ubicación no disponible')));
       return;
     }
-    final origenPos = vm.currentLocation ?? fav.location!;
+    // Sin GPS resuelto no hay punto de recogida válido: caer a `fav.location`
+    // (el destino) creaba una solicitud con recogida == destino. Mejor mandar
+    // al flujo normal, donde el usuario elige el origen en el mapa.
+    final origenPos = vm.currentLocation;
+    if (origenPos == null) {
+      if (!mounted) return;
+      _navigateToDestinoSeleccion();
+      return;
+    }
     final origenDireccion = await vm.obtenerDireccionDesdeCoordenadas(
       origenPos,
     );
@@ -398,10 +406,19 @@ class _InicioClienteViewState extends State<InicioClienteView>
           .cast<UbicacionResultado?>()
           .firstWhere((f) => f != null, orElse: () => null);
       if (casa != null && casa.location != null) {
+        // Sin GPS todavía no se puede fijar el punto de recogida: se cae al
+        // flujo normal de selección en vez de crear una solicitud con
+        // recogida == destino.
+        final origen = vm.currentLocation;
+        if (origen == null) {
+          _navigateToDestinoSeleccion();
+          return;
+        }
         await InicioClienteNavigation.irAMapaPreviewFavoritoCasa(
           context,
           casa.location!,
           casa.direccion,
+          origenLocation: origen,
         );
         return;
       }

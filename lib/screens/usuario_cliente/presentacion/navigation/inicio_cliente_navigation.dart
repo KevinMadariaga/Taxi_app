@@ -102,14 +102,26 @@ class InicioClienteNavigation {
     );
   }
 
+  /// [origenLocation] es la ubicación ACTUAL del cliente (punto de recogida).
+  /// Es obligatorio pasarla: `MapaPreviewView` cae a `location` (el destino)
+  /// cuando viene en `null`, y eso generaba una solicitud con recogida ==
+  /// destino — distancia ~0, tarifa solo base, y el conductor despachado al
+  /// destino en vez de a donde está el cliente.
   static Future<void> irAMapaPreviewFavoritoCasa(
     BuildContext context,
     LatLng location,
-    String direccion,
-  ) {
+    String direccion, {
+    required LatLng origenLocation,
+    String? origenDireccion,
+  }) {
     return Navigator.of(context).push(
       transicionSuave(
-        MapaPreviewView(location: location, direccion: direccion),
+        MapaPreviewView(
+          location: location,
+          direccion: direccion,
+          origenLocation: origenLocation,
+          origenDireccion: origenDireccion,
+        ),
       ),
     );
   }

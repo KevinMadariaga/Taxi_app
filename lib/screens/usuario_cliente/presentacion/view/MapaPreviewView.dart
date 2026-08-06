@@ -13,14 +13,20 @@ import 'package:taxi_app/widgets/MapaGoogle.dart';
 class MapaPreviewView extends StatefulWidget {
   final LatLng location;
   final String? direccion;
-  final LatLng? origenLocation;
+
+  /// Punto de recogida. **Obligatorio y no-nulo a propósito**: antes era
+  /// opcional y, cuando faltaba, se caía a [location] (el destino), creando
+  /// solicitudes con recogida == destino. Exigirlo hace ese bug imposible por
+  /// construcción; quien no tenga el GPS resuelto debe mandar al usuario al
+  /// flujo de selección en el mapa en vez de abrir esta pantalla.
+  final LatLng origenLocation;
   final String? origenDireccion;
 
   const MapaPreviewView({
     super.key,
     required this.location,
     this.direccion,
-    this.origenLocation,
+    required this.origenLocation,
     this.origenDireccion,
   });
 
@@ -66,7 +72,7 @@ class _MapaPreviewViewState extends State<MapaPreviewView> {
     await Future.delayed(const Duration(milliseconds: 120));
     if (!mounted || !context.mounted) return;
 
-    final origenPos = widget.origenLocation ?? widget.location;
+    final origenPos = widget.origenLocation;
     final origenTitle =
         (widget.origenDireccion != null && widget.origenDireccion!.isNotEmpty)
         ? _vm.formatAddress(widget.origenDireccion)
