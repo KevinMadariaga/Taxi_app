@@ -202,8 +202,21 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   }
 }
 
-bool _membresiaActiva(Map<String, dynamic> data) =>
-    (data['membresia'] ?? '').toString().toLowerCase() == 'activa';
+/// Una membresía está activa solo si el campo dice 'activa' **y** la fecha de
+/// vencimiento no pasó. Mirar solo `membresia` no alcanza: la expiración la
+/// hace un job programado server-side, así que entre el vencimiento real y el
+/// barrido (o si el barrido falla) el campo sigue diciendo 'activa'. Mismo
+/// criterio que la transacción de `InicioConductorViewModel.aceptarSolicitud`,
+/// que es la que de verdad bloquea tomar viajes.
+bool _membresiaActiva(Map<String, dynamic> data) {
+  final activa = (data['membresia'] ?? '').toString().toLowerCase() == 'activa';
+  if (!activa) return false;
+  final vence = data['membresiaVence'];
+  if (vence is Timestamp && vence.toDate().isBefore(DateTime.now())) {
+    return false;
+  }
+  return true;
+}
 
 String _str(Map<String, dynamic> data, List<String> keys, String fallback) {
   for (final k in keys) {
@@ -827,10 +840,11 @@ class _AdminBellIconState extends State<_AdminBellIcon> {
         .where('solicitudConductor', isEqualTo: true)
         .snapshots()
         .listen((snap) {
-      final pendientes = snap.docs.where((d) {
-        final m = (d.data()['membresia'] ?? '').toString().toLowerCase();
-        return m != 'activa';
-      }).length;
+      // Mismo criterio que `_membresiaActiva` (incluye vencimiento) en vez de
+      // duplicar acá una comprobación que solo mira el campo `membresia`.
+      final pendientes = snap.docs
+          .where((d) => !_membresiaActiva(d.data()))
+          .length;
       setState(() => _conductores = pendientes);
     });
   }
