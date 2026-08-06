@@ -76,12 +76,14 @@ class _SplashViewState extends State<SplashView>
       latestVersionFetcher: _remoteConfigService.fetchLatestVersion,
     );
 
+    // El fallback de navegación NO se arma acá: se arma dentro de
+    // `_startAppFlow`, recién cuando el chequeo de actualización resolvió.
+    // Antes era un `Future.delayed(2s)` en paralelo que navegaba por debajo
+    // del diálogo de actualización — con una actualización OBLIGATORIA el
+    // usuario terminaba dentro de la app en una versión prohibida. Además
+    // ganaba siempre la carrera contra `splashDuration` (2500 ms), dejando a
+    // `SplashViewModel` como código muerto.
     _startAppFlow();
-    // Fallback: navegar tras 2 s aunque otras comprobaciones tarden.
-    Future.delayed(const Duration(seconds: 2), () async {
-      if (!mounted || _hasNavigated) return;
-      await _navigateFromSessionState();
-    });
   }
 
   @override
@@ -98,33 +100,69 @@ class _SplashViewState extends State<SplashView>
     _navigateFromSessionState();
   }
 
+  /// Techo duro del chequeo de actualización: `checkForUpdate()` encadena dos
+  /// fetch de Remote Config más una consulta HTTP a la tienda, ninguna con
+  /// timeout propio. Sin esta cota, una red mala dejaba el splash colgado.
+  static const Duration _updateCheckTimeout = Duration(seconds: 6);
+
+  /// Red de seguridad por si el timer de `SplashViewModel` no dispara. Va
+  /// DESPUÉS de `splashDuration` a propósito: el camino normal es el del
+  /// ViewModel, este solo rescata.
+  static const Duration _navFallbackDelay = Duration(milliseconds: 4000);
+
   Future<void> _startAppFlow() async {
     final shouldContinue = await _validateAppUpdate();
+    // Actualización obligatoria (o widget desmontado): no se navega y NO se
+    // arma el fallback — el usuario debe quedarse en el gate.
     if (!mounted || !shouldContinue) return;
     _viewModel.start();
+
+    Future.delayed(_navFallbackDelay, () async {
+      if (!mounted || _hasNavigated) return;
+      await _navigateFromSessionState();
+    });
   }
 
   Future<bool> _validateAppUpdate() async {
-    final result = await _updateService.checkForUpdate();
+    UpdateCheckResult result;
+    try {
+      result = await _updateService.checkForUpdate().timeout(
+        _updateCheckTimeout,
+      );
+    } catch (_) {
+      // Si no se pudo determinar si hay actualización, se deja pasar: bloquear
+      // el arranque por un fallo de red sería peor que no verificar.
+      return true;
+    }
     if (!mounted) return false;
     if (!result.hasUpdate) return true;
 
-    final action = await UpdateAvailableDialog.show(context, result);
-    if (!mounted) return false;
+    // Con actualización obligatoria el gate se re-muestra al volver de la
+    // tienda: `show()` ya cerró el diálogo, y como en ese caso no se navega,
+    // el usuario quedaría mirando un splash vacío sin salida. El bucle solo
+    // avanza con un tap real en "Actualizar", así que no puede girar solo.
+    while (true) {
+      final action = await UpdateAvailableDialog.show(context, result);
+      if (!mounted) return false;
 
-    if (action == UpdateDialogAction.updateNow) {
+      if (action != UpdateDialogAction.updateNow) {
+        // El diálogo obligatorio no es descartable (`barrierDismissible` y
+        // `canPop` van con `canSkip`), así que acá solo se llega si era
+        // opcional.
+        return result.canSkip;
+      }
+
       final didOpenStore = await _updateService.openStore(result);
-      if (!didOpenStore && mounted) {
+      if (!mounted) return false;
+      if (!didOpenStore) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('No se pudo abrir la tienda. Intenta nuevamente.'),
           ),
         );
       }
-      return !result.isMandatory;
+      if (!result.isMandatory) return true;
     }
-
-    return result.canSkip;
   }
 
   Future<String?> _fetchMinimumRequiredVersion() async {
