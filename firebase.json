@@ -4,14 +4,14 @@
       "android": {
         "default": {
           "projectId": "aplicacion-taxi-fd0a7",
-          "appId": "1:1011373106222:android:faa4db22472c3246f56bbf",
+          "appId": "1:1011373106222:android:f5f0573a658779ccf56bbf",
           "fileOutput": "android/app/google-services.json"
         }
       },
       "ios": {
         "default": {
           "projectId": "aplicacion-taxi-fd0a7",
-          "appId": "1:1011373106222:ios:69b48b994fc089d4f56bbf",
+          "appId": "1:1011373106222:ios:040b03b6936cb4a9f56bbf",
           "uploadDebugSymbols": false,
           "fileOutput": "ios/Runner/GoogleService-Info.plist"
         }
@@ -20,8 +20,8 @@
         "lib/firebase_options.dart": {
           "projectId": "aplicacion-taxi-fd0a7",
           "configurations": {
-            "android": "1:1011373106222:android:faa4db22472c3246f56bbf",
-            "ios": "1:1011373106222:ios:69b48b994fc089d4f56bbf"
+            "android": "1:1011373106222:android:f5f0573a658779ccf56bbf",
+            "ios": "1:1011373106222:ios:040b03b6936cb4a9f56bbf"
           }
         }
       }
