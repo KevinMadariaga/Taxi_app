@@ -93,7 +93,14 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
     } else {
       _maybeCalcularRuta();
     }
-    _vm.subscribeConductores();
+    // `subscribeConductores()` (conductores "disponibles") queda fuera a
+    // propósito: su query lee `usuarios/{uid}.ubicacion`, un campo que no
+    // escribe NADIE en todo el repo, así que solo puede devolver un mapa
+    // vacío. Encima no lleva cota y se re-dispara con cada escritura de
+    // cualquier conductor. Se pagaba una suscripción sin límite para no
+    // obtener jamás un resultado. La posición real vive en
+    // `conductores_conectados`, que es lo que sí lee
+    // `subscribeConductoresConectados()`.
     _vm.subscribeConductoresConectados();
   }
 

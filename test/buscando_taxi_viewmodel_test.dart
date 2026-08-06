@@ -209,7 +209,11 @@ void main() {
   });
 
   group('finalizarTrackingConductores', () {
-    test('detiene conectados y search timer, pero NO conductores (asimetría original)', () {
+    // Antes este test fijaba la asimetría original: `_conductoresSub` NO se
+    // cancelaba acá, solo en `dispose()`. Como la navegación al viaje se hace
+    // con `push`, la vista seguía montada y esa suscripción —una query sin
+    // cota sobre `usuarios`— quedaba corriendo durante todo el viaje.
+    test('detiene el search timer y AMBAS suscripciones', () {
       fakeAsync((async) {
         vm.startSearchTimer();
         vm.subscribeConductores();
@@ -229,8 +233,8 @@ void main() {
         async.flushMicrotasks();
         expect(
           vm.conductoresPositions,
-          {'c1': const LatLng(10.0, 10.0)},
-          reason: 'conductoresSub NO se cancela en finalizarTrackingConductores (solo en dispose)',
+          isEmpty,
+          reason: 'conductoresSub también debe cancelarse al terminar el flujo',
         );
       });
     });

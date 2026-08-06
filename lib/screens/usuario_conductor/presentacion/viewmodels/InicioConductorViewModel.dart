@@ -48,7 +48,9 @@ class InicioConductorViewmodel extends ChangeNotifier {
     // tarjeta quedaba congelada con los datos del momento en que se abrió
     // (ver `resyncSelectedPreview`).
     _solicitudesController.onChanged = () {
-      _previewController.resyncSelectedPreview(_solicitudesController.solicitudes);
+      _previewController.resyncSelectedPreview(
+        _solicitudesController.solicitudes,
+      );
       _safeNotify();
     };
     _solicitudesController.getCurrentLocation = () => currentLocation;
@@ -122,8 +124,9 @@ class InicioConductorViewmodel extends ChangeNotifier {
   // Se sincronizan en `_syncMapNotifiers()` (llamado desde `_safeNotify()`)
   // con chequeo de igualdad para no emitir un valor nuevo si el contenido
   // no cambió realmente.
-  final ValueNotifier<LatLng?> currentLocationNotifier =
-      ValueNotifier<LatLng?>(null);
+  final ValueNotifier<LatLng?> currentLocationNotifier = ValueNotifier<LatLng?>(
+    null,
+  );
   final ValueNotifier<PreviewSolicitud?> selectedPreviewNotifier =
       ValueNotifier<PreviewSolicitud?>(null);
   final ValueNotifier<Set<Marker>> extraMarkersNotifier =
@@ -299,28 +302,54 @@ class InicioConductorViewmodel extends ChangeNotifier {
     final uid = _auth.currentUser?.uid;
     if (uid == null || uid.isEmpty) return;
     _assignedSub?.cancel();
+    // Filtrado por estado en el SERVIDOR: sin el `whereIn` esta suscripción
+    // descargaba todas las solicitudes que el conductor hizo alguna vez —
+    // historial completo, creciendo para siempre— en cada arranque, solo para
+    // encontrar la única activa. El filtro es el mismo conjunto que
+    // `SolicitudEstado.isSesionActiva`, que se sigue aplicando abajo.
     _assignedSub = _firestore
         .collection('solicitudes')
         .where('conductor.id', isEqualTo: uid)
+        .where(
+          'estado',
+          whereIn: const [
+            SolicitudEstado.asignado,
+            SolicitudEstado.enEspera,
+            SolicitudEstado.enCamino,
+            SolicitudEstado.enRuta,
+          ],
+        )
         .snapshots()
-        .listen((snap) {
-          for (final doc in snap.docs) {
-            final data = doc.data() as Map<String, dynamic>?;
-            final estado = SolicitudEstado.normalize(
-              (data?['estado'] ?? data?['status'] ?? '').toString(),
-            );
-            final activo = SolicitudEstado.isSesionActiva(estado);
-            if (activo && !_handledAssigned.contains(doc.id)) {
-              _handledAssigned.add(doc.id);
-              try {
-                onAsignadoAMi?.call(doc.id);
-              } catch (e, st) {
-                ErrorReporter.report(e, st, reason: 'InicioConductorViewModel');
+        .listen(
+          (snap) {
+            for (final doc in snap.docs) {
+              final data = doc.data() as Map<String, dynamic>?;
+              final estado = SolicitudEstado.normalize(
+                (data?['estado'] ?? data?['status'] ?? '').toString(),
+              );
+              final activo = SolicitudEstado.isSesionActiva(estado);
+              if (activo && !_handledAssigned.contains(doc.id)) {
+                _handledAssigned.add(doc.id);
+                try {
+                  onAsignadoAMi?.call(doc.id);
+                } catch (e, st) {
+                  ErrorReporter.report(
+                    e,
+                    st,
+                    reason: 'InicioConductorViewModel',
+                  );
+                }
+                break;
               }
-              break;
             }
-          }
-        });
+          },
+          // Sin `onError`, un `permission-denied` (o un índice faltante) mataba
+          // el listener en silencio y el conductor dejaba de ser navegado a su
+          // viaje sin que nada lo registrara.
+          onError: (Object e, StackTrace st) {
+            ErrorReporter.report(e, st, reason: 'InicioConductorViewModel');
+          },
+        );
   }
 
   void _subscribeConductorStatus() {
@@ -781,8 +810,7 @@ class InicioConductorViewmodel extends ChangeNotifier {
 
       final previa = _ultimaUbicacionPublicada;
       if (previa != null &&
-          MapHelper.distanceMeters(previa, actual) <
-              _minMetrosParaRepublicar) {
+          MapHelper.distanceMeters(previa, actual) < _minMetrosParaRepublicar) {
         return;
       }
 

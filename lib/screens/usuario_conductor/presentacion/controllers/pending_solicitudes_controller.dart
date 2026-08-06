@@ -33,6 +33,37 @@ class PendingSolicitudesController {
   QuerySnapshot? _lastSolicitudesSnapshot;
   final Set<String> _knownPendingIds = {};
   final Set<String> _resolvingAddressSolicitudIds = {};
+
+  /// Cachés que sobreviven ENTRE snapshots.
+  ///
+  /// Los `SolicitudItem` se reconstruyen desde cero en cada snapshot, así que
+  /// el dato resuelto se perdía y volvía a pedirse: una lectura de Firestore
+  /// por cliente y un geocoding por solicitud, en cada snapshot, y los
+  /// snapshots son frecuentes (cada contraoferta y cada edición de precio
+  /// mutan un documento `buscando`). Con conductores × solicitudes × snapshots
+  /// eso se traduce en factura de lecturas y en throttling del geocoder.
+  final Map<String, String> _nombreClientePorId = {};
+  final Map<String, String> _direccionPorCoord = {};
+
+  /// Coordenada redondeada a ~1 m: dos solicitudes del mismo portal comparten
+  /// dirección y no hace falta geocodificar dos veces.
+  static String _coordKey(double lat, double lng) =>
+      '${lat.toStringAsFixed(5)},${lng.toStringAsFixed(5)}';
+
+  /// Techo de las cachés. Un conductor ve decenas de solicitudes por sesión,
+  /// así que nunca debería alcanzarse; existe solo para que una sesión muy
+  /// larga no las haga crecer sin límite.
+  static const int _maxEntradasCache = 300;
+
+  static void _guardarEnCache(
+    Map<String, String> cache,
+    String key,
+    String value,
+  ) {
+    if (cache.length >= _maxEntradasCache) cache.clear();
+    cache[key] = value;
+  }
+
   final StreamController<String> _newSolicitudController =
       StreamController<String>.broadcast();
   Stream<String> get onNewSolicitud => _newSolicitudController.stream;
@@ -66,9 +97,17 @@ class PendingSolicitudesController {
           whereIn: [SolicitudEstado.buscando, 'pending', 'pendiente'],
         )
         .snapshots()
-        .listen((snap) {
-          _handleQuerySnapshot(snap);
-        });
+        .listen(
+          (snap) {
+            _handleQuerySnapshot(snap);
+          },
+          // Sin `onError` un fallo de permisos dejaba la lista de solicitudes
+          // muerta en silencio: el conductor no vería nunca una solicitud y
+          // nada quedaría registrado.
+          onError: (Object e, StackTrace st) {
+            ErrorReporter.report(e, st, reason: 'PendingSolicitudesController');
+          },
+        );
   }
 
   void stop() {
@@ -124,6 +163,9 @@ class PendingSolicitudesController {
         }
 
         parsedSolicitudes.add(item);
+        // Primero se rellena con lo ya resuelto en snapshots anteriores; solo
+        // se dispara trabajo async por lo que realmente falta.
+        _hidratarDesdeCache(item);
         unawaited(_completarDatosSolicitud(item));
         unawaited(_ensureFriendlyAddress(item));
       }
@@ -205,12 +247,44 @@ class PendingSolicitudesController {
         SolicitudEstado.buscando;
   }
 
+  /// Rellena el item con lo ya resuelto antes, de forma síncrona y sin red.
+  void _hidratarDesdeCache(SolicitudItem item) {
+    final clienteId = item.clienteId;
+    if (item.nombreCliente == null && clienteId != null) {
+      final cacheado = _nombreClientePorId[clienteId];
+      if (cacheado != null) item.nombreCliente = cacheado;
+    }
+
+    final tieneDireccion =
+        (item.origenTitle != null && item.origenTitle!.trim().isNotEmpty) ||
+        (item.direccion != null && item.direccion!.trim().isNotEmpty);
+    if (!tieneDireccion) {
+      final key = _coordKey(
+        item.ubicacionInicial.latitude,
+        item.ubicacionInicial.longitude,
+      );
+      final cacheada = _direccionPorCoord[key];
+      if (cacheada != null) {
+        item.origenTitle = cacheada;
+        item.direccion = cacheada;
+      }
+    }
+  }
+
   Future<void> _ensureFriendlyAddress(SolicitudItem item) async {
     final hasAddress =
         (item.origenTitle != null && item.origenTitle!.trim().isNotEmpty) ||
         (item.direccion != null && item.direccion!.trim().isNotEmpty);
     if (hasAddress) return;
-    if (!_resolvingAddressSolicitudIds.add(item.id)) return;
+
+    // El candado va por COORDENADA, no por id de solicitud: antes se liberaba
+    // en el `finally` y el mismo punto se volvía a geocodificar en el
+    // siguiente snapshot, porque el resultado moría con el item descartado.
+    final key = _coordKey(
+      item.ubicacionInicial.latitude,
+      item.ubicacionInicial.longitude,
+    );
+    if (!_resolvingAddressSolicitudIds.add(key)) return;
 
     try {
       final placemarks = await placemarkFromCoordinates(
@@ -229,29 +303,37 @@ class PendingSolicitudesController {
       final friendly = parts.take(2).join(', ').trim();
       if (friendly.isEmpty) return;
 
+      _guardarEnCache(_direccionPorCoord, key, friendly);
       item.origenTitle = friendly;
       item.direccion = friendly;
       onChanged?.call();
     } catch (_) {
       // Si falla geocoding dejamos fallback a lat/lng en la vista.
     } finally {
-      _resolvingAddressSolicitudIds.remove(item.id);
+      _resolvingAddressSolicitudIds.remove(key);
     }
   }
 
   Future<void> _completarDatosSolicitud(SolicitudItem item) async {
     try {
-      if (item.nombreCliente == null) {
-        final cli = await _firestore
-            .collection('cliente')
-            .doc(item.clienteId)
-            .get();
-        item.nombreCliente = cli.data()?['nombre']?.toString() ?? 'Cliente';
+      var cambio = false;
+      final clienteId = item.clienteId;
+
+      if (item.nombreCliente == null && clienteId != null) {
+        final cli = await _firestore.collection('cliente').doc(clienteId).get();
+        final nombre = cli.data()?['nombre']?.toString() ?? 'Cliente';
+        _guardarEnCache(_nombreClientePorId, clienteId, nombre);
+        item.nombreCliente = nombre;
+        cambio = true;
       }
       if (item.direccion == null) {
         item.direccion = 'Ubicación del cliente';
+        cambio = true;
       }
-      onChanged?.call();
+      // Solo notificar si hubo algo nuevo: este método corre por cada
+      // solicitud de cada snapshot y cada `onChanged` reconstruye el Scaffold
+      // completo del home del conductor.
+      if (cambio) onChanged?.call();
     } catch (e, st) {
       ErrorReporter.report(e, st, reason: 'InicioConductorViewModel');
     }

@@ -875,12 +875,18 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
     _detachedCancelTimer?.cancel();
   }
 
-  /// Segunda fase de limpieza al terminar el flujo. Nota: no cancela
-  /// `_conductoresSub` (conductores disponibles) a propósito — solo lo hace
-  /// [dispose] — mismo comportamiento asimétrico que tenía la View original.
+  /// Segunda fase de limpieza al terminar el flujo.
+  ///
+  /// Ahora cancela TAMBIÉN `_conductoresSub`. Antes se dejaba viva a propósito
+  /// ("mismo comportamiento asimétrico que tenía la View original") y solo la
+  /// cerraba `dispose()`, pero como la navegación al viaje se hace con `push`,
+  /// `BuscandoTaxiView` sigue montada y esa suscripción quedaba corriendo
+  /// durante todo el viaje: una query sin cota sobre `usuarios` que se
+  /// re-dispara con cada escritura de cualquier conductor.
   void finalizarTrackingConductores() {
     _searchTimer?.cancel();
     _conductoresConectadosSub?.cancel();
+    _conductoresSub?.cancel();
   }
 
   @override
