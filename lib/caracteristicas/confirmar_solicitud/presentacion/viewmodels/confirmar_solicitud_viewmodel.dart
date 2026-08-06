@@ -7,6 +7,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:taxi_app/caracteristicas/seleccion_destino/datos/repositorios/geocodificacion_repository_impl.dart';
 import 'package:taxi_app/caracteristicas/seleccion_destino/dominio/casos_uso/obtener_direccion_desde_coordenadas_usecase.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/utils/error_reporter.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/location_model.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/vehicle_type.dart';
 
@@ -17,6 +18,7 @@ import '../../dominio/casos_uso/calcular_tarifa_base_usecase.dart';
 import '../../dominio/casos_uso/crear_solicitud_usecase.dart';
 import '../../dominio/casos_uso/trazar_ruta_usecase.dart';
 import '../../dominio/entidades/solicitud_borrador.dart';
+import '../../dominio/modelos/crear_solicitud_resultado.dart';
 
 /// Estado y orquestación de "Confirmar solicitud" (mapa con origen+destino,
 /// tarifa, método de pago, comentario) — sin `BuildContext`. Mismo patrón de
@@ -315,9 +317,12 @@ class ConfirmarSolicitudViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Crea la solicitud y devuelve su id, o `null` si hubo un error.
-  Future<String?> crearSolicitud() async {
-    if (isSubmitting) return null;
+  /// Crea la solicitud. El resultado distingue entre creada, ya existía una
+  /// activa, y fallo — la vista necesita tratarlos distinto.
+  Future<CrearSolicitudResultado> crearSolicitud() async {
+    if (isSubmitting) {
+      return const CrearSolicitudFallo('Ya se está enviando la solicitud.');
+    }
     isSubmitting = true;
     notifyListeners();
 
@@ -331,8 +336,14 @@ class ConfirmarSolicitudViewModel extends ChangeNotifier {
         valorServicio: _valorServicio,
       );
       return await _crearSolicitudUseCase(borrador);
-    } catch (_) {
-      return null;
+    } catch (e, st) {
+      // Antes se tragaba la excepción sin reportar, así que un rechazo de
+      // reglas, un índice faltante o una escritura offline llegaban a la UI
+      // como "Error al crear la solicitud" y no dejaban rastro en Crashlytics.
+      ErrorReporter.report(e, st, reason: 'confirmar_solicitud_viewmodel');
+      return const CrearSolicitudFallo(
+        'No se pudo crear la solicitud. Intenta de nuevo.',
+      );
     } finally {
       isSubmitting = false;
       notifyListeners();

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../../../dominio/modelos/crear_solicitud_resultado.dart';
 import 'package:provider/provider.dart';
 
 import 'package:taxi_app/core/app_colores.dart';
@@ -44,16 +46,28 @@ class ConfirmarSolicitudSubmitBar extends StatelessWidget {
                   ? null
                   : () async {
                       final messenger = ScaffoldMessenger.of(context);
-                      final solicitudId = await vm.crearSolicitud();
+                      final resultado = await vm.crearSolicitud();
                       if (!context.mounted) return;
-                      if (solicitudId != null) {
-                        onSolicitudCreada(solicitudId);
-                      } else {
-                        messenger.showSnackBar(
-                          const SnackBar(
-                            content: Text('Error al crear la solicitud'),
-                          ),
-                        );
+
+                      switch (resultado) {
+                        case SolicitudCreada(:final solicitudId):
+                          onSolicitudCreada(solicitudId);
+                        case SolicitudActivaExistente(:final solicitudId):
+                          // Antes este caso era indistinguible del anterior:
+                          // se descartaban en silencio el destino, precio,
+                          // vehículo, método de pago y comentario recién
+                          // elegidos, y se navegaba a la espera de un viaje
+                          // distinto sin ninguna explicación.
+                          final continuar = await _confirmarViajeEnCurso(
+                            context,
+                          );
+                          if (continuar == true) {
+                            onSolicitudCreada(solicitudId);
+                          }
+                        case CrearSolicitudFallo(:final motivo):
+                          messenger.showSnackBar(
+                            SnackBar(content: Text(motivo)),
+                          );
                       }
                     },
               child: vm.isSubmitting
@@ -105,4 +119,29 @@ class ConfirmarSolicitudSubmitBar extends StatelessWidget {
       ],
     );
   }
+}
+
+/// Explica que ya hay un viaje en curso y deja elegir entre ir a verlo o
+/// quedarse para cancelarlo primero.
+Future<bool?> _confirmarViajeEnCurso(BuildContext context) {
+  return showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Ya tienes un viaje en curso'),
+      content: const Text(
+        'No se creó una solicitud nueva. Puedes ir a ver el viaje que ya '
+        'tienes activo, o quedarte aquí y cancelarlo primero.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(false),
+          child: const Text('Quedarme aquí'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(true),
+          child: const Text('Ver viaje activo'),
+        ),
+      ],
+    ),
+  );
 }

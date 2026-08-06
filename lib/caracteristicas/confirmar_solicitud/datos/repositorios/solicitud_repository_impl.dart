@@ -38,8 +38,12 @@ class SolicitudRepositoryImpl implements SolicitudRepository {
       if (existing.docs.isNotEmpty) return existing.docs.first.id;
       return null;
     } catch (e, st) {
+      // Se reporta y se PROPAGA. Devolver `null` acá hacía que el caso de uso
+      // lo interpretara como "no hay solicitud activa" y creara otra: el
+      // guard anti-duplicados fallaba abierto ante cualquier error transitorio
+      // u offline. Quien llama decide qué hacer (hoy: abortar y avisar).
       ErrorReporter.report(e, st, reason: 'solicitud_repository_impl');
-      return null;
+      rethrow;
     }
   }
 

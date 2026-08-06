@@ -537,7 +537,11 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
         }, SetOptions(merge: true));
       });
       return true;
-    } catch (_) {
+    } catch (e, st) {
+      // Ruta de dinero: aceptar una contraoferta fallaba en silencio, sin
+      // rastro en Crashlytics, y el usuario solo veía que el botón no hacía
+      // nada.
+      ErrorReporter.report(e, st, reason: 'buscando_taxi_viewmodel');
       return false;
     } finally {
       _isRespondingCounteroffer = false;
@@ -567,15 +571,35 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
           ? '$conductorId:${oferta.valor.toStringAsFixed(0)}'
           : conductorId;
       _rejectedContraIds.add(rejectKey);
-      await _firestore.collection('solicitudes').doc(solicitudId).update({
-        'contraofertas.$conductorId': FieldValue.delete(),
-        // Also update legacy field so the backward-compat path doesn't
-        // re-fire a notification when the next snapshot arrives.
-        'contraoferta.estado': 'rechazada_cliente',
+      // Transaccional, igual que aceptar. Como `update()` plano, un rechazo
+      // podía escribir `contraoferta.estado: 'rechazada_cliente'` DESPUÉS de
+      // que la transacción de aceptar hubiera puesto `aceptada_cliente`,
+      // dejando el documento ya asignado con la contraoferta marcada como
+      // rechazada. Releer el estado dentro de la transacción lo impide.
+      final ref = _firestore.collection('solicitudes').doc(solicitudId);
+      await _firestore.runTransaction((tx) async {
+        final snap = await tx.get(ref);
+        if (!snap.exists) throw StateError('Solicitud no existe');
+        final data = snap.data() ?? <String, dynamic>{};
+        final estado = SolicitudEstado.normalize(
+          (data['estado'] ?? data['status'] ?? '').toString(),
+        );
+        // Si ya no está buscando, alguien ganó (o se canceló): no hay nada
+        // que rechazar y tocar el documento solo puede corromper el estado.
+        if (estado != SolicitudEstado.buscando) {
+          throw StateError('La solicitud ya no admite rechazos');
+        }
+        tx.update(ref, {
+          'contraofertas.$conductorId': FieldValue.delete(),
+          // Also update legacy field so the backward-compat path doesn't
+          // re-fire a notification when the next snapshot arrives.
+          'contraoferta.estado': 'rechazada_cliente',
+        });
       });
       _contraofertas.removeWhere((o) => o.conductorId == conductorId);
       return true;
-    } catch (_) {
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'buscando_taxi_viewmodel');
       return false;
     } finally {
       _isRespondingCounteroffer = false;

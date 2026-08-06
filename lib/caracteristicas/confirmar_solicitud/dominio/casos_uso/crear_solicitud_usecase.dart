@@ -6,6 +6,7 @@ import 'package:taxi_app/core/utils/error_reporter.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/location_model.dart';
 
 import '../entidades/solicitud_borrador.dart';
+import '../modelos/crear_solicitud_resultado.dart';
 import '../repositorios/cliente_repository.dart';
 import '../repositorios/solicitud_repository.dart';
 
@@ -36,19 +37,32 @@ class CrearSolicitudUseCase {
     'origen',
   };
 
-  /// `null` si no hay usuario autenticado (no debería poder llegar acá,
-  /// pero es la señal correcta si pasa).
-  Future<String?> call(SolicitudBorrador borrador) async {
+  Future<CrearSolicitudResultado> call(SolicitudBorrador borrador) async {
     final cliente = await _clienteRepository.obtenerActual();
-    if (cliente == null) return null;
+    if (cliente == null) {
+      return const CrearSolicitudFallo('No hay una sesión activa.');
+    }
 
-    final activa = await _solicitudRepository.buscarActivaDeCliente(cliente.id);
-    if (activa != null) return activa;
+    // Falla CERRADA: si no se puede comprobar si ya hay una solicitud activa,
+    // se aborta en vez de crear otra. Antes cualquier error devolvía `null`,
+    // que se interpretaba como "no hay ninguna activa", así que un fallo
+    // transitorio permitía acumular solicitudes simultáneas del mismo cliente.
+    final String? activa;
+    try {
+      activa = await _solicitudRepository.buscarActivaDeCliente(cliente.id);
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'crear_solicitud_usecase');
+      return const CrearSolicitudFallo(
+        'No pudimos verificar si ya tienes un viaje en curso. '
+        'Revisa tu conexión e intenta de nuevo.',
+      );
+    }
+    if (activa != null) return SolicitudActivaExistente(activa);
 
     final origenDireccion = await _resolverDireccionOrigen(borrador.origen);
     final destinoDireccion = _resolverDireccionDestino(borrador.destino);
 
-    return _solicitudRepository.crear(
+    final id = await _solicitudRepository.crear(
       cliente: cliente,
       origen: borrador.origen,
       origenDireccion: origenDireccion,
@@ -61,6 +75,7 @@ class CrearSolicitudUseCase {
       comentario: borrador.comentario.trim(),
       valorServicio: _parseValor(borrador.valorServicio),
     );
+    return SolicitudCreada(id);
   }
 
   double _parseValor(String raw) {
