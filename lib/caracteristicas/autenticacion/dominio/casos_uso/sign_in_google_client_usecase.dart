@@ -1,3 +1,4 @@
+import 'package:taxi_app/caracteristicas/autenticacion/dominio/modelos/auth_cancelled_exception.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/modelos/auth_flow_result.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/repositorios/client_auth_repository.dart';
 
@@ -9,7 +10,7 @@ class SignInGoogleClientUseCase {
   Future<AuthFlowResult> call() async {
     final identity = await _repository.signInWithGoogle();
     if (identity == null || identity.uid.isEmpty) {
-      throw StateError('El inicio de sesion con Google fue cancelado.');
+      throw const AuthCancelledException('google');
     }
 
     final user = await _repository.ensureClientUserForGoogle(

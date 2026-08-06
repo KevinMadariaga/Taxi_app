@@ -92,10 +92,16 @@ class PermissionsHelper {
         permission = await Geolocator.requestPermission();
       }
 
-      // Si fue denegado permanentemente, abrir configuración
+      // Denegado permanentemente: se informa, pero NO se abre Ajustes.
+      //
+      // Este helper se llama desde `main()` en cada arranque, así que
+      // `openAppSettings()` acá expulsaba al usuario fuera de la app ~1 s
+      // después de tocar el ícono, sin explicación y antes de ver contenido.
+      // Abrir Ajustes debe ser consecuencia de un tap explícito: de eso ya se
+      // encarga `InicioClienteView._ensureLocationServiceAndPermission`, que
+      // lo ofrece con su propio diálogo.
       if (permission == LocationPermission.deniedForever) {
         debugPrint('⚠️ Permiso de ubicación denegado permanentemente');
-        await openAppSettings();
         return false;
       }
 
@@ -288,9 +294,10 @@ class PermissionsHelper {
         return true;
       } else {
         debugPrint('❌ Notificaciones no permitidas');
-        if (await Permission.notification.isPermanentlyDenied) {
-          await openAppSettings();
-        }
+        // Igual que en ubicación: no se abre Ajustes desde el arranque. Antes
+        // esto era además asimétrico — la rama iOS de este mismo método
+        // deliberadamente no lo hacía, así que Android e iOS se comportaban
+        // distinto ante el mismo estado.
         return false;
       }
     });

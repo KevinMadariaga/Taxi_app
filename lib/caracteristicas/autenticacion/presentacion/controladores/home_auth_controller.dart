@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/repositorios/client_auth_repository.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/datos/repositorios/client_auth_repository_impl.dart';
+import 'package:taxi_app/caracteristicas/autenticacion/dominio/modelos/auth_cancelled_exception.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/modelos/auth_flow_result.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/casos_uso/sign_in_google_client_usecase.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/casos_uso/sign_in_apple_client_usecase.dart';
@@ -50,6 +51,9 @@ class HomeAuthController extends ChangeNotifier {
       final result = await _signInGoogleClientUseCase();
       await _authService.saveUserSession(role: 'cliente', isLoggedIn: true);
       return result;
+    } on AuthCancelledException {
+      // El usuario abortó el login: no es un error, no se muestra nada.
+      return null;
     } catch (error) {
       _errorMessage = _toUiError(error);
       return null;
@@ -68,6 +72,9 @@ class HomeAuthController extends ChangeNotifier {
       final result = await _signInAppleClientUseCase();
       await _authService.saveUserSession(role: 'cliente', isLoggedIn: true);
       return result;
+    } on AuthCancelledException {
+      // El usuario abortó el login: no es un error, no se muestra nada.
+      return null;
     } catch (error) {
       _errorMessage = _toUiError(error);
       return null;

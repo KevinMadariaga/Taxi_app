@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:taxi_app/core/app_colores.dart';
@@ -201,21 +203,26 @@ class _HomeViewState extends State<HomeView> {
                             ),
                             onTap: () => _loginWithGoogle(authVm),
                           ),
-                          const SizedBox(height: 12),
-
                           // ── Apple ──────────────────────────────────────
-                          _SocialButton(
-                            label: 'Continuar con Apple',
-                            loading: _proveedorCargando == 'apple',
-                            enabled: !isBusy,
-                            filled: true,
-                            leading: const Icon(
-                              Icons.apple,
-                              size: 24,
-                              color: Colors.white,
+                          // Solo en iOS: `getAppleIDCredential` se llama sin
+                          // `webAuthenticationOptions`, que es obligatorio
+                          // para el flujo web de Android. Mostrarlo allí era
+                          // ofrecer una opción de login que fallaba siempre.
+                          if (Platform.isIOS) ...[
+                            const SizedBox(height: 12),
+                            _SocialButton(
+                              label: 'Continuar con Apple',
+                              loading: _proveedorCargando == 'apple',
+                              enabled: !isBusy,
+                              filled: true,
+                              leading: const Icon(
+                                Icons.apple,
+                                size: 24,
+                                color: Colors.white,
+                              ),
+                              onTap: () => _loginWithApple(authVm),
                             ),
-                            onTap: () => _loginWithApple(authVm),
-                          ),
+                          ],
 
                           const SizedBox(height: 8),
                           Text(

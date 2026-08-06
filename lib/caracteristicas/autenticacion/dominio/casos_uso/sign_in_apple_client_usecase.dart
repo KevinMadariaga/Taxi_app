@@ -1,3 +1,4 @@
+import 'package:taxi_app/caracteristicas/autenticacion/dominio/modelos/auth_cancelled_exception.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/modelos/auth_flow_result.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/repositorios/client_auth_repository.dart';
 import 'package:taxi_app/core/services/apple_sign_in_service.dart';
@@ -13,7 +14,7 @@ class SignInAppleClientUseCase {
   Future<AuthFlowResult> call() async {
     final result = await _appleService.signInWithApple();
     if (result == null || result.userCredential.user == null) {
-      throw StateError('El inicio de sesion con Apple fue cancelado.');
+      throw const AuthCancelledException('apple');
     }
 
     final firebaseUser = result.userCredential.user!;
