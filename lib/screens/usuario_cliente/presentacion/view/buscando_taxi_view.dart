@@ -9,6 +9,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart' show LatLng;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/constants/solicitud_estado.dart';
 import 'package:taxi_app/core/services/app_remote_config_service.dart';
 import 'package:taxi_app/core/services/map_service_adapter.dart' as adapter;
 import 'package:taxi_app/caracteristicas/viaje_cliente/presentacion/vistas/viaje_cliente_screen.dart';
@@ -72,6 +73,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
     _vm.iniciarEscucha(
       solicitudId: widget.solicitudId,
       onAsignada: _onSolicitudAsignada,
+      onTerminada: _onSolicitudTerminada,
     );
 
     _dotsController = AnimationController(
@@ -182,6 +184,36 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
       ),
       title: 'Conductor encontrado',
       subtitle: 'Preparando tu ruta y detalles del viaje...',
+    );
+  }
+
+  /// La solicitud terminó sin conductor por una vía ajena al cliente: la
+  /// canceló un admin, la barrió el job server-side de solicitudes inactivas,
+  /// expiró a 'sin respuesta', o el documento desapareció. Antes esto no se
+  /// manejaba y el cliente quedaba girando en "Buscando conductor" para
+  /// siempre. No se llama a `cancelarSolicitud()`: la solicitud ya está
+  /// terminada en Firestore, solo hay que sacar al usuario de acá.
+  Future<void> _onSolicitudTerminada(String estadoNormalizado) async {
+    if (!mounted || _viajeNavegado || _navegandoAViaje) return;
+    _viajeNavegado = true;
+    _vm.marcarFlujoTerminado();
+    await _vm.detenerEscucha();
+    if (!mounted) return;
+    _vm.finalizarTrackingConductores();
+
+    final esSinRespuesta = estadoNormalizado == SolicitudEstado.sinRespuesta;
+    await navigateWithIntermediateLoader(
+      context: context,
+      nextBuilder: (_) => const HomeClienteView(),
+      title: esSinRespuesta ? 'Sin conductores disponibles' : 'Búsqueda finalizada',
+      subtitle: esSinRespuesta
+          ? 'Ningún conductor respondió a tu solicitud. Intenta de nuevo.'
+          : 'Tu solicitud ya no está activa. Puedes pedir otro viaje.',
+      icon: Icons.info_outline_rounded,
+      accentColor: AppColores.warning,
+      drawCheck: false,
+      delay: const Duration(milliseconds: 1600),
+      clearStackOnNext: true,
     );
   }
 

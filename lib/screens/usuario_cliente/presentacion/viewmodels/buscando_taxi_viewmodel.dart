@@ -49,6 +49,7 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _solicitudSub;
   bool _disposed = false;
   bool _asignadaHandled = false;
+  bool _terminadaHandled = false;
   bool _isCancelling = false;
   bool _isUpdatingValor = false;
   bool _isRespondingCounteroffer = false;
@@ -119,12 +120,20 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
   List<LatLng> get routePoints => List.unmodifiable(_routePoints);
   bool get isLoadingRoute => _isLoadingRoute;
 
+  /// [onTerminada] se invoca cuando la solicitud deja de estar buscando por
+  /// una vía que NO es la asignación: la canceló un admin, la canceló el
+  /// barrido server-side de solicitudes inactivas, expiró a 'sin respuesta',
+  /// o el documento desapareció. Sin esto el cliente se queda girando en
+  /// "Buscando conductor" para siempre sobre una solicitud que ya no existe
+  /// — el único estado que se manejaba era `asignado`.
   void iniciarEscucha({
     required String? solicitudId,
     required Future<void> Function(String solicitudId) onAsignada,
+    Future<void> Function(String estadoNormalizado)? onTerminada,
   }) {
     _solicitudId = solicitudId;
     _asignadaHandled = false;
+    _terminadaHandled = false;
 
     _solicitudSub?.cancel();
     if (solicitudId == null || solicitudId.isEmpty) return;
@@ -137,18 +146,31 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
         .doc(solicitudId)
         .snapshots()
         .listen((snap) async {
-          if (!snap.exists) return;
+          // Documento borrado: para el cliente equivale a una cancelación.
+          if (!snap.exists) {
+            await _notificarTerminada(
+              SolicitudEstado.cancelado,
+              onTerminada,
+            );
+            return;
+          }
           final data = snap.data();
           if (data == null) return;
 
           _hydratarEstadoDesdeSolicitud(data);
           _safeNotify();
 
-          if (_asignadaHandled) return;
-
           final estado = SolicitudEstado.normalize(
             (data['estado'] ?? data['status'] ?? '').toString(),
           );
+
+          if (SolicitudEstado.isTerminal(estado)) {
+            await _notificarTerminada(estado, onTerminada);
+            return;
+          }
+
+          if (_asignadaHandled) return;
+
           if (estado == SolicitudEstado.asignado) {
             await mostrarNotificacionSolicitudEntrante();
             _asignadaHandled = true;
@@ -159,6 +181,23 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
             }
           }
         });
+  }
+
+  /// One-shot: si el cliente ya fue enviado al viaje (`_asignadaHandled`) no
+  /// tiene sentido sacarlo por un estado terminal posterior (p.ej. el viaje
+  /// se completa) — de eso se encarga ya la pantalla de viaje.
+  Future<void> _notificarTerminada(
+    String estadoNormalizado,
+    Future<void> Function(String estadoNormalizado)? onTerminada,
+  ) async {
+    if (_terminadaHandled || _asignadaHandled) return;
+    _terminadaHandled = true;
+    if (onTerminada == null) return;
+    try {
+      await onTerminada(estadoNormalizado);
+    } catch (_) {
+      _terminadaHandled = false;
+    }
   }
 
   void _hydratarEstadoDesdeSolicitud(Map<String, dynamic> data) {

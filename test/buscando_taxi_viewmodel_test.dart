@@ -22,9 +22,12 @@
 import 'dart:async';
 
 import 'package:fake_async/fake_async.dart';
+import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter/widgets.dart' show AppLifecycleState;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:taxi_app/core/constants/solicitud_estado.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/buscando_taxi_viewmodel.dart';
 
 import 'test_helpers/firebase_test_setup.dart';
@@ -37,6 +40,7 @@ class _FakeBuscandoTaxiViewModel extends BuscandoTaxiViewModel {
   _FakeBuscandoTaxiViewModel({
     required Stream<Map<String, LatLng>> conductoresStream,
     required Stream<Map<String, LatLng>> conectadosStream,
+    super.firestore,
   }) : _conductoresStream = conductoresStream,
        _conectadosStream = conectadosStream;
 
@@ -55,6 +59,15 @@ class _FakeBuscandoTaxiViewModel extends BuscandoTaxiViewModel {
   @override
   Future<void> marcarCanceladaPorInactividad() async {
     marcarCanceladaCount++;
+  }
+
+  /// Toca `NotificacionesServicio` (no mockeado en este entorno) — se anula
+  /// para poder ejercitar la rama `asignado` de `iniciarEscucha`.
+  int notificacionEntranteCount = 0;
+
+  @override
+  Future<void> mostrarNotificacionSolicitudEntrante() async {
+    notificacionEntranteCount++;
   }
 }
 
@@ -255,6 +268,127 @@ void main() {
 
       ownConductoresController.close();
       ownConectadosController.close();
+    });
+  });
+
+  // Regresión: antes `iniciarEscucha` solo manejaba `asignado`, así que una
+  // solicitud cancelada por un admin / barrida por el job server-side de
+  // inactivas / expirada a 'sin respuesta' / con el documento borrado dejaba
+  // al cliente girando en "Buscando conductor" para siempre.
+  group('iniciarEscucha — salida en estado terminal', () {
+    late FakeFirebaseFirestore firestore;
+    late _FakeBuscandoTaxiViewModel terminalVm;
+    late StreamController<Map<String, LatLng>> c1;
+    late StreamController<Map<String, LatLng>> c2;
+
+    const solicitudId = 'sol-1';
+
+    setUp(() async {
+      // `iniciarEscucha` persiste la solicitud activa vía SessionHelper; sin
+      // este mock el plugin no existe y el fallo ensucia la salida del test.
+      SharedPreferences.setMockInitialValues({});
+      firestore = FakeFirebaseFirestore();
+      c1 = StreamController<Map<String, LatLng>>.broadcast();
+      c2 = StreamController<Map<String, LatLng>>.broadcast();
+      terminalVm = _FakeBuscandoTaxiViewModel(
+        conductoresStream: c1.stream,
+        conectadosStream: c2.stream,
+        firestore: firestore,
+      );
+      await firestore.collection('solicitudes').doc(solicitudId).set({
+        'estado': SolicitudEstado.buscando,
+        'cliente': {'id': 'cli-1'},
+      });
+    });
+
+    tearDown(() async {
+      terminalVm.dispose();
+      await c1.close();
+      await c2.close();
+    });
+
+    /// Engancha el listener y devuelve los estados terminales notificados.
+    List<String> escuchar({List<String>? asignadas}) {
+      final terminales = <String>[];
+      terminalVm.iniciarEscucha(
+        solicitudId: solicitudId,
+        onAsignada: (id) async => asignadas?.add(id),
+        onTerminada: (estado) async => terminales.add(estado),
+      );
+      return terminales;
+    }
+
+    for (final estado in [
+      SolicitudEstado.cancelado,
+      SolicitudEstado.sinRespuesta,
+      SolicitudEstado.completado,
+    ]) {
+      test('estado "$estado" notifica onTerminada y no onAsignada', () async {
+        final asignadas = <String>[];
+        final terminales = escuchar(asignadas: asignadas);
+
+        await firestore
+            .collection('solicitudes')
+            .doc(solicitudId)
+            .update({'estado': estado});
+        await pumpEventQueue();
+
+        expect(terminales, [estado]);
+        expect(asignadas, isEmpty);
+      });
+    }
+
+    test('documento borrado se reporta como cancelado', () async {
+      final terminales = escuchar();
+
+      await firestore.collection('solicitudes').doc(solicitudId).delete();
+      await pumpEventQueue();
+
+      expect(terminales, [SolicitudEstado.cancelado]);
+    });
+
+    test('onTerminada se dispara una sola vez', () async {
+      final terminales = escuchar();
+      final doc = firestore.collection('solicitudes').doc(solicitudId);
+
+      await doc.update({'estado': SolicitudEstado.cancelado});
+      await pumpEventQueue();
+      await doc.update({'estado': SolicitudEstado.sinRespuesta});
+      await pumpEventQueue();
+
+      expect(terminales, [SolicitudEstado.cancelado]);
+    });
+
+    test('asignado sigue navegando al viaje y no dispara onTerminada', () async {
+      final asignadas = <String>[];
+      final terminales = escuchar(asignadas: asignadas);
+
+      await firestore
+          .collection('solicitudes')
+          .doc(solicitudId)
+          .update({'estado': SolicitudEstado.asignado});
+      await pumpEventQueue();
+
+      expect(asignadas, [solicitudId]);
+      expect(terminales, isEmpty);
+      expect(terminalVm.notificacionEntranteCount, 1);
+    });
+
+    // Un viaje ya asignado que luego se completa NO debe sacar al cliente de
+    // acá con un mensaje de "búsqueda finalizada": de esa transición se
+    // encarga la pantalla de viaje.
+    test('completado tras asignado no dispara onTerminada', () async {
+      final asignadas = <String>[];
+      final terminales = escuchar(asignadas: asignadas);
+      final doc = firestore.collection('solicitudes').doc(solicitudId);
+
+      await doc.update({'estado': SolicitudEstado.asignado});
+      await pumpEventQueue();
+      await doc.update({'estado': SolicitudEstado.completado});
+      await pumpEventQueue();
+
+      expect(asignadas, [solicitudId]);
+      expect(terminales, isEmpty);
     });
   });
 }
