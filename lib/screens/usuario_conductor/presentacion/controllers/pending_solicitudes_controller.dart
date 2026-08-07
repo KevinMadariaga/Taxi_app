@@ -319,9 +319,14 @@ class PendingSolicitudesController {
       var cambio = false;
       final clienteId = item.clienteId;
 
+      // El nombre viene denormalizado en la solicitud (`cliente.nombre`, ver
+      // `SolicitudRepositoryImpl.crear` y `SolicitudItem.fromMap:73`). Antes
+      // se caía a leer `cliente/{clienteId}` cuando faltaba, pero las reglas
+      // solo dejan a cada usuario leer su propio doc: desde el conductor esa
+      // consulta siempre da permission-denied, y este método corre por
+      // solicitud y por snapshot, así que inundaba Crashlytics.
       if (item.nombreCliente == null && clienteId != null) {
-        final cli = await _firestore.collection('cliente').doc(clienteId).get();
-        final nombre = cli.data()?['nombre']?.toString() ?? 'Cliente';
+        const nombre = 'Cliente';
         _guardarEnCache(_nombreClientePorId, clienteId, nombre);
         item.nombreCliente = nombre;
         cambio = true;

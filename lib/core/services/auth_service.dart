@@ -146,7 +146,39 @@ class AuthService {
   }
 
   /// Logout sencillo: delega en clearSession y limpia también SessionHelper.
+  /// Cierra la sesión y deja el dispositivo limpio.
+  ///
+  /// El orden importa: lo que necesita `currentUser` o permisos de Firestore
+  /// va ANTES del `signOut()` que hace [clearSession].
+  ///
+  /// Antes solo borraba SharedPreferences, y quedaban vivas tres cosas: el
+  /// `fcmToken` en el documento del usuario (el dispositivo seguía recibiendo
+  /// push de la cuenta cerrada, incluso del rol abandonado), las notificaciones
+  /// ya mostradas en la bandeja, y el servicio de ubicación en segundo plano
+  /// mandando GPS a Firestore.
   Future<void> logout() async {
+    // 1. Desvincular el token FCM — requiere sesión activa.
+    try {
+      await FcmService.instance.desvincularTokenAlCerrarSesion();
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'auth_service: desvincular fcm');
+    }
+
+    // 2. Cortar el tracking en segundo plano.
+    try {
+      await stopBackgroundTrackingService();
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'auth_service: stop background');
+    }
+
+    // 3. Limpiar la bandeja de notificaciones.
+    try {
+      await NotificacionesServicio.instance.cancelAll();
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'auth_service: cancelAll notif');
+    }
+
+    // 4. Recién ahora: caché local + signOut.
     try {
       await clearSession();
       try {

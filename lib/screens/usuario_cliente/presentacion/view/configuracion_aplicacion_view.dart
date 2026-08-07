@@ -54,24 +54,26 @@ class _ConfiguracionAplicacionViewState
     if (confirmar != true || !mounted) return;
 
     setState(() => _isLoggingOut = true);
-    try {
-      await AuthService().logout();
-      if (!mounted) return;
-      Navigator.of(
-        context,
-      ).pushNamedAndRemoveUntil(AppRoutes.login, (route) => false);
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No se pudo cerrar sesión. Intenta de nuevo.'),
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isLoggingOut = false);
-      }
-    }
+
+    // Navegar ANTES de cerrar sesión, no después.
+    //
+    // `pushNamedAndRemoveUntil` desmonta todo el árbol anterior, y los
+    // `dispose()` de esos ViewModels cancelan sus listeners de Firestore. Con
+    // el orden inverso, el `signOut()` les quitaba la autenticación mientras
+    // seguían suscritos y cada uno reventaba con `permission-denied`: en el
+    // home del conductor eran cinco por cierre de sesión (`usuarios/{uid}`,
+    // `soporte_chats/{uid}/mensajes`, las pendientes y las asignadas), todos
+    // reportados a Crashlytics como errores reales.
+    //
+    // La sesión sigue activa durante la navegación, así que
+    // `logout()` conserva el `currentUser` que necesita para desvincular el
+    // token FCM.
+    Navigator.of(
+      context,
+    ).pushNamedAndRemoveUntil(AppRoutes.login, (route) => false);
+
+    // Sin `context` de acá en adelante: este State ya fue desmontado.
+    await AuthService().logout();
   }
 
   Future<void> _eliminarCuenta() async {

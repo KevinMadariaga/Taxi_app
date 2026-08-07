@@ -90,12 +90,18 @@ class _CodigoVerificacionSheetState extends State<CodigoVerificacionSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final media = MediaQuery.of(context);
+    // `viewInsets.bottom` (teclado) empuja la hoja hacia arriba; cuando el
+    // teclado NO está visible hay que respetar igual el inset físico de abajo
+    // —barra de navegación de Android, home indicator de iOS— o los botones
+    // quedan pegados a la barra. Antes solo se miraba el teclado.
+    final insetTeclado = media.viewInsets.bottom;
+    final insetSistema = insetTeclado > 0 ? 0.0 : media.viewPadding.bottom;
+
     return Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
-      ),
+      padding: EdgeInsets.only(bottom: insetTeclado),
       child: Container(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+        padding: EdgeInsets.fromLTRB(20, 20, 20, 24 + insetSistema),
         decoration: const BoxDecoration(
           color: AppColores.cardBackground,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),

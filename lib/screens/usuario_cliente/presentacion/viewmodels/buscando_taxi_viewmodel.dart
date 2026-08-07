@@ -733,10 +733,12 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
   }
 
   /// Cancela por inactividad/abandono (app cerrada o en segundo plano demasiado
-  /// tiempo). Marca estado=cancelado y, si la app sigue viva para completar
-  /// este método, agenda el borrado a los 3 s (igual que [cancelarSolicitud]),
-  /// para que desaparezca de la lista de solicitudes tanto del cliente como
-  /// de los conductores. Best-effort.
+  /// tiempo). Marca estado=cancelado; con eso desaparece de la lista de
+  /// solicitudes tanto del cliente como de los conductores, que filtran por
+  /// estado. Best-effort.
+  ///
+  /// No borra el documento (ver [cancelarSolicitud]): las reglas lo prohíben
+  /// y la limpieza real es server-side.
   Future<void> marcarCanceladaPorInactividad() async {
     final solicitudId = _solicitudId;
     if (solicitudId == null || solicitudId.isEmpty) return;
@@ -747,13 +749,6 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
         'cancelledAt': FieldValue.serverTimestamp(),
         'cancelReason': 'inactividad',
       });
-      unawaited(
-        _borrarSolicitudTrasGracia(
-          docRef,
-          solicitudId,
-          gracia: const Duration(seconds: 3),
-        ),
-      );
     } catch (e, st) {
       ErrorReporter.report(e, st, reason: 'buscando_taxi_viewmodel');
     }
@@ -785,29 +780,18 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
     SessionHelper.clearActiveSolicitud().ignore();
     SessionHelper.clearActiveSolicitudScreen().ignore();
 
-    // Borrado en segundo plano tras una breve gracia (da tiempo a que un
-    // conductor que ya estaba enviando su aceptación la complete antes de
-    // que el documento desaparezca). No debe bloquear la navegación de
-    // vuelta a Home: el cliente ya vio "solicitud cancelada" al instante.
-    unawaited(_borrarSolicitudTrasGracia(docRef, solicitudId));
-  }
-
-  Future<void> _borrarSolicitudTrasGracia(
-    DocumentReference<Map<String, dynamic>> docRef,
-    String solicitudId, {
-    Duration gracia = const Duration(seconds: 5),
-  }) async {
-    try {
-      await Future<void>.delayed(gracia);
-      await docRef.delete();
-      debugPrint(
-        '[BuscandoTaxiViewModel] Solicitud $solicitudId eliminada tras cancelación',
-      );
-    } catch (e) {
-      debugPrint(
-        '[BuscandoTaxiViewModel] Error eliminando solicitud tras cancelación: $e',
-      );
-    }
+    // El documento NO se borra desde el cliente. Antes había un
+    // `_borrarSolicitudTrasGracia` que esperaba 5 s y hacía `docRef.delete()`;
+    // desde que las reglas están cerradas (`allow delete: if false` en
+    // `solicitudes`) esa escritura siempre fallaba con permission-denied y solo
+    // dejaba ruido en el log y en Crashlytics — el `estado: cancelado` de
+    // arriba ya deja la solicitud terminada a todos los efectos (los lectores
+    // filtran por estado).
+    //
+    // La regla es deliberada: la base de producción no tiene Point-in-Time
+    // Recovery, así que un borrado duro es irrecuperable. La limpieza real la
+    // hace `cancelarSolicitudesBuscandoInactivas` con el Admin SDK, que no pasa
+    // por las reglas.
   }
 
   // ── Tracking de conductores ──────────────────────────────────────────────

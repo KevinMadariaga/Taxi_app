@@ -31,7 +31,6 @@ class InicioConductorViewmodel extends ChangeNotifier {
            iniciarEscuchaSoporte ??
            SoporteNotificationService.instance.iniciarEscuchaUsuario,
        _previewController = PreviewRouteController(
-         firestore: firestore ?? FirebaseFirestore.instance,
          trackingService: trackingService ?? TrackingService(),
        ),
        _profileController = ConductorProfileController(
@@ -255,12 +254,6 @@ class InicioConductorViewmodel extends ChangeNotifier {
 
   void selectPreview(PreviewSolicitud preview) =>
       _previewController.selectPreview(preview);
-
-  String? fotoClientePorId(String? clienteId) =>
-      _previewController.fotoClientePorId(clienteId);
-
-  Future<void> preloadClientePhoto(String? clienteId) =>
-      _previewController.preloadClientePhoto(clienteId);
 
   void clearPreviewAndRoutes() => _previewController.clearPreviewAndRoutes();
 

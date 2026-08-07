@@ -27,7 +27,6 @@ class DriverTripCard extends StatefulWidget {
     required this.onReportarLlegada,
     required this.onComenzarRuta,
     required this.onTerminarViaje,
-    required this.onCancelar,
   });
 
   final ViajeConductorViewModel vm;
@@ -36,7 +35,6 @@ class DriverTripCard extends StatefulWidget {
   final VoidCallback onReportarLlegada;
   final VoidCallback onComenzarRuta;
   final VoidCallback onTerminarViaje;
-  final VoidCallback onCancelar;
 
   @override
   State<DriverTripCard> createState() => _DriverTripCardState();
@@ -219,42 +217,17 @@ class _DriverTripCardState extends State<DriverTripCard>
                   onAccionPrimaria: accion.onTap,
                   primaryLabel: accion.label,
                   primaryIcon: accion.icon,
+                  // El chat solo en el tramo de recogida: ya con el pasajero a
+                  // bordo van juntos en el vehículo.
+                  mostrarChat: vm.tramoActual == TramoViajeConductor.recogida,
                   primaryLoading: vm.isSendingArrival || vm.isValidatingCodigo,
                   primaryPastel: accion.pastel,
                 ),
-                // Única salida del viaje. La pantalla es `PopScope(canPop:
-                // false)` y sin esto un conductor cuyo cliente nunca aparece
-                // quedaba encerrado: no llegaba a tocar "Ya llegué", así que
-                // el timeout de `sin respuesta` ni siquiera arrancaba, y
-                // matar la app lo devolvía a la misma pantalla.
-                //
-                // Solo antes de arrancar: una vez `en ruta` el viaje ya está
-                // en curso y se cierra con "Terminar viaje".
-                if (vm.puedeCancelar) ...[
-                  const SizedBox(height: 4),
-                  Center(
-                    child: TextButton.icon(
-                      onPressed: vm.isCancelling ? null : widget.onCancelar,
-                      icon: vm.isCancelling
-                          ? const SizedBox(
-                              width: 14,
-                              height: 14,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.close_rounded, size: 16),
-                      label: Text(
-                        vm.isCancelling ? 'Cancelando...' : 'Cancelar viaje',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      style: TextButton.styleFrom(
-                        foregroundColor: AppColores.error,
-                      ),
-                    ),
-                  ),
-                ],
+                // Sin botón de cancelar: por diseño del negocio, el viaje lo
+                // cancela el CLIENTE. El conductor escucha ese cambio de
+                // estado en Firestore y sale solo — `_handleEstadoTransition`
+                // pone `debeSalir` al ver `cancelado` y la pantalla navega de
+                // vuelta a `InicioConductor` con el motivo.
               ],
             ),
           ),

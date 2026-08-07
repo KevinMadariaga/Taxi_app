@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/services/fcm_service.dart';
 
 import '../controladores/chat_controller.dart';
 
@@ -8,21 +9,33 @@ import '../controladores/chat_controller.dart';
 /// `TripChatScreen` (cliente) y `DriverChatScreen` (conductor), que eran
 /// estructuralmente idénticas salvo por a qué controlador leían.
 ///
-/// Dueña de su propio [ChatController] (no depende de un ViewModel ancestro
-/// vía `Provider`): se puede abrir desde cualquiera de las dos pantallas de
-/// viaje pasando solo los identificadores.
+/// **Pasar siempre el [controller] del ViewModel del viaje.** Los dos
+/// ViewModels (`ViajeConductorViewModel`, `ViajeClienteViewModel`) ya crean y
+/// bindean un `ChatController` para el mismo viaje. Cuando esta pantalla
+/// creaba el suyo propio quedaban DOS listeners sobre la misma subcolección
+/// `mensajes` y cada mensaje entrante disparaba la notificación local dos
+/// veces (visto en dispositivo real: notificación duplicada por mensaje).
+///
+/// El [controller] recibido NO se dispone acá: pertenece al ViewModel, que lo
+/// dispone junto con la pantalla de viaje.
 class ChatScreen extends StatefulWidget {
   const ChatScreen({
     super.key,
     required this.viajeId,
     required this.currentUserId,
     required this.otherPartyLabel,
+    this.controller,
     this.title = 'Chat en tiempo real',
   });
 
   final String viajeId;
   final String currentUserId;
   final String otherPartyLabel;
+
+  /// Controlador ya bindeado del ViewModel del viaje. Si es `null` la pantalla
+  /// crea (y dispone) uno propio — solo para usos sueltos, fuera del flujo de
+  /// viaje.
+  final ChatController? controller;
   final String title;
 
   @override
@@ -31,6 +44,12 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   late final ChatController _controller;
+
+  /// Solo cuando esta pantalla creó el controller es responsable de disponerlo.
+  late final bool _ownsController;
+
+  VoidCallback? _previousOnChanged;
+
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final FocusNode _focusNode = FocusNode();
@@ -38,16 +57,33 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    final externo = widget.controller;
+    _ownsController = externo == null;
     _controller =
+        externo ??
         ChatController(
-            viajeId: widget.viajeId,
-            currentUserId: widget.currentUserId,
-            otherPartyLabel: widget.otherPartyLabel,
-          )
-          ..onChanged = () {
-            if (mounted) setState(() {});
-          };
-    _controller.bind();
+          viajeId: widget.viajeId,
+          currentUserId: widget.currentUserId,
+          otherPartyLabel: widget.otherPartyLabel,
+        );
+
+    // El ViewModel también escucha `onChanged`; se encadena en vez de pisarlo
+    // para que su UI (badge de no leídos) siga actualizándose con el chat
+    // abierto, y se restaura al salir.
+    _previousOnChanged = _controller.onChanged;
+    _controller.onChanged = () {
+      _previousOnChanged?.call();
+      if (mounted) setState(() {});
+    };
+
+    if (_ownsController) _controller.bind();
+
+    // Con el chat en pantalla el usuario ya está viendo los mensajes: no tiene
+    // sentido notificarle de lo que está leyendo. Se silencian las dos vías —
+    // el aviso del listener y el del handler de FCM en primer plano.
+    _controller.notificacionesSilenciadas = true;
+    FcmService.instance.registrarChatAbierto(widget.viajeId);
+
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (mounted) FocusScope.of(context).requestFocus(_focusNode);
       await _controller.markAllAsRead();
@@ -56,7 +92,10 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
-    _controller.dispose();
+    _controller.notificacionesSilenciadas = false;
+    FcmService.instance.limpiarChatAbierto(widget.viajeId);
+    _controller.onChanged = _previousOnChanged;
+    if (_ownsController) _controller.dispose();
     _focusNode.dispose();
     _textController.dispose();
     _scrollController.dispose();

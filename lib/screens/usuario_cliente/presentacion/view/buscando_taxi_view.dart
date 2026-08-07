@@ -9,6 +9,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart' show LatLng;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/services/fcm_service.dart';
 import 'package:taxi_app/core/constants/solicitud_estado.dart';
 import 'package:taxi_app/core/services/app_remote_config_service.dart';
 import 'package:taxi_app/core/services/map_service_adapter.dart' as adapter;
@@ -75,6 +76,15 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
       onAsignada: _onSolicitudAsignada,
       onTerminada: _onSolicitudTerminada,
     );
+
+    // Esta pantalla ya avisa por su cuenta (contraofertas, conductor asignado)
+    // desde los listeners del ViewModel: mientras esté montada, el handler de
+    // FCM en primer plano se hace a un lado para que no salgan dos avisos del
+    // mismo evento.
+    final id = widget.solicitudId;
+    if (id != null && id.isNotEmpty) {
+      FcmService.instance.registrarPantallaDeViaje(id);
+    }
 
     _dotsController = AnimationController(
       vsync: this,
@@ -330,6 +340,10 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    final id = widget.solicitudId;
+    if (id != null && id.isNotEmpty) {
+      FcmService.instance.limpiarPantallaDeViaje(id);
+    }
     _vm.removeListener(_onVmChanged);
     _vm.dispose();
     _dotsController.dispose();

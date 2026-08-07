@@ -86,10 +86,23 @@ class FcmService {
     // iOS: mostrar notificaciones FCM también cuando la app está en primer
     // plano. badge:false — no se necesita el globo de pendientes en el
     // ícono de la app.
+    // `alert: false` a propósito: en PRIMER PLANO la notificación la muestra
+    // la app, nunca el sistema.
+    //
+    // Con `alert: true`, iOS mostraba el banner del sistema por su cuenta —sin
+    // pasar por `_onForegroundMessage`— y encima el aviso local del listener de
+    // la pantalla, así que el usuario veía DOS notificaciones del mismo evento
+    // (reproducido en dispositivo real con el chat del viaje). Ningún filtro en
+    // el handler podía evitarlo, porque el banner del sistema no se decide en
+    // Dart.
+    //
+    // El reparto queda: primer plano → la app (`_onForegroundMessage` o el
+    // aviso del listener, exactamente uno de los dos); segundo plano o app
+    // cerrada → el sistema, con el bloque `notification` de la push.
     await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
-      alert: true,
+      alert: false,
       badge: false,
-      sound: true,
+      sound: false,
     );
 
     // 2) Solicitar permisos push (en iOS muestra el diálogo nativo)
@@ -277,52 +290,159 @@ class FcmService {
     await _saveCurrentToken();
   }
 
-  /// Tipos de push que ya tienen su propio aviso local en tiempo real
-  /// (disparado por un listener de Firestore mientras la pantalla relevante
-  /// está montada: SolicitudEstadoController, TripTrackingViewModel,
-  /// InicioConductorViewModel). Este canal FCM existe para cubrir background
-  /// y terminated — mostrarlo también en foreground duplicaría el aviso.
+  /// Desvincula este dispositivo del usuario que está cerrando sesión.
   ///
-  /// `nueva_solicitud` NO está en esta lista: se sacó porque el aviso local
-  /// que la justificaba ya no existe — `PendingSolicitudesController` dejó de
-  /// mostrarlo y solo empuja el id a un stream sin consumidores. Con la
-  /// supresión activa el conductor no recibía **ningún** aviso de solicitud
-  /// nueva, ni en foreground ni en background: tenía que estar mirando la app.
-  static const _tiposConAvisoLocalPropio = {
-    'trip_status_change',
-    'conductor_cerca',
-    'trip_chat_message',
-    'soporte_chat_respuesta',
-    'contraoferta',
-  };
+  /// Llamar ANTES del `signOut()`: necesita `currentUser` para saber de qué
+  /// documento borrar el token, y las reglas de Firestore exigen estar
+  /// autenticado para escribirlo.
+  ///
+  /// Sin esto el `fcmToken` quedaba en `usuarios/{uid}` después de cerrar
+  /// sesión y el dispositivo seguía recibiendo push dirigidas a esa cuenta —
+  /// incluidas las del rol que se acababa de abandonar. Se borra el token del
+  /// servidor y se elimina el local para que el próximo login genere uno nuevo
+  /// y limpio.
+  Future<void> desvincularTokenAlCerrarSesion() async {
+    final user = FirebaseAuth.instance.currentUser;
+    final uid = user?.uid;
 
-  /// Mensajes en primer plano.
+    if (uid != null) {
+      final firestore = FirebaseFirestore.instance;
+      final borrado = {
+        'fcmToken': FieldValue.delete(),
+        'fcmTokenUpdatedAt': FieldValue.delete(),
+      };
+
+      try {
+        await firestore.collection('usuarios').doc(uid).update(borrado);
+        debugPrint('[FCM] ✅ Token desvinculado de usuarios/$uid');
+      } catch (e, st) {
+        // `not-found` es esperado si el doc no existe; el resto sí importa.
+        ErrorReporter.report(
+          e,
+          st,
+          reason: 'FcmService: fallo al desvincular token de usuarios/$uid',
+        );
+      }
+
+      try {
+        final doc = await firestore.collection('administradores').doc(uid).get();
+        if (doc.exists) {
+          await firestore
+              .collection('administradores')
+              .doc(uid)
+              .update({'fcmToken': FieldValue.delete()});
+        }
+      } catch (e, st) {
+        ErrorReporter.report(
+          e,
+          st,
+          reason: 'FcmService: fallo al desvincular token de administradores',
+        );
+      }
+    }
+
+    _pendingToken = null;
+
+    // Borra el token del dispositivo: el siguiente login pide uno nuevo.
+    try {
+      await FirebaseMessaging.instance.deleteToken();
+    } catch (e, st) {
+      ErrorReporter.report(
+        e,
+        st,
+        reason: 'FcmService: fallo al borrar el token local',
+      );
+    }
+  }
+
+  // Ya no hay una lista fija de tipos con "aviso local propio". Esa lista
+  // asumía que la pantalla capaz de avisar estaba siempre montada, y cuando no
+  // lo estaba el aviso se perdía por completo en primer plano. Ahora la
+  // decisión se toma con el estado real de la navegación — ver
+  // [_pantallasDeViaje].
+
+  /// Solicitud cuya pantalla de viaje está montada ahora mismo, si hay alguna.
   ///
-  /// iOS: setForegroundNotificationPresentationOptions ya muestra el banner
-  /// del sistema, así que solo usamos flutter_local_notifications para
-  /// mensajes data-only (sin bloque notification). Si hay bloque notification
-  /// en iOS, el OS ya lo muestra — mostrar otra local notification duplicaría.
+  /// Lo registran `ViajeConductorScreen` / `ViajeClienteScreen` al entrar y lo
+  /// limpian al salir. Sirve para decidir quién muestra el aviso en primer
+  /// plano sin duplicarlo: si la pantalla del viaje está en pantalla, sus
+  /// propios listeners de Firestore ya avisan en tiempo real y este handler se
+  /// hace a un lado; si no lo está, el handler es el único que puede avisar.
   ///
-  /// Android: FCM nunca muestra el banner en foreground por sí solo, así que
-  /// siempre delegamos a flutter_local_notifications, salvo en los tipos que
-  /// ya tienen su propio listener en tiempo real (ver
-  /// [_tiposConAvisoLocalPropio]).
+  /// Antes esa decisión se tomaba con una lista fija de tipos
+  /// (`_tiposConAvisoLocalPropio`), que asumía que la pantalla relevante SIEMPRE
+  /// estaba montada. Cuando no lo estaba —cliente en el home y llega un mensaje
+  /// de chat, por ejemplo— nadie mostraba nada y la notificación se perdía.
+  /// Se cuenta por solicitud en vez de guardar un solo id, porque dos pantallas
+  /// del MISMO viaje pueden solaparse durante una transición (p. ej.
+  /// `BuscandoTaxiView` → `ViajeClienteScreen`, ambas con el mismo
+  /// `solicitudId`). Con un único campo, el `dispose` de la que se va borraba el
+  /// registro que la que llega acababa de poner, y el viaje quedaba marcado como
+  /// "sin pantalla" aunque estuviera a la vista.
+  final Map<String, int> _pantallasDeViaje = {};
+
+  /// Chats abiertos ahora mismo. Con el chat a la vista no se notifican sus
+  /// mensajes: el usuario los está leyendo.
+  final Map<String, int> _chatsAbiertos = {};
+
+  static void _registrar(Map<String, int> destino, String clave) {
+    if (clave.isEmpty) return;
+    destino[clave] = (destino[clave] ?? 0) + 1;
+  }
+
+  static void _liberar(Map<String, int> destino, String clave) {
+    final actual = destino[clave];
+    if (actual == null) return;
+    if (actual <= 1) {
+      destino.remove(clave);
+    } else {
+      destino[clave] = actual - 1;
+    }
+  }
+
+  void registrarPantallaDeViaje(String solicitudId) =>
+      _registrar(_pantallasDeViaje, solicitudId);
+
+  void limpiarPantallaDeViaje(String solicitudId) =>
+      _liberar(_pantallasDeViaje, solicitudId);
+
+  void registrarChatAbierto(String solicitudId) =>
+      _registrar(_chatsAbiertos, solicitudId);
+
+  void limpiarChatAbierto(String solicitudId) =>
+      _liberar(_chatsAbiertos, solicitudId);
+
+  /// Mensajes en PRIMER PLANO.
+  ///
+  /// En primer plano el sistema no muestra nada por su cuenta (Android nunca lo
+  /// hace, y en iOS se apagó con `alert: false` en [init]), así que la única
+  /// notificación posible es la que se decida acá o la que dispare el listener
+  /// de una pantalla montada. Exactamente una de las dos:
+  ///
+  /// - Si la pantalla del viesaje al que pertenece la push está montada, ya avisa
+  ///   ella → este handler no hace nada.
+  /// - Si no lo está, el handler muestra el aviso local.
+  /// - Si el chat de ese viaje está abierto, sus mensajes no se notifican.
   void _onForegroundMessage(RemoteMessage message) {
     debugPrint('[FCM Foreground] ${message.notification?.title}');
     final notification = message.notification;
     final type = message.data['type'] as String? ?? '';
+    final solicitudId = message.data['solicitudId'] as String? ?? '';
 
-    if (_tiposConAvisoLocalPropio.contains(type)) {
+    // El usuario está leyendo ese chat: no notificar lo que ya ve.
+    if (type == 'trip_chat_message' &&
+        _chatsAbiertos.containsKey(solicitudId)) {
       return;
     }
 
-    if (Platform.isIOS && notification != null) {
-      // iOS + notification block → el sistema ya lo muestra; no duplicar.
+    // La pantalla del viaje está montada: sus listeners avisan en tiempo real.
+    if (_pantallasDeViaje.containsKey(solicitudId)) {
       return;
     }
 
-    final title = notification?.title ?? message.data['title'] as String? ?? 'Ride';
-    final body  = notification?.body  ?? message.data['body']  as String? ?? '';
+    final title =
+        notification?.title ?? message.data['title'] as String? ?? 'Ride';
+    final body = notification?.body ?? message.data['body'] as String? ?? '';
     if (title.isEmpty && body.isEmpty) return;
 
     NotificacionesServicio.instance.showTripNotification(

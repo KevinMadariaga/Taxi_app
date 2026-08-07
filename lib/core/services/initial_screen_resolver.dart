@@ -587,37 +587,31 @@ class InitialScreenResolver {
     required String uid,
     required String? role,
   }) async {
+    // Solo los dos campos que el esquema escribe de verdad
+    // (`solicitud_repository_impl.crear` escribe `cliente.id`;
+    // `InicioConductorViewModel._buildConductorPayload` escribe
+    // `conductor.id`; ver `test/esquema_solicitud_contrato_test.dart`).
+    //
+    // Antes se probaban 6 variantes por rol (`conductor.uid`, `conductorId`,
+    // `conductor_id`, `assignedTo`, `driverId`, `cliente.uid`, `clienteId`,
+    // `cliente_id`, `userId`). Ninguna la escribe este código, y desde que
+    // las reglas de Firestore están cerradas **no pueden funcionar nunca**:
+    // la regla de `solicitudes` solo puede demostrar que una query es legible
+    // si filtra por `cliente.id` o `conductor.id`, así que las demás se
+    // rechazan enteras sin importar los datos. Cada arranque sin viaje activo
+    // gastaba 5 queries fallidas en serie —latencia en el splash— y mandaba
+    // 5 errores a Crashlytics por usuario, enterrando los crashes reales.
     final queries = <String>[];
 
     if (role == 'conductor') {
-      queries.addAll(const [
-        'conductor.id',
-        'conductor.uid',
-        'conductorId',
-        'conductor_id',
-        'assignedTo',
-        'driverId',
-      ]);
+      queries.add('conductor.id');
     } else {
-      queries.addAll(const [
-        'cliente.id',
-        'cliente.uid',
-        'clienteId',
-        'cliente_id',
-        'userId',
-      ]);
+      queries.add('cliente.id');
     }
 
     // Si el rol es ambiguo, intentamos ambos lados para maximizar restauracion.
     if (role == null) {
-      queries.addAll(const [
-        'conductor.id',
-        'conductor.uid',
-        'conductorId',
-        'conductor_id',
-        'assignedTo',
-        'driverId',
-      ]);
+      queries.add('conductor.id');
     }
 
     for (final field in queries.toSet()) {

@@ -231,6 +231,53 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
     }
   }
 
+  /// Cambia el rol en Firestore y solo entonces navega.
+  ///
+  /// Antes las dos tarjetas de cambio de rol eran fire-and-forget: llamaban a
+  /// `UserDataService` sin `await`, actualizaban la caché local de
+  /// `SessionHelper` y navegaban. Si la escritura fallaba, la app abría el
+  /// home del otro rol con el rol viejo en el servidor y sin ningún aviso —
+  /// en el caso conductor eso deja la lista de solicitudes vacía para
+  /// siempre, porque las reglas de Firestore la filtran por `rol`.
+  Future<void> _cambiarRol({
+    required String rol,
+    required Future<void> Function(String uid) escribir,
+    required Widget Function() destino,
+    bool rootNavigator = false,
+  }) async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null || _guardando) return;
+
+    final navigator = Navigator.of(context, rootNavigator: rootNavigator);
+    final messenger = ScaffoldMessenger.of(context);
+
+    setState(() => _guardando = true);
+    try {
+      await escribir(uid);
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'perfil: cambiar rol a $rol');
+      if (!mounted) return;
+      setState(() => _guardando = false);
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text(
+            'No se pudo cambiar de modo. Revisa tu conexión e inténtalo de nuevo.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    // Solo con la escritura confirmada: caché local y navegación.
+    SessionHelper.updateRole(rol);
+    if (!mounted) return;
+    setState(() => _guardando = false);
+    navigator.pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => destino()),
+      (route) => false,
+    );
+  }
+
   void _mostrarDialogoEditar() {
     final nombreController = TextEditingController(
       text: userData?['nombre'] ?? '',
@@ -326,14 +373,10 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
           if (yaRegistrado) {
             // Cambiar rol a conductor (Firestore + caché) para que al
             // reiniciar la app abra como conductor.
-            final uid = _auth.currentUser?.uid;
-            if (uid != null) {
-              _userDataService.cambiarRolAConductor(uid);
-            }
-            SessionHelper.updateRole('conductor');
-            Navigator.of(context).pushAndRemoveUntil(
-              MaterialPageRoute(builder: (_) => const InicioConductor()),
-              (route) => false,
+            _cambiarRol(
+              rol: 'conductor',
+              escribir: _userDataService.cambiarRolAConductor,
+              destino: () => const InicioConductor(),
             );
           } else {
             Navigator.of(context).push(
@@ -363,17 +406,12 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
           vertical: ResponsiveHelper.hp(context, 0.5),
         ),
         onTap: () {
-          final uid = _auth.currentUser?.uid;
-          if (uid != null) {
-            // Fire-and-forget: no bloquear la navegación esperando la red.
-            // rol cliente + quitar solicitud → retira notif del admin.
-            _userDataService.volverACliente(uid);
-            // Sincronizar caché para que al reiniciar abra como cliente.
-            SessionHelper.updateRole('cliente');
-          }
-          Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (_) => const HomeClienteView()),
-            (route) => false,
+          // rol cliente + quitar solicitud → retira notif del admin.
+          _cambiarRol(
+            rol: 'cliente',
+            escribir: _userDataService.volverACliente,
+            destino: () => const HomeClienteView(),
+            rootNavigator: true,
           );
         },
       ),

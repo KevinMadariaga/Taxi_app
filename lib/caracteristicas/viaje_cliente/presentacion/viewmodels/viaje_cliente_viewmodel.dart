@@ -298,6 +298,24 @@ class ViajeClienteViewModel extends ChangeNotifier {
 
     try {
       final points = await _ruta.obtenerRuta(origen: from, destino: to);
+
+      // Una "ruta" de menos de dos puntos no es una ruta: no hay polilínea que
+      // dibujar y `distanciaRuta` devuelve 0, así que la tarjeta mostraría
+      // distancia y ETA en cero. Peor: al marcar `_routeCalculatedOnce` y
+      // guardar `_lastFrom`/`_lastTo`, ese resultado degenerado quedaba fijado
+      // y no se reintentaba hasta que el conductor se moviera más de 20 m.
+      // Visto en dispositivo real: `Google Directions fetched: 1 points`.
+      //
+      // Se sale sin tocar el estado para que el próximo tick de GPS reintente.
+      // (El caché local ya aplicaba esta misma validación al restaurar.)
+      if (points.length < 2) {
+        developer.log(
+          'Ruta descartada: ${points.length} punto(s), se reintentará',
+          name: 'ViajeClienteViewModel',
+        );
+        return;
+      }
+
       final distance = _ruta.distanciaRuta(points);
 
       _movementEngine.setFullRoute(_mathService.densifyPolyline(points));
@@ -382,6 +400,10 @@ class ViajeClienteViewModel extends ChangeNotifier {
     waitingRemainingSeconds.dispose();
     chat.dispose();
     _movementEngine.dispose();
+    // Limpiar las notificaciones del viaje (conductor cerca, mensajes de chat,
+    // cambios de estado): sin esto quedaban acumuladas en la bandeja después de
+    // que el viaje ya había terminado.
+    unawaited(NotificacionesServicio.instance.cancelAll());
     super.dispose();
   }
 }

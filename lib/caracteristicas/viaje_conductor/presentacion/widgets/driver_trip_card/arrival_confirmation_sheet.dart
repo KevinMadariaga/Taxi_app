@@ -18,8 +18,17 @@ class ArrivalConfirmationSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Respetar el inset físico de abajo (barra de navegación de Android, home
+    // indicator de iOS). Con un padding inferior fijo, en los equipos que
+    // tienen barra nativa el botón "Todavía no" quedaba pegado o por debajo de
+    // ella. Sumarlo al padding en vez de usar `SafeArea` mantiene el fondo de
+    // la hoja pintado hasta el borde: si se envolviera en `SafeArea` quedaría
+    // una franja gris entre la hoja y la barra. En equipos sin barra el valor
+    // es 0 y el espaciado queda como antes.
+    final insetBottom = MediaQuery.of(context).viewPadding.bottom;
+
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+      padding: EdgeInsets.fromLTRB(20, 20, 20, 24 + insetBottom),
       decoration: const BoxDecoration(
         color: AppColores.cardBackground,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),

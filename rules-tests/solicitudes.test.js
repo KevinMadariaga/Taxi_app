@@ -227,11 +227,71 @@ describe('solicitudes/{id}/mensajes — chat del viaje', () => {
     );
   });
 
-  test('los mensajes son inmutables', async () => {
+  test('el contenido del mensaje es inmutable y no se puede borrar', async () => {
     await sembrar(env, 'solicitudes/s1/mensajes/m1', { senderId: CLIENTE, texto: 'hola' });
     await assertFails(
       como(env, CLIENTE).doc('solicitudes/s1/mensajes/m1').update({ texto: 'editado' }),
     );
+    await assertFails(
+      como(env, CONDUCTOR).doc('solicitudes/s1/mensajes/m1').update({ senderId: CONDUCTOR }),
+    );
     await assertFails(como(env, CLIENTE).doc('solicitudes/s1/mensajes/m1').delete());
+  });
+
+  // `ChatFirestoreDatasource.markMessageRead` hace `update({'readBy.$uid': true})`.
+  // Con la regla original (`allow update: if false`) el mensaje se enviaba y se
+  // leía bien pero NUNCA se marcaba como leído: el contador de no leídos no
+  // bajaba nunca. Detectado en dispositivo real con un permission-denied por
+  // cada mensaje abierto.
+  describe('acuse de lectura (readBy)', () => {
+    beforeEach(async () => {
+      await sembrar(env, 'solicitudes/s1/mensajes/m1', {
+        senderId: CLIENTE, texto: 'hola', readBy: { [CLIENTE]: true },
+      });
+    });
+
+    test('el destinatario marca el mensaje como leído', async () => {
+      await assertSucceeds(
+        como(env, CONDUCTOR).doc('solicitudes/s1/mensajes/m1')
+          .update({ [`readBy.${CONDUCTOR}`]: true }),
+      );
+    });
+
+    test('nadie puede marcar como leído en nombre de otro', async () => {
+      await assertFails(
+        como(env, CONDUCTOR).doc('solicitudes/s1/mensajes/m1')
+          .update({ [`readBy.${CLIENTE}`]: false }),
+      );
+      await assertFails(
+        como(env, CLIENTE).doc('solicitudes/s1/mensajes/m1')
+          .update({ [`readBy.${CONDUCTOR}`]: true }),
+      );
+    });
+
+    test('el acuse no sirve para colar cambios en el mensaje', async () => {
+      await assertFails(
+        como(env, CONDUCTOR).doc('solicitudes/s1/mensajes/m1').update({
+          [`readBy.${CONDUCTOR}`]: true,
+          texto: 'editado de contrabando',
+        }),
+      );
+    });
+
+    test('un tercero no puede marcar nada', async () => {
+      await assertFails(
+        como(env, OTRO_CONDUCTOR).doc('solicitudes/s1/mensajes/m1')
+          .update({ [`readBy.${OTRO_CONDUCTOR}`]: true }),
+      );
+    });
+
+    test('funciona también sobre un mensaje que aún no tiene readBy', async () => {
+      await sembrar(env, 'solicitudes/s1/mensajes/m2', {
+        senderId: CONDUCTOR, texto: 'sin readBy',
+      });
+      await assertSucceeds(
+        como(env, CLIENTE).doc('solicitudes/s1/mensajes/m2')
+          .update({ [`readBy.${CLIENTE}`]: true }),
+      );
+    });
   });
 });

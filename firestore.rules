@@ -37,9 +37,17 @@ service cloud.firestore {
         exists(/databases/$(database)/documents/administradores/$(request.auth.uid));
     }
 
+    // Acepta las DOS marcas de conductor que reconoce el código, no solo
+    // `rol`: `initial_screen_resolver.dart:148-158` cae a `tipoUsuario` como
+    // fallback cuando `rol` no resuelve, y `streamConductoresDisponibles()`
+    // consulta `usuarios where tipoUsuario == 'conductor'`. Hay conductores
+    // en producción marcados solo con el campo legacy; mirando únicamente
+    // `rol`, la app los mandaba a su home y ahí la lista de solicitudes
+    // quedaba vacía con `permission-denied` (visto en dispositivo real).
     function isConductorRole() {
       return isSignedIn() &&
-        get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.get('rol', '') == 'conductor';
+        (get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.get('rol', '') == 'conductor' ||
+          get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.get('tipoUsuario', '') == 'conductor');
     }
 
     // ---------------------------------------------------------------
@@ -90,7 +98,21 @@ service cloud.firestore {
         allow read: if esParticipante();
         allow create: if esParticipante() &&
           request.resource.data.senderId == request.auth.uid;
-        allow update, delete: if false;
+
+        // El mensaje es inmutable salvo por el acuse de lectura:
+        // `ChatFirestoreDatasource.markMessageRead` hace
+        // `update({'readBy.$uid': true})`. Con `allow update: if false` el
+        // mensaje se enviaba y se leía bien, pero nunca se marcaba como leído
+        // y el contador de no leídos no bajaba nunca (visto en dispositivo
+        // real). Cada participante solo puede tocar SU propia clave dentro de
+        // `readBy`: no puede editar el texto, ni el remitente, ni marcar como
+        // leído en nombre del otro.
+        allow update: if esParticipante() &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readBy']) &&
+          request.resource.data.readBy.diff(resource.data.get('readBy', {}))
+            .affectedKeys().hasOnly([request.auth.uid]);
+
+        allow delete: if false;
       }
     }
 
@@ -114,8 +136,33 @@ service cloud.firestore {
       allow create: if isSignedIn() &&
         (request.auth.uid == uid || isAdminRole());
 
-      // El propio usuario puede editar su perfil pero NO su `rol`: esa es la
-      // guarda contra auto-promoverse a conductor o admin.
+      // El propio usuario SÍ puede cambiar su `rol`: es un flujo real de la
+      // app, no una escalada. "Modo conductor" / "Volver a ser cliente" en
+      // `perfil.dart:331,370`, `InicioConductorView:1598` y el auto-registro
+      // de `completar_registro_conductor_view.dart:171` escriben `rol` en el
+      // doc propio. Prohibirlo dejaba al usuario en el home del conductor
+      // (la navegación es fire-and-forget + caché local de `SessionHelper`)
+      // con `rol: 'cliente'` en Firestore → `isConductorRole()` false → la
+      // lista de solicitudes pendientes quedaba vacía para siempre.
+      //
+      // La guarda real es la MEMBRESÍA, no el rol: `aceptarSolicitud`
+      // (`InicioConductorViewModel:481-484`) exige `membresia == 'activa'` y
+      // `membresiaVence` en el futuro dentro de su transacción, y solo el
+      // admin la otorga (`aprobarMembresiaConductor`). Un usuario que se
+      // auto-marque conductor puede ver la lista, pero no tomar viajes.
+      //
+      // El rol propio queda acotado a ['cliente', 'conductor']: nadie más
+      // escribe otro valor en `usuarios` (`guardarAdministrador` escribe en
+      // la colección `administradores` y no tiene llamadores), y
+      // `initial_screen_resolver.dart:137` enruta al panel de admin con
+      // `rol == 'admin' || 'administrador'`, así que sin este límite un
+      // usuario podría escribírselo y abrir el panel.
+      //
+      // Consecuencia aceptada: cualquier usuario puede auto-marcarse
+      // conductor y leer las solicitudes en `buscando` (nombre, teléfono y
+      // ubicación del cliente). La app ya lo permite por diseño — el botón
+      // "Ser conductor" no requiere aprobación para cambiar el rol — así que
+      // la regla no puede ser más estricta que el flujo sin romperlo.
       //
       // El admin puede modificar cualquier usuario, sin exigir que ya sea
       // conductor ni que le pertenezca por gremio. El modelo de gremios
@@ -127,7 +174,11 @@ service cloud.firestore {
       // (`UserDataService.aprobarMembresiaConductor`).
       allow update: if isSignedIn() &&
         ((request.auth.uid == uid &&
-            request.resource.data.get('rol', '') == resource.data.get('rol', '')) ||
+            request.resource.data.get('rol', 'cliente') in ['cliente', 'conductor'] &&
+            request.resource.data.get('membresia', '') ==
+              resource.data.get('membresia', '') &&
+            request.resource.data.get('membresiaVence', null) ==
+              resource.data.get('membresiaVence', null)) ||
           isAdminRole());
 
       allow delete: if isAdminRole();

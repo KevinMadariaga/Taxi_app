@@ -7,6 +7,8 @@ import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/constants/solicitud_estado.dart';
 import 'package:taxi_app/core/theme/ride_button_styles.dart';
 
+import 'package:taxi_app/caracteristicas/verificacion_recogida/dominio/entidades/codigo_verificacion_entity.dart';
+
 import 'widgets/codigo_verificacion_banner.dart';
 import 'widgets/conductor_vehiculo_info.dart';
 
@@ -24,6 +26,7 @@ class TripInfoCard extends StatefulWidget {
     required this.onDetails,
     required this.onHelp,
     required this.onCancel,
+    this.codigoVerificacion,
     this.onEmergency,
   });
 
@@ -32,6 +35,11 @@ class TripInfoCard extends StatefulWidget {
   final VoidCallback onDetails;
   final VoidCallback onHelp;
   final VoidCallback onCancel;
+
+  /// Código PIN ya resuelto por `ViajeClienteScreen` (dueña del stream, porque
+  /// también decide con él cuánto alto darle a esta tarjeta).
+  final CodigoVerificacionEntity? codigoVerificacion;
+
   final VoidCallback? onEmergency;
 
   @override
@@ -140,7 +148,7 @@ class _TripInfoCardState extends State<TripInfoCard>
                   ),
                 ),
                 const SizedBox(height: 22),
-                CodigoVerificacionBanner(viajeId: vm.viajeId),
+                CodigoVerificacionBanner(codigo: widget.codigoVerificacion),
                 const SizedBox(height: 10),
                 ConductorVehiculoInfo(
                   nombre: vm.conductorNombre,
@@ -197,25 +205,35 @@ class _TripInfoCardState extends State<TripInfoCard>
                   ),
                   const SizedBox(height: 10),
                 ],
-                Row(
-                  children: [
-                    Expanded(
-                      child: RideSecondaryButton(
-                        text: 'Chat',
-                        icon: Icons.chat_bubble_outline,
-                        onPressed: widget.onChat,
+                // El chat solo mientras el pasajero espera al conductor. Una vez
+                // "En viaje hacia tu destino" ya van juntos en el vehículo y
+                // escribirse no tiene sentido: "Ayuda" toma el ancho completo.
+                if (vm.viaje?.estado == SolicitudEstado.enRuta)
+                  RideSecondaryButton(
+                    text: 'Ayuda',
+                    icon: Icons.help_outline,
+                    onPressed: widget.onHelp,
+                  )
+                else
+                  Row(
+                    children: [
+                      Expanded(
+                        child: RideSecondaryButton(
+                          text: 'Chat',
+                          icon: Icons.chat_bubble_outline,
+                          onPressed: widget.onChat,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: RideSecondaryButton(
-                        text: 'Ayuda',
-                        icon: Icons.help_outline,
-                        onPressed: widget.onHelp,
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: RideSecondaryButton(
+                          text: 'Ayuda',
+                          icon: Icons.help_outline,
+                          onPressed: widget.onHelp,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
               ],
             ),
           ),

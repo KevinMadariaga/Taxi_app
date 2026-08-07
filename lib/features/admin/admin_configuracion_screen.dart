@@ -82,14 +82,17 @@ class _AdminConfiguracionScreenState extends State<AdminConfiguracionScreen> {
     if (confirmar != true || !mounted) return;
 
     setState(() => _busy = true);
-    try {
-      await AuthService().logout();
-      if (!mounted) return;
-      Navigator.of(context)
-          .pushNamedAndRemoveUntil(AppRoutes.login, (route) => false);
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
+
+    // Navegar ANTES de cerrar sesión: desmontar el árbol cancela los listeners
+    // de Firestore en sus `dispose()`. Al revés, el `signOut()` los dejaba
+    // suscritos sin autenticación y reventaban con `permission-denied`
+    // (el panel de admin escucha reportes, emergencias y chats de soporte).
+    Navigator.of(
+      context,
+    ).pushNamedAndRemoveUntil(AppRoutes.login, (route) => false);
+
+    // Sin `context` de acá en adelante: este State ya fue desmontado.
+    await AuthService().logout();
   }
 
   @override

@@ -30,7 +30,6 @@ class _MapaRutaCardState extends State<MapaRutaCard> {
   BitmapDescriptor? _destIcon;
   BitmapDescriptor? _carIcon;
   BitmapDescriptor? _motoIcon;
-  LatLngBounds? _ultimoBoundsAjustado;
 
   @override
   void initState() {
@@ -94,17 +93,20 @@ class _MapaRutaCardState extends State<MapaRutaCard> {
     final bounds = context
         .read<ConfirmarSolicitudViewModel>()
         .boundsOrigenDestino;
-    _ultimoBoundsAjustado = bounds;
     final update = CameraUpdate.newLatLngBounds(bounds, _boundsPadding);
     try {
       await controller.animateCamera(update);
     } catch (_) {
       await Future.delayed(const Duration(milliseconds: 300));
-      // El widget puede haberse disposed durante el delay (usuario navegó
-      // rápido a la siguiente pantalla) — sin este chequeo, `animateCamera`
-      // lanza "GoogleMapController ... used after ... disposed" en vez de
-      // simplemente abortar el reintento.
-      if (!mounted) return;
+      // Durante el delay el mapa pudo remontarse: la `ValueKey` de más abajo
+      // depende de origen+destino, así que mover un pin destruye el `GoogleMap`
+      // y crea otro. Este `State` NO se desmonta en ese caso —solo su hijo—,
+      // por eso `mounted` sigue siendo true y no alcanza como guarda: hay que
+      // comprobar que el controller capturado siga siendo el vigente. Usarlo
+      // igual lanzaba "GoogleMapController ... was used after the associated
+      // GoogleMap widget had already been disposed" (visto en dispositivo real,
+      // un error reportado a Crashlytics por cada ajuste de pin).
+      if (!mounted || !identical(_controller, controller)) return;
       try {
         await controller.animateCamera(update);
       } catch (e, st) {
@@ -113,22 +115,21 @@ class _MapaRutaCardState extends State<MapaRutaCard> {
     }
   }
 
-  /// Reencuadra cuando origen/destino cambian (el cliente ajustó un pin) —
-  /// se llama desde `build`, así que se compara contra el último bounds ya
-  /// aplicado para no relanzar `animateCamera` en cada notify sin cambios
-  /// reales de posición.
-  void _reencuadrarSiCambio() {
-    if (_controller == null) return;
-    final bounds = context
-        .read<ConfirmarSolicitudViewModel>()
-        .boundsOrigenDestino;
-    if (_ultimoBoundsAjustado == bounds) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) => _fitBounds());
-  }
+  // No hay reencuadre manual al cambiar origen/destino: la `ValueKey` del
+  // mapa depende de esas mismas coordenadas, así que mover un pin remonta el
+  // `GoogleMap` y el `onMapCreated` del mapa nuevo ya hace el `_fitBounds`.
+  // Antes había un `_reencuadrarSiCambio()` llamado desde `build` que
+  // duplicaba ese trabajo y, peor, programaba un `_fitBounds` que corría con
+  // el controller del mapa ANTERIOR (ya destruido por el remonte) — la fuente
+  // del "GoogleMapController ... used after ... disposed" de cada ajuste.
 
   @override
   void dispose() {
-    _controller?.dispose();
+    // El controller NO se dispone a mano: `GoogleMapState.dispose()` del
+    // plugin ya lo hace cuando el `GoogleMap` se desmonta. Hacerlo aquí era un
+    // doble dispose y, tras un remonte por la `ValueKey`, se ejecutaba además
+    // sobre un controller que ya no era el vigente.
+    _controller = null;
     super.dispose();
   }
 
@@ -152,7 +153,6 @@ class _MapaRutaCardState extends State<MapaRutaCard> {
         tipoVehiculo: vm.tipoVehiculo,
       ),
       builder: (context, data, _) {
-        _reencuadrarSiCambio();
         final origen = data.origen.position;
         final destino = data.destino.position;
         final origenIcon =

@@ -93,6 +93,30 @@ describe('queries del conductor', () => {
     );
   });
 
+  // Hay conductores en producción marcados solo con el campo legacy
+  // `tipoUsuario` y sin `rol` — el propio código los reconoce así
+  // (`initial_screen_resolver.dart:148-158`). Con `isConductorRole()`
+  // mirando solo `rol`, la app los llevaba a su home y la lista quedaba
+  // vacía con permission-denied.
+  test('un conductor marcado solo con tipoUsuario ve las pendientes', async () => {
+    await sembrar(env, `usuarios/${OTRO_CONDUCTOR}`, {
+      tipoUsuario: 'conductor', nombre: 'Legacy',
+    });
+    await assertSucceeds(
+      como(env, OTRO_CONDUCTOR).collection('solicitudes')
+        .where('estado', 'in', ['buscando', 'pending', 'pendiente'])
+        .get(),
+    );
+  });
+
+  test('un cliente NO puede listar las pendientes', async () => {
+    await assertFails(
+      como(env, CLIENTE).collection('solicitudes')
+        .where('estado', 'in', ['buscando', 'pending', 'pendiente'])
+        .get(),
+    );
+  });
+
   test('un conductor NO puede pedir los viajes de otro', async () => {
     await assertFails(
       como(env, CONDUCTOR).collection('solicitudes')

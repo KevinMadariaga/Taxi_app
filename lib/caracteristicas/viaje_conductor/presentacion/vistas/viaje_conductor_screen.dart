@@ -11,7 +11,6 @@ import 'package:taxi_app/caracteristicas/viaje_compartido/presentacion/utils/inf
 import 'package:taxi_app/caracteristicas/viaje_compartido/presentacion/vistas/chat_screen.dart';
 import 'package:taxi_app/caracteristicas/viaje_conductor/datos/fuentes/driver_ubicacion_datasource.dart';
 import 'package:taxi_app/caracteristicas/viaje_conductor/datos/fuentes/navegacion_externa_datasource.dart';
-import 'package:taxi_app/caracteristicas/viaje_cliente/dominio/casos_uso/cancelar_viaje_usecase.dart';
 import 'package:taxi_app/caracteristicas/viaje_conductor/dominio/casos_uso/finalizar_viaje_usecase.dart';
 import 'package:taxi_app/caracteristicas/viaje_conductor/dominio/casos_uso/iniciar_ruta_destino_usecase.dart';
 import 'package:taxi_app/caracteristicas/viaje_conductor/dominio/casos_uso/reportar_llegada_usecase.dart';
@@ -20,6 +19,7 @@ import 'package:taxi_app/caracteristicas/viaje_conductor/presentacion/widgets/dr
 import 'package:taxi_app/caracteristicas/viaje_conductor/presentacion/widgets/driver_trip_card/driver_trip_card.dart';
 import 'package:taxi_app/caracteristicas/viaje_conductor/presentacion/widgets/driver_trip_card/widgets/codigo_verificacion_sheet.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/services/fcm_service.dart';
 import 'package:taxi_app/core/constants/solicitud_estado.dart';
 import 'package:taxi_app/core/helpers/session_helper.dart';
 import 'package:taxi_app/core/services/route_cache_service.dart';
@@ -75,7 +75,6 @@ class _ViajeConductorScreenState extends State<ViajeConductorScreen>
       finalizarViaje: FinalizarViajeUseCase(
         ActualizarEstadoViajeUseCase(viajeRepository),
       ),
-      cancelarViaje: CancelarViajeUseCase(viajeRepository),
       ubicacionDatasource: DriverUbicacionDatasource(),
       rutaDatasource: RutaDatasource(),
       navegacionDatasource: NavegacionExternaDatasource(),
@@ -84,11 +83,15 @@ class _ViajeConductorScreenState extends State<ViajeConductorScreen>
     _vm.init();
 
     SessionHelper.setActiveSolicitudScreen('viaje_conductor');
+    // Con esta pantalla montada, sus listeners avisan en tiempo real: el
+    // handler de FCM en primer plano se hace a un lado para no duplicar.
+    FcmService.instance.registrarPantallaDeViaje(widget.viajeId);
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    FcmService.instance.limpiarPantallaDeViaje(widget.viajeId);
     _vm.removeListener(_onVmChanged);
     _vm.dispose();
     super.dispose();
@@ -97,9 +100,18 @@ class _ViajeConductorScreenState extends State<ViajeConductorScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.inactive ||
-        state == AppLifecycleState.hidden) {
+    // Solo `paused` cuenta como "la app se fue al fondo".
+    //
+    // Antes también entraban `inactive` y `hidden`, y eso arrancaba el servicio
+    // de ubicación en segundo plano —con su notificación persistente— por
+    // eventos que no son salir de la app: en iOS `inactive` lo dispara bajar el
+    // Centro de Control, una llamada entrante o cualquier alerta del sistema, y
+    // `hidden` es solo el paso previo a `paused`. El usuario veía aparecer la
+    // notificación del servicio sin haber salido, y cada `inactive → resumed`
+    // cruzaba el arranque del isolate (450 ms de espera) con su parada, dejando
+    // el stream en primer plano y el servicio en background escribiendo GPS a
+    // la vez.
+    if (state == AppLifecycleState.paused) {
       _vm.onAppPausedOrInactive();
       return;
     }
@@ -228,33 +240,6 @@ class _ViajeConductorScreenState extends State<ViajeConductorScreen>
     await _vm.finalizarViaje();
   }
 
-  Future<void> _onCancelarViaje() async {
-    final confirmar = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('¿Cancelar el viaje?'),
-        content: const Text(
-          'El cliente será notificado y la solicitud quedará cancelada. '
-          'Úsalo solo si no puedes completar la recogida.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Volver'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            style: TextButton.styleFrom(foregroundColor: AppColores.error),
-            child: const Text('Sí, cancelar'),
-          ),
-        ],
-      ),
-    );
-    if (confirmar != true) return;
-    await _vm.cancelarViaje();
-    // No se navega acá: al pasar a `cancelado`, `_handleSalida` (que ya
-    // escucha los estados terminales) se encarga de sacar de la pantalla.
-  }
 
   void _openChat() {
     Navigator.of(context).push(
@@ -263,6 +248,9 @@ class _ViajeConductorScreenState extends State<ViajeConductorScreen>
           viajeId: widget.viajeId,
           currentUserId: _vm.conductorId,
           otherPartyLabel: 'cliente',
+          // El controller del VM ya está bindeado a este viaje; crear otro
+          // duplicaba el listener y la notificación de cada mensaje.
+          controller: _vm.chat,
         ),
       ),
     );
@@ -344,7 +332,6 @@ class _ViajeConductorScreenState extends State<ViajeConductorScreen>
                               onReportarLlegada: _onReportarLlegada,
                               onComenzarRuta: _abrirCodigoVerificacion,
                               onTerminarViaje: _onTerminarViaje,
-                              onCancelar: _onCancelarViaje,
                             ),
                           ),
                         );

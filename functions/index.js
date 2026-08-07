@@ -774,6 +774,36 @@ exports.onConductorProximidadCliente = onDocumentUpdated(
     const clienteId = extractClienteId(after);
     if (!clienteId) return null;
 
+    // Reclamar el aviso ANTES de enviarlo, en una transacción.
+    //
+    // El chequeo de `after.proximidadNotificada` de arriba no alcanza: esta
+    // función se dispara con CADA update del documento y el conductor escribe
+    // su GPS seguido, así que dos updates casi simultáneos producían dos
+    // invocaciones concurrentes que leían el flag en `false` y ambas enviaban
+    // la push — el cliente recibía "Tu conductor está cerca" dos veces (visto
+    // en dispositivo real). Marcar el flag después del envío deja abierta toda
+    // la ventana del `send()`.
+    //
+    // Con la transacción solo una invocación logra pasar de `false` a `true`;
+    // las demás salen sin notificar.
+    const dbProximidad = getFirestore();
+    const solicitudRef = dbProximidad
+      .collection("solicitudes")
+      .doc(event.params.solicitudId);
+    try {
+      const reclamado = await dbProximidad.runTransaction(async (tx) => {
+        const snap = await tx.get(solicitudRef);
+        if (!snap.exists) return false;
+        if (snap.data().proximidadNotificada === true) return false;
+        tx.update(solicitudRef, { proximidadNotificada: true });
+        return true;
+      });
+      if (!reclamado) return null;
+    } catch (err) {
+      console.error(`❌ Error reclamando aviso de proximidad: ${err.message}`);
+      return null;
+    }
+
     const db = getFirestore();
     const fcmToken = await getClienteFcmToken(db, clienteId);
     if (!fcmToken) {
@@ -818,11 +848,11 @@ exports.onConductorProximidadCliente = onDocumentUpdated(
     try {
       await getMessaging().send(message);
       console.log(`✅ Notif. proximidad enviada al cliente ${clienteId}`);
-      await event.data.after.ref.set(
-        { proximidadNotificada: true },
-        { merge: true }
-      );
     } catch (err) {
+      // El flag ya quedó reclamado arriba: si el envío falla no se reintenta.
+      // Es deliberado — un aviso de proximidad perdido es preferible a
+      // arriesgar el duplicado, y el cliente ve al conductor acercarse en el
+      // mapa de todas formas.
       console.error(`❌ Error enviando notif. de proximidad: ${err.message}`);
     }
 
@@ -1020,8 +1050,15 @@ exports.onTripChatMessageCreated = onDocumentCreated(
       return null;
     }
 
+    // El nombre del conductor estaba hardcodeado como "Conductor": el cliente
+    // recibía "💬 Conductor" en vez del nombre real, aunque el documento lo
+    // trae denormalizado en `conductor.nombre` (lo escribe
+    // `_buildConductorPayload` al aceptar). El lado contrario sí usaba el
+    // nombre del cliente.
     const senderName =
-      recipientLabel === "conductor" ? (trip.cliente?.nombre || "Cliente") : "Conductor";
+      recipientLabel === "conductor"
+        ? trip.cliente?.nombre || "Cliente"
+        : trip.conductor?.nombre || "Conductor";
 
     const message = buildFcmMessage({
       token: recipientToken,
@@ -1202,7 +1239,20 @@ exports.onReporteCreado = onDocumentCreated(
  * server-side sin depender en absoluto de que la app vuelva a abrirse.
  */
 const SOLICITUD_BUSCANDO_TIMEOUT_MS = 3 * 60 * 1000; // 3 min sin conductor
-const CANCELADA_DELETE_GRACE_MS = 5000; // deja tiempo a un accept en curso
+// Retención de las solicitudes canceladas antes de borrarlas. La base guarda
+// solo activas y terminadas; las canceladas se purgan, pero no al instante:
+// 24 h dejan ventana para una disputa de soporte ("yo no cancelé") y para
+// medir tasa de cancelación, y evitan cualquier carrera con un conductor que
+// estuviera aceptando en ese mismo momento.
+const CANCELADA_RETENCION_MS = 24 * 60 * 60 * 1000;
+
+// Interruptor de seguridad de la purga: en `true` la función cuenta y loguea
+// lo que borraría, pero no borra nada. Se usó así en el primer despliegue para
+// medir el impacto real contra producción antes de una operación irreversible
+// (la base no tiene Point-in-Time Recovery); el dry run reportó 3 documentos,
+// todos canceladas de más de 24 h, y con eso validado se activó el borrado.
+// Volver a ponerlo en `true` si alguna vez hay que auditar qué borraría.
+const PURGA_CANCELADAS_DRY_RUN = false;
 
 /**
  * Cloud Function HTTP: cancela una solicitud en estado 'buscando' cuando el
@@ -1338,15 +1388,81 @@ exports.cancelarSolicitudesBuscandoInactivas = onSchedule(
       return null;
     }
 
-    // Borrado tras una breve gracia, igual que la cancelación manual del
-    // cliente: da tiempo a que un conductor que ya estaba aceptando termine.
-    await new Promise((resolve) => setTimeout(resolve, CANCELADA_DELETE_GRACE_MS));
+    // El borrado NO se hace acá. Antes esta función esperaba 5 s con un
+    // `setTimeout` (tiempo de ejecución facturado, y contra un timeout de 60 s)
+    // y borraba solo las que ella misma acababa de cancelar — las canceladas
+    // por el cliente quedaban para siempre. Ahora lo hace
+    // `purgarSolicitudesCanceladas`, que barre TODAS las canceladas por
+    // igual, sea quien sea que las canceló.
+
+    return null;
+  }
+);
+
+// Purga las solicitudes canceladas: la colección debe guardar solo viajes
+// activos y terminados. Cubre las tres formas de cancelar —el botón del
+// cliente, el corte por inactividad de la app y el timeout de
+// `cancelarSolicitudesBuscandoInactivas`— porque filtra por estado, no por
+// quién canceló.
+//
+// Se hace server-side y no desde la app a propósito: `firestore.rules` tiene
+// `allow delete: if false` en `solicitudes` y así se queda. La base de
+// producción no tiene Point-in-Time Recovery, así que un borrado duro es
+// irrecuperable; dárselo al cliente sería superficie de ataque nueva para algo
+// que el Admin SDK ya puede hacer sin pasar por las reglas. Además, borrar en
+// el momento de cancelar compite con un conductor que estuviera aceptando en
+// ese instante — la retención de 24 h cierra esa carrera por completo.
+//
+// Cada 30 min alcanza de sobra para una retención de 24 h y mantiene el costo
+// en ~48 lecturas/día cuando no hay nada que borrar.
+exports.purgarSolicitudesCanceladas = onSchedule(
+  {
+    schedule: "every 30 minutes",
+    region: "us-central1",
+    timeoutSeconds: 120,
+  },
+  async () => {
+    const db = getFirestore();
+    const cutoff = Timestamp.fromMillis(Date.now() - CANCELADA_RETENCION_MS);
+
+    let snap;
+    try {
+      snap = await db
+        .collection("solicitudes")
+        .where("estado", "==", "cancelado")
+        .where("cancelledAt", "<=", cutoff)
+        .get();
+    } catch (err) {
+      console.error(
+        "❌ Error consultando solicitudes canceladas a purgar:",
+        err.message
+      );
+      return null;
+    }
+
+    if (snap.empty) {
+      console.log("✅ Sin solicitudes canceladas de más de 24 h que purgar.");
+      return null;
+    }
+
+    if (PURGA_CANCELADAS_DRY_RUN) {
+      console.log(
+        `🔎 DRY RUN: se borrarían ${snap.size} solicitud(es) cancelada(s) ` +
+          `de más de 24 h. Ids: ${snap.docs
+            .slice(0, 20)
+            .map((d) => d.id)
+            .join(", ")}${snap.size > 20 ? " …" : ""}`
+      );
+      return null;
+    }
 
     try {
       await commitEnLotes(db, snap.docs, (batch, doc) => batch.delete(doc.ref));
-      console.log(`🗑️ ${snap.size} solicitud(es) vencidas eliminadas.`);
+      console.log(
+        `🗑️ ${snap.size} solicitud(es) cancelada(s) purgada(s) (>24 h).`
+      );
     } catch (err) {
-      console.error("❌ Error eliminando solicitudes vencidas:", err.message);
+      console.error("❌ Error purgando solicitudes canceladas:", err.message);
     }
 
     return null;

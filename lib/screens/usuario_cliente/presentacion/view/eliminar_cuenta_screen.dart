@@ -60,8 +60,23 @@ class _EliminarCuentaScreenState extends State<EliminarCuentaScreen> {
         return;
       }
 
+      // El borrado de datos va primero y con la pantalla montada: es el paso
+      // que más puede fallar y el único cuyo error tiene sentido mostrarle al
+      // usuario para que reintente.
       await _deleteUserData(uid);
 
+      if (!mounted) return;
+      // A partir de acá la sesión se destruye. Navegar ANTES desmonta el árbol
+      // y sus `dispose()` cancelan los listeners de Firestore; si no, tanto
+      // `user.delete()` como el `signOut()` de `logout()` los dejan suscritos
+      // sin autenticación y cada uno revienta con `permission-denied` que
+      // termina en Crashlytics como si fuera un error real.
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const HomeView()),
+        (route) => false,
+      );
+
+      // Sin `context` de acá en adelante: este State ya fue desmontado.
       try {
         await user.delete();
       } on FirebaseAuthException {
@@ -70,12 +85,6 @@ class _EliminarCuentaScreenState extends State<EliminarCuentaScreen> {
       }
 
       await AuthService().logout();
-
-      if (!mounted) return;
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const HomeView()),
-        (route) => false,
-      );
     } catch (_) {
       _showMessage('Ocurrió un error al eliminar la cuenta. Intenta de nuevo.');
     } finally {

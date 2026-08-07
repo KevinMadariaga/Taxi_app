@@ -45,6 +45,10 @@ class ChatController {
   /// Se dispara con cada cambio de `messages`/`unreadCount`.
   VoidCallback? onChanged;
 
+  /// Mientras la pantalla de chat está abierta no se notifican los mensajes
+  /// entrantes: el usuario los está viendo.
+  bool notificacionesSilenciadas = false;
+
   void bind() {
     _messagesSub?.cancel();
     _messagesSub = _datasource
@@ -58,8 +62,10 @@ class ChatController {
             final newIncoming = incoming.where(
               (m) => !previousIds.contains(m.id) && m.senderId != currentUserId,
             );
-            for (final item in newIncoming) {
-              await _showMessageNotification(item.texto);
+            if (!notificacionesSilenciadas) {
+              for (final item in newIncoming) {
+                await _showMessageNotification(item.texto);
+              }
             }
           } else {
             _bootstrapped = true;

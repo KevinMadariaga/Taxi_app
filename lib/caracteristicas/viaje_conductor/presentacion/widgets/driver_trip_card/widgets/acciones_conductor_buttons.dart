@@ -15,6 +15,7 @@ class AccionesConductorButtons extends StatelessWidget {
     required this.onAccionPrimaria,
     required this.primaryLabel,
     required this.primaryIcon,
+    this.mostrarChat = true,
     this.primaryLoading = false,
     this.primaryPastel = false,
   });
@@ -24,6 +25,12 @@ class AccionesConductorButtons extends StatelessWidget {
   final VoidCallback? onAccionPrimaria;
   final String primaryLabel;
   final IconData primaryIcon;
+
+  /// El chat solo aplica al tramo de recogida: una vez que el pasajero está a
+  /// bordo ("Llévalo a su destino") ya van juntos y escribirse no tiene
+  /// sentido. Con `false`, "Navegar" toma el ancho completo.
+  final bool mostrarChat;
+
   final bool primaryLoading;
   final bool primaryPastel;
 
@@ -32,25 +39,32 @@ class AccionesConductorButtons extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: RideSecondaryButton(
-                text: 'Chat',
-                icon: Icons.chat_bubble_outline,
-                onPressed: onChat,
+        if (mostrarChat)
+          Row(
+            children: [
+              Expanded(
+                child: RideSecondaryButton(
+                  text: 'Chat',
+                  icon: Icons.chat_bubble_outline,
+                  onPressed: onChat,
+                ),
               ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: RideSecondaryButton(
-                text: 'Navegar',
-                icon: Icons.navigation_rounded,
-                onPressed: onNavegar,
+              const SizedBox(width: 10),
+              Expanded(
+                child: RideSecondaryButton(
+                  text: 'Navegar',
+                  icon: Icons.navigation_rounded,
+                  onPressed: onNavegar,
+                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          )
+        else
+          RideSecondaryButton(
+            text: 'Navegar',
+            icon: Icons.navigation_rounded,
+            onPressed: onNavegar,
+          ),
         const SizedBox(height: 12),
         RidePrimaryButton(
           text: primaryLabel,

@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:developer' as developer;
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -17,18 +16,13 @@ import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodels/previ
 /// Preview de una solicitud seleccionada + su ruta en el mapa.
 ///
 /// Extraído de InicioConductorViewmodel (comunidad de menor cohesión del
-/// repo según graphify-out/GRAPH_REPORT.md) — pieza sin listeners de
-/// Firestore propios (solo una lectura puntual para la foto del cliente),
-/// autocontenida salvo por `currentLocation`, que sigue siendo del vm host
+/// repo según graphify-out/GRAPH_REPORT.md) — pieza sin ningún acceso a
+/// Firestore, autocontenida salvo por `currentLocation`, que sigue siendo del vm host
 /// (dueño real del GPS del conductor) y se accede vía [getCurrentLocation].
 class PreviewRouteController {
-  PreviewRouteController({
-    required FirebaseFirestore firestore,
-    required TrackingService trackingService,
-  }) : _firestore = firestore,
-       _trackingService = trackingService;
+  PreviewRouteController({required TrackingService trackingService})
+    : _trackingService = trackingService;
 
-  final FirebaseFirestore _firestore;
   final TrackingService _trackingService;
 
   PreviewSolicitud? selectedPreview;
@@ -38,8 +32,6 @@ class PreviewRouteController {
   final Set<Marker> extraMarkers = {};
   bool isLoadingPreviewRoute = false;
 
-  final Map<String, String> _clientePhotoById = {};
-  final Set<String> _clientePhotoLoadedIds = {};
 
   /// Se dispara con cada cambio de estado — el vm host lo usa para su propio
   /// notifyListeners.
@@ -57,7 +49,6 @@ class PreviewRouteController {
   void selectPreview(PreviewSolicitud preview) {
     selectedPreview = preview;
     isMapExpanded = false;
-    unawaited(preloadClientePhoto(preview.solicitud.clienteId));
     // Si el item se armó antes de tener currentLocation (p. ej. justo tras un
     // cambio de rol, cuando el GPS aún no resolvía), su distanciaKm quedó en
     // null. Recalcularla aquí evita que la preview muestre "Solicitud cercana"
@@ -105,39 +96,6 @@ class PreviewRouteController {
     refreshSelectedPreviewDistance();
   }
 
-  String? fotoClientePorId(String? clienteId) {
-    if (clienteId == null || clienteId.isEmpty) {
-      return null;
-    }
-    return _clientePhotoById[clienteId];
-  }
-
-  Future<void> preloadClientePhoto(String? clienteId) async {
-    if (clienteId == null || clienteId.isEmpty) return;
-    if (_clientePhotoLoadedIds.contains(clienteId)) return;
-
-    _clientePhotoLoadedIds.add(clienteId);
-    try {
-      final doc = await _firestore.collection('cliente').doc(clienteId).get();
-      if (!doc.exists) {
-        onChanged?.call();
-        return;
-      }
-
-      final data = doc.data();
-      final foto =
-          data?['foto']?.toString() ??
-          data?['fotoUrl']?.toString() ??
-          data?['photo']?.toString();
-
-      if (foto != null && foto.isNotEmpty) {
-        _clientePhotoById[clienteId] = foto;
-      }
-      onChanged?.call();
-    } catch (_) {
-      onChanged?.call();
-    }
-  }
 
   void clearPreviewAndRoutes() {
     selectedPreview = null;

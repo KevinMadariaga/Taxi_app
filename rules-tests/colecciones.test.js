@@ -85,10 +85,92 @@ describe('usuarios', () => {
     );
   });
 
-  // Escalada de privilegios: la regla fija `rol` y `adminId`.
-  test('un cliente NO puede promoverse a conductor', async () => {
+  // Cambiar el propio `rol` es un flujo real de la app, no una escalada:
+  // "Modo conductor" (perfil.dart:331), "Volver a ser cliente" (:370,
+  // InicioConductorView:1598) y el auto-registro de conductor
+  // (completar_registro_conductor_view.dart:171). Prohibirlo dejaba al
+  // usuario en el home del conductor con `rol: 'cliente'` en Firestore y la
+  // lista de solicitudes vacía para siempre (visto en dispositivo real).
+  test('el usuario cambia su propio rol a conductor y vuelve a cliente', async () => {
+    const db = como(env, CLIENTE);
+    // perfil.dart:331 -> UserDataService.cambiarRolAConductor
+    await assertSucceeds(
+      db.doc(`usuarios/${CLIENTE}`).set(
+        { rol: 'conductor' }, { merge: true },
+      ),
+    );
+    // completar_registro_conductor_view.dart:171 -> guardarSolicitudConductor
+    await assertSucceeds(
+      db.doc(`usuarios/${CLIENTE}`).set(
+        { rol: 'conductor', solicitudConductor: true, placa: 'ABC123' },
+        { merge: true },
+      ),
+    );
+    // perfil.dart:370 -> UserDataService.volverACliente
+    await assertSucceeds(
+      db.doc(`usuarios/${CLIENTE}`).set(
+        { rol: 'cliente', solicitudConductor: false }, { merge: true },
+      ),
+    );
+  });
+
+  // La guarda real: la membresía es lo que habilita tomar viajes
+  // (`aceptarSolicitud` la valida en su transacción) y solo la otorga el
+  // admin. Auto-marcarse conductor sirve para ver la lista, no para trabajar.
+  test('un usuario NO puede darse membresía a sí mismo', async () => {
+    const db = como(env, CLIENTE);
     await assertFails(
-      como(env, CLIENTE).doc(`usuarios/${CLIENTE}`).update({ rol: 'conductor' }),
+      db.doc(`usuarios/${CLIENTE}`).set({ membresia: 'activa' }, { merge: true }),
+    );
+    await assertFails(
+      db.doc(`usuarios/${CLIENTE}`).update({
+        membresiaVence: new Date('2030-01-01'),
+      }),
+    );
+    // Ni siquiera acompañada de un cambio de rol permitido.
+    await assertFails(
+      db.doc(`usuarios/${CLIENTE}`).set(
+        { rol: 'conductor', membresia: 'activa' }, { merge: true },
+      ),
+    );
+  });
+
+  test('un conductor con membresía no puede extendérsela ni revocársela', async () => {
+    await sembrar(env, `usuarios/${CONDUCTOR}`, {
+      rol: 'conductor', membresia: 'activa',
+      membresiaVence: new Date('2026-09-01'),
+    });
+    const db = como(env, CONDUCTOR);
+    await assertFails(
+      db.doc(`usuarios/${CONDUCTOR}`).update({
+        membresiaVence: new Date('2031-01-01'),
+      }),
+    );
+    // Pero sí puede seguir editando el resto de su perfil.
+    await assertSucceeds(
+      db.doc(`usuarios/${CONDUCTOR}`).update({ nombre: 'Kevin', disponible: true }),
+    );
+  });
+
+  // `initial_screen_resolver.dart:137` abre el panel de admin con
+  // `usuarios.rol == 'admin' || 'administrador'`, así que el rol propio está
+  // acotado a los dos valores que el usuario puede alternar.
+  test('un usuario NO puede escribirse un rol de admin', async () => {
+    const db = como(env, CLIENTE);
+    await assertFails(db.doc(`usuarios/${CLIENTE}`).update({ rol: 'administrador' }));
+    await assertFails(db.doc(`usuarios/${CLIENTE}`).update({ rol: 'admin' }));
+  });
+
+  test('el admin sí otorga y revoca membresía', async () => {
+    const db = como(env, ADMIN);
+    await assertSucceeds(
+      db.doc(`usuarios/${CLIENTE}`).set({
+        rol: 'conductor', membresia: 'activa',
+        membresiaVence: new Date('2026-12-01'),
+      }, { merge: true }),
+    );
+    await assertSucceeds(
+      db.doc(`usuarios/${CLIENTE}`).set({ membresia: '' }, { merge: true }),
     );
   });
 

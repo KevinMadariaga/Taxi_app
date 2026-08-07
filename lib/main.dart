@@ -166,6 +166,33 @@ class _ErrorArranqueApp extends StatelessWidget {
   }
 }
 
+/// Vacía la bandeja de notificaciones cada vez que la app vuelve a primer
+/// plano.
+///
+/// Las notificaciones locales usan un id fijo por tipo (chat=1, viaje=2,
+/// sistema=3), así que se reemplazan entre ellas y no se acumulan. Las que sí
+/// se apilaban eran las push que muestra el SISTEMA con la app en segundo plano
+/// o cerrada: el SDK de FCM les asigna un id propio cada vez, y quedaban
+/// acumuladas en la barra ("llegó tu conductor", mensajes de chat, cambios de
+/// estado) mucho después de que el viaje terminara.
+///
+/// Si el usuario está en la app, ya está viendo el estado real: la bandeja no
+/// aporta nada. `cancelAll()` limpia también las de FCM, porque en Android el
+/// plugin termina llamando a `NotificationManagerCompat.cancelAll()`, que borra
+/// todas las notificaciones de la aplicación.
+class _LimpiadorDeBandeja extends WidgetsBindingObserver {
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) return;
+    NotificacionesServicio.instance.cancelAll().catchError((
+      Object e,
+      StackTrace st,
+    ) {
+      ErrorReporter.report(e, st, reason: 'main: limpiar bandeja al reanudar');
+    });
+  }
+}
+
 /// Initializes services, handles permissions, and launches the app.
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -232,6 +259,8 @@ Future<void> main() async {
       );
     }
   }
+
+  WidgetsBinding.instance.addObserver(_LimpiadorDeBandeja());
 
   final dependencies = AppDependencies.initialize();
   runApp(MyApp(dependencies: dependencies));

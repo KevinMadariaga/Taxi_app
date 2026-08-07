@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -13,7 +14,11 @@ import 'package:taxi_app/caracteristicas/viaje_compartido/dominio/casos_uso/watc
 import 'package:taxi_app/caracteristicas/viaje_compartido/datos/repositorios/viaje_repository_impl.dart';
 import 'package:taxi_app/caracteristicas/viaje_compartido/presentacion/utils/info_map_split.dart';
 import 'package:taxi_app/caracteristicas/viaje_compartido/presentacion/vistas/chat_screen.dart';
+import 'package:taxi_app/caracteristicas/viaje_cliente/presentacion/widgets/trip_info_card/widgets/codigo_verificacion_banner.dart';
+import 'package:taxi_app/caracteristicas/verificacion_recogida/datos/repositorios/codigo_verificacion_repository_impl.dart';
+import 'package:taxi_app/caracteristicas/verificacion_recogida/dominio/entidades/codigo_verificacion_entity.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/services/fcm_service.dart';
 import 'package:taxi_app/core/constants/solicitud_estado.dart';
 import 'package:taxi_app/core/theme/ride_button_styles.dart';
 import 'package:taxi_app/core/helpers/session_helper.dart';
@@ -49,6 +54,27 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen> {
   late final ViajeClienteViewModel _vm;
   GoogleMapController? _mapController;
   bool _initialCameraApplied = false;
+
+  /// Margen alrededor del par cliente↔conductor al encuadrar la cámara. Cuanto
+  /// más chico, más cerca queda el zoom de los marcadores y de la ruta.
+  static const double _boundsPaddingCamara = 45;
+
+  /// Zoom cuando solo se conoce uno de los dos puntos.
+  static const double _zoomUnicoMarcador = 17;
+
+  /// Puntos porcentuales extra que gana la tarjeta mientras el código PIN está
+  /// visible, para que entre completo sin apretar el resto del contenido. El
+  /// mapa cede ese mismo alto y lo recupera en cuanto el conductor valida.
+  static const int _ajusteInfoConCodigo = 10;
+
+  /// Dueña del stream del código: además de pintarlo en la tarjeta, su
+  /// visibilidad decide el reparto de alto entre tarjeta y mapa.
+  final _codigoRepository = CodigoVerificacionRepositoryImpl();
+  StreamSubscription<CodigoVerificacionEntity?>? _codigoSub;
+  CodigoVerificacionEntity? _codigo;
+
+  /// `true` entre que el conductor genera el código y lo valida.
+  bool get _codigoVisible => CodigoVerificacionBanner.esVisible(_codigo);
   bool _waitingSheetVisible = false;
   bool _hasNavigatedAway = false;
 
@@ -76,6 +102,14 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen> {
     _vm.init();
 
     SessionHelper.setActiveSolicitudScreen('viaje_cliente');
+    // Con esta pantalla montada, sus listeners avisan en tiempo real: el
+    // handler de FCM en primer plano se hace a un lado para no duplicar.
+    FcmService.instance.registrarPantallaDeViaje(widget.viajeId);
+    _codigoSub = _codigoRepository.watchCodigo(widget.viajeId).listen((codigo) {
+      if (!mounted) return;
+      // Cambia el reparto de alto tarjeta/mapa, así que necesita rebuild.
+      setState(() => _codigo = codigo);
+    });
     _loadConductorMarkerIcon();
   }
 
@@ -124,6 +158,8 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen> {
 
   @override
   void dispose() {
+    FcmService.instance.limpiarPantallaDeViaje(widget.viajeId);
+    _codigoSub?.cancel();
     _vm.removeListener(_onVmChanged);
     _vm.dispose();
     super.dispose();
@@ -267,14 +303,20 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen> {
           ),
         );
         try {
-          await map.animateCamera(CameraUpdate.newLatLngBounds(bounds, 90));
+          // Padding chico (antes 90): deja los dos marcadores más cerca del
+          // borde y por lo tanto el zoom más pegado a la ruta.
+          await map.animateCamera(
+            CameraUpdate.newLatLngBounds(bounds, _boundsPaddingCamara),
+          );
           return;
         } catch (_) {
           // Puntos casi idénticos: Google Maps no puede calcular bounds
           // útiles — cae al zoom fijo de abajo.
         }
       }
-      await map.animateCamera(CameraUpdate.newLatLngZoom(target, 16));
+      await map.animateCamera(
+        CameraUpdate.newLatLngZoom(target, _zoomUnicoMarcador),
+      );
     });
   }
 
@@ -285,6 +327,9 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen> {
           viajeId: widget.viajeId,
           currentUserId: widget.currentUserId,
           otherPartyLabel: 'conductor',
+          // El controller del VM ya está bindeado a este viaje; crear otro
+          // duplicaba el listener y la notificación de cada mensaje.
+          controller: _vm.chat,
         ),
       ),
     );
@@ -539,7 +584,17 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen> {
             };
 
             final viewPaddingBottom = MediaQuery.of(context).viewPadding.bottom;
-            final (infoFlex, mapFlex) = InfoMapSplit.of(context);
+            // 45 % tarjeta / 55 % mapa en un teléfono de alto normal
+            // (`InfoMapSplit` sigue corrigiendo ±5 en pantallas muy bajas o
+            // muy altas). Antes usaba el 40 % por defecto y la tarjeta
+            // quedaba corta para el estado "Conductor llegando a tu ubicación".
+            // Mientras el código PIN está a la vista la tarjeta gana alto para
+            // que entre completo, y el mapa lo cede; al validarse el código el
+            // banner desaparece y el reparto vuelve a 45/55 solo.
+            final (infoFlex, mapFlex) = InfoMapSplit.of(
+              context,
+              baseInfoFlex: 45 + (_codigoVisible ? _ajusteInfoConCodigo : 0),
+            );
 
             return SafeArea(
               // `bottom: false`: el inset físico de abajo (home indicator
@@ -570,6 +625,7 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen> {
                               onDetails: _openDetails,
                               onHelp: _openAyuda,
                               onCancel: _onCancelar,
+                              codigoVerificacion: _codigo,
                             ),
                           ),
                         );

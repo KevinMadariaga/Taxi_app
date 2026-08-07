@@ -18,6 +18,13 @@ class FirebaseDataSource {
   }
 
   /// Cierra sesión y limpia datos locales y de sesión.
+  ///
+  /// ⚠️ Camino legacy, hoy sin llamadores reales (solo lo alcanza
+  /// `AuthViewModel.logout()`, que tampoco tiene llamadores). El cierre de
+  /// sesión productivo de las tres pantallas es `AuthService.logout()`, que
+  /// además desvincula el token FCM, corta el tracking en segundo plano y
+  /// limpia la bandeja de notificaciones. Si se vuelve a cablear esto, usar
+  /// `AuthService.logout()` en su lugar o replicar esos tres pasos.
   Future<void> logout() async {
     try {
       await _auth.signOut();

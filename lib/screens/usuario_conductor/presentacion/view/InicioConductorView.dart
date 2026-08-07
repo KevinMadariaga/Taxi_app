@@ -1052,13 +1052,14 @@ class _InicioConductorState extends State<InicioConductor>
                               if (!previewVisible || preview == null) {
                                 return const SizedBox.shrink();
                               }
-                              final foto =
-                                  preview.solicitud.clienteFoto?.isNotEmpty ==
-                                      true
-                                  ? preview.solicitud.clienteFoto
-                                  : vm.fotoClientePorId(
-                                      preview.solicitud.clienteId,
-                                    );
+                              // La foto viene denormalizada en la solicitud
+                              // (`cliente.foto`, escrita por
+                              // `SolicitudRepositoryImpl.crear`). El fallback
+                              // que leía `cliente/{clienteId}` se eliminó: las
+                              // reglas solo dejan a cada usuario leer su
+                              // propio doc, así que desde el conductor esa
+                              // consulta siempre daba permission-denied.
+                              final foto = preview.solicitud.clienteFoto;
                               WidgetsBinding.instance.addPostFrameCallback((_) {
                                 final h = _previewCardKey
                                     .currentContext
@@ -1583,27 +1584,53 @@ class _InicioConductorState extends State<InicioConductor>
   }
 
   /// Vuelve a ser cliente desde la modal: cancela el watcher (para que no
-  /// reaparezca), cambia el rol a cliente (fire-and-forget) y navega a
-  /// InicioCliente removiendo la modal e InicioConductor.
-  void _volverACliente() {
+  /// reaparezca), cambia el rol a cliente y navega a InicioCliente removiendo
+  /// la modal e InicioConductor.
+  ///
+  /// A diferencia del mismo cambio en `perfil.dart`, acá se navega aunque la
+  /// escritura falle: esta ruta se dispara desde la modal de membresía
+  /// vencida, que el conductor no puede cerrar, así que bloquearlo ahí sería
+  /// peor que quedar con el rol desincronizado. El home de cliente no depende
+  /// del `rol` para funcionar; el próximo arranque lo reconcilia.
+  Future<void> _volverACliente() async {
     _membresiaSub?.cancel();
     _membresiaSub = null;
     _membresiaExpiryTimer?.cancel();
     _membresiaExpiryTimer = null;
     _dialogMembresiaVisible = false;
 
+    final navigator = Navigator.of(context, rootNavigator: true);
+    final messenger = ScaffoldMessenger.of(context);
+
     final uid = FirebaseAuth.instance.currentUser?.uid;
+    var escrito = false;
     if (uid != null) {
-      // rol cliente + quitar solicitud para retirar la notificación del admin.
-      UserDataService().volverACliente(uid);
-      // Sincronizar caché para que al reiniciar abra como cliente.
-      SessionHelper.updateRole('cliente');
+      try {
+        // rol cliente + quitar solicitud para retirar la notificación del admin.
+        await UserDataService().volverACliente(uid);
+        escrito = true;
+        // Sincronizar caché para que al reiniciar abra como cliente.
+        SessionHelper.updateRole('cliente');
+      } catch (e, st) {
+        ErrorReporter.report(e, st, reason: 'InicioConductorView: volver a cliente');
+      }
     }
 
-    Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+    if (!mounted) return;
+    navigator.pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const HomeClienteView()),
       (route) => false,
     );
+    if (!escrito && uid != null) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text(
+            'No se pudo guardar el cambio de modo. Al reiniciar la app podrías '
+            'volver a entrar como conductor.',
+          ),
+        ),
+      );
+    }
   }
 
   @override
