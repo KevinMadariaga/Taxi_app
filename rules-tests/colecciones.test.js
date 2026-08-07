@@ -29,8 +29,15 @@ describe('usuarios', () => {
     await assertSucceeds(como(env, ADMIN).doc(`usuarios/${CONDUCTOR}`).get());
   });
 
-  test('un admin NO lee el perfil de un cliente', async () => {
-    await assertFails(como(env, ADMIN).doc(`usuarios/${CLIENTE}`).get());
+  test('un admin lee el perfil de un cliente (lo necesita su panel)', async () => {
+    await assertSucceeds(como(env, ADMIN).doc(`usuarios/${CLIENTE}`).get());
+  });
+
+  // El panel ofrece "eliminar" en la pestaña de Clientes, pero la regla de
+  // delete sigue restringida a conductores del propio gremio. Se fija acá
+  // para que quede explícito: ese botón falla sobre un cliente.
+  test('un admin NO puede borrar a un cliente (el botón del panel falla)', async () => {
+    await assertFails(como(env, ADMIN).doc(`usuarios/${CLIENTE}`).delete());
   });
 
   // CompleteProfileController.saveProfile

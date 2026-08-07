@@ -100,9 +100,16 @@ service cloud.firestore {
     // gremio, que puede gestionarlos.
     // ---------------------------------------------------------------
     match /usuarios/{uid} {
+      // El admin lee CUALQUIER usuario, no solo conductores: `AdminHomeScreen`
+      // consulta `usuarios` sin filtro y reparte el resultado en las pestañas
+      // Conductores y Clientes. Con la restricción a `rol == 'conductor'`,
+      // Firestore rechazaba la query entera —no la filtra, la niega— y el
+      // panel quedaba vacío. Lo detectó `rules-tests/queries.test.js`.
+      //
+      // Implica que un admin ve nombre, teléfono y foto de los clientes; es
+      // la función que el panel ya ofrece hoy.
       allow read: if isSignedIn() &&
-        (request.auth.uid == uid ||
-          (isAdminRole() && resource.data.get('rol', '') == 'conductor'));
+        (request.auth.uid == uid || isAdminRole());
 
       allow create: if isSignedIn() &&
         (request.auth.uid == uid ||
