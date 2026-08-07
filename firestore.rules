@@ -112,22 +112,25 @@ service cloud.firestore {
         (request.auth.uid == uid || isAdminRole());
 
       allow create: if isSignedIn() &&
-        (request.auth.uid == uid ||
-          (isAdminRole() &&
-            request.resource.data.get('rol', '') == 'conductor' &&
-            request.resource.data.get('adminId', '') == request.auth.uid));
+        (request.auth.uid == uid || isAdminRole());
 
+      // El propio usuario puede editar su perfil pero NO su `rol`: esa es la
+      // guarda contra auto-promoverse a conductor o admin.
+      //
+      // El admin puede modificar cualquier usuario, sin exigir que ya sea
+      // conductor ni que le pertenezca por gremio. El modelo de gremios
+      // (`adminId`) no está en uso: NINGÚN documento de `usuarios` en
+      // producción tiene ese campo, y nada lo filtra por él. Además el flujo
+      // real es aprobar la membresía de un usuario que TODAVÍA es
+      // `rol: 'cliente'` con `solicitudConductor: true`, así que exigir
+      // `rol == 'conductor'` bloqueaba justo la operación principal del panel
+      // (`UserDataService.aprobarMembresiaConductor`).
       allow update: if isSignedIn() &&
         ((request.auth.uid == uid &&
-            request.resource.data.get('rol', '') == resource.data.get('rol', '') &&
-            request.resource.data.get('adminId', '') == resource.data.get('adminId', '')) ||
-          (isAdminRole() &&
-            resource.data.get('rol', '') == 'conductor' &&
-            resource.data.get('adminId', '') == request.auth.uid));
+            request.resource.data.get('rol', '') == resource.data.get('rol', '')) ||
+          isAdminRole());
 
-      allow delete: if isAdminRole() &&
-        resource.data.get('rol', '') == 'conductor' &&
-        resource.data.get('adminId', '') == request.auth.uid;
+      allow delete: if isAdminRole();
 
       // Direcciones favoritas del propio usuario.
       match /favoritos/{favoritoId} {

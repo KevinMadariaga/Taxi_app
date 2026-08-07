@@ -33,11 +33,47 @@ describe('usuarios', () => {
     await assertSucceeds(como(env, ADMIN).doc(`usuarios/${CLIENTE}`).get());
   });
 
-  // El panel ofrece "eliminar" en la pestaña de Clientes, pero la regla de
-  // delete sigue restringida a conductores del propio gremio. Se fija acá
-  // para que quede explícito: ese botón falla sobre un cliente.
-  test('un admin NO puede borrar a un cliente (el botón del panel falla)', async () => {
-    await assertFails(como(env, ADMIN).doc(`usuarios/${CLIENTE}`).delete());
+  // FLUJO PRINCIPAL DEL PANEL: el admin aprueba la membresía de un usuario
+  // que TODAVÍA es `rol: 'cliente'` con `solicitudConductor: true`. La regla
+  // original exigía `rol == 'conductor'` y un `adminId` que ningún documento
+  // tiene, así que bloqueaba justo esta operación.
+  test('el admin aprueba la membresía de un cliente que pidió ser conductor', async () => {
+    await sembrar(env, `usuarios/${OTRO_CLIENTE}`, {
+      rol: 'cliente', solicitudConductor: true, nombre: 'Aspirante',
+    });
+    await assertSucceeds(
+      como(env, ADMIN).doc(`usuarios/${OTRO_CLIENTE}`).set({
+        membresia: 'activa',
+        membresiaDias: 30,
+        servicioActivo: true,
+        solicitudConductor: false,
+      }, { merge: true }),
+    );
+  });
+
+  test('el admin revoca la membresía de un conductor', async () => {
+    await assertSucceeds(
+      como(env, ADMIN).doc(`usuarios/${CONDUCTOR}`).set(
+        { membresia: '', servicioActivo: false }, { merge: true },
+      ),
+    );
+  });
+
+  test('el admin promueve a un cliente a conductor', async () => {
+    await assertSucceeds(
+      como(env, ADMIN).doc(`usuarios/${CLIENTE}`).set({ rol: 'conductor' }, { merge: true }),
+    );
+  });
+
+  // El panel ofrece eliminar en ambas pestañas.
+  test('el admin elimina a un cliente y a un conductor', async () => {
+    await assertSucceeds(como(env, ADMIN).doc(`usuarios/${CLIENTE}`).delete());
+    await assertSucceeds(como(env, ADMIN).doc(`usuarios/${CONDUCTOR}`).delete());
+  });
+
+  test('un no-admin no puede eliminar a nadie, ni a sí mismo', async () => {
+    await assertFails(como(env, CLIENTE).doc(`usuarios/${OTRO_CLIENTE}`).delete());
+    await assertFails(como(env, CLIENTE).doc(`usuarios/${CLIENTE}`).delete());
   });
 
   // CompleteProfileController.saveProfile
@@ -56,10 +92,16 @@ describe('usuarios', () => {
     );
   });
 
-  test('un cliente NO puede asignarse un adminId', async () => {
-    await assertFails(
-      como(env, CLIENTE).doc(`usuarios/${CLIENTE}`).update({ adminId: ADMIN }),
-    );
+  // `adminId` (modelo de gremios) quedó sin uso: ningún documento lo tiene y
+  // nada filtra por él, así que las reglas ya no lo miran. Esta prueba fija
+  // que, por eso mismo, escribírselo NO otorga ningún privilegio — quien lo
+  // haga sigue sin poder leer usuarios ajenos ni actuar como admin.
+  test('asignarse un adminId no da privilegios de admin', async () => {
+    const db = como(env, CLIENTE);
+    await db.doc(`usuarios/${CLIENTE}`).update({ adminId: ADMIN });
+    await assertFails(db.doc(`usuarios/${OTRO_CLIENTE}`).get());
+    await assertFails(db.collection('usuarios').get());
+    await assertFails(db.doc(`usuarios/${CONDUCTOR}`).update({ membresia: 'activa' }));
   });
 
   // FcmService: persistir el token es la escritura más frecuente de la app.
