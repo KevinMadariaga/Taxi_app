@@ -29,6 +29,7 @@ class MapaPrevisualizacionSolicitud extends StatelessWidget {
     this.routePoints = const [],
     this.isLoadingRoute = false,
     this.heading,
+    this.orientarHaciaCliente = false,
   });
 
   final LatLng? driverLocation;
@@ -54,7 +55,23 @@ class MapaPrevisualizacionSolicitud extends StatelessWidget {
   /// crossfade visible en vez de cargar una sola vez ya con la traza.
   final bool isLoadingRoute;
 
+  /// Rota el mapa completo para que el rumbo conductor→cliente quede
+  /// apuntando hacia ARRIBA: el conductor queda abajo y el cliente arriba,
+  /// como la brújula de un navegador, en vez del norte-arriba que devuelve
+  /// Static Maps (donde el conductor aparecía arriba o abajo según la
+  /// geografía). La imagen se pide cuadrada y del tamaño de la diagonal del
+  /// recuadro para que al rotarla no queden esquinas vacías.
+  ///
+  /// Solo lo usa el viaje del conductor. La preview previa a aceptar sigue
+  /// norte-arriba (`false`), donde lo que importa es ubicarse, no seguir un
+  /// rumbo.
+  final bool orientarHaciaCliente;
+
   static const adapter.MapService _mapService = adapter.MapService();
+
+  /// Máximo del parámetro `size` de Static Maps (por dimensión, antes de
+  /// aplicar `scale`).
+  static const double _ladoMaximoStaticMaps = 640;
 
   static const double _vehicleIconSize = 40;
   static const double _pinIconSize = 44;
@@ -70,6 +87,11 @@ class MapaPrevisualizacionSolicitud extends StatelessWidget {
   // encuadre simétrico, así que descentrar de más arriesga sacar el pin
   // más lejano fuera del cuadro.
   static const double _fraccionCentro = 0.45;
+
+  // Con el mapa orientado al rumbo, el centro se corre HACIA el cliente: el
+  // conductor baja en pantalla y queda más recorrido a la vista por delante
+  // de él, que es el punto de orientar la vista al rumbo.
+  static const double _fraccionCentroOrientado = 0.58;
 
   // Márgenes más chicos que el default de `boundsZoom` (90/120): esta
   // tarjeta es más angosta que el mapa de "buscando taxi", así que un
@@ -95,14 +117,34 @@ class MapaPrevisualizacionSolicitud extends StatelessWidget {
         final double height = constraints.maxHeight.clamp(100.0, 640.0);
 
         final bool hasDriver = driver != null;
+        final bool rotar = orientarHaciaCliente && hasDriver;
+
+        // Rotado, la imagen tiene que ser cuadrada y cubrir la diagonal del
+        // recuadro: es el único tamaño que, gire lo que gire, sigue tapando
+        // las cuatro esquinas. Si esa diagonal pasa el máximo de Static Maps
+        // se pide el máximo y se amplía por `factorEscala` — con `scale=2` la
+        // imagen trae el doble de píxeles reales, así que ampliar un poco no
+        // se ve pixelado.
+        final double diagonal = math.sqrt(width * width + height * height);
+        final double ladoPedido = rotar
+            ? math.min(diagonal, _ladoMaximoStaticMaps)
+            : 0;
+        final double factorEscala = rotar ? diagonal / ladoPedido : 1;
+
+        final double rotacionRad = rotar
+            ? ProyeccionMercator.rotacionParaRumboArriba(
+                ProyeccionMercator.bearingDegrees(driver, clientLocation),
+              )
+            : 0;
+        final double fraccion = rotar
+            ? _fraccionCentroOrientado
+            : _fraccionCentro;
         final LatLng center = hasDriver
             ? LatLng(
                 driver.latitude +
-                    (clientLocation.latitude - driver.latitude) *
-                        _fraccionCentro,
+                    (clientLocation.latitude - driver.latitude) * fraccion,
                 driver.longitude +
-                    (clientLocation.longitude - driver.longitude) *
-                        _fraccionCentro,
+                    (clientLocation.longitude - driver.longitude) * fraccion,
               )
             : clientLocation;
 
@@ -113,7 +155,23 @@ class MapaPrevisualizacionSolicitud extends StatelessWidget {
         // acercada de la que realmente llegó y los íconos quedan
         // desplazados del punto real.
         final double zoom =
-            (hasDriver
+            (rotar
+                    // Rotado se mide sobre la ruta completa, no solo sobre los
+                    // dos extremos: la traza se curva y con el encuadre de dos
+                    // puntos se salía del recuadro por el costado.
+                    ? ProyeccionMercator.boundsZoomRotado(
+                        [driver, ...routePoints, clientLocation],
+                        center: center,
+                        rotacionRad: rotacionRad,
+                        // Divididos por `factorEscala` porque estas cuentas
+                        // están en píxeles de la imagen, y la imagen se dibuja
+                        // ampliada por ese factor.
+                        widthPx: width / factorEscala,
+                        heightPx: height / factorEscala,
+                        margenHorizontal: _margenHorizontal / factorEscala,
+                        margenVertical: _margenVertical / factorEscala,
+                      )
+                    : hasDriver
                     ? ProyeccionMercator.boundsZoom(
                         driver,
                         clientLocation,
@@ -150,16 +208,21 @@ class MapaPrevisualizacionSolicitud extends StatelessWidget {
                   ])
                 : null;
 
+            // Rotado el lienzo es el cuadrado de la diagonal; sin rotar, el
+            // recuadro tal cual.
+            final double lienzoAncho = rotar ? ladoPedido : width;
+            final double lienzoAlto = rotar ? ladoPedido : height;
+
             final url = _staticMapUrl(
               center: center,
               zoom: zoom,
-              width: width.round(),
-              height: height.round(),
+              width: lienzoAncho.round(),
+              height: lienzoAlto.round(),
               apiKey: apiKey,
               encodedPath: encodedPath,
             );
 
-            return Stack(
+            final mapa = Stack(
               fit: StackFit.expand,
               children: [
                 // Sin `key: ValueKey(url)`: cuando la ruta OSRM llega y
@@ -191,13 +254,20 @@ class MapaPrevisualizacionSolicitud extends StatelessWidget {
                     point: clientLocation,
                     zoom: zoom,
                   ),
-                  boxWidth: width,
-                  boxHeight: height,
+                  boxWidth: lienzoAncho,
+                  boxHeight: lienzoAlto,
                   iconSize: _pinIconSize,
-                  child: Image.asset(
-                    'assets/img/map_pin_red.png',
-                    width: _pinIconSize,
-                    height: _pinIconSize,
+                  // El pin es una gota que apunta a su punto: tiene que
+                  // quedar vertical en PANTALLA, así que se contrarrota lo
+                  // que se rotó el lienzo. El vehículo no: ese sí gira con el
+                  // mapa, porque su rumbo es relativo al terreno.
+                  child: Transform.rotate(
+                    angle: -rotacionRad,
+                    child: Image.asset(
+                      'assets/img/map_pin_red.png',
+                      width: _pinIconSize,
+                      height: _pinIconSize,
+                    ),
                   ),
                 ),
                 if (hasDriver)
@@ -207,13 +277,17 @@ class MapaPrevisualizacionSolicitud extends StatelessWidget {
                       point: driver,
                       zoom: zoom,
                     ),
-                    boxWidth: width,
-                    boxHeight: height,
+                    boxWidth: lienzoAncho,
+                    boxHeight: lienzoAlto,
                     iconSize: _vehicleIconSize,
                     anchorBottom: false,
                     child: Transform.rotate(
                       angle:
-                          (heading ?? _bearingDegrees(driver, clientLocation)) *
+                          (heading ??
+                              ProyeccionMercator.bearingDegrees(
+                                driver,
+                                clientLocation,
+                              )) *
                           (math.pi / 180),
                       child: Image.asset(
                         isMoto
@@ -226,23 +300,33 @@ class MapaPrevisualizacionSolicitud extends StatelessWidget {
                   ),
               ],
             );
+
+            if (!rotar) return mapa;
+
+            // El lienzo cuadrado excede el recuadro, así que necesita
+            // `OverflowBox` para poder pintarse más grande que sus
+            // constraints, y `ClipRect` para no derramarse sobre la tarjeta.
+            return ClipRect(
+              child: OverflowBox(
+                maxWidth: diagonal,
+                maxHeight: diagonal,
+                child: Transform.rotate(
+                  angle: rotacionRad,
+                  child: Transform.scale(
+                    scale: factorEscala,
+                    child: SizedBox(
+                      width: ladoPedido,
+                      height: ladoPedido,
+                      child: mapa,
+                    ),
+                  ),
+                ),
+              ),
+            );
           },
         );
       },
     );
-  }
-
-  static double _bearingDegrees(LatLng from, LatLng to) {
-    final lat1 = from.latitude * math.pi / 180;
-    final lat2 = to.latitude * math.pi / 180;
-    final dLng = (to.longitude - from.longitude) * math.pi / 180;
-
-    final y = math.sin(dLng) * math.cos(lat2);
-    final x =
-        math.cos(lat1) * math.sin(lat2) -
-        math.sin(lat1) * math.cos(lat2) * math.cos(dLng);
-    final bearing = math.atan2(y, x) * 180 / math.pi;
-    return (bearing + 360) % 360;
   }
 
   String _staticMapUrl({

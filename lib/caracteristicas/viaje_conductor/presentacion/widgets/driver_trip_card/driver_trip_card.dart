@@ -105,6 +105,18 @@ class _DriverTripCardState extends State<DriverTripCard>
         pastel: false,
       );
     }
+    // Estados terminales: el viaje ya cerró y la pantalla está saliendo (la
+    // navegación va en un post-frame). Sin este caso caían al fallthrough de
+    // "Ya llegué al punto" HABILITADO, con una ventana de un frame para
+    // escribir `en espera` sobre un viaje ya completado o cancelado.
+    if (estado != null && SolicitudEstado.isTerminal(estado)) {
+      return (
+        label: 'Viaje finalizado',
+        icon: Icons.check_circle_outline_rounded,
+        onTap: null,
+        pastel: false,
+      );
+    }
     // asignado (o cualquier otro): reportar llegada.
     return (
       label: vm.hasReportedArrival ? 'Enviado' : 'Ya llegué al punto',
@@ -220,7 +232,10 @@ class _DriverTripCardState extends State<DriverTripCard>
                   // El chat solo en el tramo de recogida: ya con el pasajero a
                   // bordo van juntos en el vehículo.
                   mostrarChat: vm.tramoActual == TramoViajeConductor.recogida,
-                  primaryLoading: vm.isSendingArrival || vm.isValidatingCodigo,
+                  primaryLoading:
+                      vm.isSendingArrival ||
+                      vm.isValidatingCodigo ||
+                      vm.isFinalizandoViaje,
                   primaryPastel: accion.pastel,
                 ),
                 // Sin botón de cancelar: por diseño del negocio, el viaje lo

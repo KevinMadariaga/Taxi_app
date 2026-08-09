@@ -21,6 +21,7 @@ import 'package:taxi_app/caracteristicas/viaje_conductor/dominio/casos_uso/repor
 import 'package:taxi_app/core/constants/solicitud_estado.dart';
 import 'package:taxi_app/core/services/background_tracking_service.dart';
 import 'package:taxi_app/core/services/notificacion_servicio.dart';
+import 'package:taxi_app/core/utils/error_reporter.dart';
 import 'package:taxi_app/features/trip_tracking_cliente/services/trip_route_math_service.dart';
 
 /// Tramo del viaje en el que está el conductor — determina el objetivo del
@@ -80,6 +81,7 @@ class ViajeConductorViewModel extends ChangeNotifier {
   bool isRouteLoading = false;
   bool isSendingArrival = false;
   bool isValidatingCodigo = false;
+  bool isFinalizandoViaje = false;
   bool hasReportedArrival = false;
   String? errorText;
 
@@ -92,9 +94,24 @@ class ViajeConductorViewModel extends ChangeNotifier {
   /// [tramoActual]. Alimenta `BarraProgresoDireccional`.
   double progresoTramo = 0.0;
 
+  /// Plazo que tiene el cliente para confirmar antes de marcar el viaje como
+  /// `sin respuesta`.
+  static const int _segundosEspera = 180;
+
   bool waitingModalVisible = false;
   bool waitingCanStartTrip = false;
-  int waitingRemainingSeconds = 180;
+  int waitingRemainingSeconds = _segundosEspera;
+
+  /// `true` mientras el conductor tiene abierto el sheet del código PIN.
+  ///
+  /// Sin esto, la modal de espera se reabría ENCIMA del PIN: al tocar
+  /// "Comenzar ruta" la pantalla cerraba el sheet pero [waitingModalVisible]
+  /// seguía en `true`, así que el siguiente `notifyListeners` — y hay uno por
+  /// cada punto GPS del propio conductor, porque el tracking escribe en la
+  /// misma solicitud que este VM escucha — volvía a cumplir la condición de
+  /// apertura. La modal es `isDismissible: false`, o sea que tapaba el PIN sin
+  /// forma de cerrarla y el viaje no podía arrancar.
+  bool codigoSheetVisible = false;
 
   /// `true` cuando el viaje llegó a un estado terminal (cancelado,
   /// completado, sin respuesta) — la pantalla debe salir.
@@ -112,6 +129,7 @@ class ViajeConductorViewModel extends ChangeNotifier {
   bool _disposed = false;
   bool _timeoutActualizandoEstado = false;
   bool _notificacionesListas = false;
+  bool _errorEsDeCarga = false;
 
   TramoViajeConductor get tramoActual {
     final estado = viaje?.estado;
@@ -168,7 +186,15 @@ class ViajeConductorViewModel extends ChangeNotifier {
       (incoming) async {
         viaje = incoming;
         isLoading = false;
-        errorText = null;
+        // Solo se limpia el error DE CARGA. Antes se borraba `errorText`
+        // entero en cada snapshot, y como el tracking GPS del conductor
+        // escribe en esta misma solicitud, llega un snapshot cada pocos
+        // segundos: un error de "no se pudo terminar el viaje" se borraba
+        // antes de que la pantalla alcanzara a mostrarlo.
+        if (_errorEsDeCarga) {
+          errorText = null;
+          _errorEsDeCarga = false;
+        }
         _safeNotify();
 
         _handleEstadoTransition(incoming.estado);
@@ -177,6 +203,7 @@ class ViajeConductorViewModel extends ChangeNotifier {
       onError: (error) {
         isLoading = false;
         errorText = 'No se pudo cargar el viaje: $error';
+        _errorEsDeCarga = true;
         _safeNotify();
       },
     );
@@ -205,6 +232,11 @@ class ViajeConductorViewModel extends ChangeNotifier {
   Future<ResultadoValidacionCodigo> validarCodigoRecogida(
     String codigoIngresado,
   ) async {
+    // El sheet ya se protege en su botón, pero `onSubmitted` del teclado no
+    // pasa por ahí: sin este guard, tocar "Listo" con una validación en vuelo
+    // disparaba una segunda y escribía `validadoEn` y `en ruta` dos veces.
+    if (isValidatingCodigo) return ResultadoValidacionCodigo.enProceso;
+
     isValidatingCodigo = true;
     _safeNotify();
     try {
@@ -222,8 +254,31 @@ class ViajeConductorViewModel extends ChangeNotifier {
     }
   }
 
+  /// Sin guard, cada tap repetía la escritura y pisaba `completedAt` y
+  /// `'fecha de terminacion'` con una hora nueva; y sin `catch`, un fallo se
+  /// perdía en el gap async del `onPressed` y el conductor tocaba "Terminar
+  /// viaje" sin que pasara nada, para siempre.
   Future<void> finalizarViaje() async {
-    await _finalizarViaje(viajeId);
+    if (isFinalizandoViaje || debeSalir) return;
+
+    isFinalizandoViaje = true;
+    errorText = null;
+    _safeNotify();
+    try {
+      await _finalizarViaje(viajeId);
+    } catch (e) {
+      errorText = 'No se pudo terminar el viaje: $e';
+    } finally {
+      isFinalizandoViaje = false;
+      _safeNotify();
+    }
+  }
+
+  /// Borra el mensaje de error una vez que el conductor lo vio.
+  void limpiarError() {
+    if (errorText == null) return;
+    errorText = null;
+    _safeNotify();
   }
 
   // El conductor NO cancela el viaje: por diseño del negocio eso lo hace el
@@ -450,12 +505,45 @@ class ViajeConductorViewModel extends ChangeNotifier {
     return avance.clamp(0.0, 1.0);
   }
 
-  void _openWaitingModal() {
-    if (waitingModalVisible) return;
+  /// El conductor abre el sheet del PIN: la modal de espera se retira y no
+  /// puede volver sola mientras el PIN esté a la vista.
+  void abrirIngresoCodigo() {
+    codigoSheetVisible = true;
+    waitingModalVisible = false;
+    _stopWaitingTimer();
+    _safeNotify();
+  }
+
+  /// El sheet del PIN se cerró. Si el código no llegó a validarse y el viaje
+  /// sigue esperando al cliente, la modal de espera vuelve — sin ella el
+  /// conductor se quedaba sin ningún camino para reintentar.
+  void cerrarIngresoCodigo() {
+    if (!codigoSheetVisible) return;
+    codigoSheetVisible = false;
+
+    final estado = viaje?.estado;
+    if (estado == SolicitudEstado.enEspera ||
+        estado == SolicitudEstado.enCamino) {
+      _openWaitingModal(reiniciarCuenta: false);
+      // `en camino` = el cliente ya confirmó: se puede arrancar sin esperar y
+      // sin reanudar la cuenta regresiva.
+      if (estado == SolicitudEstado.enCamino) {
+        waitingCanStartTrip = true;
+        _stopWaitingTimer();
+      }
+    }
+    _safeNotify();
+  }
+
+  /// [reiniciarCuenta] `false` reabre la modal conservando el tiempo que
+  /// quedaba: al volver del sheet del PIN, reiniciar los 180 s le regalaría al
+  /// cliente un plazo nuevo cada vez que el conductor abre y cierra el PIN.
+  void _openWaitingModal({bool reiniciarCuenta = true}) {
+    if (waitingModalVisible || codigoSheetVisible) return;
 
     waitingModalVisible = true;
     waitingCanStartTrip = false;
-    waitingRemainingSeconds = 180;
+    if (reiniciarCuenta) waitingRemainingSeconds = _segundosEspera;
 
     _stopWaitingTimer();
     _waitingTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -516,10 +604,25 @@ class ViajeConductorViewModel extends ChangeNotifier {
     }
   }
 
+  /// Las notificaciones son accesorias al viaje: si el plugin no arranca, el
+  /// conductor igual tiene que poder ver el viaje y operarlo. Antes esto se
+  /// llamaba sin proteger como PRIMERA línea de `init()`, así que un fallo
+  /// acá cortaba el `init` entero y la pantalla se quedaba sin stream de
+  /// Firestore, sin ruta y sin tracking.
   Future<void> _ensureNotifications() async {
     if (_notificacionesListas) return;
-    await NotificacionesServicio.instance.init();
-    _notificacionesListas = true;
+    try {
+      await NotificacionesServicio.instance.init();
+      _notificacionesListas = true;
+    } catch (e, st) {
+      // `ErrorReporter` en vez de `recordError` directo: éste es best-effort y
+      // no debe romper si Crashlytics no está listo.
+      ErrorReporter.report(
+        e,
+        st,
+        reason: 'ViajeConductorViewModel: fallo al iniciar notificaciones',
+      );
+    }
   }
 
   Future<void> _notify(String title, String body) async {

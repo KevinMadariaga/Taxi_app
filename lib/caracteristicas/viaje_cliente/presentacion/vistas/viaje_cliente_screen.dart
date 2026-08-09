@@ -12,9 +12,8 @@ import 'package:taxi_app/caracteristicas/viaje_compartido/datos/fuentes/ruta_dat
 import 'package:taxi_app/caracteristicas/viaje_compartido/dominio/casos_uso/actualizar_estado_viaje_usecase.dart';
 import 'package:taxi_app/caracteristicas/viaje_compartido/dominio/casos_uso/watch_viaje_usecase.dart';
 import 'package:taxi_app/caracteristicas/viaje_compartido/datos/repositorios/viaje_repository_impl.dart';
-import 'package:taxi_app/caracteristicas/viaje_compartido/presentacion/utils/info_map_split.dart';
+import 'package:taxi_app/caracteristicas/viaje_compartido/presentacion/utils/trip_card_metrics.dart';
 import 'package:taxi_app/caracteristicas/viaje_compartido/presentacion/vistas/chat_screen.dart';
-import 'package:taxi_app/caracteristicas/viaje_cliente/presentacion/widgets/trip_info_card/widgets/codigo_verificacion_banner.dart';
 import 'package:taxi_app/caracteristicas/verificacion_recogida/datos/repositorios/codigo_verificacion_repository_impl.dart';
 import 'package:taxi_app/caracteristicas/verificacion_recogida/dominio/entidades/codigo_verificacion_entity.dart';
 import 'package:taxi_app/core/app_colores.dart';
@@ -62,21 +61,19 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen> {
   /// Zoom cuando solo se conoce uno de los dos puntos.
   static const double _zoomUnicoMarcador = 17;
 
-  /// Puntos porcentuales extra que gana la tarjeta mientras el código PIN está
-  /// visible, para que entre completo sin apretar el resto del contenido. El
-  /// mapa cede ese mismo alto y lo recupera en cuanto el conductor valida.
-  static const int _ajusteInfoConCodigo = 10;
-
-  /// Dueña del stream del código: además de pintarlo en la tarjeta, su
-  /// visibilidad decide el reparto de alto entre tarjeta y mapa.
+  /// Dueña del stream del código, que la tarjeta solo pinta. Ya no hace
+  /// falta un ajuste de alto por el banner: la tarjeta mide su contenido, así
+  /// que al aparecer el código crece sola y el mapa cede ese alto.
   final _codigoRepository = CodigoVerificacionRepositoryImpl();
   StreamSubscription<CodigoVerificacionEntity?>? _codigoSub;
   CodigoVerificacionEntity? _codigo;
 
-  /// `true` entre que el conductor genera el código y lo valida.
-  bool get _codigoVisible => CodigoVerificacionBanner.esVisible(_codigo);
   bool _waitingSheetVisible = false;
   bool _hasNavigatedAway = false;
+
+  /// Ruta de la modal de espera — para poder cerrarla sin arriesgar un pop
+  /// sobre la pantalla del viaje (ver [_cerrarWaitingSheet]).
+  ModalRoute<void>? _waitingSheetRoute;
 
   BitmapDescriptor? _conductorIcon;
   BitmapDescriptor? _conductorIconMirrored;
@@ -215,6 +212,7 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen> {
           useRootNavigator: true,
           backgroundColor: Colors.transparent,
           builder: (sheetContext) {
+            _waitingSheetRoute = ModalRoute.of(sheetContext);
             return AnimatedBuilder(
               animation: _vm,
               builder: (context, _) {
@@ -223,21 +221,41 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen> {
                   isUpdating: _vm.isConfirmingVoyEnCamino,
                   onVoyEnCamino: () async {
                     await _vm.confirmarVoyEnCamino();
-                    if (sheetContext.mounted) Navigator.of(sheetContext).pop();
+                    _cerrarWaitingSheet();
                   },
                 );
               },
             );
           },
-        ).whenComplete(() => _waitingSheetVisible = false);
+        ).whenComplete(() {
+          _waitingSheetVisible = false;
+          _waitingSheetRoute = null;
+        });
       });
       return;
     }
 
     if (!_vm.waitingModalVisible && _waitingSheetVisible) {
-      _waitingSheetVisible = false;
-      if (mounted) Navigator.of(context, rootNavigator: true).maybePop();
+      _cerrarWaitingSheet();
     }
+  }
+
+  /// Cierra la modal de espera SOLO si su ruta sigue arriba.
+  ///
+  /// Antes había dos caminos que la cerraban —el `pop()` del propio botón
+  /// "Voy en camino" y el `maybePop()` de acá— y los dos se disparaban con el
+  /// mismo cambio de estado: `confirmarVoyEnCamino()` cierra la modal en el
+  /// viewmodel, eso notifica, y el listener popeaba el sheet ANTES de que
+  /// volviera el `await` del botón. El segundo pop ya no encontraba el sheet y
+  /// se llevaba puesta la pantalla del viaje: el cliente terminaba de vuelta
+  /// en el detalle de la solicitud. Comparando contra la ruta guardada, el
+  /// pop sobrante no hace nada.
+  void _cerrarWaitingSheet() {
+    final route = _waitingSheetRoute;
+    _waitingSheetVisible = false;
+    _waitingSheetRoute = null;
+    if (!mounted || route == null || !route.isCurrent) return;
+    Navigator.of(context, rootNavigator: true).pop();
   }
 
   void _handleSalida() {
@@ -584,17 +602,18 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen> {
             };
 
             final viewPaddingBottom = MediaQuery.of(context).viewPadding.bottom;
-            // 45 % tarjeta / 55 % mapa en un teléfono de alto normal
-            // (`InfoMapSplit` sigue corrigiendo ±5 en pantallas muy bajas o
-            // muy altas). Antes usaba el 40 % por defecto y la tarjeta
-            // quedaba corta para el estado "Conductor llegando a tu ubicación".
-            // Mientras el código PIN está a la vista la tarjeta gana alto para
-            // que entre completo, y el mapa lo cede; al validarse el código el
-            // banner desaparece y el reparto vuelve a 45/55 solo.
-            final (infoFlex, mapFlex) = InfoMapSplit.of(
-              context,
-              baseInfoFlex: 45 + (_codigoVisible ? _ajusteInfoConCodigo : 0),
-            );
+            // La tarjeta ya no ocupa un % fijo de la pantalla: mide lo que
+            // mide su contenido y el mapa se queda con el resto. Con el
+            // reparto por flex anterior (45 %) sobraba aire en pantallas
+            // altas y faltaba en las bajas, porque el contenido son píxeles
+            // fijos. `TripCardMetrics` escala gaps y gráficos por franja de
+            // alto, y `alturaMaximaFactor` es solo un techo para que en un
+            // teléfono muy bajo la tarjeta no se coma el mapa (ahí sí
+            // aparece scroll dentro de la tarjeta). El banner del código PIN
+            // deja de necesitar ajuste: al aparecer, el alto crece solo.
+            final metrics = TripCardMetrics.of(context);
+            final alturaMaximaCard =
+                MediaQuery.sizeOf(context).height * metrics.alturaMaximaFactor;
 
             return SafeArea(
               // `bottom: false`: el inset físico de abajo (home indicator
@@ -606,35 +625,25 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen> {
               bottom: false,
               child: Column(
                 children: [
-                  // Mitad superior: info + chat + acciones. `LayoutBuilder` +
-                  // `ConstrainedBox(minHeight:)` hace que la tarjeta ocupe
-                  // TODA la mitad disponible (como ya hace el mapa) en vez de
-                  // encogerse al alto de su contenido.
-                  Expanded(
-                    flex: infoFlex,
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        return SingleChildScrollView(
-                          child: ConstrainedBox(
-                            constraints: BoxConstraints(
-                              minHeight: constraints.maxHeight,
-                            ),
-                            child: TripInfoCard(
-                              vm: _vm,
-                              onChat: _openChat,
-                              onDetails: _openDetails,
-                              onHelp: _openAyuda,
-                              onCancel: _onCancelar,
-                              codigoVerificacion: _codigo,
-                            ),
-                          ),
-                        );
-                      },
+                  // Arriba: info + chat + acciones, con el alto natural de su
+                  // contenido. El `SingleChildScrollView` dentro del
+                  // `ConstrainedBox` se encoge al contenido y solo scrollea
+                  // si este supera `alturaMaximaCard`.
+                  ConstrainedBox(
+                    constraints: BoxConstraints(maxHeight: alturaMaximaCard),
+                    child: SingleChildScrollView(
+                      child: TripInfoCard(
+                        vm: _vm,
+                        onChat: _openChat,
+                        onDetails: _openDetails,
+                        onHelp: _openAyuda,
+                        onCancel: _onCancelar,
+                        codigoVerificacion: _codigo,
+                      ),
                     ),
                   ),
-                  // Mitad inferior: mapa.
+                  // Abajo: el mapa toma todo el espacio restante.
                   Expanded(
-                    flex: mapFlex,
                     child: Stack(
                       children: [
                         GoogleMap(

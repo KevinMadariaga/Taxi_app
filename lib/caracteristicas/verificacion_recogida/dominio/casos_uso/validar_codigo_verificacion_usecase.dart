@@ -1,6 +1,9 @@
 import 'package:taxi_app/caracteristicas/verificacion_recogida/dominio/repositorios/codigo_verificacion_repository.dart';
 
-enum ResultadoValidacionCodigo { correcto, incorrecto, noGenerado }
+/// `enProceso` no lo devuelve este usecase: lo devuelve el viewmodel cuando
+/// ya hay una validación en vuelo, para que quien llame ignore el intento
+/// duplicado en vez de tratarlo como un código incorrecto.
+enum ResultadoValidacionCodigo { correcto, incorrecto, noGenerado, enProceso }
 
 /// Valida el código que el conductor ingresa contra el generado para el
 /// viaje. Sin lockout tras varios intentos fallidos (`intentosFallidos` se

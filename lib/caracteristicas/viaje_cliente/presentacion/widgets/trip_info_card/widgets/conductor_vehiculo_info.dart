@@ -15,6 +15,9 @@ class ConductorVehiculoInfo extends StatelessWidget {
     required this.placa,
     required this.calificacion,
     this.isMoto = false,
+    this.avatarRadius = 36,
+    this.vehiculoWidth = 84,
+    this.vehiculoHeight = 60,
   });
 
   final String nombre;
@@ -24,8 +27,17 @@ class ConductorVehiculoInfo extends StatelessWidget {
   final double calificacion;
   final bool isMoto;
 
+  /// Medidas escaladas por `TripCardMetrics` según el alto de pantalla —
+  /// los defaults son las del teléfono estándar.
+  final double avatarRadius;
+  final double vehiculoWidth;
+  final double vehiculoHeight;
+
   static String _iniciales(String nombre) {
-    final partes = nombre.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty);
+    final partes = nombre
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((p) => p.isNotEmpty);
     if (partes.isEmpty) return '?';
     final primera = partes.first[0];
     final segunda = partes.length > 1 ? partes.last[0] : '';
@@ -46,7 +58,7 @@ class ConductorVehiculoInfo extends StatelessWidget {
         // Bloque conductor: foto grande, nombre al lado, calificación
         // debajo del nombre (no debajo de la foto).
         CircleAvatar(
-          radius: 36,
+          radius: avatarRadius,
           backgroundColor: AppColores.brand200,
           backgroundImage: tieneFotoConductor
               ? NetworkImage(fotoConductorUrl!)
@@ -55,10 +67,10 @@ class ConductorVehiculoInfo extends StatelessWidget {
               ? null
               : Text(
                   _iniciales(nombre),
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColores.brand900,
                     fontWeight: FontWeight.w700,
-                    fontSize: 22,
+                    fontSize: avatarRadius * (22 / 36),
                   ),
                 ),
         ),
@@ -111,8 +123,8 @@ class ConductorVehiculoInfo extends StatelessWidget {
             ClipRRect(
               borderRadius: BorderRadius.circular(10),
               child: Container(
-                width: 84,
-                height: 60,
+                width: vehiculoWidth,
+                height: vehiculoHeight,
                 color: AppColores.grey100,
                 child: tieneFotoVehiculo
                     ? CachedNetworkImage(

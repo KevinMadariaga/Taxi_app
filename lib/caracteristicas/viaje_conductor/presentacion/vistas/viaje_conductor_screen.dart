@@ -50,6 +50,15 @@ class _ViajeConductorScreenState extends State<ViajeConductorScreen>
   bool _waitingSheetVisible = false;
   bool _hasNavigatedAway = false;
 
+  /// Última sesión persistida y último error ya mostrado — evitan repetir la
+  /// escritura a disco y el SnackBar en cada `notifyListeners`.
+  String? _ultimaHuellaSesion;
+  String? _ultimoErrorMostrado;
+
+  /// Ruta de la modal de espera — para cerrarla sin arriesgar un pop sobre la
+  /// pantalla del viaje (ver [_cerrarWaitingSheet]).
+  ModalRoute<void>? _waitingSheetRoute;
+
   @override
   void initState() {
     super.initState();
@@ -123,7 +132,32 @@ class _ViajeConductorScreenState extends State<ViajeConductorScreen>
   void _onVmChanged() {
     _persistOrClearSession();
     _handleWaitingModal();
+    _mostrarError();
     _handleSalida();
+  }
+
+  /// El VM escribe `errorText` en 5 rutas de fallo y hasta acá no lo leía
+  /// nadie: si "Ya llegué al punto" o "Terminar viaje" fallaban, el botón
+  /// volvía a su estado normal sin ningún mensaje y el conductor no tenía
+  /// forma de saber que la escritura no ocurrió.
+  void _mostrarError() {
+    final error = _vm.errorText;
+    if (error == null || error == _ultimoErrorMostrado) return;
+    _ultimoErrorMostrado = error;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error),
+          backgroundColor: AppColores.error,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 5),
+        ),
+      );
+      _vm.limpiarError();
+      _ultimoErrorMostrado = null;
+    });
   }
 
   void _persistOrClearSession() {
@@ -131,23 +165,40 @@ class _ViajeConductorScreenState extends State<ViajeConductorScreen>
     if (estado == null) return;
 
     if (SolicitudEstado.isSesionActiva(estado)) {
-      RouteCacheService.saveForSolicitud(
-        RouteCacheData(
-          solicitudId: widget.viajeId,
-          role: 'conductor',
-          clientName: _vm.clienteNombre,
-          clientAddress: _vm.clienteDireccion,
-          clientLat: _vm.viaje?.cliente.ubicacion?.latitude,
-          clientLng: _vm.viaje?.cliente.ubicacion?.longitude,
-          conductorId: _vm.conductorId,
-        ),
+      final datos = RouteCacheData(
+        solicitudId: widget.viajeId,
+        role: 'conductor',
+        clientName: _vm.clienteNombre,
+        clientAddress: _vm.clienteDireccion,
+        clientLat: _vm.viaje?.cliente.ubicacion?.latitude,
+        clientLng: _vm.viaje?.cliente.ubicacion?.longitude,
+        conductorId: _vm.conductorId,
       );
+
+      // Dirty-check: esto corre en CADA `notifyListeners`, y durante la espera
+      // hay uno por segundo — eran ~360 escrituras a `SharedPreferences` por
+      // espera, todas con los mismos datos.
+      final huella = _huellaSesion(datos);
+      if (huella == _ultimaHuellaSesion) return;
+      _ultimaHuellaSesion = huella;
+
+      RouteCacheService.saveForSolicitud(datos);
     } else if (SolicitudEstado.isTerminal(estado)) {
       SessionHelper.clearActiveSolicitud();
       SessionHelper.clearActiveSolicitudScreen();
       RouteCacheService.clearSolicitud(widget.viajeId);
+      _ultimaHuellaSesion = null;
     }
   }
+
+  String _huellaSesion(RouteCacheData d) => [
+    d.solicitudId,
+    d.clientName,
+    d.clientAddress,
+    d.clientLat,
+    d.clientLng,
+    d.conductorId,
+  ].join('|');
 
   void _handleWaitingModal() {
     if (_vm.waitingModalVisible && !_waitingSheetVisible) {
@@ -161,6 +212,7 @@ class _ViajeConductorScreenState extends State<ViajeConductorScreen>
           useRootNavigator: true,
           backgroundColor: Colors.transparent,
           builder: (sheetContext) {
+            _waitingSheetRoute = ModalRoute.of(sheetContext);
             return AnimatedBuilder(
               animation: _vm,
               builder: (context, _) {
@@ -169,22 +221,44 @@ class _ViajeConductorScreenState extends State<ViajeConductorScreen>
                   canStartTrip: _vm.waitingCanStartTrip,
                   isLoading: _vm.isValidatingCodigo,
                   onStartTrip: () {
-                    Navigator.of(sheetContext).pop();
+                    // El orden importa: primero el VM deja de pedir la modal
+                    // de espera (si no, el próximo `notifyListeners` — hay uno
+                    // por cada punto GPS — la reabre encima del PIN, y es
+                    // `isDismissible: false`), y recién después se cierra.
+                    _vm.abrirIngresoCodigo();
+                    _cerrarWaitingSheet();
                     _abrirCodigoVerificacion();
                   },
                 );
               },
             );
           },
-        ).whenComplete(() => _waitingSheetVisible = false);
+        ).whenComplete(() {
+          _waitingSheetVisible = false;
+          _waitingSheetRoute = null;
+        });
       });
       return;
     }
 
     if (!_vm.waitingModalVisible && _waitingSheetVisible) {
-      _waitingSheetVisible = false;
-      if (mounted) Navigator.of(context, rootNavigator: true).maybePop();
+      _cerrarWaitingSheet();
     }
+  }
+
+  /// Cierra la modal de espera SOLO si su ruta sigue arriba.
+  ///
+  /// El `maybePop()` que había acá no miraba QUÉ ruta estaba encima: cuando
+  /// dos caminos pedían cerrar la modal con el mismo cambio de estado (el
+  /// botón de la modal y este listener), el segundo pop ya no encontraba el
+  /// sheet y se llevaba puesta la pantalla del viaje. Comparando contra la
+  /// ruta guardada, el pop sobrante no hace nada.
+  void _cerrarWaitingSheet() {
+    final route = _waitingSheetRoute;
+    _waitingSheetVisible = false;
+    _waitingSheetRoute = null;
+    if (!mounted || route == null || !route.isCurrent) return;
+    Navigator.of(context, rootNavigator: true).pop();
   }
 
   void _handleSalida() {
@@ -222,11 +296,17 @@ class _ViajeConductorScreenState extends State<ViajeConductorScreen>
   }
 
   Future<void> _abrirCodigoVerificacion() async {
-    await CodigoVerificacionSheet.mostrar(
-      context,
-      onValidar: (codigo) => _vm.validarCodigoRecogida(codigo),
-      isValidating: () => _vm.isValidatingCodigo,
-    );
+    _vm.abrirIngresoCodigo();
+    try {
+      await CodigoVerificacionSheet.mostrar(
+        context,
+        onValidar: (codigo) => _vm.validarCodigoRecogida(codigo),
+      );
+    } finally {
+      // Si el conductor descartó el sheet sin validar, el VM devuelve la modal
+      // de espera: sin eso quedaba sin ningún camino para reintentar.
+      _vm.cerrarIngresoCodigo();
+    }
   }
 
   Future<void> _onReportarLlegada() async {
@@ -239,7 +319,6 @@ class _ViajeConductorScreenState extends State<ViajeConductorScreen>
   Future<void> _onTerminarViaje() async {
     await _vm.finalizarViaje();
   }
-
 
   void _openChat() {
     Navigator.of(context).push(
@@ -356,6 +435,10 @@ class _ViajeConductorScreenState extends State<ViajeConductorScreen>
                                   heading: _vm.routePoints.length >= 2
                                       ? _vm.driverHeading
                                       : null,
+                                  // Vista al rumbo: el conductor abajo y su
+                                  // objetivo arriba, para que la traza se lea
+                                  // como "voy hacia allá" y no norte-arriba.
+                                  orientarHaciaCliente: true,
                                 )
                               : Container(color: AppColores.grey300),
                         ),

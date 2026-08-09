@@ -14,29 +14,23 @@ import 'package:taxi_app/widgets/boton.dart';
 /// widget solo maneja el input y el feedback de error, sin tocar Firestore
 /// directamente.
 class CodigoVerificacionSheet extends StatefulWidget {
-  const CodigoVerificacionSheet({
-    super.key,
-    required this.onValidar,
-    required this.isValidating,
-  });
+  const CodigoVerificacionSheet({super.key, required this.onValidar});
 
   final Future<ResultadoValidacionCodigo> Function(String codigo) onValidar;
-  final bool isValidating;
 
+  // Había un parámetro `isValidating`: se evaluaba UNA vez al abrir el sheet
+  // y `build` nunca lo leía — el estado de carga real lo lleva `_validando`
+  // acá dentro. Una API que miente; se retiró.
   static Future<bool?> mostrar(
     BuildContext context, {
     required Future<ResultadoValidacionCodigo> Function(String codigo)
     onValidar,
-    required bool Function() isValidating,
   }) {
     return showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => CodigoVerificacionSheet(
-        onValidar: onValidar,
-        isValidating: isValidating(),
-      ),
+      builder: (context) => CodigoVerificacionSheet(onValidar: onValidar),
     );
   }
 
@@ -57,6 +51,10 @@ class _CodigoVerificacionSheetState extends State<CodigoVerificacionSheet> {
   }
 
   Future<void> _submit() async {
+    // `onSubmitted` del teclado también entra acá, no solo el botón: sin este
+    // guard, tocar "Listo" con una validación en vuelo lanzaba una segunda.
+    if (_validando) return;
+
     final codigo = _controller.text.trim();
     if (codigo.length != 4) {
       setState(() => _error = 'Ingresa los 4 dígitos.');
@@ -84,6 +82,9 @@ class _CodigoVerificacionSheetState extends State<CodigoVerificacionSheet> {
         setState(
           () => _error = 'Todavía no se generó un código para este viaje.',
         );
+        break;
+      case ResultadoValidacionCodigo.enProceso:
+        // Intento duplicado: la validación en vuelo ya va a resolver.
         break;
     }
   }

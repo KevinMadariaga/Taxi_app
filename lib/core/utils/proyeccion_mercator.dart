@@ -47,6 +47,79 @@ class ProyeccionMercator {
     );
   }
 
+  /// Rumbo en grados (0 = norte, sentido horario) de [from] hacia [to].
+  static double bearingDegrees(LatLng from, LatLng to) {
+    final lat1 = from.latitude * math.pi / 180;
+    final lat2 = to.latitude * math.pi / 180;
+    final dLng = (to.longitude - from.longitude) * math.pi / 180;
+
+    final y = math.sin(dLng) * math.cos(lat2);
+    final x =
+        math.cos(lat1) * math.sin(lat2) -
+        math.sin(lat1) * math.cos(lat2) * math.cos(dLng);
+    final bearing = math.atan2(y, x) * 180 / math.pi;
+    return (bearing + 360) % 360;
+  }
+
+  /// Ángulo (radianes) al que hay que rotar el mapa para que [rumboGrados]
+  /// quede apuntando hacia ARRIBA en pantalla. Es `-rumbo`: rotar el mapa en
+  /// sentido contrario al rumbo deja ese rumbo vertical.
+  static double rotacionParaRumboArriba(double rumboGrados) =>
+      -rumboGrados * math.pi / 180;
+
+  /// Zoom que encuadra [puntos] dentro de un viewport de [widthPx]x[heightPx]
+  /// **cuando el mapa se dibuja rotado** [rotacionRad] (ver
+  /// [rotacionParaRumboArriba]).
+  ///
+  /// [boundsZoom] no sirve para este caso: calcula el encuadre sobre el
+  /// bounding box norte-arriba, y al rotar la imagen ese box ya no coincide
+  /// con lo que se ve. Acá los puntos se rotan primero al marco de pantalla y
+  /// el bounding box se mide ahí, así que el zoom respeta el recuadro real.
+  static double boundsZoomRotado(
+    List<LatLng> puntos, {
+    required LatLng center,
+    required double rotacionRad,
+    required double widthPx,
+    required double heightPx,
+    double zoomMin = zoomMinPorDefecto,
+    double zoomMax = zoomMaxPorDefecto,
+    double margenHorizontal = 90.0,
+    double margenVertical = 120.0,
+  }) {
+    if (puntos.isEmpty) return zoomMax;
+
+    final double effectiveWidth = math.max(40.0, widthPx - margenHorizontal);
+    final double effectiveHeight = math.max(40.0, heightPx - margenVertical);
+
+    final Offset centerPx = project(center);
+    final double cos = math.cos(rotacionRad);
+    final double sin = math.sin(rotacionRad);
+
+    // Semi-extensiones necesarias, en píxeles de mundo (zoom 0), ya en el
+    // marco de pantalla: el encuadre se mide desde el centro hacia cada lado.
+    double maxAbsX = 0;
+    double maxAbsY = 0;
+    for (final punto in puntos) {
+      final Offset p = project(punto);
+      final double dx = p.dx - centerPx.dx;
+      final double dy = p.dy - centerPx.dy;
+      final double x = dx * cos - dy * sin;
+      final double y = dx * sin + dy * cos;
+      maxAbsX = math.max(maxAbsX, x.abs());
+      maxAbsY = math.max(maxAbsY, y.abs());
+    }
+
+    double zoomPara(double disponiblePx, double necesarioPx) {
+      if (necesarioPx <= 0) return zoomMax;
+      return math.log(disponiblePx / 2 / necesarioPx) / math.ln2;
+    }
+
+    final double zoomX = zoomPara(effectiveWidth, maxAbsX);
+    final double zoomY = zoomPara(effectiveHeight, maxAbsY);
+
+    return math.min(zoomX, zoomY).clamp(zoomMin, zoomMax).toDouble();
+  }
+
   static double _latRad(double lat) {
     final double sinLat = math
         .sin(lat * math.pi / 180)

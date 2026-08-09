@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:taxi_app/caracteristicas/viaje_cliente/presentacion/viewmodels/viaje_cliente_viewmodel.dart';
 import 'package:taxi_app/caracteristicas/viaje_compartido/presentacion/widgets/barra_progreso_direccional.dart';
+import 'package:taxi_app/caracteristicas/viaje_compartido/presentacion/utils/trip_card_metrics.dart';
 import 'package:taxi_app/caracteristicas/viaje_compartido/presentacion/widgets/eta_distancia_row.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/constants/solicitud_estado.dart';
@@ -99,10 +100,14 @@ class _TripInfoCardState extends State<TripInfoCard>
       animation: widget.vm,
       builder: (context, _) {
         final vm = widget.vm;
+        final m = TripCardMetrics.of(context);
 
         return Container(
           width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+          padding: EdgeInsets.symmetric(
+            horizontal: 18,
+            vertical: m.paddingVertical,
+          ),
           decoration: BoxDecoration(
             color: AppColores.cardBackground,
             borderRadius: const BorderRadius.only(
@@ -123,7 +128,7 @@ class _TripInfoCardState extends State<TripInfoCard>
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                const SizedBox(height: 18),
+                SizedBox(height: m.gapSuperior),
                 Center(
                   child: Container(
                     padding: const EdgeInsets.symmetric(
@@ -147,9 +152,9 @@ class _TripInfoCardState extends State<TripInfoCard>
                     ),
                   ),
                 ),
-                const SizedBox(height: 22),
+                SizedBox(height: m.gapTitulo),
                 CodigoVerificacionBanner(codigo: widget.codigoVerificacion),
-                const SizedBox(height: 10),
+                SizedBox(height: m.gapSeccion),
                 ConductorVehiculoInfo(
                   nombre: vm.conductorNombre,
                   fotoConductorUrl: vm.conductorFotoUrl,
@@ -157,21 +162,25 @@ class _TripInfoCardState extends State<TripInfoCard>
                   placa: vm.placaVehiculo,
                   calificacion: vm.calificacionConductor,
                   isMoto: vm.isMoto,
+                  avatarRadius: m.avatarRadius,
+                  vehiculoWidth: m.vehiculoWidth,
+                  vehiculoHeight: m.vehiculoHeight,
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: m.gapCompacto),
                 EtaDistanciaRow(
                   etaText: vm.etaText,
                   distanceText: vm.distanceText,
                   expanded: true,
                   showLabel: false,
                 ),
-                const SizedBox(height: 10),
+                SizedBox(height: m.gapSeccion),
                 BarraProgresoDireccional(
                   animation: _progressAnimation,
                   isMoto: vm.isMoto,
+                  circleSize: m.barraCircleSize,
                   vehicleIconRatio: 24 / 44,
                 ),
-                const SizedBox(height: 14),
+                SizedBox(height: m.gapSeccion),
                 if (widget.onEmergency != null) ...[
                   SizedBox(
                     width: double.infinity,
@@ -203,7 +212,7 @@ class _TripInfoCardState extends State<TripInfoCard>
                       ),
                     ),
                   ),
-                  const SizedBox(height: 10),
+                  SizedBox(height: m.gapSeccion),
                 ],
                 // El chat solo mientras el pasajero espera al conductor. Una vez
                 // "En viaje hacia tu destino" ya van juntos en el vehículo y
