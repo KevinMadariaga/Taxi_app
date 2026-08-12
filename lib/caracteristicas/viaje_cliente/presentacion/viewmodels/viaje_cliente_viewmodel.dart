@@ -71,6 +71,11 @@ class ViajeClienteViewModel extends ChangeNotifier {
   ValueNotifier<List<LatLng>> get routePointsNotifier =>
       _movementEngine.remainingRoutePointsNotifier;
 
+  void pauseMovimientoConductor() => _movementEngine.pause();
+
+  void resumeMovimientoConductor() =>
+      _movementEngine.resume(conductorLatLngCrudo);
+
   ViajeEntity? viaje;
   bool isLoading = true;
   bool isUpdatingRoute = false;

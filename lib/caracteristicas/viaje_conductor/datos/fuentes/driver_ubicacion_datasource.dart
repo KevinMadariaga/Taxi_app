@@ -1,5 +1,7 @@
 import 'package:geolocator/geolocator.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import 'package:taxi_app/core/services/firebase_service.dart';
 import 'package:taxi_app/core/services/tracking_service.dart';
 
 /// Envoltorio delgado sobre `TrackingService` (ganador de la consolidación
@@ -12,10 +14,14 @@ import 'package:taxi_app/core/services/tracking_service.dart';
 /// `DriverLocationService`, que reimplementaba su propio stream de
 /// `Geolocator` en paralelo.
 class DriverUbicacionDatasource {
-  DriverUbicacionDatasource({TrackingService? trackingService})
-    : _tracking = trackingService ?? TrackingService();
+  DriverUbicacionDatasource({
+    TrackingService? trackingService,
+    FirebaseService? firebaseService,
+  }) : _tracking = trackingService ?? TrackingService(),
+       _firebaseService = firebaseService ?? FirebaseService();
 
   final TrackingService _tracking;
+  final FirebaseService _firebaseService;
 
   bool get enviando => _tracking.isTracking;
   Position? get ultimaPosicion => _tracking.lastPosition;
@@ -52,6 +58,19 @@ class DriverUbicacionDatasource {
       userType: 'conductor',
       position: posicion,
       solicitudId: viajeId,
+    );
+  }
+
+  /// Escribe un punto fijo directo a la solicitud, sin pasar por el stream de
+  /// Geolocator — usado por la simulación de recorrido en modo debug (QA sin
+  /// mover el dispositivo físicamente).
+  Future<void> enviarPuntoSimulado({
+    required String viajeId,
+    required LatLng position,
+  }) {
+    return _firebaseService.actualizarUbicacionConductorEnSolicitud(
+      solicitudId: viajeId,
+      position: position,
     );
   }
 

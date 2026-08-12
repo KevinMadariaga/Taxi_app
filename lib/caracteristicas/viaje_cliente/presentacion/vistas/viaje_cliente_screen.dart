@@ -49,7 +49,8 @@ class ViajeClienteScreen extends StatefulWidget {
   State<ViajeClienteScreen> createState() => _ViajeClienteScreenState();
 }
 
-class _ViajeClienteScreenState extends State<ViajeClienteScreen> {
+class _ViajeClienteScreenState extends State<ViajeClienteScreen>
+    with WidgetsBindingObserver {
   late final ViajeClienteViewModel _vm;
   GoogleMapController? _mapController;
   bool _initialCameraApplied = false;
@@ -82,6 +83,7 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
 
     final viajeRepository = ViajeRepositoryImpl();
 
@@ -155,11 +157,24 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     FcmService.instance.limpiarPantallaDeViaje(widget.viajeId);
     _codigoSub?.cancel();
     _vm.removeListener(_onVmChanged);
     _vm.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.paused) {
+      _vm.pauseMovimientoConductor();
+      return;
+    }
+    if (state == AppLifecycleState.resumed) {
+      _vm.resumeMovimientoConductor();
+    }
   }
 
   bool _iconoTipoVehiculoResuelto = false;
@@ -652,7 +667,7 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen> {
                                 _vm.clienteLatLng ?? conductorPos ?? fallback,
                             zoom: 14,
                           ),
-                          myLocationEnabled: true,
+                          myLocationEnabled: false,
                           myLocationButtonEnabled: false,
                           compassEnabled: true,
                           padding: EdgeInsets.only(bottom: viewPaddingBottom),

@@ -237,6 +237,12 @@ class MapaPrevisualizacionSolicitud extends StatelessWidget {
                   imageUrl: url,
                   fit: BoxFit.cover,
                   fadeInDuration: const Duration(milliseconds: 200),
+                  // Sin esto, `useOldImageOnUrlChange` por defecto es `false`
+                  // y cada cambio de `url` (cada pocos segundos, con cada GPS
+                  // ping del conductor) limpiaba la imagen y mostraba el
+                  // placeholder (spinner) de nuevo — el parpadeo periódico
+                  // reportado en QA, no relacionado con `_vm.isLoading`.
+                  useOldImageOnUrlChange: true,
                   placeholder: (context, _) => const _MapaPreviewCargando(),
                   errorWidget: (context, _, error) {
                     ErrorReporter.report(

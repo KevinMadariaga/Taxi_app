@@ -18,6 +18,7 @@ class AccionesConductorButtons extends StatelessWidget {
     this.mostrarChat = true,
     this.primaryLoading = false,
     this.primaryPastel = false,
+    this.chatBadgeCount = 0,
   });
 
   final VoidCallback onChat;
@@ -25,6 +26,7 @@ class AccionesConductorButtons extends StatelessWidget {
   final VoidCallback? onAccionPrimaria;
   final String primaryLabel;
   final IconData primaryIcon;
+  final int chatBadgeCount;
 
   /// El chat solo aplica al tramo de recogida: una vez que el pasajero está a
   /// bordo ("Llévalo a su destino") ya van juntos y escribirse no tiene
@@ -47,6 +49,7 @@ class AccionesConductorButtons extends StatelessWidget {
                   text: 'Chat',
                   icon: Icons.chat_bubble_outline,
                   onPressed: onChat,
+                  badgeCount: chatBadgeCount,
                 ),
               ),
               const SizedBox(width: 10),

@@ -1,3 +1,6 @@
+import 'dart:async' show unawaited;
+
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 
 import 'package:taxi_app/caracteristicas/verificacion_recogida/datos/repositorios/codigo_verificacion_repository_impl.dart';
@@ -89,7 +92,27 @@ class _ViajeConductorScreenState extends State<ViajeConductorScreen>
       navegacionDatasource: NavegacionExternaDatasource(),
     );
     _vm.addListener(_onVmChanged);
-    _vm.init();
+    final initFuture = _vm.init();
+
+    // QA sin taps: dispara la simulación de recorrido sola al montar,
+    // relanzando con `--dart-define=SIMULAR_RECORRIDO_QA=full` (recorrido
+    // completo) o `=last` (salta directo al último punto, sin retomar GPS
+    // real después) — necesario en dispositivos donde no se pueden inyectar
+    // taps sintéticos. Se encadena DESPUÉS de que `init()` termine su propio
+    // fetch inicial de GPS real (`_ubicacion.iniciarEnvio`, awaited adentro
+    // de `init()`) — si se disparaba en paralelo, ese fetch tardío podía
+    // pisar el punto simulado (visto en pruebas: la posición real llegaba
+    // ~3s después y sobrescribía el punto que se acababa de mandar).
+    if (kDebugMode) {
+      const modoQA = String.fromEnvironment('SIMULAR_RECORRIDO_QA');
+      if (modoQA == 'full') {
+        unawaited(initFuture.then((_) => _vm.simularRecorridoDePrueba()));
+      } else if (modoQA == 'last') {
+        unawaited(
+          initFuture.then((_) => _vm.reposicionarEnUltimaUbicacionSimulada()),
+        );
+      }
+    }
 
     SessionHelper.setActiveSolicitudScreen('viaje_conductor');
     // Con esta pantalla montada, sus listeners avisan en tiempo real: el
@@ -456,6 +479,29 @@ class _ViajeConductorScreenState extends State<ViajeConductorScreen>
                           bottom: 16 + viewPaddingBottom,
                           child: const PanicButtonFab(),
                         ),
+                        // Solo debug: simula el recorrido fijo de QA sin
+                        // depender de mover el dispositivo físicamente.
+                        if (kDebugMode)
+                          Positioned(
+                            right: 16,
+                            bottom: 16 + viewPaddingBottom,
+                            child: FloatingActionButton.small(
+                              heroTag: 'simular_recorrido_qa',
+                              backgroundColor: AppColores.grey300,
+                              onPressed: _vm.isSimulandoRecorrido
+                                  ? null
+                                  : () => _vm.simularRecorridoDePrueba(),
+                              child: _vm.isSimulandoRecorrido
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Icon(Icons.route_rounded),
+                            ),
+                          ),
                       ],
                     ),
                   ),

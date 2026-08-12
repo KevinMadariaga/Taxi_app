@@ -150,6 +150,17 @@ class ViajeConductorViewModel extends ChangeNotifier {
 
   bool get hasBothLocations => driverLatLng != null && objetivoActual != null;
 
+  /// Radio dentro del cual el conductor puede reportar su llegada al punto
+  /// de recogida — evita reportes falsos hechos desde lejos.
+  static const double _radioLlegadaMetros = 50;
+
+  bool get puedeReportarLlegada {
+    final driver = driverLatLng;
+    final objetivo = objetivoActual;
+    if (driver == null || objetivo == null) return false;
+    return _mathService.haversineMeters(driver, objetivo) <= _radioLlegadaMetros;
+  }
+
   String get distanceText =>
       distanceMeters == null ? '--' : _ruta.formatearDistancia(distanceMeters!);
   String get etaText => eta == null ? '--' : _ruta.formatearEta(eta!);
@@ -195,6 +206,7 @@ class ViajeConductorViewModel extends ChangeNotifier {
           errorText = null;
           _errorEsDeCarga = false;
         }
+        _actualizarProgresoLiviano();
         _safeNotify();
 
         _handleEstadoTransition(incoming.estado);
@@ -294,6 +306,85 @@ class ViajeConductorViewModel extends ChangeNotifier {
     await _navegacion.abrirRutaHacia(objetivo);
   }
 
+  /// Recorrido fijo para QA del movimiento del marcador en el cliente, sin
+  /// depender de mover el dispositivo físicamente.
+  static const List<LatLng> _rutaSimuladaDefault = [
+    LatLng(8.230495, -73.346231),
+    LatLng(8.230368, -73.346023),
+    LatLng(8.230235, -73.345940),
+    LatLng(8.229924, -73.346086),
+    LatLng(8.229712, -73.346203),
+    LatLng(8.229426, -73.346366),
+    LatLng(8.229137, -73.346527),
+    LatLng(8.229038, -73.346581),
+    LatLng(8.228945, -73.346764),
+    LatLng(8.228789, -73.346721),
+    LatLng(8.228696, -73.346787),
+    LatLng(8.228616, -73.346910),
+    LatLng(8.228571, -73.346853),
+    LatLng(8.228486, -73.346901),
+    LatLng(8.228401, -73.346956),
+    LatLng(8.228169, -73.347093),
+    LatLng(8.228033, -73.347067),
+  ];
+
+  /// Override en runtime vía `--dart-define=SIMULAR_RECORRIDO_PUNTOS=lat,lng;lat,lng;...`
+  /// — así QA puede correr un recorrido nuevo sin tocar código, solo
+  /// relanzando con otro define (necesario porque `String.fromEnvironment`
+  /// se resuelve en tiempo de compilación).
+  static List<LatLng> get _rutaSimulada {
+    const raw = String.fromEnvironment('SIMULAR_RECORRIDO_PUNTOS');
+    if (raw.trim().isEmpty) return _rutaSimuladaDefault;
+    return raw
+        .split(';')
+        .where((par) => par.trim().isNotEmpty)
+        .map((par) {
+          final partes = par.split(',');
+          return LatLng(double.parse(partes[0].trim()), double.parse(partes[1].trim()));
+        })
+        .toList();
+  }
+
+  bool isSimulandoRecorrido = false;
+
+  /// Detiene el tracking real, envía `_rutaSimulada` punto por punto al
+  /// mismo ritmo configurado para el GPS real (`timeInterval: 10s` en
+  /// `DriverUbicacionDatasource.iniciarEnvio`), y retoma el tracking real al
+  /// terminar. Solo para QA — ver botón debug en `ViajeConductorScreen`.
+  Future<void> simularRecorridoDePrueba() async {
+    if (isSimulandoRecorrido) return;
+    isSimulandoRecorrido = true;
+    _safeNotify();
+
+    await _ubicacion.detener();
+    try {
+      for (final punto in _rutaSimulada) {
+        if (_disposed) return;
+        await _ubicacion.enviarPuntoSimulado(viajeId: viajeId, position: punto);
+        await Future<void>.delayed(const Duration(seconds: 10));
+      }
+    } finally {
+      isSimulandoRecorrido = false;
+      if (!_disposed && !isAppInBackground) {
+        await _ubicacion.iniciarEnvio(conductorId: conductorId, viajeId: viajeId);
+      }
+      _safeNotify();
+    }
+  }
+
+  /// Reposiciona directo en el último punto de `_rutaSimulada` (dentro del
+  /// radio de llegada) sin retomar el tracking real después — así el botón
+  /// "Ya llegué" queda habilitado el tiempo que QA necesite para tocarlo a
+  /// mano. Solo para QA.
+  Future<void> reposicionarEnUltimaUbicacionSimulada() async {
+    if (isSimulandoRecorrido) return;
+    await _ubicacion.detener();
+    await _ubicacion.enviarPuntoSimulado(
+      viajeId: viajeId,
+      position: _rutaSimulada.last,
+    );
+  }
+
   /// Llamar desde `didChangeAppLifecycleState` (paused/inactive/hidden):
   /// detiene el stream en vivo y arranca el servicio en background — nunca
   /// ambos corriendo a la vez.
@@ -352,6 +443,18 @@ class ViajeConductorViewModel extends ChangeNotifier {
     } catch (_) {
       // El stream recién reiniciado ya se encarga del próximo punto.
     }
+
+    // Fuerza recalcular ruta/heading/progreso ahora mismo, sin esperar a que
+    // el conductor se mueva >20m desde antes de ir a segundo plano (mismo
+    // umbral que `_refreshRouteIfNeeded` usa para no golpear la API de rutas
+    // en cada GPS ping) — cubre tanto volver de background normal como volver
+    // de Google Maps externo (que dispara el mismo `paused`→`resumed`).
+    try {
+      await _refreshRouteIfNeeded(forceRefresh: true);
+    } catch (_) {
+      // Best-effort: el próximo snapshot ya trae la ruta actualizada.
+    }
+    _safeNotify();
   }
 
   void _handleEstadoTransition(String estado) {
@@ -433,13 +536,14 @@ class ViajeConductorViewModel extends ChangeNotifier {
     _closeWaitingModal();
   }
 
-  Future<void> _refreshRouteIfNeeded() async {
+  Future<void> _refreshRouteIfNeeded({bool forceRefresh = false}) async {
     if (!hasBothLocations || isRouteLoading) return;
 
     final from = driverLatLng!;
     final to = objetivoActual!;
 
     final shouldRefresh =
+        forceRefresh ||
         _lastFrom == null ||
         _lastTo == null ||
         _mathService.haversineMeters(_lastFrom!, from) > 20 ||
@@ -503,6 +607,22 @@ class ViajeConductorViewModel extends ChangeNotifier {
     if (inicial == null || inicial <= 0) return 0.0;
     final avance = (inicial - distanciaRestante) / inicial;
     return avance.clamp(0.0, 1.0);
+  }
+
+  /// Actualiza `distanceMeters`/`progresoTramo` en cada GPS ping usando
+  /// distancia en línea recta (barata, sin llamar a la API de rutas) —
+  /// `_refreshRouteIfNeeded` sigue siendo la única fuente de la polilínea y
+  /// del ETA, y solo recalcula pasados >20m para no golpear esa API en cada
+  /// ping. Sin esto la barra de progreso solo avanzaba a saltos, cada vez
+  /// que ese umbral se cruzaba, en vez de fluida con cada actualización de
+  /// ubicación.
+  void _actualizarProgresoLiviano() {
+    final driver = driverLatLng;
+    final objetivo = objetivoActual;
+    if (driver == null || objetivo == null) return;
+    final restante = _mathService.haversineMeters(driver, objetivo);
+    distanceMeters = restante;
+    progresoTramo = _calcularProgreso(restante);
   }
 
   /// El conductor abre el sheet del PIN: la modal de espera se retira y no

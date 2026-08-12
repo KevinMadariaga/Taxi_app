@@ -99,11 +99,16 @@ class RideSecondaryButton extends StatelessWidget {
     required this.text,
     this.icon,
     required this.onPressed,
+    this.badgeCount = 0,
   });
 
   final String text;
   final IconData? icon;
   final VoidCallback? onPressed;
+
+  /// Cantidad a mostrar en la burbuja roja sobre [icon] (p.ej. mensajes sin
+  /// leer). `0` no dibuja nada.
+  final int badgeCount;
 
   @override
   Widget build(BuildContext context) {
@@ -127,7 +132,38 @@ class RideSecondaryButton extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 if (icon != null) ...[
-                  Icon(icon, size: 17, color: AppColores.ink700),
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Icon(icon, size: 17, color: AppColores.ink700),
+                      if (badgeCount > 0)
+                        Positioned(
+                          top: -5,
+                          right: -6,
+                          child: Container(
+                            padding: const EdgeInsets.all(2),
+                            constraints: const BoxConstraints(
+                              minWidth: 14,
+                              minHeight: 14,
+                            ),
+                            decoration: const BoxDecoration(
+                              color: Colors.red,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Text(
+                              badgeCount > 9 ? '9+' : '$badgeCount',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 8,
+                                fontWeight: FontWeight.w800,
+                                height: 1,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                   const SizedBox(width: 6),
                 ],
                 Text(

@@ -231,6 +231,7 @@ class _TripInfoCardState extends State<TripInfoCard>
                           text: 'Chat',
                           icon: Icons.chat_bubble_outline,
                           onPressed: widget.onChat,
+                          badgeCount: vm.chat.unreadCount,
                         ),
                       ),
                       const SizedBox(width: 10),

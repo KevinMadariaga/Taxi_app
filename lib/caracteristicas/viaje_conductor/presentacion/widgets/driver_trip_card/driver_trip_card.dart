@@ -117,11 +117,18 @@ class _DriverTripCardState extends State<DriverTripCard>
         pastel: false,
       );
     }
-    // asignado (o cualquier otro): reportar llegada.
+    // asignado (o cualquier otro): reportar llegada, solo dentro del radio.
+    final dentroDeRango = vm.puedeReportarLlegada;
     return (
-      label: vm.hasReportedArrival ? 'Enviado' : 'Ya llegué al punto',
+      label: vm.hasReportedArrival
+          ? 'Enviado'
+          : (dentroDeRango
+                ? 'Ya llegué al punto'
+                : 'Acércate para reportar llegada'),
       icon: vm.hasReportedArrival ? Icons.check : Icons.my_location_rounded,
-      onTap: vm.hasReportedArrival ? null : widget.onReportarLlegada,
+      onTap: (vm.hasReportedArrival || !dentroDeRango)
+          ? null
+          : widget.onReportarLlegada,
       pastel: true,
     );
   }
@@ -229,6 +236,7 @@ class _DriverTripCardState extends State<DriverTripCard>
                   onAccionPrimaria: accion.onTap,
                   primaryLabel: accion.label,
                   primaryIcon: accion.icon,
+                  chatBadgeCount: vm.chat.unreadCount,
                   // El chat solo en el tramo de recogida: ya con el pasajero a
                   // bordo van juntos en el vehículo.
                   mostrarChat: vm.tramoActual == TramoViajeConductor.recogida,
