@@ -200,12 +200,16 @@ class UserDataService {
     }, SetOptions(merge: true));
   }
 
-  /// Vuelve el rol a cliente y retira la solicitud de conductor pendiente
-  /// (deja de notificar al admin). Fire-and-forget en el llamador.
+  /// Vuelve el rol a cliente. A propósito NO toca `solicitudConductor`: si
+  /// el usuario había pedido activar el servicio, esa solicitud debe seguir
+  /// visible para el admin (pestaña de conductores + badge de pendientes en
+  /// `admin_home_screen.dart`) aunque el usuario haya vuelto a cliente antes
+  /// de que lo resuelvan. Solo un admin la cierra de verdad, vía
+  /// [aprobarMembresiaConductor] o [quitarRolConductorComoAdmin].
+  /// Fire-and-forget en el llamador.
   Future<void> volverACliente(String uid) async {
     await _firestore.collection('usuarios').doc(uid).set({
       'rol': 'cliente',
-      'solicitudConductor': false,
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }

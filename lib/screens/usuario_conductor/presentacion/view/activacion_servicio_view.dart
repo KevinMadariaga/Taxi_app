@@ -41,18 +41,20 @@ Future<void> _marcarSolicitudActivacion() async {
   }
 }
 
-/// Modal de bienvenida/activación que se muestra sobre [InicioConductor]
-/// mientras la membresía NO esté `activa`. No se descarta (back ni tap fuera).
-/// Permite ir a pagar (Activar) o volver a ser cliente ([onVolverCliente]).
+/// Modal de bienvenida/activación que se muestra al conductor cuando toca
+/// "Conectado" con la membresía NO `activa`. Se puede cerrar tocando afuera
+/// o con back — el conductor puede seguir mirando la interfaz sin activar el
+/// servicio. Permite ir a pagar (Activar) o volver a ser cliente
+/// ([onVolverCliente]).
 Future<void> mostrarBienvenidaConductorDialog(
   BuildContext context, {
   required VoidCallback onVolverCliente,
 }) {
   return showDialog<void>(
     context: context,
-    barrierDismissible: false,
+    barrierDismissible: true,
     builder: (ctx) => PopScope(
-      canPop: false,
+      canPop: true,
       child: AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
@@ -108,9 +110,20 @@ class ActivacionServicioView extends StatelessWidget {
   const ActivacionServicioView({super.key});
 
   Future<void> _abrirWhatsapp(BuildContext context) async {
+    // Incluye el nombre del usuario como identificador: el mensaje de
+    // WhatsApp llega solo, sin nada que lo cruce con el push de
+    // `_marcarSolicitudActivacion` o con el panel de admin.
+    String nombre = 'Conductor';
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null) {
+      final data = await UserDataService().getUsuario(uid);
+      nombre = (data?['nombre'] ?? nombre).toString();
+    }
+    final mensaje = '$_kMensajeWhatsapp - $nombre';
     final uri = Uri.parse(
-      'https://wa.me/$kWhatsappNumero?text=${Uri.encodeComponent(_kMensajeWhatsapp)}',
+      'https://wa.me/$kWhatsappNumero?text=${Uri.encodeComponent(mensaje)}',
     );
+    if (!context.mounted) return;
     final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!ok && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(

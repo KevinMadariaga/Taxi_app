@@ -188,9 +188,13 @@ class _CompletarRegistroConductorViewState
       // Sincronizar rol en caché para que al reiniciar abra como conductor.
       await SessionHelper.updateRole('conductor');
 
-      // Solicitar permisos de ubicación en segundo plano (conductor).
-      // En iOS esto muestra el diálogo nativo "Permitir siempre".
-      await PermissionsHelper.requestAllPermissions(isDriver: true);
+      // Solo notificaciones + ubicación en primer plano acá. El permiso de
+      // ubicación en segundo plano se pide después, recién cuando llega una
+      // solicitud y el conductor toca "Aceptar" (ver
+      // `_ensureBackgroundLocationForTrip` en `InicioConductorView`) — no
+      // hace falta interrumpir el registro con el diálogo nativo "Permitir
+      // siempre" antes de que haya un viaje real que trackear.
+      await PermissionsHelper.requestAllPermissions();
 
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(

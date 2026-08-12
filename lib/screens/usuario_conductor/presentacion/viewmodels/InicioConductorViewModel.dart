@@ -4,7 +4,6 @@ import 'package:flutter/foundation.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:taxi_app/data/models/solicitud_item.dart';
 import 'package:taxi_app/core/helpers/map_helper.dart';
-import 'package:taxi_app/core/helpers/permisos_helper.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodels/preview_solicitud.dart';
@@ -172,12 +171,12 @@ class InicioConductorViewmodel extends ChangeNotifier {
     _profileController.listenCachedName();
     // Kick off async startup tasks but do not await them so UI can render fast.
     _profileController.loadProfile();
-    // El permiso de background debe pedirse después del foreground: Android
-    // 11+ exige "whileInUse" concedido antes de poder solicitar "always".
-    // PermissionsHelper._runExclusive serializa por orden de llamada, así
-    // que _loadLocation() (que pide foreground) debe encolarse primero.
     _loadLocation();
-    _requestBackgroundLocationPermission();
+
+    // El permiso de ubicación en segundo plano ya no se pide acá: se difiere
+    // hasta que el conductor efectivamente acepta o le asignan un viaje (ver
+    // `_ensureBackgroundLocationForTrip` en `InicioConductorView`), para no
+    // interrumpir la vista previa del home apenas cambia a modo conductor.
 
     // Subscriptions can be registered immediately; they will react when data arrives.
     _subscribeConductorStatus();
@@ -219,14 +218,6 @@ class InicioConductorViewmodel extends ChangeNotifier {
       // una preview abierta (referencia al item viejo, con distanciaKm null
       // por falta de GPS en ese momento) esta no se actualiza sola.
       refreshSelectedPreviewDistance();
-    }
-  }
-
-  Future<void> _requestBackgroundLocationPermission() async {
-    try {
-      await PermissionsHelper.requestBackgroundLocationPermission();
-    } catch (e, st) {
-      ErrorReporter.report(e, st, reason: 'InicioConductorViewModel');
     }
   }
 

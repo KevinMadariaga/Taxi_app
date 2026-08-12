@@ -64,6 +64,9 @@ class _InicioConductorState extends State<InicioConductor>
   bool _dialogMembresiaVisible = false;
   // null = primer snapshot aún no recibido; false = inactiva; true = activa
   bool? _membresiaPreviamenteActiva;
+  // Último valor conocido de la membresía, usado por el botón "Conectado"
+  // para decidir si abre el modal de activación en vez de conectar.
+  bool _membresiaActivaActual = false;
 
   // Mide la altura real de la card de preview para: (1) que el mapa reciba ese
   // padding inferior y centre los marcadores en la zona visible, y (2) que la
@@ -166,7 +169,10 @@ class _InicioConductorState extends State<InicioConductor>
       return false;
     }
 
-    // 2) Validar permisos foreground y background
+    // 2) Validar permiso foreground. El de segundo plano ya no se pide acá:
+    // se difiere hasta que el conductor acepte o le asignen un viaje (ver
+    // `_ensureBackgroundLocationForTrip`), para no bloquear la vista previa
+    // del home apenas cambia a modo conductor.
     final foregroundGranted =
         await PermissionsHelper.requestLocationPermission();
     if (!foregroundGranted) {
@@ -174,30 +180,6 @@ class _InicioConductorState extends State<InicioConductor>
       return false;
     }
 
-    // 3) Permiso de segundo plano: mostrar explicación si aún no está concedido.
-    final yaConBg = await PermissionsHelper.hasBackgroundLocationPermission();
-    if (!yaConBg) {
-      if (!mounted) return false;
-      final continuar = await _showBackgroundLocationDialog();
-      if (!continuar) {
-        _showGpsSnackBar(
-          'Activa la ubicación en segundo plano para recibir solicitudes.',
-        );
-        return false;
-      }
-    }
-
-    final backgroundGranted =
-        await PermissionsHelper.requestBackgroundLocationPermission();
-    if (!backgroundGranted) {
-      if (!mounted) return false;
-      // En iOS el usuario puede haber elegido "Cuando uso la app" en vez de
-      // "Siempre". Guiar a Ajustes para completar la selección.
-      await _showIrAAjustesUbicacionDialog();
-      return false;
-    }
-
-    // 4) Todos los permisos OK: listos para iniciar.
     return true;
   }
 
@@ -241,31 +223,45 @@ class _InicioConductorState extends State<InicioConductor>
         }
       }
 
-      // Permiso de segundo plano: mostrar explicación si aún no está concedido.
-      final yaConBg = await PermissionsHelper.hasBackgroundLocationPermission();
-      if (!yaConBg) {
-        if (!mounted) return false;
-        final continuar = await _showBackgroundLocationDialog();
-        if (!continuar) {
-          _showGpsSnackBar(
-            'Activa la ubicación en segundo plano para recibir solicitudes.',
-          );
-          return false;
-        }
-      }
-
-      final bgGranted =
-          await PermissionsHelper.requestBackgroundLocationPermission();
-      if (!bgGranted) {
-        if (!mounted) return false;
-        await _showIrAAjustesUbicacionDialog();
-        return false;
-      }
-
+      // El permiso de segundo plano ya no se pide acá (ver
+      // `_ensureBackgroundLocationForTrip`, disparado al aceptar un viaje).
       return true;
     } finally {
       _isRequestingPermissions = false;
     }
+  }
+
+  /// Asegura el permiso de ubicación en segundo plano justo antes de que el
+  /// conductor quede asignado a un viaje (aceptar directo o contraoferta
+  /// aceptada por el cliente). Muestra la explicación previa
+  /// (`_showBackgroundLocationDialog`) y, si el SO lo niega, guía a Ajustes
+  /// (`_showIrAAjustesUbicacionDialog`). Devuelve `true` solo si el permiso
+  /// queda concedido.
+  Future<bool> _ensureBackgroundLocationForTrip() async {
+    final yaConBg = await PermissionsHelper.hasBackgroundLocationPermission();
+    if (yaConBg) return true;
+
+    if (!mounted) return false;
+    final continuar = await _showBackgroundLocationDialog();
+    if (!continuar) return false;
+
+    final backgroundGranted =
+        await PermissionsHelper.requestBackgroundLocationPermission();
+    if (!backgroundGranted) {
+      if (!mounted) return false;
+      // En iOS el usuario puede haber elegido "Cuando uso la app" en vez de
+      // "Siempre". Guiar a Ajustes para completar la selección.
+      await _showIrAAjustesUbicacionDialog();
+      return false;
+    }
+
+    // Best-effort, no bloquea el viaje: la exención de optimización de
+    // batería (Android) mejora la confiabilidad del tracking en segundo
+    // plano durante el viaje, pero antes se pedía en el registro, sin viaje
+    // real todavía. Se pide acá, junto con el permiso de ubicación.
+    unawaited(PermissionsHelper.requestIgnoreBatteryOptimizations());
+
+    return true;
   }
 
   // Centrar la cámara en la perspectiva del conductor hacia el cliente al seleccionar una solicitud
@@ -329,6 +325,12 @@ class _InicioConductorState extends State<InicioConductor>
     }
 
     try {
+      // Best-effort: la asignación ya ocurrió en Firestore (aceptó el
+      // conductor o el cliente aceptó su contraoferta), no hay nada que
+      // frenar acá — solo se aprovecha el momento para pedir el permiso de
+      // ubicación en segundo plano si todavía no lo tiene.
+      await _ensureBackgroundLocationForTrip();
+      if (!mounted) return;
       await _closePreview(vm);
       if (!mounted) {
         return;
@@ -981,7 +983,7 @@ class _InicioConductorState extends State<InicioConductor>
                                   child: ElevatedButton.icon(
                                     onPressed: vm.isTogglingConnection
                                         ? null
-                                        : vm.toggleConductorConnection,
+                                        : () => _onTapConectar(vm),
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: connected
                                           ? AppColores.buttonPrimary
@@ -1122,6 +1124,24 @@ class _InicioConductorState extends State<InicioConductor>
                                             final messenger =
                                                 ScaffoldMessenger.of(context);
                                             try {
+                                              final bgOk =
+                                                  await _ensureBackgroundLocationForTrip();
+                                              if (!bgOk) {
+                                                if (mounted) {
+                                                  _isAcceptingRequest.value =
+                                                      false;
+                                                  messenger.showSnackBar(
+                                                    const SnackBar(
+                                                      content: Text(
+                                                        'Activa la ubicación en segundo plano para aceptar viajes.',
+                                                      ),
+                                                      backgroundColor:
+                                                          Colors.orange,
+                                                    ),
+                                                  );
+                                                }
+                                                return;
+                                              }
                                               await vm.aceptarSolicitud(id);
                                               if (mounted) {
                                                 _isAcceptingRequest.value =
@@ -1215,9 +1235,13 @@ class _InicioConductorState extends State<InicioConductor>
     );
   }
 
-  /// Vigila la membresía del conductor en `usuarios/{uid}`. Mientras no esté
-  /// `activa`, muestra el modal de activación (persistente). Cuando pasa a
-  /// `activa`, lo cierra (y la pantalla de pago si estuviera encima).
+  /// Vigila la membresía del conductor en `usuarios/{uid}`. Ya no abre el
+  /// modal de activación por su cuenta — eso solo ocurre cuando el conductor
+  /// toca "Conectado" (ver `_onTapConectar`). Acá solo: mantiene
+  /// `_membresiaActivaActual` al día, programa el vencimiento, cierra el
+  /// modal (y la pantalla de pago si estuviera encima) apenas pasa a
+  /// `activa`, y desconecta al conductor si la membresía vence mientras
+  /// estaba conectado.
   void _initMembresiaWatcher() {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
@@ -1250,15 +1274,15 @@ class _InicioConductorState extends State<InicioConductor>
 
       final activa = flagActiva && !vencida;
 
-      if (!activa && !_dialogMembresiaVisible) {
-        _dialogMembresiaVisible = true;
-        mostrarBienvenidaConductorDialog(
-          context,
-          onVolverCliente: _volverACliente,
-        ).whenComplete(() {
-          _dialogMembresiaVisible = false;
-        });
-      } else if (activa) {
+      if (!activa) {
+        // Si estaba conectado y la membresía se volvió inactiva (venció),
+        // desconectarlo: sin esto el botón seguiría mostrando "Conectado"
+        // aunque ya no pueda recibir viajes (aceptarSolicitud lo bloquea
+        // igual del lado del servidor, pero la UI quedaría inconsistente).
+        if (_membresiaActivaActual && _vm.isConnected) {
+          unawaited(_vm.toggleConductorConnection());
+        }
+      } else {
         if (_dialogMembresiaVisible) {
           _dialogMembresiaVisible = false;
           Navigator.of(context).popUntil((route) => route.isFirst);
@@ -1286,8 +1310,27 @@ class _InicioConductorState extends State<InicioConductor>
         }
       }
 
+      _membresiaActivaActual = activa;
       _membresiaPreviamenteActiva = activa;
     });
+  }
+
+  /// Handler del botón "Conectado": si la membresía no está activa, abre el
+  /// modal de activación (descartable) en vez de conectar; el conductor
+  /// puede cerrarlo y seguir mirando la interfaz sin activar el servicio.
+  Future<void> _onTapConectar(InicioConductorViewmodel vm) async {
+    if (!_membresiaActivaActual) {
+      if (_dialogMembresiaVisible) return;
+      _dialogMembresiaVisible = true;
+      await mostrarBienvenidaConductorDialog(
+        context,
+        onVolverCliente: _volverACliente,
+      ).whenComplete(() {
+        _dialogMembresiaVisible = false;
+      });
+      return;
+    }
+    await vm.toggleConductorConnection();
   }
 
   /// Muestra explicación antes de pedir permiso de ubicación en segundo plano.
