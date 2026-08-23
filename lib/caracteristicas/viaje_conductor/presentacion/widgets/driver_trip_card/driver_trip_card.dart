@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:taxi_app/caracteristicas/viaje_compartido/presentacion/utils/trip_card_metrics.dart';
 import 'package:taxi_app/caracteristicas/viaje_compartido/presentacion/widgets/barra_progreso_direccional.dart';
 import 'package:taxi_app/caracteristicas/viaje_compartido/presentacion/widgets/eta_distancia_row.dart';
 import 'package:taxi_app/caracteristicas/viaje_conductor/presentacion/viewmodels/viaje_conductor_viewmodel.dart';
@@ -16,8 +17,10 @@ import 'widgets/cliente_header_row.dart';
 /// el viewmodel directamente vía `AnimatedBuilder` en vez de recibir dos
 /// docenas de props sueltas.
 ///
-/// Siempre muestra el contenido completo — sin colapsar/expandir, ocupa la
-/// mitad superior fija de la pantalla (ver `ViajeConductorScreen`).
+/// Siempre muestra el contenido completo — sin colapsar/expandir. Su alto lo
+/// decide su propio contenido, escalado por `TripCardMetrics` según el alto
+/// de pantalla (ver `ViajeConductorScreen`, mismo modelo que
+/// `TripInfoCard` del lado cliente).
 class DriverTripCard extends StatefulWidget {
   const DriverTripCard({
     super.key,
@@ -149,10 +152,11 @@ class _DriverTripCardState extends State<DriverTripCard>
       builder: (context, _) {
         final vm = widget.vm;
         final accion = _accionPrimaria(vm);
+        final m = TripCardMetrics.of(context);
 
         return Container(
           width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: m.paddingVertical),
           decoration: BoxDecoration(
             color: AppColores.cardBackground,
             borderRadius: const BorderRadius.only(
@@ -173,7 +177,7 @@ class _DriverTripCardState extends State<DriverTripCard>
               crossAxisAlignment: CrossAxisAlignment.stretch,
               mainAxisSize: MainAxisSize.min,
               children: [
-                const SizedBox(height: 18),
+                SizedBox(height: m.gapSuperior),
                 Center(
                   child: Container(
                     padding: const EdgeInsets.symmetric(
@@ -196,7 +200,7 @@ class _DriverTripCardState extends State<DriverTripCard>
                     ),
                   ),
                 ),
-                const SizedBox(height: 22),
+                SizedBox(height: m.gapTitulo),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
@@ -214,22 +218,24 @@ class _DriverTripCardState extends State<DriverTripCard>
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
+                SizedBox(height: m.gapSeccion),
                 EtaDistanciaRow(
                   etaText: vm.etaText,
                   distanceText: vm.distanceText,
                   expanded: true,
                   showLabel: false,
                 ),
-                const SizedBox(height: 14),
+                SizedBox(height: m.gapSeccion),
                 BarraProgresoDireccional(
                   animation: _progressAnimation,
                   isMoto: vm.isMoto,
-                  circleSize: 38,
+                  // Conserva la proporción "ride" (38/44) escalando por
+                  // franja de pantalla en vez de un tamaño fijo.
+                  circleSize: m.barraCircleSize * (38 / 44),
                   destinoIcon: Icons.place_outlined,
                   vehicleIconRatio: 30 / 44,
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: m.gapCompacto),
                 AccionesConductorButtons(
                   onChat: widget.onChat,
                   onNavegar: vm.abrirNavegacionExterna,

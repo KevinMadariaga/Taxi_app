@@ -86,6 +86,13 @@ class ViajeClienteViewModel extends ChangeNotifier {
   Duration? eta;
   double _initialRouteDistance = 0;
 
+  /// Se incrementa cada vez que `_updateRouteIfNeeded` recalcula una ruta
+  /// válida contra el servicio de mapas. La screen lo usa para saber cuándo
+  /// la ruta hacia el nuevo tramo (recogida→destino) ya está lista y
+  /// reencuadrar la cámara, en vez de hacerlo en el instante del cambio de
+  /// estado (cuando la polilínea todavía es la vieja).
+  int rutaVersion = 0;
+
   /// Visible cuando el conductor reportó llegada (estado `en espera`) — el
   /// cliente confirma "Voy en camino" acá. El timeout de 3 min que cancela
   /// el viaje por falta de respuesta lo escribe el lado conductor
@@ -95,9 +102,21 @@ class ViajeClienteViewModel extends ChangeNotifier {
   final ValueNotifier<int> waitingRemainingSeconds = ValueNotifier<int>(180);
 
   StreamSubscription<ViajeEntity>? _viajeSub;
+
+  /// Encadena el procesamiento de cada snapshot de Firestore: sin esto, dos
+  /// snapshots seguidos podían solaparse en la mitad del `await` de
+  /// `_handleEstadoTransition` (recálculo de ruta contra la API) — el que
+  /// llegaba después "adelantaba" al anterior aplicando su posición del
+  /// conductor antes de que el más viejo terminara, y el marcador saltaba
+  /// hacia atrás justo al arrancar el tramo al destino (los pings de GPS
+  /// son más frecuentes justo ahí). `.listen((incoming) async {...})` NO
+  /// serializa por sí solo: Dart entrega el siguiente evento del stream en
+  /// cuanto el callback anterior cede el control en su primer `await`.
+  Future<void> _procesandoSnapshot = Future.value();
   Timer? _waitingTimer;
   String? _lastEstado;
   bool _disposed = false;
+  DateTime? _lastTickNotifyAt;
   bool _routeCalculatedOnce = false;
   LatLng? _lastFrom;
   LatLng? _lastTo;
@@ -153,10 +172,63 @@ class ViajeClienteViewModel extends ChangeNotifier {
   bool get isMoto => viaje?.isMoto ?? false;
 
   Future<void> init() async {
+    // El motor de movimiento dispara `onTick` cada 50ms mientras el marcador
+    // está en curso: se usa para refrescar `distanceMeters`/`pickupProgress`
+    // sin llamar a la API de rutas, con un notify throttleado (si no, son
+    // ~20 rebuilds/s de la card entera). `onSnap` cubre saltos grandes o el
+    // resume tras background, donde además de recalcular distancia liviana
+    // hace falta un notify inmediato.
+    _movementEngine.onTick = _onMovimientoTick;
+    _movementEngine.onSnap = () {
+      _actualizarDistanciaLiviana();
+      _lastTickNotifyAt = DateTime.now();
+      _safeNotify();
+    };
     await _restoreFromCache();
     _bindViaje();
     chat.onChanged = () => _safeNotify();
     chat.bind();
+  }
+
+  void _onMovimientoTick() {
+    _actualizarDistanciaLiviana();
+    final now = DateTime.now();
+    if (_lastTickNotifyAt != null &&
+        now.difference(_lastTickNotifyAt!) < const Duration(milliseconds: 500)) {
+      return;
+    }
+    _lastTickNotifyAt = now;
+    _safeNotify();
+  }
+
+  /// Última lista de `routePointsNotifier` sobre la que se calculó
+  /// `distanceMeters` — el motor solo reasigna esa lista (referencia nueva)
+  /// cuando rearma la ruta restante, como máximo cada 200ms
+  /// (`_rebuildRemainingRoute`). Sin este cache, el tick de 50ms recorría
+  /// esa misma lista sin cambios ~3 de cada 4 veces: trabajo O(n) real
+  /// desperdiciado en el hilo principal, justo con la ruta más larga
+  /// (recién arrancado el tramo).
+  List<LatLng>? _ultimaRutaMedida;
+
+  /// Recalcula `distanceMeters` contra la ruta restante que el motor ya
+  /// publica, sin llamar a la API de rutas. Equivalente del lado cliente a
+  /// `_actualizarProgresoLiviano` del conductor
+  /// (`ViajeConductorViewModel`), pero fiel a la ruta (no haversine) porque
+  /// acá sí tenemos la polilínea restante actualizada tick a tick.
+  void _actualizarDistanciaLiviana() {
+    final restantes = routePointsNotifier.value;
+    if (restantes.length >= 2) {
+      if (identical(restantes, _ultimaRutaMedida)) return;
+      _ultimaRutaMedida = restantes;
+      distanceMeters = _ruta.distanciaRuta(restantes);
+      return;
+    }
+    _ultimaRutaMedida = null;
+    final pos = conductorPositionNotifier.value;
+    final objetivo = objetivoActual;
+    if (pos != null && objetivo != null) {
+      distanceMeters = _mathService.haversineMeters(pos, objetivo);
+    }
   }
 
   /// Restaura la última ruta calculada desde disco antes de que llegue el
@@ -180,19 +252,19 @@ class ViajeClienteViewModel extends ChangeNotifier {
   void _bindViaje() {
     _viajeSub?.cancel();
     _viajeSub = _watchViaje(viajeId).listen(
-      (incoming) async {
-        viaje = incoming;
-        isLoading = false;
-        errorText = null;
-        _safeNotify();
-
-        _handleEstadoTransition(incoming.estado);
-        _handleConductorLocationUpdate(incoming);
-        await _updateRouteIfNeeded();
-
-        if (SolicitudEstado.isTerminal(incoming.estado)) {
-          unawaited(_localCache.clearSolicitudData(viajeId));
-        }
+      (incoming) {
+        // Encadenado sobre `_procesandoSnapshot`, no invocado directo: así
+        // el snapshot siguiente espera a que termine el anterior en vez de
+        // solaparse en su `await` (ver el comentario del campo).
+        _procesandoSnapshot = _procesandoSnapshot
+            .then((_) => _procesarSnapshot(incoming))
+            .catchError((Object e, StackTrace st) {
+              developer.log(
+                'Error procesando snapshot: $e',
+                name: 'ViajeClienteViewModel',
+                level: 1000,
+              );
+            });
       },
       onError: (error) {
         isLoading = false;
@@ -202,7 +274,29 @@ class ViajeClienteViewModel extends ChangeNotifier {
     );
   }
 
-  void _handleEstadoTransition(String estado) {
+  Future<void> _procesarSnapshot(ViajeEntity incoming) async {
+    if (_disposed) return;
+    viaje = incoming;
+    isLoading = false;
+    errorText = null;
+    _safeNotify();
+
+    // Se espera la transición ANTES de procesar la ubicación: si el viaje
+    // acaba de pasar a `en ruta`, la transición dispara un recálculo de
+    // ruta hacia el destino, y sin esperarlo acá `_handleConductorLocationUpdate`
+    // proyectaba (`snapForwardToRoute`) la posición del conductor contra la
+    // polilínea vieja de recogida en el primer ping tras el cambio de tramo.
+    await _handleEstadoTransition(incoming.estado);
+    if (_disposed) return;
+    _handleConductorLocationUpdate(incoming);
+    await _updateRouteIfNeeded();
+
+    if (SolicitudEstado.isTerminal(incoming.estado)) {
+      unawaited(_localCache.clearSolicitudData(viajeId));
+    }
+  }
+
+  Future<void> _handleEstadoTransition(String estado) async {
     final anterior = _lastEstado;
     if (anterior == estado) return;
     _lastEstado = estado;
@@ -210,12 +304,14 @@ class ViajeClienteViewModel extends ChangeNotifier {
     // Arrancó el viaje: el objetivo pasa de la recogida al destino, así que
     // hay que recalcular la ruta sí o sí. Sin esto `_routeCalculatedOnce`
     // bloqueaba el recálculo y la ruta seguía apuntando al punto de recogida
-    // durante todo el trayecto.
+    // durante todo el trayecto. Se espera (no `unawaited`): el llamante
+    // necesita la ruta nueva lista antes de procesar el siguiente ping de
+    // ubicación del conductor.
     if (estado == SolicitudEstado.enRuta && anterior != null) {
       _routeCalculatedOnce = false;
       _lastTo = null;
       _initialRouteDistance = 0;
-      unawaited(_updateRouteIfNeeded(forceRefresh: true));
+      await _updateRouteIfNeeded(forceRefresh: true);
     }
 
     if (estado == SolicitudEstado.enEspera) {
@@ -344,6 +440,7 @@ class ViajeClienteViewModel extends ChangeNotifier {
       _lastFrom = from;
       _lastTo = to;
       _routeCalculatedOnce = true;
+      rutaVersion++;
     } catch (e, st) {
       developer.log(
         'Fallo al actualizar ruta: $e',
@@ -404,6 +501,8 @@ class ViajeClienteViewModel extends ChangeNotifier {
     _waitingTimer?.cancel();
     waitingRemainingSeconds.dispose();
     chat.dispose();
+    _movementEngine.onTick = null;
+    _movementEngine.onSnap = null;
     _movementEngine.dispose();
     // Limpiar las notificaciones del viaje (conductor cerca, mensajes de chat,
     // cambios de estado): sin esto quedaban acumuladas en la bandeja después de

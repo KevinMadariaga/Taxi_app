@@ -38,12 +38,50 @@ Future<void> navigateWithIntermediateLoader({
   );
 }
 
+/// Misma animación (círculo + ondas + check) que [navigateWithIntermediateLoader],
+/// pero como overlay SOBRE la pantalla actual: no reemplaza la ruta, así que
+/// la pantalla de abajo sigue montada (su ViewModel y sus listeners de
+/// Firestore/GPS no se recrean). Se retira sola con `Navigator.pop` al
+/// vencer `delay`.
+Future<void> showIntermediateTransitionOverlay({
+  required BuildContext context,
+  Duration delay = const Duration(milliseconds: 1600),
+  required String title,
+  required String subtitle,
+  IconData icon = Icons.route_rounded,
+  Color accentColor = AppColores.buttonPrimary,
+  bool drawCheck = true,
+}) {
+  return Navigator.of(context).push(
+    PageRouteBuilder(
+      opaque: true,
+      transitionDuration: const Duration(milliseconds: 300),
+      reverseTransitionDuration: const Duration(milliseconds: 200),
+      pageBuilder: (_, _, _) => IntermediateTransitionView(
+        nextBuilder: null,
+        delay: delay,
+        title: title,
+        subtitle: subtitle,
+        icon: icon,
+        accentColor: accentColor,
+        drawCheck: drawCheck,
+      ),
+      transitionsBuilder: (_, animation, _, child) {
+        final curved = CurvedAnimation(parent: animation, curve: Curves.easeOut);
+        return FadeTransition(opacity: curved, child: child);
+      },
+    ),
+  );
+}
+
 /// Pantalla intermedia animada que se muestra al pasar a la ruta cuando la
 /// solicitud queda 'asignado'. Cliente: "Conductor encontrado".
 /// Conductor: "Servicio aceptado". Animación: check que se dibuja dentro de un
 /// círculo con ondas concéntricas, y textos que aparecen escalonados.
 class IntermediateTransitionView extends StatefulWidget {
-  final WidgetBuilder nextBuilder;
+  /// Null cuando se usa como overlay (`showIntermediateTransitionOverlay`):
+  /// al vencer `delay` se hace `pop` en vez de navegar a una pantalla nueva.
+  final WidgetBuilder? nextBuilder;
   final Duration delay;
   final String title;
   final String subtitle;
@@ -55,7 +93,7 @@ class IntermediateTransitionView extends StatefulWidget {
 
   const IntermediateTransitionView({
     super.key,
-    required this.nextBuilder,
+    this.nextBuilder,
     required this.delay,
     required this.title,
     required this.subtitle,
@@ -137,16 +175,19 @@ class _IntermediateTransitionViewState extends State<IntermediateTransitionView>
 
   void _goNext() {
     if (!mounted) return;
+    final nextBuilder = widget.nextBuilder;
+    if (nextBuilder == null) {
+      Navigator.of(context).pop();
+      return;
+    }
     if (widget.clearStackOnNext) {
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: widget.nextBuilder),
+        MaterialPageRoute(builder: nextBuilder),
         (route) => false,
       );
       return;
     }
-    Navigator.of(
-      context,
-    ).pushReplacement(MaterialPageRoute(builder: widget.nextBuilder));
+    Navigator.of(context).pushReplacement(MaterialPageRoute(builder: nextBuilder));
   }
 
   @override

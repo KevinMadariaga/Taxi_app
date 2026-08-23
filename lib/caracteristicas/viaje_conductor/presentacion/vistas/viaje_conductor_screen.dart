@@ -10,7 +10,7 @@ import 'package:taxi_app/caracteristicas/viaje_compartido/dominio/casos_uso/actu
 import 'package:taxi_app/caracteristicas/viaje_compartido/dominio/casos_uso/watch_viaje_usecase.dart';
 import 'package:taxi_app/caracteristicas/viaje_compartido/datos/fuentes/ruta_datasource.dart';
 import 'package:taxi_app/caracteristicas/viaje_compartido/datos/repositorios/viaje_repository_impl.dart';
-import 'package:taxi_app/caracteristicas/viaje_compartido/presentacion/utils/info_map_split.dart';
+import 'package:taxi_app/caracteristicas/viaje_compartido/presentacion/utils/trip_card_metrics.dart';
 import 'package:taxi_app/caracteristicas/viaje_compartido/presentacion/vistas/chat_screen.dart';
 import 'package:taxi_app/caracteristicas/viaje_conductor/datos/fuentes/driver_ubicacion_datasource.dart';
 import 'package:taxi_app/caracteristicas/viaje_conductor/datos/fuentes/navegacion_externa_datasource.dart';
@@ -111,6 +111,8 @@ class _ViajeConductorScreenState extends State<ViajeConductorScreen>
         unawaited(
           initFuture.then((_) => _vm.reposicionarEnUltimaUbicacionSimulada()),
         );
+      } else if (modoQA == 'cliente') {
+        unawaited(initFuture.then((_) => _vm.irAUbicacionDelCliente()));
       }
     }
 
@@ -320,8 +322,9 @@ class _ViajeConductorScreenState extends State<ViajeConductorScreen>
 
   Future<void> _abrirCodigoVerificacion() async {
     _vm.abrirIngresoCodigo();
+    bool? validado;
     try {
-      await CodigoVerificacionSheet.mostrar(
+      validado = await CodigoVerificacionSheet.mostrar(
         context,
         onValidar: (codigo) => _vm.validarCodigoRecogida(codigo),
       );
@@ -329,6 +332,17 @@ class _ViajeConductorScreenState extends State<ViajeConductorScreen>
       // Si el conductor descartó el sheet sin validar, el VM devuelve la modal
       // de espera: sin eso quedaba sin ningún camino para reintentar.
       _vm.cerrarIngresoCodigo();
+    }
+    // Solo con PIN correcto: cubre el frame en que el VM recalcula la ruta
+    // hacia el destino (`_handleEstadoTransition`) y hace visible el cambio
+    // de tramo, en vez de que la card se reconstruya en seco.
+    if (validado == true && mounted) {
+      await showIntermediateTransitionOverlay(
+        context: context,
+        title: 'Ruta iniciada',
+        subtitle: 'Llevando al pasajero a su destino...',
+        icon: Icons.route_rounded,
+      );
     }
   }
 
@@ -397,10 +411,15 @@ class _ViajeConductorScreenState extends State<ViajeConductorScreen>
             final objetivo = _vm.objetivoActual;
 
             final viewPaddingBottom = MediaQuery.of(context).viewPadding.bottom;
-            final (infoFlex, mapFlex) = InfoMapSplit.of(
-              context,
-              baseInfoFlex: 45,
-            );
+            // La card ya no ocupa un % fijo de la pantalla (`InfoMapSplit`):
+            // mide lo que mide su contenido y el mapa se queda con el resto,
+            // mismo modelo que ya usa `ViajeClienteScreen`. Con
+            // `ConstrainedBox(minHeight:)` anterior la card se estiraba a la
+            // mitad de la pantalla aunque su contenido fuera más corto,
+            // dejando un hueco vacío debajo de "Terminar viaje".
+            final metrics = TripCardMetrics.of(context);
+            final alturaMaximaCard =
+                MediaQuery.sizeOf(context).height * metrics.alturaMaximaFactor;
 
             return SafeArea(
               // `bottom: false`: el inset físico de abajo (home indicator
@@ -412,40 +431,26 @@ class _ViajeConductorScreenState extends State<ViajeConductorScreen>
               bottom: false,
               child: Column(
                 children: [
-                  // Mitad superior: info + chat + acciones. `LayoutBuilder` +
-                  // `ConstrainedBox(minHeight:)` hace que la tarjeta ocupe
-                  // TODA la mitad disponible (como ya hace el mapa) en vez de
-                  // encogerse al alto de su contenido y dejar un hueco vacío
-                  // debajo si el contenido es más corto que la mitad — solo
-                  // scrollea si el contenido es más alto que eso.
-                  Expanded(
-                    flex: infoFlex,
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        return SingleChildScrollView(
-                          child: ConstrainedBox(
-                            constraints: BoxConstraints(
-                              minHeight: constraints.maxHeight,
-                            ),
-                            child: DriverTripCard(
-                              vm: _vm,
-                              onChat: _openChat,
-                              onDetails: _openDetails,
-                              onReportarLlegada: _onReportarLlegada,
-                              onComenzarRuta: _abrirCodigoVerificacion,
-                              onTerminarViaje: _onTerminarViaje,
-                            ),
-                          ),
-                        );
-                      },
+                  // Arriba: info + chat + acciones, alta al contenido con un
+                  // techo (`alturaMaximaFactor`) para que en un teléfono muy
+                  // bajo no se coma el mapa — ahí sí aparece scroll.
+                  ConstrainedBox(
+                    constraints: BoxConstraints(maxHeight: alturaMaximaCard),
+                    child: SingleChildScrollView(
+                      child: DriverTripCard(
+                        vm: _vm,
+                        onChat: _openChat,
+                        onDetails: _openDetails,
+                        onReportarLlegada: _onReportarLlegada,
+                        onComenzarRuta: _abrirCodigoVerificacion,
+                        onTerminarViaje: _onTerminarViaje,
+                      ),
                     ),
                   ),
-                  // Mitad inferior: mapa estático (Google Static Maps),
-                  // mismo widget que usa la preview del conductor antes de
-                  // aceptar — deja de depender de un `GoogleMapController`
-                  // en vivo acá.
+                  // Resto: mapa estático (Google Static Maps), mismo widget
+                  // que usa la preview del conductor antes de aceptar — deja
+                  // de depender de un `GoogleMapController` en vivo acá.
                   Expanded(
-                    flex: mapFlex,
                     child: Stack(
                       children: [
                         Positioned.fill(
@@ -479,29 +484,6 @@ class _ViajeConductorScreenState extends State<ViajeConductorScreen>
                           bottom: 16 + viewPaddingBottom,
                           child: const PanicButtonFab(),
                         ),
-                        // Solo debug: simula el recorrido fijo de QA sin
-                        // depender de mover el dispositivo físicamente.
-                        if (kDebugMode)
-                          Positioned(
-                            right: 16,
-                            bottom: 16 + viewPaddingBottom,
-                            child: FloatingActionButton.small(
-                              heroTag: 'simular_recorrido_qa',
-                              backgroundColor: AppColores.grey300,
-                              onPressed: _vm.isSimulandoRecorrido
-                                  ? null
-                                  : () => _vm.simularRecorridoDePrueba(),
-                              child: _vm.isSimulandoRecorrido
-                                  ? const SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : const Icon(Icons.route_rounded),
-                            ),
-                          ),
                       ],
                     ),
                   ),

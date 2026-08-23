@@ -20,8 +20,10 @@ import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/services/fcm_service.dart';
 import 'package:taxi_app/core/constants/solicitud_estado.dart';
 import 'package:taxi_app/core/theme/ride_button_styles.dart';
+import 'package:taxi_app/core/helpers/map_helper.dart';
 import 'package:taxi_app/core/helpers/session_helper.dart';
 import 'package:taxi_app/core/services/route_cache_service.dart';
+import 'package:taxi_app/core/utils/error_reporter.dart';
 import 'package:taxi_app/core/utils/marker_icon_helper.dart';
 import 'package:taxi_app/features/trip_tracking_cliente/widgets/panic_button_fab.dart';
 import 'package:taxi_app/features/trip_tracking_cliente/widgets/trip_details_sheet.dart';
@@ -79,6 +81,17 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen>
   BitmapDescriptor? _conductorIcon;
   BitmapDescriptor? _conductorIconMirrored;
   bool _isMirroredHeading = false;
+
+  /// Heading mostrado, suavizado hacia el objetivo con `MapHelper.lerpAngle`
+  /// en vez de saltar al valor crudo del notifier en cada tick (50ms).
+  double _displayedHeadingDeg = 0;
+  bool _headingInicializado = false;
+
+  // Reencuadre de cámara al cambiar de tramo (recogida → destino): ver
+  // `_detectarCambioDeTramoParaCamara`.
+  String? _lastEstadoCamara;
+  bool _refitPendienteTramoDestino = false;
+  int? _rutaVersionAlEntrarTramo;
 
   @override
   void initState() {
@@ -142,6 +155,19 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen>
   }
 
   (BitmapDescriptor?, double) _markerIconAndRotation(double heading) {
+    // Suaviza el ángulo mostrado hacia el objetivo crudo del notifier —
+    // sin esto la rotación saltaba al valor exacto de cada tick de 50ms.
+    if (!_headingInicializado) {
+      _displayedHeadingDeg = heading;
+      _headingInicializado = true;
+    } else {
+      _displayedHeadingDeg = MapHelper.lerpAngle(_displayedHeadingDeg, heading, 0.25);
+    }
+
+    // La histéresis de espejado opera sobre el heading OBJETIVO (crudo), no
+    // sobre el interpolado: si operara sobre el interpolado, el ícono
+    // parpadearía dentro de la banda mientras el valor mostrado todavía
+    // está cruzándola.
     if (_isMirroredHeading) {
       if (heading <= 80 || heading >= 280) _isMirroredHeading = false;
     } else {
@@ -151,7 +177,9 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen>
     final icon = _isMirroredHeading
         ? (_conductorIconMirrored ?? _conductorIcon)
         : _conductorIcon;
-    final rotation = _isMirroredHeading ? heading - 180 : heading;
+    final rotation = _isMirroredHeading
+        ? _displayedHeadingDeg - 180
+        : _displayedHeadingDeg;
     return (icon, rotation);
   }
 
@@ -190,7 +218,30 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen>
     _persistOrClearSession();
     _handleWaitingModal();
     _handleSalida();
-    _fitInitialCameraIfNeeded();
+    _fitCamera();
+    _detectarCambioDeTramoParaCamara();
+  }
+
+  /// Reencuadra la cámara cuando el viaje pasa de recogida a destino
+  /// (`objetivoActual` cambia de cliente a destino), pero solo una vez que
+  /// la RUTA NUEVA ya está calculada (`rutaVersion` avanzó desde el momento
+  /// del cambio de estado) — hacerlo en el instante del cambio de estado
+  /// encuadraba la polilínea vieja, todavía apuntando a la recogida.
+  void _detectarCambioDeTramoParaCamara() {
+    final estado = _vm.viaje?.estado;
+    if (estado != null && estado != _lastEstadoCamara) {
+      final anterior = _lastEstadoCamara;
+      _lastEstadoCamara = estado;
+      if (estado == SolicitudEstado.enRuta && anterior != null) {
+        _refitPendienteTramoDestino = true;
+        _rutaVersionAlEntrarTramo = _vm.rutaVersion;
+      }
+    }
+    if (_refitPendienteTramoDestino &&
+        _vm.rutaVersion != _rutaVersionAlEntrarTramo) {
+      _refitPendienteTramoDestino = false;
+      _fitCamera(force: true);
+    }
   }
 
   void _persistOrClearSession() {
@@ -309,48 +360,93 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen>
     });
   }
 
-  void _fitInitialCameraIfNeeded() {
+  /// Encuadra la cámara al objetivo vigente (`force: false`: solo la
+  /// primera vez, guardado por `_initialCameraApplied`; `force: true`:
+  /// reencuadre explícito, p. ej. al cambiar de tramo).
+  ///
+  /// Los bounds se calculan sobre conductor + `objetivoActual` + la
+  /// polilínea restante — no solo cliente↔conductor como antes — para que
+  /// en el tramo al destino entre la traza completa, no un segmento
+  /// arbitrario.
+  void _fitCamera({bool force = false}) {
     final map = _mapController;
-    if (_initialCameraApplied || map == null) return;
-    final cliente = _vm.clienteLatLng;
+    if ((_initialCameraApplied && !force) || map == null) return;
     final conductor = _vm.conductorLatLngCrudo;
-    final target = cliente ?? conductor;
-    if (target == null) return;
+    final objetivo = _vm.objetivoActual;
+    final rutaPts = _vm.routePointsNotifier.value;
+    final puntos = <LatLng>[
+      if (conductor != null) conductor,
+      if (objetivo != null) objetivo,
+      ...rutaPts,
+    ];
+    if (puntos.isEmpty) return;
 
     _initialCameraApplied = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted) return;
-      // Con ambos puntos: encuadra el segmento cliente↔conductor entero
-      // (zoom real según la distancia entre ellos) en vez de un zoom fijo
-      // que se queda lejos si están cerca o corta al conductor si están
-      // lejos. Con uno solo: fallback a zoom fijo, cercano al marcador.
-      if (cliente != null && conductor != null) {
-        final bounds = LatLngBounds(
-          southwest: LatLng(
-            math.min(cliente.latitude, conductor.latitude),
-            math.min(cliente.longitude, conductor.longitude),
-          ),
-          northeast: LatLng(
-            math.max(cliente.latitude, conductor.latitude),
-            math.max(cliente.longitude, conductor.longitude),
-          ),
-        );
-        try {
-          // Padding chico (antes 90): deja los dos marcadores más cerca del
-          // borde y por lo tanto el zoom más pegado a la ruta.
-          await map.animateCamera(
-            CameraUpdate.newLatLngBounds(bounds, _boundsPaddingCamara),
-          );
-          return;
-        } catch (_) {
-          // Puntos casi idénticos: Google Maps no puede calcular bounds
-          // útiles — cae al zoom fijo de abajo.
-        }
-      }
-      await map.animateCamera(
-        CameraUpdate.newLatLngZoom(target, _zoomUnicoMarcador),
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _animarCamaraAPuntos(map, puntos),
+    );
+  }
+
+  Future<void> _animarCamaraAPuntos(
+    GoogleMapController map,
+    List<LatLng> puntos,
+  ) async {
+    if (!mounted || !identical(_mapController, map)) return;
+
+    if (puntos.length < 2) {
+      await _intentarAnimarCamara(
+        map,
+        CameraUpdate.newLatLngZoom(puntos.first, _zoomUnicoMarcador),
       );
-    });
+      return;
+    }
+
+    var minLat = puntos.first.latitude;
+    var maxLat = puntos.first.latitude;
+    var minLng = puntos.first.longitude;
+    var maxLng = puntos.first.longitude;
+    for (final p in puntos) {
+      minLat = math.min(minLat, p.latitude);
+      maxLat = math.max(maxLat, p.latitude);
+      minLng = math.min(minLng, p.longitude);
+      maxLng = math.max(maxLng, p.longitude);
+    }
+    final bounds = LatLngBounds(
+      southwest: LatLng(minLat, minLng),
+      northeast: LatLng(maxLat, maxLng),
+    );
+    // Padding chico (antes 90): deja los marcadores más cerca del borde y
+    // por lo tanto el zoom más pegado a la ruta.
+    final update = CameraUpdate.newLatLngBounds(bounds, _boundsPaddingCamara);
+
+    if (await _intentarAnimarCamara(map, update)) return;
+
+    // `newLatLngBounds` puede fallar si el mapa todavía no tiene su tamaño
+    // final layouteado (justo tras `onMapCreated`) — un reintento tras el
+    // siguiente frame alcanza. Mismo patrón que `mapa_ruta_card.dart`.
+    await Future.delayed(const Duration(milliseconds: 300));
+    if (!mounted || !identical(_mapController, map)) return;
+    if (await _intentarAnimarCamara(map, update)) return;
+
+    // Puntos casi idénticos u otro fallo persistente: Google Maps no puede
+    // calcular bounds útiles — cae al zoom fijo sobre el primer punto.
+    await _intentarAnimarCamara(
+      map,
+      CameraUpdate.newLatLngZoom(puntos.first, _zoomUnicoMarcador),
+    );
+  }
+
+  Future<bool> _intentarAnimarCamara(
+    GoogleMapController map,
+    CameraUpdate update,
+  ) async {
+    try {
+      await map.animateCamera(update);
+      return true;
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'viaje_cliente_screen: fitCamera');
+      return false;
+    }
   }
 
   void _openChat() {
@@ -482,18 +578,22 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen>
                 _openDetails();
               },
             ),
-            const Divider(height: 1),
-            ListTile(
-              leading: const Icon(Icons.close_rounded, color: AppColores.error),
-              title: const Text(
-                'Cancelar viaje',
-                style: TextStyle(color: AppColores.error),
+            // Una vez recogido (`en ruta`) el viaje ya no se puede cancelar
+            // desde acá — por diseño del negocio, con el pasajero a bordo.
+            if (_vm.viaje?.estado != SolicitudEstado.enRuta) ...[
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.close_rounded, color: AppColores.error),
+                title: const Text(
+                  'Cancelar viaje',
+                  style: TextStyle(color: AppColores.error),
+                ),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _onCancelar();
+                },
               ),
-              onTap: () {
-                Navigator.of(sheetContext).pop();
-                _onCancelar();
-              },
-            ),
+            ],
           ],
         ),
       ),
@@ -501,6 +601,10 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen>
   }
 
   Future<void> _onCancelar() async {
+    // Cinturón y tirantes: la regla de negocio vive acá, no solo en la
+    // visibilidad del tile de Ayuda — cualquier otro camino que llegue a
+    // `onCancel` (p. ej. `TripInfoCard.onCancel`) queda cubierto igual.
+    if (_vm.viaje?.estado == SolicitudEstado.enRuta) return;
     final confirmar = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -675,7 +779,7 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen>
                           polylines: polylines,
                           onMapCreated: (controller) {
                             _mapController = controller;
-                            _fitInitialCameraIfNeeded();
+                            _fitCamera();
                           },
                         ),
                         if (_vm.isLoading)
