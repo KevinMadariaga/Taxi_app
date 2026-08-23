@@ -35,13 +35,19 @@ class ClienteRepositoryImpl implements ClienteRepository {
     );
   }
 
-  // Prioridad: displayName de Auth -> nombre guardado en 'usuarios/{uid}' ->
+  // Prioridad: nombre guardado en 'usuarios/{uid}' -> displayName de Auth ->
   // derivado del email (última red de seguridad para no mostrarle "null" al
   // conductor).
+  //
+  // El doc de Firestore va PRIMERO porque es el único de los dos que se
+  // actualiza cuando el cliente edita su perfil (`editar_perfil.dart`
+  // escribe `nombre`/`apellido` ahí, nunca llama a
+  // `user.updateDisplayName()`) — `displayName` de Auth es el que puso el
+  // proveedor (Google/Apple) al registrarse y se queda congelado para
+  // siempre. Con el orden viejo, un cliente que editaba su nombre en la app
+  // seguía viéndose con el nombre original de Google/Apple en la preview
+  // del conductor, aunque Firestore ya tuviera el nombre actualizado.
   String _resolverNombre(User? user, Map<String, dynamic>? doc) {
-    final displayName = user?.displayName?.trim();
-    if (displayName != null && displayName.isNotEmpty) return displayName;
-
     // `usuarios/{uid}` guarda nombre y apellido en campos separados (a
     // diferencia de `displayName` de Auth, que ya viene combinado) — sin
     // esto el conductor solo veía el primer nombre del cliente.
@@ -50,6 +56,9 @@ class ClienteRepositoryImpl implements ClienteRepository {
     if (nombreDoc != null) {
       return apellidoDoc != null ? '$nombreDoc $apellidoDoc' : nombreDoc;
     }
+
+    final displayName = user?.displayName?.trim();
+    if (displayName != null && displayName.isNotEmpty) return displayName;
 
     final desdeDoc = _firstNonEmpty(doc, const ['displayName']);
     if (desdeDoc != null) return desdeDoc;
