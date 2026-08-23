@@ -62,9 +62,9 @@ class MapaPrevisualizacionSolicitud extends StatelessWidget {
   /// geografía). La imagen se pide cuadrada y del tamaño de la diagonal del
   /// recuadro para que al rotarla no queden esquinas vacías.
   ///
-  /// Solo lo usa el viaje del conductor. La preview previa a aceptar sigue
-  /// norte-arriba (`false`), donde lo que importa es ubicarse, no seguir un
-  /// rumbo.
+  /// Lo usan tanto el viaje ya en curso como la preview previa a aceptar.
+  /// Sin efecto mientras no hay `driverLocation` (sin conductor no hay
+  /// rumbo que trazar, el mapa queda norte-arriba centrado en el cliente).
   final bool orientarHaciaCliente;
 
   static const adapter.MapService _mapService = adapter.MapService();
@@ -267,8 +267,19 @@ class MapaPrevisualizacionSolicitud extends StatelessWidget {
                   // quedar vertical en PANTALLA, así que se contrarrota lo
                   // que se rotó el lienzo. El vehículo no: ese sí gira con el
                   // mapa, porque su rumbo es relativo al terreno.
+                  //
+                  // `alignment: bottomCenter` (no el `Alignment.center` por
+                  // defecto de `Transform.rotate`): la posición del pin se
+                  // calculó para que la PUNTA (borde inferior central del
+                  // asset) caiga sobre el punto real (`anchorBottom: true`
+                  // en `_MapaPinOverlay`, más abajo). Rotar alrededor del
+                  // centro de la caja hace que esa punta se despegue del
+                  // punto en cuanto `rotacionRad != 0` — con la brújula
+                  // activa eso es siempre, así que el pin dejaba de marcar
+                  // el final real de la traza.
                   child: Transform.rotate(
                     angle: -rotacionRad,
+                    alignment: Alignment.bottomCenter,
                     child: Image.asset(
                       'assets/img/map_pin_red.png',
                       width: _pinIconSize,

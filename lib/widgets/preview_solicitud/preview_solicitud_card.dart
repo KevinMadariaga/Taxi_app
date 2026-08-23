@@ -92,56 +92,53 @@ class PreviewSolicitudCard extends StatelessWidget {
     // contenido.
     final viewPaddingBottom = MediaQuery.of(context).viewPadding.bottom;
     final statusBarHeight = MediaQuery.of(context).padding.top;
+
+    // El inset físico solo (`viewPaddingBottom`) no alcanza como respiro
+    // visual: en barra de 3 botones clásica ya es > 0 y aun así "Aceptar"
+    // se ve pegado al borde de la barra (confirmado en dispositivo real).
+    // Se le suma un margen fijo siempre, y en equipos sin barra física
+    // (gesture nav completo, inset en 0) se usa un piso propio en vez de
+    // depender de que exista inset para empujar el botón.
+    final navBarGap = (viewPaddingBottom > 0 ? viewPaddingBottom : 8.h) + 16.h;
+
     final usableHeight =
-        MediaQuery.of(context).size.height - viewPaddingBottom - statusBarHeight;
+        MediaQuery.of(context).size.height - navBarGap - statusBarHeight;
     final isCompactHeight = usableHeight < 700;
 
     // Con contraoferta, `PrecioOfertaBox` pasa de una fila simple a dos
     // columnas (servicio tachado + contraoferta) — pero en modo compacto
     // (`isCompactPanel`, más abajo) esas dos columnas usan fuentes y
     // paddings más chicos, así que el contenido real termina siendo MÁS
-    // bajo que el de la fila simple sin contraoferta, no más alto — por
-    // eso ese caso necesita todavía más mapa (menos info) que el caso sin
-    // comentario "normal", no el mismo ratio.
+    // bajo que el de la fila simple sin contraoferta, no más alto.
     final hayContraoferta = preview.valorContraoferta != null;
     final isCompactPanel = isCompactHeight || hayContraoferta;
 
-    // Sin comentario el panel de info tiene menos contenido (solo tarjeta
-    // de cliente/dirección + precio) — si se le deja el mismo 50% que con
-    // comentario, sobra aire y ese aire termina como un `Spacer` en blanco
-    // antes de "Aceptar". En vez de dejar ese hueco, el mapa sube (más
-    // flex) y el panel de info baja al tamaño que su contenido real
-    // necesita — y baja todavía más (mapa más grande aún) si además hay
-    // contraoferta, por lo explicado arriba.
+    // El panel de info se dimensiona a su contenido real (ver
+    // `ConstrainedBox(maxHeight)` más abajo), NO a un porcentaje fijo de
+    // pantalla — un split por flex (50/50, o incluso ajustado por
+    // comentario/contraoferta) siempre deja un sobrante en algún lado
+    // cuando el contenido real no llena exactamente ese porcentaje: con
+    // poco contenido, un hueco en blanco entre el mapa y la tarjeta de
+    // cliente; con mucho, "Aceptar" empujado fuera de vista. El mapa es
+    // `Expanded` y se queda con TODO lo que el panel de info no necesita,
+    // así no hay hueco que ajustar a mano por combinación de contenido.
     //
-    // Con comentario Y contraoferta juntos es el caso con MÁS contenido
-    // (tarjeta cliente/dirección + comentario + precio de dos columnas +
-    // botón) — ahí el mapa baja un poco más que el 50/50 base para darle
-    // a la info el aire que ese contenido extra necesita.
-    final comentarioVisible = comentario != null;
-    final int mapFlex;
-    final int infoFlex;
-    if (comentarioVisible && hayContraoferta) {
-      mapFlex = 46;
-      infoFlex = 54;
-    } else if (comentarioVisible) {
-      mapFlex = 50;
-      infoFlex = 50;
-    } else if (hayContraoferta) {
-      mapFlex = 68;
-      infoFlex = 32;
-    } else {
-      mapFlex = 60;
-      infoFlex = 40;
-    }
+    // `maxInfoHeight` es una red de seguridad, no un target: limita cuánto
+    // puede crecer el panel de info en el caso extremo (comentario largo +
+    // contraoferta en pantalla chica) para que el mapa nunca se reduzca a
+    // nada — si el contenido real supera este techo, el
+    // `SingleChildScrollView` de más abajo lo scrollea en vez de seguir
+    // creciendo. Medido con la matriz de pruebas de widget
+    // (`test/preview_solicitud_card_responsive_test.dart`): el peor caso
+    // observado (comentario + contraoferta, pantalla de 320×568) necesitó
+    // ~61% de la pantalla — 62% deja ese margen sin regalarle más al panel
+    // de info de lo que ese peor caso ya necesita.
+    final maxInfoHeight = MediaQuery.of(context).size.height * 0.62;
 
     // Gap fijo y chico entre la tarjeta de cliente/dirección y la de
-    // precio, siempre — un `Spacer` ahí (probado y descartado) deja un
-    // hueco en blanco ENTRE dos tarjetas con borde que se lee como
-    // contenido faltante, no como diseño. El aire de sobra restante (si
-    // queda alguno) se concentra en un solo lugar: el `Spacer` antes de
-    // "Aceptar" — mismo patrón que un CTA anclado al fondo de una hoja
-    // (esperable, no se ve roto).
+    // precio — un `Spacer` ahí (probado y descartado) deja un hueco en
+    // blanco ENTRE dos tarjetas con borde que se lee como contenido
+    // faltante, no como diseño.
     final espacioAntesDePrecio = isCompactPanel ? 8.h : 10.h;
 
     // Sin alto manual: el llamador (`InicioConductorView`) envuelve esta
@@ -165,7 +162,6 @@ class PreviewSolicitudCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Expanded(
-            flex: mapFlex,
             child: Stack(
               children: [
                 Positioned.fill(
@@ -175,6 +171,13 @@ class PreviewSolicitudCard extends StatelessWidget {
                     isMoto: isMoto,
                     routePoints: routePoints,
                     isLoadingRoute: isLoadingRoute,
+                    // Mismo criterio que el mapa del viaje ya en curso: la
+                    // imagen rota para que el rumbo conductor→cliente quede
+                    // arriba (brújula), en vez de norte-arriba fijo — sin
+                    // `heading` propio (la preview no tiene rumbo de ruta
+                    // real todavía), cae al rumbo en línea recta
+                    // conductor→cliente.
+                    orientarHaciaCliente: true,
                   ),
                 ),
                 // Flecha de volver flotando — reemplaza al `AppBar` fijo,
@@ -248,112 +251,96 @@ class PreviewSolicitudCard extends StatelessWidget {
               ],
             ),
           ),
-          Expanded(
-            flex: infoFlex,
+          ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: maxInfoHeight),
             child: Padding(
-              // `viewPadding.bottom` directo (no `SafeArea`): el `SafeArea`
-              // ancestro de `InicioConductorView` ya puso en 0
-              // `MediaQuery.padding` para todo lo de acá abajo, así que un
-              // `SafeArea` anidado acá no reserva nada — `viewPadding` es
-              // el inset físico real, ajeno a lo que un `SafeArea` de más
-              // arriba ya haya "consumido" para sus descendientes.
-              padding: EdgeInsets.only(bottom: viewPaddingBottom),
-              // `LayoutBuilder` + `ConstrainedBox(minHeight)` +
-              // `IntrinsicHeight`: el truco estándar de Flutter para que un
-              // `Column` con un `Spacer` viva dentro de un
-              // `SingleChildScrollView` — en pantallas altas/tablets el
-              // sobrante se reparte como aire ENTRE el contenido y
-              // "Aceptar" (se adapta como el mapa, que llena su Expanded
-              // completo) en vez de quedar todo pegado en un solo bloque
-              // muerto; en pantallas chicas, si el contenido no entra,
-              // este mismo bloque scrollea en vez de recortarse.
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  return SingleChildScrollView(
-                    physics: const ClampingScrollPhysics(),
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        minHeight: constraints.maxHeight,
-                      ),
-                      child: IntrinsicHeight(
-                        child: Padding(
-                          padding: EdgeInsets.fromLTRB(
-                            16.w,
-                            12.h,
-                            16.w,
-                            8.h,
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              // Cliente + recogida + pago agrupados en UNA
-                              // sola tarjeta (mismo lenguaje visual que la
-                              // de precio y la de comentario, en vez de
-                              // filas sueltas sobre el fondo) — separa
-                              // claramente "quién y a dónde" del resto, y
-                              // el borde propio evita que el texto largo
-                              // de dirección se confunda con el fondo de
-                              // la tarjeta.
-                              Container(
-                                padding: EdgeInsets.all(
-                                  isCompactPanel ? 8.w : 12.w,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: AppColores.background,
-                                  borderRadius: BorderRadius.circular(14.r),
-                                  border: Border.all(
-                                    color: AppColores.borderSubtle,
-                                  ),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: [
-                                    ClienteHeaderRow(
-                                      nombre: preview.clientName ?? 'Cliente',
-                                      photoUrl: photoUrl,
-                                      distanciaKm: preview.distanciaKm,
-                                      compact: isCompactPanel,
-                                    ),
-                                    SizedBox(height: isCompactPanel ? 8.h : 12.h),
-                                    const Divider(
-                                      color: AppColores.borderSubtle,
-                                      height: 1,
-                                    ),
-                                    SizedBox(height: isCompactPanel ? 8.h : 12.h),
-                                    InfoRecogidaPagoRow(
-                                      direccionRecogida: _pickupText(preview),
-                                      metodoPago: preview.paymentMethod,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              if (comentario != null) ...[
-                                SizedBox(height: isCompactPanel ? 8.h : 10.h),
-                                ComentarioClienteBox(comentario: comentario),
-                              ],
-                              if (valorCliente != null) ...[
-                                SizedBox(height: espacioAntesDePrecio),
-                                PrecioOfertaBox(
-                                  valorCliente: valorCliente,
-                                  valorContraoferta: preview.valorContraoferta,
-                                  compact: isCompactPanel,
-                                ),
-                              ],
-                              const Spacer(),
-                              SizedBox(height: isCompactPanel ? 4.h : 8.h),
-                              AccionesSolicitudButtons(
-                                isAcceptLoading: isAcceptLoading,
-                                onAccept: onAccept,
-                                compact: isCompactPanel,
-                              ),
-                            ],
-                          ),
+              // `navBarGap` directo (no `SafeArea`): el `SafeArea` ancestro
+              // de `InicioConductorView` ya puso en 0 `MediaQuery.padding`
+              // para todo lo de acá abajo, así que un `SafeArea` anidado acá
+              // no reserva nada — y `viewPadding` solo cubre el inset físico
+              // real, que en gesture nav completo puede ser 0 (de ahí el
+              // piso fijo de `navBarGap` en vez de usar el inset a secas).
+              padding: EdgeInsets.only(bottom: navBarGap),
+              // Sin `ConstrainedBox(minHeight)`/`IntrinsicHeight`: ya no
+              // hace falta forzar a este `Column` a llenar el alto
+              // disponible (no tiene `Spacer`, se dimensiona a su
+              // contenido real) — el `SingleChildScrollView` solo entra en
+              // juego si ese contenido supera `maxInfoHeight` de arriba.
+              child: SingleChildScrollView(
+                physics: const ClampingScrollPhysics(),
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 8.h),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Cliente + recogida + pago agrupados en UNA
+                      // sola tarjeta (mismo lenguaje visual que la
+                      // de precio y la de comentario, en vez de
+                      // filas sueltas sobre el fondo) — separa
+                      // claramente "quién y a dónde" del resto, y
+                      // el borde propio evita que el texto largo
+                      // de dirección se confunda con el fondo de
+                      // la tarjeta.
+                      Container(
+                        key: const Key('preview_solicitud_cliente_card'),
+                        padding: EdgeInsets.all(isCompactPanel ? 8.w : 12.w),
+                        decoration: BoxDecoration(
+                          color: AppColores.background,
+                          borderRadius: BorderRadius.circular(14.r),
+                          border: Border.all(color: AppColores.borderSubtle),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            ClienteHeaderRow(
+                              nombre: preview.clientName ?? 'Cliente',
+                              photoUrl: photoUrl,
+                              distanciaKm: preview.distanciaKm,
+                              compact: isCompactPanel,
+                            ),
+                            SizedBox(height: isCompactPanel ? 8.h : 12.h),
+                            const Divider(
+                              color: AppColores.borderSubtle,
+                              height: 1,
+                            ),
+                            SizedBox(height: isCompactPanel ? 8.h : 12.h),
+                            InfoRecogidaPagoRow(
+                              direccionRecogida: _pickupText(preview),
+                              metodoPago: preview.paymentMethod,
+                            ),
+                          ],
                         ),
                       ),
-                    ),
-                  );
-                },
+                      if (comentario != null) ...[
+                        SizedBox(height: isCompactPanel ? 8.h : 10.h),
+                        ComentarioClienteBox(comentario: comentario),
+                      ],
+                      if (valorCliente != null) ...[
+                        SizedBox(height: espacioAntesDePrecio),
+                        PrecioOfertaBox(
+                          valorCliente: valorCliente,
+                          valorContraoferta: preview.valorContraoferta,
+                          compact: isCompactPanel,
+                        ),
+                      ],
+                      // Gap fijo y chico, no `Spacer`: con `Spacer`
+                      // este hueco se comía TODO el aire sobrante
+                      // del panel (screenshot en dispositivo real:
+                      // separación enorme entre precio y "Aceptar"
+                      // en pantallas altas). El aire sobrante ahora
+                      // queda debajo del botón en vez de encima —
+                      // ahí no se lee como hueco roto porque no hay
+                      // nada después con qué compararlo.
+                      SizedBox(height: isCompactPanel ? 12.h : 16.h),
+                      AccionesSolicitudButtons(
+                        isAcceptLoading: isAcceptLoading,
+                        onAccept: onAccept,
+                        compact: isCompactPanel,
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),

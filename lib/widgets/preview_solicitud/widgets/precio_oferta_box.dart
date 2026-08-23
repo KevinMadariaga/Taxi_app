@@ -155,13 +155,16 @@ class _PrecioColumna extends StatelessWidget {
             children: [
               Icon(icon, size: 14.sp, color: AppColores.primaryDark),
               SizedBox(width: 4.w),
-              Text(
-                label,
-                textAlign: textAlign,
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: (compact ? 11 : 12).sp,
-                  color: AppColores.primaryDark,
+              Flexible(
+                child: Text(
+                  label,
+                  textAlign: textAlign,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: (compact ? 11 : 12).sp,
+                    color: AppColores.primaryDark,
+                  ),
                 ),
               ),
             ],
