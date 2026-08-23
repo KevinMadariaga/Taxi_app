@@ -214,23 +214,6 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
     }
   }
 
-  Future<void> _deleteCachedVehicleFile(String uid) async {
-    try {
-      final file = await _vehicleCacheFileForUid(uid);
-      if (file.existsSync()) {
-        try {
-          await FileImage(file).evict();
-        } catch (e, st) {
-          ErrorReporter.report(e, st, reason: 'perfil');
-        }
-        await file.delete();
-      }
-      if (mounted) setState(() => _cachedVehicleFile = null);
-    } catch (e, st) {
-      ErrorReporter.report(e, st, reason: 'perfil');
-    }
-  }
-
   /// Cambia el rol en Firestore y solo entonces navega.
   ///
   /// Antes las dos tarjetas de cambio de rol eran fire-and-forget: llamaban a
