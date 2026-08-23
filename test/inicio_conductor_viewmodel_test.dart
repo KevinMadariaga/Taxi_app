@@ -771,5 +771,50 @@ void main() {
       await _pumpUntil(() => liberado.isNotEmpty);
       expect(asignado, isEmpty);
     });
+
+    // Regresión: el stream de `snapshots()` corta con `PERMISSION_DENIED`
+    // cuando la solicitud sale de "buscando" (otro conductor la tomó, el
+    // cliente canceló). Antes ese error se perdía sin manejar y la preview
+    // quedaba con "Aceptar" visible sobre una oferta fantasma. No es
+    // simulable disparando un error real en `fake_cloud_firestore` (su
+    // `snapshots()` no soporta cortes por seguridad), así que se testea
+    // `handlePreviewStatusError` directamente — es exactamente lo que el
+    // `onError` del `.listen()` de producción invoca.
+    group('handlePreviewStatusError — corte de stream (PERMISSION_DENIED)', () {
+      test('libera la preview en vez de perder el error en silencio', () async {
+        final (asignado, liberado) = await escuchar();
+
+        await vm.handlePreviewStatusError(
+          FirebaseException(
+            plugin: 'cloud_firestore',
+            code: 'permission-denied',
+          ),
+          StackTrace.current,
+          () async => liberado.add(1),
+        );
+
+        expect(liberado, [1]);
+        expect(asignado, isEmpty);
+      });
+
+      test('un segundo corte no dispara el callback otra vez', () async {
+        await escuchar();
+        final liberado = <int>[];
+        Future<void> onCanceladoOrRemoved() async => liberado.add(1);
+
+        await vm.handlePreviewStatusError(
+          Exception('permission-denied'),
+          StackTrace.current,
+          onCanceladoOrRemoved,
+        );
+        await vm.handlePreviewStatusError(
+          Exception('otro corte'),
+          StackTrace.current,
+          onCanceladoOrRemoved,
+        );
+
+        expect(liberado, [1]);
+      });
+    });
   });
 }

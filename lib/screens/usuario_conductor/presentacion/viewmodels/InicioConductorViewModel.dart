@@ -671,7 +671,42 @@ class InicioConductorViewmodel extends ChangeNotifier {
           } catch (e, st) {
             ErrorReporter.report(e, st, reason: 'InicioConductorViewModel');
           }
-        });
+        }, onError: (Object e, StackTrace st) => handlePreviewStatusError(
+              e,
+              st,
+              onCanceladoOrRemoved,
+            ));
+  }
+
+  /// Cuando la solicitud sale de "buscando" (otro conductor la tomó, el
+  /// cliente la canceló), la regla de Firestore deja de permitirle la
+  /// lectura a este conductor y el stream corta con `PERMISSION_DENIED` en
+  /// vez de mandar un snapshot — sin manejar este error la preview con
+  /// "Aceptar" quedaba visible como si la solicitud siguiera viva, y el
+  /// conductor podía tocar "Aceptar" sobre una oferta fantasma.
+  ///
+  /// Separado de `listenPreviewSolicitudStatus` (en vez de vivir inline en
+  /// el `onError` del `.listen()`) para poder testearlo directamente: el
+  /// stream de `snapshots()` de `fake_cloud_firestore` no tiene forma de
+  /// simular un corte real por `PERMISSION_DENIED`.
+  @visibleForTesting
+  Future<void> handlePreviewStatusError(
+    Object e,
+    StackTrace st,
+    Future<void> Function() onCanceladoOrRemoved,
+  ) async {
+    ErrorReporter.report(
+      e,
+      st,
+      reason: 'InicioConductorViewModel.listenPreviewSolicitudStatus',
+    );
+    if (_previewStatusHandled) return;
+    _previewStatusHandled = true;
+    try {
+      await onCanceladoOrRemoved();
+    } catch (err, st2) {
+      ErrorReporter.report(err, st2, reason: 'InicioConductorViewModel');
+    }
   }
 
   Future<void> stopPreviewSolicitudStatusListener() async {

@@ -873,6 +873,17 @@ class _InicioConductorState extends State<InicioConductor>
                                                                   preview,
                                                                 );
 
+                                                                // Capturado ANTES de cualquier `await`: este `context`
+                                                                // es el del item de la lista de "buscando" — si la
+                                                                // solicitud sale de esa lista mientras
+                                                                // `onCanceladoOrRemoved` está en curso, el `context`
+                                                                // queda desactivado aunque el `State` siga `mounted`.
+                                                                // `ScaffoldMessengerState` en cambio sigue vivo.
+                                                                final messenger =
+                                                                    ScaffoldMessenger.of(
+                                                                      context,
+                                                                    );
+
                                                                 // Iniciar listener sin bloquear la animación de la card
                                                                 unawaited(
                                                                   vm.listenPreviewSolicitudStatus(
@@ -888,9 +899,7 @@ class _InicioConductorState extends State<InicioConductor>
                                                                       );
                                                                       if (!mounted)
                                                                         return;
-                                                                      ScaffoldMessenger.of(
-                                                                        context,
-                                                                      ).showSnackBar(
+                                                                      messenger.showSnackBar(
                                                                         const SnackBar(
                                                                           content: Text(
                                                                             'El cliente canceló la solicitud.',
@@ -1160,6 +1169,35 @@ class _InicioConductorState extends State<InicioConductor>
                                                     content: Text(e.message),
                                                     backgroundColor:
                                                         Colors.orange,
+                                                  ),
+                                                );
+                                              }
+                                            } on FirebaseException catch (e) {
+                                              // La solicitud salió de
+                                              // "buscando" (otro conductor la
+                                              // tomó, el cliente la canceló)
+                                              // justo entre que se abrió la
+                                              // preview y se tocó "Aceptar" —
+                                              // la regla de Firestore corta
+                                              // la lectura con
+                                              // `permission-denied` en vez de
+                                              // devolver un doc vacío.
+                                              if (mounted) {
+                                                _isAcceptingRequest.value =
+                                                    false;
+                                                messenger.showSnackBar(
+                                                  SnackBar(
+                                                    content: Text(
+                                                      e.code ==
+                                                              'permission-denied'
+                                                          ? 'Esta solicitud ya no está disponible.'
+                                                          : 'Error al aceptar servicio: ${e.message ?? e.code}',
+                                                    ),
+                                                    backgroundColor:
+                                                        e.code ==
+                                                                'permission-denied'
+                                                            ? Colors.orange
+                                                            : null,
                                                   ),
                                                 );
                                               }
