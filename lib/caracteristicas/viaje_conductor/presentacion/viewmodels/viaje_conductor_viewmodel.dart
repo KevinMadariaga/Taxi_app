@@ -385,6 +385,25 @@ class ViajeConductorViewModel extends ChangeNotifier {
     );
   }
 
+  /// Reposiciona directo en la ubicación ACTUAL del cliente (leída del
+  /// viaje en vivo, no hardcodeada) para habilitar "Ya llegué" en cualquier
+  /// solicitud real de QA, sin necesitar coordenadas de antemano. Espera a
+  /// que llegue el primer snapshot si `objetivoActual` todavía no está
+  /// disponible. Solo para QA.
+  Future<void> irAUbicacionDelCliente() async {
+    if (isSimulandoRecorrido) return;
+    var objetivo = objetivoActual;
+    var intentos = 0;
+    while (objetivo == null && intentos < 20 && !_disposed) {
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      objetivo = objetivoActual;
+      intentos++;
+    }
+    if (objetivo == null || _disposed) return;
+    await _ubicacion.detener();
+    await _ubicacion.enviarPuntoSimulado(viajeId: viajeId, position: objetivo);
+  }
+
   /// Llamar desde `didChangeAppLifecycleState` (paused/inactive/hidden):
   /// detiene el stream en vivo y arranca el servicio en background — nunca
   /// ambos corriendo a la vez.
