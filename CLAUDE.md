@@ -101,9 +101,11 @@ Implementado en `lib/core/constants/solicitud_estado.dart`. La clase `SolicitudE
 | Colección | Descripción |
 |---|---|
 | `solicitudes` | Documentos de viaje. Campos clave: `estado`, `cliente{}`, `conductor{}`, `tarifa{}`, `destino{}`, `updatedAt`. |
-| `conductores` | Perfil del conductor: `nombre`, `placa`, `foto`, `fotoVehiculo`, `estado`, `adminId`. |
-| `usuarios` | Perfil del cliente: `nombre`, `apellido`, `telefono`, `fotoUrl`, `rol`, `isProfileComplete`. |
+| `usuarios` | Perfil de **cliente Y conductor** (comparten colección, doc id = uid, campo `rol`/`tipoUsuario` los distingue): `nombre`, `apellido`, `placa`, `foto`/`fotoUrl`, `fotoVehiculo`, `telefono`, `rol`, `isProfileComplete`, `membresia`/`membresiaVence` (conductor). |
+| `conductores_conectados` | Presencia en vivo del conductor conectado (doc id = uid): `ubicacion{lat,lng}`, `updatedAt`. Es lo que usa el reparto de solicitudes y el mapa "sonar" del cliente — **no** `conductores`. |
 | `administradores` | Perfil del admin: `nombre`, `telefono`, `foto`, `gremio`, `gremioFoto`. |
+
+`conductores` (sin guion bajo) **existe pero NO es el perfil del conductor**: son reglas de solo lectura (`firestore.rules`, `allow write: if false`) y aparece una sola vez en todo el código como fallback legacy de lectura. Antes esta tabla decía lo contrario — verificado y corregido en la auditoría de tracking/nombre de conductor (ver más abajo).
 
 ---
 
@@ -243,3 +245,12 @@ comprobarlas contra el proyecto real, no contra los comentarios:
 - Que `firebase.json` apunte a las apps correctas: apuntaba a apps fósiles
   (`com.example.taxi_app`) en ambas plataformas. La fuente de verdad es
   `firebase_options.dart` + los archivos nativos.
+- Que el perfil del conductor viva en su propia colección `conductores`. Esta
+  misma tabla lo decía así y era falso: cliente y conductor comparten
+  `usuarios/{uid}` (campo `rol`/`tipoUsuario` los distingue); `conductores`
+  es de solo lectura por reglas y casi sin uso en el código. Encontrado al
+  investigar por qué el nombre del conductor que veía el cliente quedaba
+  desactualizado (agosto 2026): la escritura vivía en `usuarios/{uid}`, y
+  `solicitudes/{id}.conductor.nombre` es una copia congelada al aceptar —
+  única razón por la que el cliente puede verlo, ya que las reglas no le
+  permiten leer `usuarios/{uid}` de otro usuario.

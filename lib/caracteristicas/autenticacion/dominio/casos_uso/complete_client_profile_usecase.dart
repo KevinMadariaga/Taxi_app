@@ -37,6 +37,16 @@ class CompleteClientProfileUseCase {
       );
     }
 
+    // Guarda de última línea: `complete_profile_controller.dart` ya valida
+    // que haya foto nueva o previa antes de llamar acá, pero ese chequeo
+    // vive en la UI. Este usecase es el único punto real de escritura de
+    // `isProfileComplete: true` — sin este guard, cualquier caller futuro
+    // (o un `existing.fotoUrl` que resultara vacío por datos legacy) podría
+    // marcar el perfil completo con la foto en blanco.
+    if ((fotoUrl ?? '').trim().isEmpty) {
+      throw StateError('Toma una foto de perfil para continuar.');
+    }
+
     await _repository.completeClientProfile(
       uid: params.uid,
       nombre: params.nombre,

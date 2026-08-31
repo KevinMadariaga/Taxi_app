@@ -30,6 +30,13 @@ class DriverUbicacionDatasource {
   /// `distanceFilter`/`timeInterval` que ya usaba `DriverLocationService`
   /// (15m / 10s), con el throttle interno de `TrackingService` (5s / 1m)
   /// aplicado antes de cada escritura a Firestore.
+  ///
+  /// `allowBackground: true` porque este stream es el único que corre
+  /// durante todo el viaje: antes se cancelaba al pasar a `paused` para
+  /// relevarlo con `BackgroundTrackingService` (que en iOS no hace nada —
+  /// ver `background_tracking_service.dart`); ahora el mismo stream sigue
+  /// vivo con la pantalla apagada o la app en otra app, gracias a la rama
+  /// `AppleSettings` de `TrackingService.iniciarEscuchaGPS`.
   Future<bool> iniciarEnvio({
     required String conductorId,
     required String viajeId,
@@ -41,6 +48,7 @@ class DriverUbicacionDatasource {
       solicitudId: viajeId,
       distanceFilter: 15.0,
       timeInterval: 10,
+      allowBackground: true,
       onLocationUpdate: onLocationUpdate,
     );
   }

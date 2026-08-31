@@ -10,7 +10,11 @@ import 'package:taxi_app/caracteristicas/autenticacion/presentacion/controladore
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/home_cliente_view.dart';
 
 /// Registro / completar perfil del cliente (Google / Apple).
-/// Prefijado con la foto y nombre del proveedor; foto opcional.
+/// Prefijado con el nombre del proveedor cuando lo entrega. La foto es
+/// obligatoria: ni Google ni Apple la guardan en `usuarios/{uid}` (ambos
+/// usecases de sign-in pasan `photoUrl: null` a propósito — ver
+/// `sign_in_apple_client_usecase.dart` / `sign_in_google_client_usecase.dart`),
+/// así que un alta nueva siempre llega acá sin foto previa.
 class CompleteProfilePage extends StatefulWidget {
   const CompleteProfilePage({
     super.key,
@@ -19,7 +23,6 @@ class CompleteProfilePage extends StatefulWidget {
     this.initialApellido,
     this.initialTelefono,
     this.initialCorreo,
-    this.fromOtpFlow = false,
   });
 
   final String uid;
@@ -27,7 +30,6 @@ class CompleteProfilePage extends StatefulWidget {
   final String? initialApellido;
   final String? initialTelefono;
   final String? initialCorreo;
-  final bool fromOtpFlow;
 
   @override
   State<CompleteProfilePage> createState() => _CompleteProfilePageState();
@@ -146,8 +148,10 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
 
   Widget _buildForm(BuildContext context, CompleteProfileController vm) {
     final file = vm.selectedImage != null ? File(vm.selectedImage!.path) : null;
-    // La foto previa (Google/Apple) cuenta como foto válida: es lo que
-    // `saveProfile` acepta cuando no se pudo tomar una nueva.
+    // Una foto ya guardada en `usuarios/{uid}.foto` (de un intento anterior
+    // de completar el perfil, nunca del proveedor Google/Apple — ninguno de
+    // los dos la entrega) cuenta como válida: es lo que `saveProfile`
+    // acepta cuando no se pudo tomar una nueva.
     final fotoPreviaUrl = vm.tieneFotoPrevia ? vm.currentUser?.fotoUrl : null;
     final tieneFoto = file != null || fotoPreviaUrl != null;
 

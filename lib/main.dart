@@ -15,7 +15,6 @@ import 'package:taxi_app/core/helpers/firebase_helper.dart';
 import 'package:taxi_app/core/helpers/permisos_helper.dart';
 import 'package:taxi_app/core/constants/app_constants.dart';
 import 'package:taxi_app/core/theme/app_theme.dart';
-import 'package:taxi_app/core/utils/app_dependencies.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/casos_uso/sign_in_google_client_usecase.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/casos_uso/sign_in_apple_client_usecase.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/casos_uso/get_client_user_usecase.dart';
@@ -262,8 +261,7 @@ Future<void> main() async {
 
   WidgetsBinding.instance.addObserver(_LimpiadorDeBandeja());
 
-  final dependencies = AppDependencies.initialize();
-  runApp(MyApp(dependencies: dependencies));
+  runApp(MyApp());
 
   // Inicialización diferida en segundo plano: no bloquea el primer frame ni
   // el splash. Los permisos se piden con el splash animado ya visible.
@@ -310,10 +308,8 @@ Future<void> _inicializarServiciosDiferidos() async {
 /// Root widget for the Taxi App.
 /// Sets up providers, theming, and navigation.
 class MyApp extends StatelessWidget {
-  MyApp({super.key, required this.dependencies})
-    : _authAdapter = AppAuthAdapter(FirebaseDataSource());
+  MyApp({super.key}) : _authAdapter = AppAuthAdapter(FirebaseDataSource());
 
-  final AppDependencies dependencies;
   final AppAuthAdapter _authAdapter;
   @override
   Widget build(BuildContext context) {
@@ -353,9 +349,7 @@ class MyApp extends StatelessWidget {
             theme: AppThemeConfig.lightTheme,
             navigatorKey: appNavigatorKey,
             initialRoute: AppRoutes.splash,
-            onGenerateRoute: (settings) {
-              return AppRoutes.onGenerateRoute(settings, dependencies);
-            },
+            onGenerateRoute: AppRoutes.onGenerateRoute,
             builder: (context, child) {
               return AppUpdateGate(
                 navigatorKey: appNavigatorKey,

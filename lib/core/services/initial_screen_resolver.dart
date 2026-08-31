@@ -166,12 +166,24 @@ class InitialScreenResolver {
           // que este bloque existe para evitar.
           role ??= 'cliente';
 
+          // La foto es obligatoria (ver `complete_client_profile_usecase.dart`),
+          // pero cuentas creadas antes de ese guard —o editadas desde el
+          // panel de admin— pueden tener `isProfileComplete: true` con
+          // `foto`/`fotoUrl` vacíos. Mismo orden de fallback que usa el
+          // resto del código (`client_user_model.dart`).
+          final tieneFoto =
+              (userData['fotoUrl'] ?? userData['foto'] ?? '')
+                  .toString()
+                  .trim()
+                  .isNotEmpty;
+
           // Un cliente autenticado SIN documento legible en `usuarios` tiene,
           // por definición, el perfil incompleto: es el estado que queda si
           // `ensureClientUserForGoogle` falló después de un sign-in exitoso.
           // Tratarlo como completo lo dejaba entrar al home sin nombre, sin
           // teléfono y sin foto.
-          final perfilCompleto = usuariosDoc.exists && perfilCompletoEnDoc;
+          final perfilCompleto =
+              usuariosDoc.exists && perfilCompletoEnDoc && tieneFoto;
 
           // Firestore fue alcanzable y dio un rol confiable: sincronizar el
           // caché para que, si alguna vez Firestore no es alcanzable (ver

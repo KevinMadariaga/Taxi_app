@@ -450,7 +450,6 @@ class InicioConductorViewmodel extends ChangeNotifier {
       // Se sigue con `currentLocation` existente como fallback.
     }
 
-    final conductorPayload = _buildConductorPayload(uid);
     final ref = _firestore.collection('solicitudes').doc(solicitudId);
     final conductorRef = _firestore.collection('usuarios').doc(uid);
 
@@ -458,7 +457,10 @@ class InicioConductorViewmodel extends ChangeNotifier {
       // Leer primero el doc del conductor: si la membresía ya venció (el
       // Timer local en InicioConductorView solo corta si la app sigue
       // abierta), no debe poder tomar viajes aunque su UI todavía no se haya
-      // refrescado a "inactivo".
+      // refrescado a "inactivo". Esta misma lectura fresca alimenta el
+      // payload de abajo (`_buildConductorPayload(uid, doc: conductorData)`)
+      // para que `conductor.nombre` en la solicitud sea el de Firestore y no
+      // el estado en memoria, que puede estar desactualizado.
       final conductorSnap = await tx.get(conductorRef);
       final conductorData = conductorSnap.data() ?? <String, dynamic>{};
       final membresiaActiva =
@@ -484,6 +486,7 @@ class InicioConductorViewmodel extends ChangeNotifier {
       if (estado != SolicitudEstado.buscando) {
         throw StateError('Esta solicitud ya fue tomada por otro conductor.');
       }
+      final conductorPayload = _buildConductorPayload(uid, doc: conductorData);
       tx.update(ref, {
         'estado': SolicitudEstado.asignado,
         'conductor': conductorPayload,
@@ -531,7 +534,24 @@ class InicioConductorViewmodel extends ChangeNotifier {
       // Se sigue con `currentLocation` existente como fallback.
     }
 
-    final conductorPayload = _buildConductorPayload(uid);
+    // Lectura fresca de `usuarios/{uid}` para que `conductor.nombre` en la
+    // contraoferta sea el de Firestore, no el estado en memoria (mismo
+    // motivo que en `aceptarSolicitud`). A diferencia de `aceptarSolicitud`,
+    // acá no había ya una lectura del doc del conductor dentro de la
+    // transacción, así que se hace aparte, fuera de ella (una contraoferta
+    // no valida membresía).
+    Map<String, dynamic>? conductorData;
+    try {
+      final conductorSnap = await _firestore
+          .collection('usuarios')
+          .doc(uid)
+          .get();
+      conductorData = conductorSnap.data();
+    } catch (_) {
+      // Sigue con el estado en memoria (`displayName`, etc.) como fallback.
+    }
+
+    final conductorPayload = _buildConductorPayload(uid, doc: conductorData);
     final ref = _firestore.collection('solicitudes').doc(solicitudId);
 
     await _firestore.runTransaction((tx) async {
@@ -595,15 +615,63 @@ class InicioConductorViewmodel extends ChangeNotifier {
     }.toList()..sort();
   }
 
-  Map<String, dynamic> _buildConductorPayload(String uid) {
+  /// Primer valor no vacío entre [keys] dentro de [doc], o `null` si no hay
+  /// doc o ninguna clave tiene contenido. Mismo patrón que
+  /// `cliente_repository_impl.dart._firstNonEmpty` del lado cliente.
+  String? _firstNonEmptyDoc(Map<String, dynamic>? doc, List<String> keys) {
+    if (doc == null) return null;
+    for (final key in keys) {
+      final value = doc[key];
+      if (value == null) continue;
+      final text = value.toString().trim();
+      if (text.isNotEmpty) return text;
+    }
+    return null;
+  }
+
+  /// Resuelve el nombre del conductor con la MISMA prioridad que
+  /// `cliente_repository_impl.dart` ya usa del lado del cliente (corregida
+  /// ahí en `e463a46c`): el documento de Firestore ('usuarios/{uid}', leído
+  /// fresco en el momento de escribir) manda sobre el estado en memoria
+  /// (`displayName`). `displayName` puede venir de SharedPreferences
+  /// (`ConductorProfileController.listenCachedName`) o de
+  /// `FirebaseAuth.currentUser.displayName` — ambos pueden estar
+  /// desactualizados frente a un cambio de nombre reciente en el perfil,
+  /// que solo se escribe en Firestore (`editar_perfil.dart` nunca llama
+  /// `updateDisplayName`).
+  String _resolverNombreConductor(Map<String, dynamic>? doc) {
+    final nombreDoc = _firstNonEmptyDoc(doc, const ['nombre']);
+    if (nombreDoc == null) return displayName;
+    final apellidoDoc = _firstNonEmptyDoc(doc, const ['apellido']);
+    return apellidoDoc == null ? nombreDoc : '$nombreDoc $apellidoDoc';
+  }
+
+  /// [doc] es una lectura fresca de `usuarios/{uid}` — cuando se provee (p.
+  /// ej. la que `aceptarSolicitud` ya hace dentro de su transacción para
+  /// validar la membresía), sus campos ganan sobre el estado en memoria del
+  /// ViewModel, que puede estar desactualizado. Ver `_resolverNombreConductor`.
+  Map<String, dynamic> _buildConductorPayload(
+    String uid, {
+    Map<String, dynamic>? doc,
+  }) {
+    final foto = _firstNonEmptyDoc(doc, const [
+      'foto',
+      'fotoUrl',
+      'photoUrl',
+    ]) ?? photoUrl;
+    final placa = _firstNonEmptyDoc(doc, const ['placa']) ?? vehiclePlate ?? '';
+    final fotoVehiculo =
+        _firstNonEmptyDoc(doc, const ['fotoVehiculo', 'vehiclePhotoUrl']) ??
+        vehiclePhotoUrl;
     return {
       'id': uid,
-      'nombre': displayName,
-      if (photoUrl != null) 'foto': photoUrl,
-      'placa': vehiclePlate ?? '',
+      'nombre': _resolverNombreConductor(doc),
+      if ((foto ?? '').trim().isNotEmpty) 'foto': foto,
+      'placa': placa,
       if (currentLocation != null) 'lat': currentLocation!.latitude,
       if (currentLocation != null) 'lng': currentLocation!.longitude,
-      if (vehiclePhotoUrl != null) 'fotoVehiculo': vehiclePhotoUrl,
+      if ((fotoVehiculo ?? '').trim().isNotEmpty)
+        'fotoVehiculo': fotoVehiculo,
       // Rating para que el cliente lo vea en la modal de ofertas.
       'calificacionPromedio': rating,
       'totalCalificaciones': totalRatings,

@@ -116,8 +116,11 @@ class CompleteProfileController extends ChangeNotifier {
     }
   }
 
-  /// `true` si el usuario ya tiene una foto (p. ej. la de Google/Apple con la
-  /// que inició sesión), en cuyo caso no hace falta tomar una nueva.
+  /// `true` si el usuario ya tiene una foto guardada en `usuarios/{uid}.foto`
+  /// de un intento anterior de completar el perfil, en cuyo caso no hace
+  /// falta tomar una nueva. Nunca viene del proveedor: ni Google ni Apple
+  /// entregan foto en el sign-in (ambos usecases pasan `photoUrl: null` a
+  /// propósito), así que en un alta nueva esto siempre es `false`.
   bool get tieneFotoPrevia => (_currentUser?.fotoUrl ?? '').trim().isNotEmpty;
 
   Future<String?> saveProfile({
@@ -139,10 +142,13 @@ class CompleteProfileController extends ChangeNotifier {
     );
     if (apellidoError != null) return apellidoError;
 
-    // Solo se exige foto nueva si el usuario tampoco tiene una previa. Antes
-    // era obligatoria siempre, así que quien no pudiera usar la cámara
-    // (permiso denegado, equipo sin cámara) quedaba encerrado en esta pantalla
-    // aunque ya tuviera la foto de Google/Apple.
+    // Solo se exige foto nueva si el usuario tampoco tiene una previa
+    // guardada en Firestore (ver `tieneFotoPrevia`). En un alta nueva con
+    // Google/Apple eso nunca ocurre — ninguno de los dos entrega foto en el
+    // sign-in — así que la foto es obligatoria de facto ahí. Este escape
+    // existe para quien ya completó el perfil una vez y vuelve a pasar por
+    // acá sin poder usar la cámara (permiso denegado, equipo sin cámara):
+    // no queda encerrado si ya tiene una foto válida guardada.
     if (_selectedImage == null && !tieneFotoPrevia) {
       return 'Toma una foto de perfil para continuar.';
     }

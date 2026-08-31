@@ -4,7 +4,6 @@ import 'package:taxi_app/caracteristicas/autenticacion/datos/repositorios/simple
 import 'package:taxi_app/caracteristicas/autenticacion/datos/repositorios/client_auth_repository_impl.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/entidades/auth_identity_entity.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/entidades/client_user_entity.dart';
-import 'package:taxi_app/caracteristicas/autenticacion/dominio/modelos/phone_verification_result.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/repositorios/client_auth_repository.dart';
 import 'package:taxi_app/features/client/data/firebaseDB.dart';
 
@@ -27,28 +26,6 @@ class AppAuthAdapter extends LegacyAuthRepository
   }
 
   @override
-  Future<PhoneVerificationResult> sendPhoneOtp({
-    required String phoneNumber,
-    int? forceResendingToken,
-  }) {
-    return _clientRepo.sendPhoneOtp(
-      phoneNumber: phoneNumber,
-      forceResendingToken: forceResendingToken,
-    );
-  }
-
-  @override
-  Future<AuthIdentityEntity> verifyPhoneOtp({
-    required String verificationId,
-    required String otpCode,
-  }) {
-    return _clientRepo.verifyPhoneOtp(
-      verificationId: verificationId,
-      otpCode: otpCode,
-    );
-  }
-
-  @override
   Future<ClientUserEntity?> getClientUserById(String uid) {
     return _clientRepo.getClientUserById(uid);
   }
@@ -65,17 +42,6 @@ class AppAuthAdapter extends LegacyAuthRepository
       displayName: displayName,
       email: email,
       photoUrl: photoUrl,
-    );
-  }
-
-  @override
-  Future<ClientUserEntity> ensureClientUserForPhone({
-    required String uid,
-    required String phoneNumber,
-  }) {
-    return _clientRepo.ensureClientUserForPhone(
-      uid: uid,
-      phoneNumber: phoneNumber,
     );
   }
 

@@ -41,36 +41,6 @@ class FirebaseService {
   // GUARDAR UBICACIÓN
   // ============================================================================
 
-  /// Guarda o actualiza la ubicación de un conductor en Firestore.
-  ///
-  /// [conductorId] - ID del conductor.
-  /// [position] - Coordenadas actuales (LatLng).
-  /// [address] - Dirección legible (opcional).
-  Future<void> guardarUbicacionConductor({
-    required String conductorId,
-    required LatLng position,
-    String? address,
-  }) async {
-    try {
-      final ubicacionPayload = <String, dynamic>{
-        'ubicacion': {
-          'lat': position.latitude,
-          'lng': position.longitude,
-          'lastUpdated': FieldValue.serverTimestamp(),
-          if (address != null && address.trim().isNotEmpty)
-            'address': address.trim(),
-        },
-      };
-
-      await _firestore
-          .collection('usuarios')
-          .doc(conductorId)
-          .set(ubicacionPayload, SetOptions(merge: true));
-    } catch (e) {
-      throw Exception('Error al guardar ubicación del conductor: $e');
-    }
-  }
-
   /// Guarda o actualiza la ubicación de un cliente en Firestore.
   ///
   /// [clienteId] - ID del cliente.
@@ -276,42 +246,6 @@ class FirebaseService {
       );
     } catch (e) {
       throw Exception('Error al cancelar el viaje: $e');
-    }
-  }
-
-  /// Asigna un conductor a una solicitud y actualiza el estado a 'asignado'.
-  ///
-  /// [solicitudId] - ID de la solicitud.
-  /// [conductorId] - ID del conductor asignado.
-  /// [conductorData] - Datos adicionales del conductor (nombre, foto, placa, etc.).
-  Future<void> asignarConductor({
-    required String solicitudId,
-    required String conductorId,
-    Map<String, dynamic>? conductorData,
-  }) async {
-    try {
-      final updateData = <String, dynamic>{
-        'conductorId': conductorId,
-        'assignedAt': FieldValue.serverTimestamp(),
-      };
-
-      if (conductorData != null) {
-        updateData['conductor'] = {
-          'nombre': conductorData['nombre'],
-          'foto': conductorData['foto'],
-          'fotoVehiculo': conductorData['fotoVehiculo'],
-          'ubicacion': conductorData['ubicacion'],
-          'placa': conductorData['placa'],
-        };
-      }
-
-      await _solicitudDatasource.actualizarEstado(
-        solicitudId: solicitudId,
-        estado: SolicitudEstado.asignado,
-        extra: updateData,
-      );
-    } catch (e) {
-      throw Exception('Error al asignar conductor: $e');
     }
   }
 

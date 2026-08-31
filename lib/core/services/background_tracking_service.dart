@@ -8,6 +8,27 @@ import 'package:taxi_app/firebase_options.dart';
 import 'tracking_service.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
 
+// SIN ARRANCADORES a propósito. Este servicio (basado en
+// `flutter_background_service`) relevaba al stream de GPS en primer plano
+// cuando `ViajeConductorViewModel` pasaba a `paused` — y ESE relevo era el
+// bug: en iOS `onIosBackground` de acá abajo es `return true;`, no manda
+// ubicación, así que cancelar el stream principal en el momento del relevo
+// dejaba a nadie mandando ubicación mientras el conductor tenía la pantalla
+// apagada. Ver `onAppPausedOrInactive`/`onAppResumed` en
+// `viaje_conductor_viewmodel.dart`: ahora el stream de
+// `TrackingService.iniciarEscuchaGPS` (con `allowBackground: true` y, en
+// iOS, `AppleSettings.allowBackgroundLocationUpdates`) corre sin
+// interrupción durante todo el viaje y este servicio nunca se arranca.
+//
+// `startBackgroundTrackingService`/`initializeBackgroundService` quedan
+// definidos pero sin llamadores — no se borraron porque `stopBackground
+// TrackingService` sigue siendo una red de seguridad real: si un usuario
+// actualiza la app con un viaje en curso desde una versión anterior que sí
+// dejó este servicio corriendo, algo tiene que poder apagarlo. Ver los
+// callers de `stopBackgroundTrackingService` (`dispose()` de este
+// ViewModel, `resumen_viaje_view.dart`, `auth_service.dart`,
+// `InicioConductorViewModel.dart`).
+
 Future<void> initializeBackgroundService() async {
   final service = FlutterBackgroundService();
   await service.configure(

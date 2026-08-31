@@ -1,7 +1,7 @@
 name: taxi_app
 description: "Aplicación móvil para servicio de transporte con geolocalización en tiempo real."
 publish_to: 'none'
-version: 1.0.7+53
+version: 1.0.7+54
 
 environment:
   sdk: ^3.10.7

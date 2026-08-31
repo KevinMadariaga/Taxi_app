@@ -112,54 +112,6 @@ class ClientUserFirestoreDataSource {
         );
   }
 
-  Future<ClientUserModel> ensureForPhone({
-    required String uid,
-    required String phoneNumber,
-  }) async {
-    final existing = await getById(uid);
-    if (existing != null) {
-      final shouldSetPhone =
-          existing.telefono.trim().isEmpty && phoneNumber.trim().isNotEmpty;
-
-      if (shouldSetPhone) {
-        await _firestore.collection('usuarios').doc(uid).set({
-          'telefono': phoneNumber.trim(),
-          'rol': 'cliente',
-        }, SetOptions(merge: true));
-      }
-
-      return (await getById(uid)) ?? existing;
-    }
-
-    final payload = <String, dynamic>{
-      'id': uid,
-      'uid': uid,
-      'nombre': '',
-      'apellido': '',
-      'telefono': phoneNumber.trim(),
-      'foto': '',
-      'rol': 'cliente',
-      'email': '',
-      'isProfileComplete': false,
-      'createdAt': FieldValue.serverTimestamp(),
-    };
-
-    await _firestore.collection('usuarios').doc(uid).set(payload);
-
-    return (await getById(uid)) ??
-        ClientUserModel(
-          id: uid,
-          nombre: '',
-          apellido: '',
-          telefono: phoneNumber.trim(),
-          fotoUrl: '',
-          rol: 'cliente',
-          email: null,
-          isProfileComplete: false,
-          createdAt: DateTime.now(),
-        );
-  }
-
   Future<void> completeProfile({
     required String uid,
     required String nombre,

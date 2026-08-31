@@ -177,16 +177,18 @@ class _MapaRutaCardState extends State<MapaRutaCard> {
             child: Stack(
               children: [
                 Mapagoogle(
-                  // La key depende de origen Y destino (no solo destino):
-                  // en iOS, actualizar solo la `position` de un `Marker` con
-                  // el mismo `markerId` a veces no se refleja en el mapa
-                  // nativo (el plugin no siempre repinta el marcador con el
-                  // diffing por posición). Incluir el origen fuerza a
-                  // remontar el `GoogleMap` con los marcadores ya en su
-                  // posición final en vez de depender de esa actualización.
+                  // La key depende de origen, destino Y tipo de vehículo (no
+                  // solo destino): en iOS, actualizar solo la `position` o
+                  // el `icon` de un `Marker` con el mismo `markerId` a veces
+                  // no se refleja en el mapa nativo (el plugin no siempre
+                  // repinta el marcador con el diffing por posición/ícono).
+                  // Incluir el tipo de vehículo fuerza a remontar el
+                  // `GoogleMap` cuando el usuario cambia carro↔moto, en vez
+                  // de depender de esa actualización in-place.
                   key: ValueKey(
                     '${origen.latitude},${origen.longitude}_'
-                    '${destino.latitude},${destino.longitude}',
+                    '${destino.latitude},${destino.longitude}_'
+                    '${data.tipoVehiculo.firestoreKey}',
                   ),
                   initialTarget: LatLng(
                     (origen.latitude + destino.latitude) / 2,

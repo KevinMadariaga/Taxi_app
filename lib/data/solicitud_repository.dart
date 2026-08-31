@@ -1,19 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:taxi_app/features/trip_tracking_cliente/services/trip_tracking_firestore_service.dart';
 
 abstract class SolicitudRepository {
   /// Devuelve un stream en tiempo real del estado de la solicitud
   Stream<String?> estadoSolicitudStream(String solicitudId);
-
-  /// Guarda la ubicación del conductor en la solicitud
-  Future<void> guardarUbicacionConductor(
-    String solicitudId,
-    double lat,
-    double lng,
-  );
 
   Future<Map<String, dynamic>?> getCliente(String solicitudId);
 
@@ -34,12 +25,6 @@ abstract class SolicitudRepository {
 }
 
 class SolicitudRepositoryImpl implements SolicitudRepository {
-  SolicitudRepositoryImpl({TripTrackingFirebaseService? tripTrackingService})
-    : _tripTrackingService =
-          tripTrackingService ?? TripTrackingFirebaseService();
-
-  final TripTrackingFirebaseService _tripTrackingService;
-
   /// Devuelve un stream en tiempo real del estado de la solicitud
   @override
   Stream<String?> estadoSolicitudStream(String solicitudId) {
@@ -48,33 +33,6 @@ class SolicitudRepositoryImpl implements SolicitudRepository {
         .doc(solicitudId)
         .snapshots()
         .map((doc) => doc.data()?['estado'] as String?);
-  }
-
-  /// Guarda la ubicación del conductor en la solicitud
-  @override
-  Future<void> guardarUbicacionConductor(
-    String solicitudId,
-    double lat,
-    double lng,
-  ) async {
-    try {
-      debugPrint(
-        '[SolicitudRepository] guardarUbicacionConductor -> solicitud:$solicitudId lat:$lat lng:$lng',
-      );
-      final ts = DateTime.now().millisecondsSinceEpoch;
-      await _tripTrackingService.actualizarUbicacionConductorEnSolicitud(
-        solicitudId: solicitudId,
-        location: LatLng(lat, lng),
-        timestampMs: ts,
-      );
-    } catch (e, st) {
-      debugPrint('Error al guardar ubicación del conductor (servicio): $e');
-      FirebaseCrashlytics.instance.recordError(
-        e,
-        st,
-        reason: 'SolicitudRepository.guardarUbicacionConductor',
-      );
-    }
   }
 
   @override

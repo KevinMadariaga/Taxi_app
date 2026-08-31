@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
-import 'package:taxi_app/core/utils/app_dependencies.dart';
 import 'package:taxi_app/presentation/screens/splash/splash_view.dart';
-import 'package:taxi_app/caracteristicas/autenticacion/presentacion/viewmodels/login_viewmodel.dart';
 import 'package:taxi_app/presentation/viewmodels/splash/splash_viewmodel.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/presentacion/vistas/home_screen.dart';
 import 'package:taxi_app/features/admin/admin_home_screen.dart';
@@ -23,10 +21,7 @@ class AppRoutes {
   static const String ayudaProblemasConductor = '/ayuda/problemas-conductor';
   static const String ayudaMetodoPago = '/ayuda/metodo-pago';
 
-  static Route<dynamic> onGenerateRoute(
-    RouteSettings settings,
-    AppDependencies dependencies,
-  ) {
+  static Route<dynamic> onGenerateRoute(RouteSettings settings) {
     final args = settings.arguments is Map
         ? (settings.arguments as Map).cast<String, dynamic>()
         : const <String, dynamic>{};
@@ -40,14 +35,7 @@ class AppRoutes {
           ),
         );
       case login:
-        return MaterialPageRoute(
-          builder: (_) => ChangeNotifierProvider(
-            create: (_) => LoginViewModel(
-              sendPhoneOtpUseCase: dependencies.sendPhoneOtpUseCase,
-            ),
-            child: const HomeView(),
-          ),
-        );
+        return MaterialPageRoute(builder: (_) => const HomeView());
       case adminHome:
         return MaterialPageRoute(
           settings: settings,

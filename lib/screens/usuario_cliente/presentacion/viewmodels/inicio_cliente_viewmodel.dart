@@ -146,17 +146,23 @@ class InicioClienteViewModel extends ChangeNotifier {
   Future<void> _inicializarConductoresConectados() async {
     try {
       _taxiIcon = await MapHelper.loadMarkerIcon(
-        'assets/img/carito.png',
+        'assets/img/icono_carro.png',
         size: const Size(50, 50),
       );
     } catch (e) {
       debugPrint('Error cargando icono de taxi: $e');
     }
 
+    // `conductores` no lo escribe nadie (ni la app ni Cloud Functions) — esta
+    // consulta siempre devolvía cero resultados, así que el mapa del home
+    // nunca mostraba taxis disponibles. `conductores_conectados/{uid}` es la
+    // presencia en vivo real: la escribe `InicioConductorViewModel` mientras
+    // el conductor está conectado y disponible, y `aceptarSolicitud` borra
+    // el doc en cuanto toma un viaje — la sola existencia del doc ya
+    // significa "disponible ahora", sin necesitar un filtro `activos`.
     _conductoresSub?.cancel();
     _conductoresSub = FirebaseFirestore.instance
-        .collection('conductores')
-        .where('activos', isEqualTo: true)
+        .collection('conductores_conectados')
         .snapshots()
         .listen(
           (snapshot) {

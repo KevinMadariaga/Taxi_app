@@ -59,6 +59,17 @@ class TrackingService {
 
   DateTime? _lastSentTime;
 
+  /// Reenvía la última posición conocida si no hubo escritura reciente —
+  /// con el conductor detenido (semáforo, tráfico), `distanceFilter: 15`
+  /// hace que el stream de GPS no emita NADA nuevo, así que
+  /// `conductor.lastUpdated` envejece. El motor de animación del cliente
+  /// (`conductor_movement_simulator.dart`, `_largeGapDuration = 25s`) trata
+  /// un hueco así como un salto grande y TELETRANSPORTA el marcador en vez
+  /// de moverlo — este latido evita que el hueco llegue a formarse.
+  Timer? _keepAliveTimer;
+  static const _keepAliveCheckInterval = Duration(seconds: 15);
+  static const _keepAliveThreshold = Duration(seconds: 20);
+
   TrackingService({FirebaseService? firebaseService})
     : _firebaseService = firebaseService ?? FirebaseService();
 
@@ -84,6 +95,12 @@ class TrackingService {
     int timeInterval = 10,
     // When true, skip interactive permission requests (useful for background isolates).
     bool skipPermissionRequest = false,
+    // Cuando es `true`, en iOS se piden `LocationSettings` que permiten
+    // actualizaciones en segundo plano (ver `AppleSettings` más abajo). Debe
+    // ser opt-in: solo el conductor en viaje lo necesita — pedirlo también
+    // para el cliente o para el conductor fuera de viaje sería innecesario
+    // y drena batería sin ningún consumidor esperando esos puntos.
+    bool allowBackground = false,
   }) async {
     if (_isTracking) {
       developer.log(
@@ -114,23 +131,43 @@ class TrackingService {
 
     // Configuración de precisión para tracking en tiempo real
     // Preferir configuración con servicio en primer plano en Android para mantener tracking si la app pasa a background (ej: al abrir Google Maps externo).
-    final locationSettings =
-        !kIsWeb && defaultTargetPlatform == TargetPlatform.android
-        ? AndroidSettings(
-            accuracy: LocationAccuracy.high,
-            distanceFilter: distanceFilter.toInt(),
-            intervalDuration: Duration(seconds: timeInterval),
-            foregroundNotificationConfig: const ForegroundNotificationConfig(
-              notificationTitle: 'Ride - Tracking activo',
-              notificationText: 'Compartiendo tu ubicación en tiempo real.',
-              enableWakeLock: true,
-              // notificationIcon eliminado para usar el predeterminado del sistema
-            ),
-          )
-        : LocationSettings(
-            accuracy: LocationAccuracy.high,
-            distanceFilter: distanceFilter.toInt(),
-          );
+    final LocationSettings locationSettings;
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      locationSettings = AndroidSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: distanceFilter.toInt(),
+        intervalDuration: Duration(seconds: timeInterval),
+        foregroundNotificationConfig: const ForegroundNotificationConfig(
+          notificationTitle: 'Ride - Tracking activo',
+          notificationText: 'Compartiendo tu ubicación en tiempo real.',
+          enableWakeLock: true,
+          // notificationIcon eliminado para usar el predeterminado del sistema
+        ),
+      );
+    } else if (!kIsWeb &&
+        defaultTargetPlatform == TargetPlatform.iOS &&
+        allowBackground) {
+      // Sin esto, iOS pausaba las actualizaciones de GPS al pasar a segundo
+      // plano aunque el stream de Geolocator siguiera vivo — el
+      // `LocationSettings` genérico de la rama de abajo no declara nada de
+      // background. `UIBackgroundModes: location` ya está en `Info.plist`,
+      // y el permiso "Siempre" ya se pide antes de empezar el viaje (ver
+      // `InicioConductorView._ensureBackgroundLocationForTrip`); esto solo
+      // le pide al SDK que use esa autorización.
+      locationSettings = AppleSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: distanceFilter.toInt(),
+        activityType: ActivityType.automotiveNavigation,
+        pauseLocationUpdatesAutomatically: false,
+        showBackgroundLocationIndicator: true,
+        allowBackgroundLocationUpdates: true,
+      );
+    } else {
+      locationSettings = LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: distanceFilter.toInt(),
+      );
+    }
 
     try {
       _positionSubscription =
@@ -257,6 +294,8 @@ class TrackingService {
     Function(Position)? onLocationUpdate,
     // When true, skip interactive permission requests (useful for background isolates).
     bool skipPermissionRequest = false,
+    // Ver `iniciarEscuchaGPS` — opt-in, solo para el conductor en viaje.
+    bool allowBackground = false,
   }) async {
     // Send one immediate point so background mode persists location quickly
     // even when the user is not moving.
@@ -299,10 +338,17 @@ class TrackingService {
       }
     }
 
+    _startKeepAlive(
+      userId: userId,
+      userType: userType,
+      solicitudId: solicitudId,
+    );
+
     return await iniciarEscuchaGPS(
       distanceFilter: distanceFilter,
       timeInterval: timeInterval,
       skipPermissionRequest: skipPermissionRequest,
+      allowBackground: allowBackground,
       onLocationUpdate: (position) async {
         // NUEVO: evitar enviar si no se movió realmente
         if (_lastSentPosition != null) {
@@ -417,6 +463,39 @@ class TrackingService {
     }
   }
 
+  /// Arranca (o reinicia) el latido de `_keepAliveThreshold`. Ver el
+  /// comentario de `_keepAliveTimer` para el porqué.
+  void _startKeepAlive({
+    required String userId,
+    required String userType,
+    String? solicitudId,
+  }) {
+    _keepAliveTimer?.cancel();
+    _keepAliveTimer = Timer.periodic(_keepAliveCheckInterval, (_) async {
+      if (!_isTracking) return;
+      final lastSent = _lastSentTime;
+      if (lastSent == null) return;
+      if (DateTime.now().difference(lastSent) < _keepAliveThreshold) return;
+      final posicion = _lastSentPosition ?? _lastPosition;
+      if (posicion == null) return;
+      try {
+        await enviarUbicacion(
+          userId: userId,
+          userType: userType,
+          position: posicion,
+          solicitudId: solicitudId,
+        );
+        _lastSentPosition = posicion;
+        _lastSentTime = DateTime.now();
+      } catch (e) {
+        developer.log(
+          '❌ Error en latido de keepalive (reintentará): $e',
+          name: _loggerName,
+        );
+      }
+    });
+  }
+
   // ============================================================================
   // DETENER TRACKING
   // ============================================================================
@@ -424,6 +503,12 @@ class TrackingService {
   ///
   /// Cancela la suscripción al stream de posiciones y marca el tracking como inactivo.
   Future<void> detenerTracking() async {
+    // Cancela el keepalive siempre, incluso si `_isTracking` ya era `false`
+    // (p. ej. `iniciarEscuchaGPS` todavía no terminó de arrancar cuando se
+    // llamó a esto) — sin esto, el timer podía sobrevivir a la parada.
+    _keepAliveTimer?.cancel();
+    _keepAliveTimer = null;
+
     if (!_isTracking) {
       developer.log(
         '⚠️ TrackingService: El tracking ya está detenido.',

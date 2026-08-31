@@ -17,10 +17,22 @@ import '../services/trip_route_math_service.dart';
 /// deliberadamente NO depende de `MapService` para mantenerlo desacoplado de
 /// la capa de red/Cloud Functions.
 class ConductorMovementSimulator {
-  ConductorMovementSimulator({TripRouteMathService? mathService})
-    : _mathService = mathService ?? const TripRouteMathService();
+  ConductorMovementSimulator({
+    TripRouteMathService? mathService,
+    // Inyectable para tests: `fake_async` NO intercepta `DateTime.now()`
+    // (solo `Timer`/`Future.delayed`) — ya documentado en
+    // `test/buscando_taxi_viewmodel_test.dart` como "el problema de
+    // DateTime.now() no interceptado que sí aplicaba al motor de
+    // movimiento". Sin este punto de inyección, un test con `fakeAsync`
+    // puede adelantar el `Timer` de 50ms pero `elapsedMs` en
+    // [enqueueTarget] seguiría viendo microsegundos de reloj real, no el
+    // tiempo virtual adelantado.
+    DateTime Function()? now,
+  }) : _mathService = mathService ?? const TripRouteMathService(),
+       _now = now ?? DateTime.now;
 
   final TripRouteMathService _mathService;
+  final DateTime Function() _now;
 
   final ValueNotifier<LatLng?> positionNotifier = ValueNotifier<LatLng?>(null);
   final ValueNotifier<double> headingNotifier = ValueNotifier<double>(0.0);
@@ -64,6 +76,16 @@ class ConductorMovementSimulator {
   // un minuto seguido, saturando el hilo principal (ANR).
   static const _largeJumpDistanceMeters = 200.0;
   static const _largeGapDuration = Duration(seconds: 25);
+
+  // Piso/techo de la velocidad de crucero del marcador. El piso evita que un
+  // ping lento (semáforo, tráfico) deje el siguiente tramo caminando a paso
+  // de peatón hasta que el backlog lo rescate; el techo evita capar un tramo
+  // real rápido (avenida, autopista). `_maxSpeedMpsWithBacklog` es el techo
+  // ampliado que solo aplica durante la compensación de atraso
+  // (`_effectiveSpeedForBacklog`), no a la velocidad de crucero base.
+  static const _minSpeedMps = 6.0;
+  static const _maxSpeedMps = 20.0;
+  static const _maxSpeedMpsWithBacklog = 32.0;
 
   LatLng? get currentPosition => _smoothed;
 
@@ -122,16 +144,21 @@ class ConductorMovementSimulator {
   /// grandes (>200m o gap >25s) se aplican de una vez vía [_snapTo]. El resto
   /// se anima gradualmente vía el timer de 50ms.
   void enqueueTarget(LatLng target) {
-    final now = DateTime.now();
+    final now = _now();
     var isLargeJump = false;
+    int? elapsedMs;
     if (_lastRawTarget != null && _lastRawTargetAt != null) {
-      final elapsedMs = now.difference(_lastRawTargetAt!).inMilliseconds;
+      elapsedMs = now.difference(_lastRawTargetAt!).inMilliseconds;
       if (elapsedMs > 0) {
-        final distance = _mathService.haversineMeters(_lastRawTarget!, target);
-        final speed = distance / (elapsedMs / 1000.0);
-        _movementSpeedMps = speed.clamp(3.0, 18.0);
+        // Línea recta a propósito acá: esto solo detecta saltos/gaps
+        // extremos (background, pérdida de señal), donde lo que importa es
+        // el desplazamiento real, no la distancia de calle.
+        final straightDistance = _mathService.haversineMeters(
+          _lastRawTarget!,
+          target,
+        );
         isLargeJump =
-            distance > _largeJumpDistanceMeters ||
+            straightDistance > _largeJumpDistanceMeters ||
             now.difference(_lastRawTargetAt!) > _largeGapDuration;
       }
     }
@@ -151,18 +178,25 @@ class ConductorMovementSimulator {
 
     final snappedTarget = _snapTargetToRouteForward(target);
 
-    if (_pendingTargets.isNotEmpty) {
-      final lastQueued = _pendingTargets.last;
-      final delta = _mathService.haversineMeters(lastQueued, snappedTarget);
-      if (delta < 1.2) return;
-    }
+    // Referencia para el dedup de ruido Y para calibrar la velocidad de
+    // crucero: el último punto ya encolado si hay cola, si no la posición
+    // que se está mostrando ahora mismo. `_smoothed` no puede ser null acá
+    // (ya se retornó arriba si lo era).
+    final LatLng from = _pendingTargets.isNotEmpty
+        ? _pendingTargets.last
+        : _smoothed!;
+    final delta = _mathService.haversineMeters(from, snappedTarget);
+    if (delta < 1.2) return;
 
-    if (_pendingTargets.isEmpty && _smoothed != null) {
-      final deltaFromCurrent = _mathService.haversineMeters(
-        _smoothed!,
-        snappedTarget,
-      );
-      if (deltaFromCurrent < 1.2) return;
+    // Velocidad de crucero calibrada contra la distancia de RUTA (calles,
+    // giros), no la línea recta — un giro real casi siempre es más largo que
+    // la recta entre los mismos dos puntos, así que calibrar contra la recta
+    // dejaba al crawl sistemáticamente atrasado respecto al tiempo real
+    // transcurrido entre pings (la causa del "se ve lento/atrasado").
+    if (elapsedMs != null && elapsedMs > 0) {
+      final pathDistance = _pathDistanceMeters(from, snappedTarget);
+      final speed = pathDistance / (elapsedMs / 1000.0);
+      _movementSpeedMps = speed.clamp(_minSpeedMps, _maxSpeedMps);
     }
 
     _pendingTargets.add(snappedTarget);
@@ -216,6 +250,36 @@ class ConductorMovementSimulator {
     if (_paused || _disposed) return;
     if (_timer != null) return;
     _timer = Timer.periodic(const Duration(milliseconds: 50), (_) => _tick());
+  }
+
+  /// Distancia (m) recorriendo la polilínea real (calles/giros) entre [from]
+  /// y [to], no la línea recta — usada en `enqueueTarget` para calibrar la
+  /// velocidad de crucero contra lo que el marcador realmente va a caminar.
+  /// Mismo recorte por índice más cercano que [_prepareActivePath] (que
+  /// arma el path a caminar); acá solo se necesita su longitud total.
+  double _pathDistanceMeters(LatLng from, LatLng to) {
+    final source = _fullRoutePoints.length >= 2
+        ? _fullRoutePoints
+        : remainingRoutePointsNotifier.value;
+    if (source.length < 2) {
+      return _mathService.haversineMeters(from, to);
+    }
+
+    final startIdx = _mathService.nearestPointIndex(from, source);
+    final endIdx = _mathService.nearestPointIndex(to, source);
+
+    final List<LatLng> segment;
+    if (startIdx <= endIdx) {
+      segment = source.sublist(startIdx, endIdx + 1);
+    } else {
+      segment = source.sublist(endIdx, startIdx + 1).reversed.toList();
+    }
+
+    return _mathService.polylineDistanceMeters(<LatLng>[
+      from,
+      ...segment,
+      to,
+    ]);
   }
 
   void _prepareActivePath(LatLng from, LatLng to) {
@@ -313,8 +377,15 @@ class ConductorMovementSimulator {
     var speed = _movementSpeedMps;
     final backlog = _pendingTargets.length;
 
-    if (backlog >= 2) {
-      speed *= (1.0 + (backlog - 1) * 0.35).clamp(1.0, 2.8);
+    // Antes disparaba solo con backlog >= 2 (reactivo: esperaba a que el
+    // atraso ya fuera visible antes de compensar). Con la velocidad de
+    // crucero ya calibrada contra la distancia de ruta (ver `enqueueTarget`
+    // / `_pathDistanceMeters`), esto debería activarse rara vez en tramos
+    // normales — queda como red de seguridad para cuando la ruta cambia a
+    // mitad de tramo (recálculo por desvío > 40m) y el path nuevo resulta
+    // más largo de lo que la velocidad de crucero anticipaba.
+    if (backlog >= 1) {
+      speed *= (1.0 + backlog * 0.25).clamp(1.0, 2.8);
     }
 
     if (backlog > 0) {
@@ -322,16 +393,16 @@ class ConductorMovementSimulator {
         current,
         _pendingTargets.first,
       );
-      if (lagDistance > 70) {
+      if (lagDistance > 50) {
         speed *= 1.5;
-      } else if (lagDistance > 40) {
+      } else if (lagDistance > 30) {
         speed *= 1.3;
-      } else if (lagDistance > 20) {
+      } else if (lagDistance > 15) {
         speed *= 1.15;
       }
     }
 
-    return speed.clamp(3.0, 28.0);
+    return speed.clamp(_minSpeedMps, _maxSpeedMpsWithBacklog);
   }
 
   LatLng _snapTargetToRouteForward(LatLng target) {
@@ -370,7 +441,7 @@ class ConductorMovementSimulator {
 
   void _rebuildRemainingRoute(LatLng current, {bool force = false}) {
     if (!force) {
-      final now = DateTime.now();
+      final now = _now();
       if (_lastRebuildAt != null &&
           now.difference(_lastRebuildAt!) < _rebuildInterval) {
         return;

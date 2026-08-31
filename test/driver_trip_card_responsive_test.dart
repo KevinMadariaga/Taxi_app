@@ -48,6 +48,12 @@ class _FakeViajeRepository implements ViajeRepository {
     required String viajeId,
     required String canceladoPor,
   }) async {}
+
+  @override
+  Future<void> actualizarInfoConductor({
+    required String viajeId,
+    required Map<String, dynamic> datosConductor,
+  }) async {}
 }
 
 class _FakeCodigoRepository implements CodigoVerificacionRepository {

@@ -185,6 +185,37 @@ void main() {
       expect(presencia.exists, isFalse);
     });
 
+    // Reproduce el bug reportado: el cliente veía el nombre viejo o el
+    // derivado del correo de Gmail. `displayName` en memoria (prefs/Auth)
+    // puede estar desactualizado — `aceptarSolicitud` debe preferir SIEMPRE
+    // el `nombre`/`apellido` que ya lee de `usuarios/{uid}` dentro de su
+    // propia transacción (antes solo lo usaba para validar membresía y
+    // descartaba el resto del doc).
+    test(
+      'éxito: usa nombre+apellido de Firestore, no el estado en memoria '
+      '(que acá nunca se hidrató — init() no se llamó — y quedó en el '
+      'default "Conductor", simulando un displayName viejo/de Auth)',
+      () async {
+        await firestore.collection('usuarios').doc(_uid).set({
+          'membresia': 'activa',
+          'nombre': 'Juan Carlos',
+          'apellido': 'Rodríguez',
+        });
+        await firestore.collection('solicitudes').doc('sol-1').set({
+          'estado': 'buscando',
+        });
+
+        expect(vm.displayName, 'Conductor'); // estado en memoria sin hidratar
+        await vm.aceptarSolicitud('sol-1');
+
+        final doc = await firestore
+            .collection('solicitudes')
+            .doc('sol-1')
+            .get();
+        expect(doc.data()!['conductor']['nombre'], 'Juan Carlos Rodríguez');
+      },
+    );
+
     // `disponible` es la intención del conductor (su toggle online/offline).
     // Apagarla al aceptar lo dejaría offline después de cada viaje.
     test('éxito: NO apaga el toggle disponible del conductor', () async {
@@ -239,6 +270,30 @@ void main() {
       expect(data['estadoContraoferta'], 'pendiente_cliente');
       expect(data['contraofertas'][_uid]['valor'], 15000);
       expect(data['contraofertas'][_uid]['conductor']['id'], _uid);
+    });
+
+    // A diferencia de `aceptarSolicitud`, este método no tenía ninguna
+    // lectura previa de `usuarios/{uid}` — sin la lectura fresca agregada
+    // acá, una contraoferta escribía el nombre en memoria (potencialmente
+    // viejo) y `buscando_taxi_viewmodel.dart` lo copiaba tal cual a
+    // `conductor` si el cliente la aceptaba.
+    test('éxito: usa nombre+apellido de Firestore, no el estado en memoria', () async {
+      await firestore.collection('usuarios').doc(_uid).set({
+        'nombre': 'Juan Carlos',
+        'apellido': 'Rodríguez',
+      });
+      await firestore.collection('solicitudes').doc('sol-1').set({
+        'estado': 'buscando',
+      });
+
+      expect(vm.displayName, 'Conductor');
+      await vm.enviarContraoferta(solicitudId: 'sol-1', nuevoValor: 15000);
+
+      final doc = await firestore.collection('solicitudes').doc('sol-1').get();
+      expect(
+        doc.data()!['contraofertas'][_uid]['conductor']['nombre'],
+        'Juan Carlos Rodríguez',
+      );
     });
   });
 

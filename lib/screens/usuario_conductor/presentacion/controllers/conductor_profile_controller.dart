@@ -55,9 +55,19 @@ class ConductorProfileController {
   /// propio notifyListeners.
   VoidCallback? onChanged;
 
+  /// `true` mientras no se haya confirmado el nombre real en
+  /// `usuarios/{uid}` (`hydrateFromConductorDoc`). El caché de
+  /// SharedPreferences y `FirebaseAuth.displayName` corren en paralelo con
+  /// la lectura de Firestore (`init()` los lanza sin `await`) y sin esta
+  /// guarda podían pisar un nombre ya confirmado con uno viejo — el origen
+  /// del "nombre del gmail" que veía el cliente.
+  bool get _nombreConfirmadoDesdeFirestore =>
+      nameFromDb != null && nameFromDb!.trim().isNotEmpty;
+
   void listenCachedName() {
     _cachedNameSub?.cancel();
     _cachedNameSub = SessionHelper.cachedNameStream.listen((name) {
+      if (_nombreConfirmadoDesdeFirestore) return;
       if (name != null && name.trim().isNotEmpty) {
         setDisplayName(name.trim());
       }
@@ -65,6 +75,7 @@ class ConductorProfileController {
 
     SessionHelper.getCachedName()
         .then((n) {
+          if (_nombreConfirmadoDesdeFirestore) return;
           if (n != null && n.trim().isNotEmpty) {
             setDisplayName(n.trim());
           }
@@ -84,13 +95,22 @@ class ConductorProfileController {
       final user = _auth.currentUser;
       if (user != null) {
         photoUrl = user.photoURL;
-        if (user.displayName != null && user.displayName!.trim().isNotEmpty) {
-          displayName = user.displayName!.trim();
-        } else if (user.email != null && user.email!.contains('@')) {
-          final namePart = user.email!.split('@').first;
-          if (namePart.isNotEmpty) {
-            displayName =
-                '${namePart[0].toUpperCase()}${namePart.substring(1)}';
+        // Solo se usa Auth (congelado desde el registro con Google/Apple)
+        // o el email como último recurso mientras el nombre real de
+        // Firestore no haya llegado todavía — `hydrateFromConductorDoc`
+        // puede haber corrido ya por el listener en vivo del vm host
+        // (`_subscribeConductorStatus`), que arranca en paralelo con esta
+        // misma función y puede resolver primero.
+        if (!_nombreConfirmadoDesdeFirestore) {
+          if (user.displayName != null &&
+              user.displayName!.trim().isNotEmpty) {
+            displayName = user.displayName!.trim();
+          } else if (user.email != null && user.email!.contains('@')) {
+            final namePart = user.email!.split('@').first;
+            if (namePart.isNotEmpty) {
+              displayName =
+                  '${namePart[0].toUpperCase()}${namePart.substring(1)}';
+            }
           }
         }
 
@@ -127,8 +147,15 @@ class ConductorProfileController {
   void hydrateFromConductorDoc(Map<String, dynamic> data) {
     final docName = data['nombre']?.toString().trim();
     if (docName != null && docName.isNotEmpty) {
-      displayName = docName;
-      nameFromDb = docName;
+      // Combina nombre + apellido igual que el lado cliente
+      // (`cliente_repository_impl.dart._resolverNombre`) — sin esto el
+      // conductor se mostraba solo con el primer nombre.
+      final docApellido = data['apellido']?.toString().trim();
+      final nombreCompleto = (docApellido != null && docApellido.isNotEmpty)
+          ? '$docName $docApellido'
+          : docName;
+      displayName = nombreCompleto;
+      nameFromDb = nombreCompleto;
     }
 
     final docPlate = data['placa']?.toString().trim();

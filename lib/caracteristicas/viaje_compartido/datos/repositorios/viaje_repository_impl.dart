@@ -43,4 +43,15 @@ class ViajeRepositoryImpl implements ViajeRepository {
       canceladoPor: canceladoPor,
     );
   }
+
+  @override
+  Future<void> actualizarInfoConductor({
+    required String viajeId,
+    required Map<String, dynamic> datosConductor,
+  }) {
+    return _datasource.actualizarInfoConductor(
+      solicitudId: viajeId,
+      datosConductor: datosConductor,
+    );
+  }
 }

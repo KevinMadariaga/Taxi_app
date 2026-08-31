@@ -2,20 +2,9 @@ import 'dart:io';
 
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/entidades/auth_identity_entity.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/entidades/client_user_entity.dart';
-import 'package:taxi_app/caracteristicas/autenticacion/dominio/modelos/phone_verification_result.dart';
 
 abstract class ClientAuthRepository {
   Future<AuthIdentityEntity?> signInWithGoogle();
-
-  Future<PhoneVerificationResult> sendPhoneOtp({
-    required String phoneNumber,
-    int? forceResendingToken,
-  });
-
-  Future<AuthIdentityEntity> verifyPhoneOtp({
-    required String verificationId,
-    required String otpCode,
-  });
 
   Future<ClientUserEntity?> getClientUserById(String uid);
 
@@ -24,11 +13,6 @@ abstract class ClientAuthRepository {
     required String? displayName,
     required String? email,
     String? photoUrl,
-  });
-
-  Future<ClientUserEntity> ensureClientUserForPhone({
-    required String uid,
-    required String phoneNumber,
   });
 
   Future<String> uploadProfileImage({
