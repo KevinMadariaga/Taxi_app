@@ -21,7 +21,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import 'package:taxi_app/caracteristicas/confirmar_solicitud/datos/repositorios/solicitud_repository_impl.dart';
+import 'package:taxi_app/caracteristicas/confirmar_solicitud/dominio/casos_uso/crear_solicitud_usecase.dart';
 import 'package:taxi_app/caracteristicas/confirmar_solicitud/dominio/entidades/cliente_actual.dart';
+import 'package:taxi_app/caracteristicas/confirmar_solicitud/dominio/modelos/crear_solicitud_resultado.dart';
+import 'package:taxi_app/caracteristicas/confirmar_solicitud/dominio/repositorios/cliente_repository.dart';
+import 'package:taxi_app/caracteristicas/confirmar_solicitud/presentacion/viewmodels/confirmar_solicitud_viewmodel.dart';
+import 'package:taxi_app/caracteristicas/seleccion_destino/dominio/entidades/seleccion_ubicacion_result.dart';
 import 'package:taxi_app/caracteristicas/viaje_compartido/datos/modelos/viaje_model.dart';
 import 'package:taxi_app/core/constants/estado_contraoferta.dart';
 import 'package:taxi_app/core/constants/solicitud_estado.dart';
@@ -218,7 +223,158 @@ void main() {
       expect(SolicitudItem.fromMap(doc.id, doc.data()!).comentarioCliente, isNull);
     });
   });
+
+  // Validación integral del flujo de destino (ítem 8 del lote): la cadena
+  // completa que hoy no tenía cobertura, `SeleccionUbicacionResult` (lo que
+  // devuelve el picker de mapa/búsqueda) → `LocationModel` →
+  // `ConfirmarSolicitudViewModel` → `CrearSolicitudUseCase` → documento en
+  // Firestore → `ViajeModel`, verificando que la dirección y las
+  // coordenadas del destino SELECCIONADO por el usuario (no solo el
+  // `destino` fijo con el que ya prueba `crearYLeer`) llegan intactas.
+  group('flujo de destino: de la selección al documento', () {
+    ConfirmarSolicitudViewModel buildVm({
+      required LocationModel origenInicial,
+      required LocationModel destinoInicial,
+    }) => ConfirmarSolicitudViewModel(
+      origenInicial: origenInicial,
+      destinoInicial: destinoInicial,
+      crearSolicitud: CrearSolicitudUseCase(
+        solicitudRepository: SolicitudRepositoryImpl(firestore: firestore),
+        clienteRepository: _FakeClienteRepository(cliente),
+      ),
+    );
+
+    const origenVm = LocationModel(
+      position: LatLng(8.2400, -73.3500),
+      title: 'Carrera 7 #21-100',
+      subtitle: 'Carrera 7 #21-100',
+    );
+
+    test(
+      'la dirección y las coordenadas que devuelve el picker de mapa '
+      'llegan intactas al documento y ViajeModel las recupera',
+      () async {
+        // Lo que devolvería `SeleccionarUbicacionMapaViewModel.confirmar()`
+        // tras mover el pin y resolver la dirección por geocoding inverso.
+        const resultado = SeleccionUbicacionResult(
+          position: LatLng(8.2611, -73.3711),
+          direccion: 'Avenida Circunvalar #10-20',
+        );
+        final destinoVm = LocationModel(
+          position: resultado.position,
+          title: resultado.direccion,
+          subtitle: resultado.direccion,
+        );
+
+        final vm = buildVm(origenInicial: origenVm, destinoInicial: destinoVm);
+        addTearDown(vm.dispose);
+
+        final r = await vm.crearSolicitud();
+        expect(r, isA<SolicitudCreada>());
+        final doc = await firestore
+            .collection('solicitudes')
+            .doc((r as SolicitudCreada).solicitudId)
+            .get();
+        final d = data(doc);
+
+        expect(d['destino']['direccion'], 'Avenida Circunvalar #10-20');
+        expect(d['destino']['lat'], 8.2611);
+        expect(d['destino']['lng'], -73.3711);
+
+        final viaje = ViajeModel.fromSnapshot(doc);
+        expect(viaje.destino.direccion, 'Avenida Circunvalar #10-20');
+        expect(viaje.destino.ubicacion?.latitude, 8.2611);
+        expect(viaje.destino.ubicacion?.longitude, -73.3711);
+      },
+    );
+
+    test(
+      'si el picker no resuelve dirección (direccion == null), el '
+      'fallback de la pantalla (usar la dirección ya conocida) es lo que '
+      'termina persistido — no un string vacío',
+      () async {
+        // Mismo fallback que `SeleccionDestinoScreen._confirmarUbicacionYNavegar`:
+        // `resultado.direccion?.trim().isNotEmpty == true ? ... : direccionInicial`.
+        const resultado = SeleccionUbicacionResult(
+          position: LatLng(8.2650, -73.3550),
+          direccion: null,
+        );
+        const direccionInicial = 'Terminal de transportes';
+        final direccionFinal = resultado.direccion?.trim().isNotEmpty == true
+            ? resultado.direccion!.trim()
+            : direccionInicial;
+
+        final destinoVm = LocationModel(
+          position: resultado.position,
+          title: direccionFinal,
+          subtitle: direccionFinal,
+        );
+
+        final vm = buildVm(origenInicial: origenVm, destinoInicial: destinoVm);
+        addTearDown(vm.dispose);
+
+        final r = await vm.crearSolicitud();
+        final doc = await firestore
+            .collection('solicitudes')
+            .doc((r as SolicitudCreada).solicitudId)
+            .get();
+        final d = data(doc);
+
+        // Nunca vacío: cayó al texto ya conocido, no a `''`.
+        expect(d['destino']['direccion'], direccionInicial);
+        expect(d['destino']['direccion'], isNot(isEmpty));
+      },
+    );
+
+    test(
+      'ajustar el destino desde la pantalla de confirmar '
+      '(actualizarDestino) es lo que queda persistido, no el destino '
+      'inicial',
+      () async {
+        const destinoInicial = LocationModel(
+          position: LatLng(8.2500, -73.3600),
+          title: 'Terminal de transportes',
+          subtitle: 'Terminal de transportes',
+        );
+        final vm = buildVm(
+          origenInicial: origenVm,
+          destinoInicial: destinoInicial,
+        );
+        addTearDown(vm.dispose);
+
+        // El usuario mueve el pin en `SeleccionarUbicacionMapaView` desde la
+        // pantalla de confirmar y ajusta el destino.
+        await vm.actualizarDestino(
+          const LatLng(8.2700, -73.3400),
+          direccionResuelta: 'Parque Principal',
+        );
+
+        final r = await vm.crearSolicitud();
+        final doc = await firestore
+            .collection('solicitudes')
+            .doc((r as SolicitudCreada).solicitudId)
+            .get();
+        final d = data(doc);
+
+        expect(d['destino']['direccion'], 'Parque Principal');
+        expect(d['destino']['lat'], 8.2700);
+        expect(d['destino']['lng'], -73.3400);
+        expect(
+          ViajeModel.fromSnapshot(doc).destino.direccion,
+          'Parque Principal',
+        );
+      },
+    );
+  });
 }
 
 Map<String, dynamic> data(DocumentSnapshot<Map<String, dynamic>> doc) =>
     doc.data()!;
+
+class _FakeClienteRepository implements ClienteRepository {
+  _FakeClienteRepository(this._cliente);
+  final ClienteActual _cliente;
+
+  @override
+  Future<ClienteActual?> obtenerActual() async => _cliente;
+}

@@ -82,6 +82,21 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen>
   BitmapDescriptor? _conductorIconMirrored;
   bool _isMirroredHeading = false;
 
+  /// Tipo de vehículo cuyo ícono está actualmente cargado en
+  /// `_conductorIcon`/`_conductorIconMirrored` — `null` mientras no se ha
+  /// cargado ninguno todavía. Junto con `_iconLoadSeq` evita la carrera de
+  /// `_loadConductorMarkerIcon`: dos cargas asíncronas (una con el tipo aún
+  /// desconocido, otra ya con el tipo real) pueden resolver fuera de orden.
+  bool? _iconoCargadoEsMoto;
+  int _iconLoadSeq = 0;
+
+  /// Tipo que está siendo cargado ahora mismo (mientras el `Future` de
+  /// `_loadConductorMarkerIcon` no resuelve todavía). Sin esto, cada
+  /// `notifyListeners` del VM mientras la carga está en vuelo relanzaría
+  /// otra carga del mismo tipo, porque `_iconoCargadoEsMoto` no se
+  /// actualiza hasta que la carga en curso termina.
+  bool? _iconLoadEnCursoEsMoto;
+
   /// Heading mostrado, suavizado hacia el objetivo con `MapHelper.lerpAngle`
   /// en vez de saltar al valor crudo del notifier en cada tick (50ms).
   double _displayedHeadingDeg = 0;
@@ -92,6 +107,16 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen>
   String? _lastEstadoCamara;
   bool _refitPendienteTramoDestino = false;
   int? _rutaVersionAlEntrarTramo;
+
+  // Rotación manual del mapa (botón de brújula): `google_maps_flutter` no
+  // distingue en `onCameraMoveStarted` si el movimiento lo inició un gesto
+  // del usuario o `animateCamera` — `_camaraAnimandoPorApp` es la bandera
+  // que sí lo distingue: se levanta antes de cada animación programática y
+  // se baja en `onCameraIdle`, así que si empieza un movimiento con la
+  // bandera abajo, es un gesto real.
+  bool _camaraAnimandoPorApp = false;
+  bool _usuarioAjustoCamara = false;
+  final ValueNotifier<double> _bearingNotifier = ValueNotifier<double>(0);
 
   @override
   void initState() {
@@ -122,7 +147,11 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen>
       // Cambia el reparto de alto tarjeta/mapa, así que necesita rebuild.
       setState(() => _codigo = codigo);
     });
-    _loadConductorMarkerIcon();
+    // No se carga el ícono acá: `_vm.isMoto` todavía es el default `false`
+    // (viaje aún `null`), así que cargarlo ahora siempre traía el ícono de
+    // carro primero. Se carga una sola vez que `_onVmChanged` ya conoce el
+    // tipo real (ver `_iconoCargadoEsMoto`). Mientras tanto el marcador cae
+    // al `BitmapDescriptor.defaultMarkerWithHue` de más abajo.
   }
 
   /// Ícono real del vehículo (carro/moto) en vez del marker por defecto —
@@ -130,8 +159,18 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen>
   /// (`_loadTaxiMarkerIcon`/`_markerIconAndRotation`): el glyph no es
   /// simétrico arriba-abajo, así que para rumbos hacia el sur se usa el
   /// bitmap espejado en vez de rotarlo más allá de 90°/270°.
+  ///
+  /// Token de secuencia: cada llamada incrementa `_iconLoadSeq` y solo
+  /// aplica su resultado si sigue siendo la más reciente al terminar. Sin
+  /// esto, una carga vieja (con el tipo equivocado, p. ej. disparada antes
+  /// de conocer `isMoto`) podía resolver DESPUÉS de la nueva y sobrescribir
+  /// el ícono correcto con el incorrecto — la causa del ícono de carro
+  /// mostrándose en un viaje de moto hasta reiniciar la app.
   Future<void> _loadConductorMarkerIcon() async {
-    final assetPath = _vm.isMoto
+    final esMoto = _vm.isMoto;
+    final seq = ++_iconLoadSeq;
+    _iconLoadEnCursoEsMoto = esMoto;
+    final assetPath = esMoto
         ? 'assets/img/icono_moto.png'
         : 'assets/img/icono_carro.png';
     try {
@@ -144,13 +183,24 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen>
         size: const Size(40, 40),
         mirrored: true,
       );
+      if (seq != _iconLoadSeq) return;
+      if (_iconLoadEnCursoEsMoto == esMoto) _iconLoadEnCursoEsMoto = null;
       if (!mounted) return;
       setState(() {
         _conductorIcon = icon;
         _conductorIconMirrored = iconMirrored;
+        _iconoCargadoEsMoto = esMoto;
       });
-    } catch (_) {
+    } catch (e, st) {
+      if (seq == _iconLoadSeq && _iconLoadEnCursoEsMoto == esMoto) {
+        _iconLoadEnCursoEsMoto = null;
+      }
       // Cae al marker por defecto si el asset falla en cargar.
+      ErrorReporter.report(
+        e,
+        st,
+        reason: 'ViajeClienteScreen: fallo al cargar ícono de vehículo',
+      );
     }
   }
 
@@ -188,6 +238,7 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen>
     WidgetsBinding.instance.removeObserver(this);
     FcmService.instance.limpiarPantallaDeViaje(widget.viajeId);
     _codigoSub?.cancel();
+    _bearingNotifier.dispose();
     _vm.removeListener(_onVmChanged);
     _vm.dispose();
     super.dispose();
@@ -205,14 +256,16 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen>
     }
   }
 
-  bool _iconoTipoVehiculoResuelto = false;
-
   void _onVmChanged() {
-    // `isMoto` no se conoce hasta el primer snapshot del viaje — recargar
-    // el ícono una vez que ya sabemos si es carro o moto (en `initState`
-    // todavía era el default `false`).
-    if (!_iconoTipoVehiculoResuelto && _vm.viaje != null) {
-      _iconoTipoVehiculoResuelto = true;
+    // `isMoto` no se conoce hasta el primer snapshot del viaje — cargar el
+    // ícono una vez que ya sabemos si es carro o moto, y recargarlo si el
+    // tipo cambiara más adelante (no solo la primera vez: a diferencia del
+    // flag de un solo disparo que tenía esto antes, comparar contra el tipo
+    // realmente cargado permite reintentar si el snapshot inicial y el
+    // ícono cargado quedaron desalineados).
+    if (_vm.viaje != null &&
+        _iconoCargadoEsMoto != _vm.isMoto &&
+        _iconLoadEnCursoEsMoto != _vm.isMoto) {
       _loadConductorMarkerIcon();
     }
     _persistOrClearSession();
@@ -240,7 +293,12 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen>
     if (_refitPendienteTramoDestino &&
         _vm.rutaVersion != _rutaVersionAlEntrarTramo) {
       _refitPendienteTramoDestino = false;
-      _fitCamera(force: true);
+      // Si el usuario ya rotó/movió el mapa a mano, este reencuadre
+      // automático lo pisaría — se salta, y queda el botón de brújula para
+      // que él decida cuándo volver a la orientación por defecto.
+      if (!_usuarioAjustoCamara) {
+        _fitCamera(force: true);
+      }
     }
   }
 
@@ -440,6 +498,7 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen>
     GoogleMapController map,
     CameraUpdate update,
   ) async {
+    _camaraAnimandoPorApp = true;
     try {
       await map.animateCamera(update);
       return true;
@@ -447,6 +506,19 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen>
       ErrorReporter.report(e, st, reason: 'viaje_cliente_screen: fitCamera');
       return false;
     }
+    // `_camaraAnimandoPorApp` se baja en `onCameraIdle`, no acá: este
+    // future se resuelve cuando Maps ACEPTA la animación, no cuando termina
+    // de asentarse.
+  }
+
+  /// Botón de brújula: restablece norte arriba (bearing/tilt en 0, que es
+  /// lo que deja `CameraUpdate.newLatLngBounds`) y recentra conductor +
+  /// destino — "restablecer la orientación" + "centrar nuevamente el
+  /// marcador/posición del usuario" en un solo toque.
+  void _restablecerOrientacionMapa() {
+    _usuarioAjustoCamara = false;
+    _bearingNotifier.value = 0;
+    _fitCamera(force: true);
   }
 
   void _openChat() {
@@ -774,12 +846,29 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen>
                           myLocationEnabled: false,
                           myLocationButtonEnabled: false,
                           compassEnabled: true,
+                          // Explícitos (van en su default `true`): así un
+                          // cambio futuro no los apaga sin querer — es lo
+                          // que permite que el usuario rote/incline el mapa
+                          // con gestos, tipo app de navegación.
+                          rotateGesturesEnabled: true,
+                          tiltGesturesEnabled: true,
                           padding: EdgeInsets.only(bottom: viewPaddingBottom),
                           markers: markers,
                           polylines: polylines,
                           onMapCreated: (controller) {
                             _mapController = controller;
                             _fitCamera();
+                          },
+                          onCameraMoveStarted: () {
+                            if (!_camaraAnimandoPorApp) {
+                              _usuarioAjustoCamara = true;
+                            }
+                          },
+                          onCameraMove: (position) {
+                            _bearingNotifier.value = position.bearing;
+                          },
+                          onCameraIdle: () {
+                            _camaraAnimandoPorApp = false;
                           },
                         ),
                         if (_vm.isLoading)
@@ -795,6 +884,33 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen>
                           left: 16,
                           bottom: 16 + viewPaddingBottom,
                           child: const PanicButtonFab(),
+                        ),
+                        Positioned(
+                          right: 16,
+                          bottom: 16 + viewPaddingBottom,
+                          child: ValueListenableBuilder<double>(
+                            valueListenable: _bearingNotifier,
+                            builder: (context, bearing, _) {
+                              final mostrar =
+                                  _usuarioAjustoCamara || bearing.abs() > 0.5;
+                              if (!mostrar) return const SizedBox.shrink();
+                              return FloatingActionButton(
+                                heroTag: 'brujulaViajeCliente',
+                                mini: true,
+                                backgroundColor: AppColores.surface,
+                                foregroundColor: AppColores.textPrimary,
+                                onPressed: _restablecerOrientacionMapa,
+                                child: Transform.rotate(
+                                  // La aguja apunta al norte real: gira al
+                                  // revés de la rotación del mapa para
+                                  // seguir señalando "arriba" cuando el
+                                  // mapa está rotado.
+                                  angle: -bearing * math.pi / 180,
+                                  child: const Icon(Icons.explore),
+                                ),
+                              );
+                            },
+                          ),
                         ),
                       ],
                     ),

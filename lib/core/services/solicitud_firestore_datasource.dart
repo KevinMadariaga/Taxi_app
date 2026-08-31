@@ -48,6 +48,16 @@ class SolicitudFirestoreDatasource {
       });
     }
 
+    // Ancla de servidor única para el temporizador de espera: sin esto,
+    // cliente y conductor calculaban el remanente contra el momento en que
+    // CADA dispositivo veía `en espera` por primera vez, así que el cliente
+    // que entraba tarde a la pantalla volvía a ver 3:00 completos.
+    // `ReportarLlegadaUseCase` es el único punto que escribe este estado,
+    // así que el ancla no se mueve entre escrituras posteriores.
+    if (normalized == SolicitudEstado.enEspera) {
+      payload['esperaIniciadaEn'] = FieldValue.serverTimestamp();
+    }
+
     if (extra != null && extra.isNotEmpty) {
       payload.addAll(extra);
     }
@@ -82,5 +92,22 @@ class SolicitudFirestoreDatasource {
 
   Future<void> eliminarSolicitud({required String solicitudId}) async {
     await ref(solicitudId).delete();
+  }
+
+  /// Actualiza solo `conductor.*` (nombre/foto/placa/fotoVehiculo) sin tocar
+  /// `estado` — a diferencia de `actualizarEstado`, que siempre lo escribe.
+  /// Usado para propagar un cambio de perfil del conductor hecho a mitad de
+  /// viaje. Las reglas de Firestore permiten esta escritura al conductor
+  /// asignado (`isAssignedConductor()`), no solo al dueño de la solicitud.
+  Future<void> actualizarInfoConductor({
+    required String solicitudId,
+    required Map<String, dynamic> datosConductor,
+  }) async {
+    if (datosConductor.isEmpty) return;
+    final payload = <String, dynamic>{'updatedAt': FieldValue.serverTimestamp()};
+    for (final entry in datosConductor.entries) {
+      payload['conductor.${entry.key}'] = entry.value;
+    }
+    await ref(solicitudId).update(payload);
   }
 }

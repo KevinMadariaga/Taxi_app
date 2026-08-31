@@ -33,6 +33,7 @@ class ViajeEntity {
     this.valorServicio = 0,
     this.metodoPago = '',
     this.isMoto = false,
+    this.esperaIniciadaEn,
   });
 
   final String id;
@@ -46,6 +47,12 @@ class ViajeEntity {
   final double valorServicio;
   final String metodoPago;
   final bool isMoto;
+
+  /// Ancla de servidor del temporizador de espera (estado `en espera`):
+  /// escrita una sola vez por `SolicitudFirestoreDatasource.actualizarEstado`.
+  /// `null` en viajes que nunca pasaron por ese estado, o en datos viejos
+  /// creados antes de que este campo existiera.
+  final DateTime? esperaIniciadaEn;
 
   bool get hasBothLocations =>
       cliente.tieneUbicacion && conductor.tieneUbicacion;

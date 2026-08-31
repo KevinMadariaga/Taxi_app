@@ -10,6 +10,7 @@ import 'package:taxi_app/caracteristicas/viaje_cliente/dominio/casos_uso/confirm
 import 'package:taxi_app/caracteristicas/viaje_compartido/datos/fuentes/ruta_datasource.dart';
 import 'package:taxi_app/caracteristicas/viaje_compartido/dominio/casos_uso/watch_viaje_usecase.dart';
 import 'package:taxi_app/caracteristicas/viaje_compartido/dominio/entidades/viaje_entity.dart';
+import 'package:taxi_app/caracteristicas/viaje_compartido/dominio/espera_countdown.dart';
 import 'package:taxi_app/caracteristicas/viaje_compartido/presentacion/controladores/chat_controller.dart';
 import 'package:taxi_app/core/constants/solicitud_estado.dart';
 import 'package:taxi_app/core/services/notificacion_servicio.dart';
@@ -37,12 +38,14 @@ class ViajeClienteViewModel extends ChangeNotifier {
     ChatController? chatController,
     ConductorMovementSimulator? movementEngine,
     LocalCacheService? localCacheService,
+    DateTime Function()? now,
   }) : _watchViaje = watchViaje,
        _confirmarVoyEnCamino = confirmarVoyEnCamino,
        _cancelarViaje = cancelarViaje,
        _ruta = rutaDatasource,
        _movementEngine = movementEngine ?? ConductorMovementSimulator(),
        _localCache = localCacheService ?? LocalCacheService(),
+       _now = now ?? DateTime.now,
        chat =
            chatController ??
            ChatController(
@@ -61,6 +64,7 @@ class ViajeClienteViewModel extends ChangeNotifier {
   final ConductorMovementSimulator _movementEngine;
   final TripRouteMathService _mathService = const TripRouteMathService();
   final LocalCacheService _localCache;
+  final DateTime Function() _now;
 
   final ChatController chat;
 
@@ -279,6 +283,7 @@ class ViajeClienteViewModel extends ChangeNotifier {
     viaje = incoming;
     isLoading = false;
     errorText = null;
+    _sincronizarEsperaConServidor(incoming);
     _safeNotify();
 
     // Se espera la transición ANTES de procesar la ubicación: si el viaje
@@ -324,7 +329,15 @@ class ViajeClienteViewModel extends ChangeNotifier {
   void _openWaitingModal() {
     if (waitingModalVisible) return;
     waitingModalVisible = true;
-    waitingRemainingSeconds.value = 180;
+    // Ancla de servidor (`viaje.esperaIniciadaEn`): sin esto el cliente que
+    // abre la pantalla tarde volvía a ver 3:00 completos aunque al
+    // conductor ya le quedaran segundos. Sin ancla (doc viejo, o el
+    // snapshot con el ancla aún no llegó) cae a los 180 completos, igual
+    // que antes.
+    waitingRemainingSeconds.value = segundosRestantesEspera(
+      inicio: viaje?.esperaIniciadaEn,
+      ahora: _now(),
+    );
 
     _waitingTimer?.cancel();
     _waitingTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -343,6 +356,18 @@ class ViajeClienteViewModel extends ChangeNotifier {
     _waitingTimer?.cancel();
     _waitingTimer = null;
     _safeNotify();
+  }
+
+  /// Recalcula el remanente contra el ancla de servidor en cada snapshot
+  /// mientras la modal siga contando — corrige la deriva del `Timer.periodic`
+  /// local de 1 s. Espejo de `ViajeConductorViewModel._sincronizarEsperaConServidor`.
+  void _sincronizarEsperaConServidor(ViajeEntity v) {
+    if (!waitingModalVisible) return;
+    if (v.estado != SolicitudEstado.enEspera) return;
+    waitingRemainingSeconds.value = segundosRestantesEspera(
+      inicio: v.esperaIniciadaEn,
+      ahora: _now(),
+    );
   }
 
   void _checkProximityNotification(LatLng conductorPos) {

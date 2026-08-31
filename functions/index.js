@@ -317,6 +317,76 @@ exports.onSolicitudEstadoChangeConductor = onDocumentUpdated(
 );
 
 /**
+ * Cloud Function: notifica por push al CONDUCTOR asignado cuando el cliente
+ * cambia el método de pago a mitad de viaje (`MetodoPagoView`, sin guarda
+ * por estado — puede pasar en cualquier tramo). Antes eso era completamente
+ * silencioso para el conductor: `onSolicitudEstadoChangeConductor` solo
+ * dispara con un cambio de `estado`, y el chip de `TripDetailsSheet` del
+ * lado Flutter solo se leía al abrir el sheet.
+ *
+ * El campo tiene dos claves posibles en el documento (`metodoPago` /
+ * `paymentMethod`, ver `metodo_pago_view.dart` y `ViajeModel.fromMap`), así
+ * que se leen ambas con el mismo fallback que usa el cliente Flutter.
+ */
+exports.onMetodoPagoCambiado = onDocumentUpdated(
+  {
+    document: "solicitudes/{solicitudId}",
+    region: "us-central1",
+  },
+  async (event) => {
+    const beforeData = event.data.before.data();
+    const afterData = event.data.after.data();
+    if (!beforeData || !afterData) return null;
+
+    const metodoAntes = (beforeData.metodoPago || beforeData.paymentMethod || "")
+      .toString()
+      .trim();
+    const metodoAhora = (afterData.metodoPago || afterData.paymentMethod || "")
+      .toString()
+      .trim();
+
+    // Sin método previo no hay "cambio" que avisar (es la primera escritura,
+    // al crear la solicitud). Comparación insensible a mayúsculas: mismo
+    // criterio que el aviso in-app del lado Flutter
+    // (`ViajeConductorViewModel._detectarCambioMetodoPago`).
+    if (!metodoAntes || !metodoAhora) return null;
+    if (metodoAntes.toLowerCase() === metodoAhora.toLowerCase()) return null;
+
+    const estadoNuevo = normalizeEstado(afterData.estado || afterData.status || "");
+    if (["completado", "cancelado", "sin respuesta"].includes(estadoNuevo)) {
+      return null;
+    }
+
+    const conductorId = extractConductorId(afterData);
+    if (!conductorId) return null;
+
+    const db = getFirestore();
+    const fcmToken = await getConductorFcmToken(db, conductorId);
+    if (!fcmToken) {
+      console.log(`No se encontró token FCM para el conductor: ${conductorId}`);
+      return null;
+    }
+
+    const message = buildFcmMessage({
+      token: fcmToken,
+      title: "💳 Cambió el método de pago",
+      body: `El cliente actualizó su forma de pago a "${metodoAhora}".`,
+      type: "payment_method_change",
+      extraData: { solicitudId: event.params.solicitudId, metodoPago: metodoAhora },
+    });
+
+    try {
+      const response = await getMessaging().send(message);
+      console.log(`✅ Notificación de cambio de pago enviada al conductor ${conductorId}: ${response}`);
+    } catch (err) {
+      console.error(`❌ Error enviando notificación de cambio de pago: ${err.message}`);
+    }
+
+    return null;
+  }
+);
+
+/**
  * Cloud Function v2 — se dispara cuando un documento en /solicitudes cambia.
  */
 exports.onSolicitudEstadoChange = onDocumentUpdated(

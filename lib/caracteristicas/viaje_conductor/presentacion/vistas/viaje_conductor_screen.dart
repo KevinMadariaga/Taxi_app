@@ -7,6 +7,7 @@ import 'package:taxi_app/caracteristicas/verificacion_recogida/datos/repositorio
 import 'package:taxi_app/caracteristicas/verificacion_recogida/dominio/casos_uso/generar_codigo_verificacion_usecase.dart';
 import 'package:taxi_app/caracteristicas/verificacion_recogida/dominio/casos_uso/validar_codigo_verificacion_usecase.dart';
 import 'package:taxi_app/caracteristicas/viaje_compartido/dominio/casos_uso/actualizar_estado_viaje_usecase.dart';
+import 'package:taxi_app/caracteristicas/viaje_compartido/dominio/casos_uso/actualizar_info_conductor_usecase.dart';
 import 'package:taxi_app/caracteristicas/viaje_compartido/dominio/casos_uso/watch_viaje_usecase.dart';
 import 'package:taxi_app/caracteristicas/viaje_compartido/datos/fuentes/ruta_datasource.dart';
 import 'package:taxi_app/caracteristicas/viaje_compartido/datos/repositorios/viaje_repository_impl.dart';
@@ -87,6 +88,9 @@ class _ViajeConductorScreenState extends State<ViajeConductorScreen>
       finalizarViaje: FinalizarViajeUseCase(
         ActualizarEstadoViajeUseCase(viajeRepository),
       ),
+      actualizarInfoConductor: ActualizarInfoConductorEnViajeUseCase(
+        viajeRepository,
+      ),
       ubicacionDatasource: DriverUbicacionDatasource(),
       rutaDatasource: RutaDatasource(),
       navegacionDatasource: NavegacionExternaDatasource(),
@@ -158,6 +162,7 @@ class _ViajeConductorScreenState extends State<ViajeConductorScreen>
     _persistOrClearSession();
     _handleWaitingModal();
     _mostrarError();
+    _mostrarAvisoCambioPago();
     _handleSalida();
   }
 
@@ -380,22 +385,56 @@ class _ViajeConductorScreenState extends State<ViajeConductorScreen>
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (_) => TripDetailsSheet(
-        tituloPersona: 'Cliente',
-        nombrePersona: _vm.clienteNombre,
-        fotoPersona: _vm.clientePhotoUrl,
-        calificacion: 0,
-        totalCalificaciones: 0,
-        fotoVehiculo: '',
-        placa: '',
-        direccionRecoger: _vm.clienteDireccion,
-        direccionDestino: _vm.destinoDireccion,
-        valorServicio: _vm.valorServicio,
-        metodoPago: _vm.metodoPago,
-        mostrarVehiculo: false,
-        mostrarCalificacion: false,
+      // `AnimatedBuilder`: sin esto el sheet era un `StatelessWidget`
+      // congelado con los valores del instante en que se abrió — si el
+      // cliente cambiaba el método de pago con el sheet ya abierto, el
+      // conductor lo seguía viendo desactualizado hasta cerrarlo y
+      // reabrirlo.
+      builder: (_) => AnimatedBuilder(
+        animation: _vm,
+        builder: (context, _) => TripDetailsSheet(
+          tituloPersona: 'Cliente',
+          nombrePersona: _vm.clienteNombre,
+          fotoPersona: _vm.clientePhotoUrl,
+          calificacion: 0,
+          totalCalificaciones: 0,
+          fotoVehiculo: '',
+          placa: '',
+          direccionRecoger: _vm.clienteDireccion,
+          direccionDestino: _vm.destinoDireccion,
+          valorServicio: _vm.valorServicio,
+          metodoPago: _vm.metodoPago,
+          mostrarVehiculo: false,
+          mostrarCalificacion: false,
+        ),
       ),
     );
+  }
+
+  /// Aviso in-app de que el cliente cambió el método de pago a mitad de
+  /// viaje. Mismo molde que `_mostrarError`: dedupe con
+  /// `consumirAvisoCambioMetodoPago` para no repetir el SnackBar en el
+  /// siguiente `notifyListeners` (hay uno por cada punto GPS del propio
+  /// conductor). El push de Cloud Function (`onMetodoPagoCambiado`) cubre el
+  /// caso de la app cerrada; este SnackBar es el camino inmediato con la app
+  /// abierta o en segundo plano.
+  void _mostrarAvisoCambioPago() {
+    if (!_vm.cambioMetodoPagoPendiente) return;
+    final nuevo = _vm.metodoPagoAvisado;
+    _vm.consumirAvisoCambioMetodoPago();
+    if (nuevo.isEmpty) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('El cliente cambió el método de pago a "$nuevo".'),
+          backgroundColor: AppColores.primary,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    });
   }
 
   @override

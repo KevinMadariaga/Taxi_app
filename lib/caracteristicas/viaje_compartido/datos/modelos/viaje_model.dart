@@ -24,6 +24,7 @@ class ViajeModel {
     required Map<String, dynamic> data,
   }) {
     final updatedTs = data['updatedAt'];
+    final esperaTs = data['esperaIniciadaEn'];
     final rawEstado = data['estado'] ?? data['status'];
     final clienteMap = _asStringMap(data['cliente']);
     final conductorMap = _asStringMap(data['conductor']);
@@ -37,6 +38,7 @@ class ViajeModel {
       conductor: _participanteFromMap(conductorMap),
       destino: _destinoFromMap(data: data, destinoMap: destinoMap),
       updatedAt: updatedTs is Timestamp ? updatedTs.toDate() : null,
+      esperaIniciadaEn: esperaTs is Timestamp ? esperaTs.toDate() : null,
       valorServicio: _toDouble(
         tarifaMap?['total'] ??
             data['valorServicio'] ??

@@ -4,15 +4,17 @@ import 'dart:developer' as developer;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import 'package:taxi_app/caracteristicas/verificacion_recogida/dominio/casos_uso/validar_codigo_verificacion_usecase.dart';
 import 'package:taxi_app/caracteristicas/viaje_compartido/dominio/entidades/viaje_entity.dart';
 import 'package:taxi_app/caracteristicas/viaje_compartido/dominio/casos_uso/actualizar_estado_viaje_usecase.dart';
+import 'package:taxi_app/caracteristicas/viaje_compartido/dominio/casos_uso/actualizar_info_conductor_usecase.dart';
 import 'package:taxi_app/caracteristicas/viaje_compartido/dominio/casos_uso/watch_viaje_usecase.dart';
+import 'package:taxi_app/caracteristicas/viaje_compartido/dominio/espera_countdown.dart';
 import 'package:taxi_app/caracteristicas/viaje_compartido/datos/fuentes/ruta_datasource.dart';
 import 'package:taxi_app/caracteristicas/viaje_compartido/presentacion/controladores/chat_controller.dart';
+import 'package:taxi_app/caracteristicas/viaje_conductor/datos/fuentes/conductor_perfil_datasource.dart';
 import 'package:taxi_app/caracteristicas/viaje_conductor/datos/fuentes/driver_ubicacion_datasource.dart';
 import 'package:taxi_app/caracteristicas/viaje_conductor/datos/fuentes/navegacion_externa_datasource.dart';
 import 'package:taxi_app/caracteristicas/viaje_conductor/dominio/casos_uso/finalizar_viaje_usecase.dart';
@@ -44,7 +46,10 @@ class ViajeConductorViewModel extends ChangeNotifier {
     required DriverUbicacionDatasource ubicacionDatasource,
     required RutaDatasource rutaDatasource,
     required NavegacionExternaDatasource navegacionDatasource,
+    ActualizarInfoConductorEnViajeUseCase? actualizarInfoConductor,
+    ConductorPerfilDatasource? perfilDatasource,
     ChatController? chatController,
+    DateTime Function()? now,
   }) : _watchViaje = watchViaje,
        _actualizarEstado = actualizarEstado,
        _reportarLlegada = reportarLlegada,
@@ -53,6 +58,9 @@ class ViajeConductorViewModel extends ChangeNotifier {
        _ubicacion = ubicacionDatasource,
        _ruta = rutaDatasource,
        _navegacion = navegacionDatasource,
+       _actualizarInfoConductor = actualizarInfoConductor,
+       _perfil = perfilDatasource ?? ConductorPerfilDatasource(),
+       _now = now ?? DateTime.now,
        chat =
            chatController ??
            ChatController(
@@ -72,7 +80,10 @@ class ViajeConductorViewModel extends ChangeNotifier {
   final DriverUbicacionDatasource _ubicacion;
   final RutaDatasource _ruta;
   final NavegacionExternaDatasource _navegacion;
+  final ActualizarInfoConductorEnViajeUseCase? _actualizarInfoConductor;
+  final ConductorPerfilDatasource _perfil;
   final TripRouteMathService _mathService = const TripRouteMathService();
+  final DateTime Function() _now;
 
   final ChatController chat;
 
@@ -121,8 +132,18 @@ class ViajeConductorViewModel extends ChangeNotifier {
   bool isAppInBackground = false;
 
   StreamSubscription<ViajeEntity>? _viajeSub;
+  StreamSubscription<Map<String, dynamic>?>? _perfilSub;
+  /// Última lectura de `usuarios/{conductorId}` — el primer snapshot es la
+  /// línea base (ya reflejada en `solicitudes.conductor` por
+  /// `aceptarSolicitud`/`enviarContraoferta`, que leen el mismo doc fresco
+  /// al aceptar); solo los snapshots SIGUIENTES, que implican una edición de
+  /// perfil real a mitad de viaje, disparan una escritura.
+  Map<String, dynamic>? _perfilBaseline;
   Timer? _waitingTimer;
   String? _lastEstado;
+  String? _lastMetodoPago;
+  bool _cambioMetodoPagoPendiente = false;
+  String? _metodoPagoNuevo;
   LatLng? _lastFrom;
   LatLng? _lastTo;
   double? _distanciaInicialTramo;
@@ -180,6 +201,7 @@ class ViajeConductorViewModel extends ChangeNotifier {
   Future<void> init() async {
     await _ensureNotifications();
     _bindViaje();
+    _bindPerfilConductor();
     chat.onChanged = () => _safeNotify();
     chat.bind();
 
@@ -189,6 +211,84 @@ class ViajeConductorViewModel extends ChangeNotifier {
       errorText = 'No se pudo iniciar tracking GPS: $e';
       _safeNotify();
     }
+  }
+
+  /// Escucha `usuarios/{conductorId}` durante todo el viaje y propaga a
+  /// `solicitudes/{viajeId}.conductor` cualquier cambio de nombre/foto/placa
+  /// hecho a mitad de viaje (`editar_perfil.dart` guarda ahí, nunca en la
+  /// solicitud). Sin esto, un conductor que corrige su nombre mientras ya
+  /// tiene un viaje asignado deja al cliente viendo el nombre viejo hasta
+  /// el próximo viaje.
+  void _bindPerfilConductor() {
+    if (_actualizarInfoConductor == null) return;
+    _perfilSub?.cancel();
+    _perfilSub = _perfil.watch(conductorId).listen(
+      (data) {
+        if (data == null) return;
+        if (_perfilBaseline == null) {
+          // Primer snapshot: es la misma foto que ya quedó escrita en la
+          // solicitud al aceptar/contraofertar. No hay nada que propagar.
+          _perfilBaseline = data;
+          return;
+        }
+        final cambios = _diffInfoConductor(_perfilBaseline!, data);
+        _perfilBaseline = data;
+        if (cambios.isEmpty) return;
+        unawaited(
+          _actualizarInfoConductor(
+            viajeId: viajeId,
+            datosConductor: cambios,
+          ).catchError((e, st) {
+            ErrorReporter.report(
+              e,
+              st,
+              reason:
+                  'ViajeConductorViewModel: fallo al propagar cambio de perfil al viaje activo',
+            );
+          }),
+        );
+      },
+      onError: (e, st) {
+        ErrorReporter.report(
+          e,
+          st,
+          reason: 'ViajeConductorViewModel: fallo al escuchar perfil del conductor',
+        );
+      },
+    );
+  }
+
+  /// Diff de los campos relevantes entre dos lecturas de `usuarios/{uid}`.
+  /// Combina `nombre`+`apellido` en un único `conductor.nombre` (igual que
+  /// `_buildConductorPayload` en `InicioConductorViewModel`), y solo incluye
+  /// las claves que efectivamente cambiaron de valor.
+  Map<String, dynamic> _diffInfoConductor(
+    Map<String, dynamic> antes,
+    Map<String, dynamic> ahora,
+  ) {
+    String texto(Map<String, dynamic> doc, String key) =>
+        (doc[key] ?? '').toString().trim();
+
+    final nombreAntes = texto(antes, 'nombre');
+    final apellidoAntes = texto(antes, 'apellido');
+    final nombreAhora = texto(ahora, 'nombre');
+    final apellidoAhora = texto(ahora, 'apellido');
+
+    final cambios = <String, dynamic>{};
+    if (nombreAhora.isNotEmpty &&
+        (nombreAntes != nombreAhora || apellidoAntes != apellidoAhora)) {
+      cambios['nombre'] = apellidoAhora.isEmpty
+          ? nombreAhora
+          : '$nombreAhora $apellidoAhora';
+    }
+    for (final key in const ['foto', 'placa', 'fotoVehiculo']) {
+      final antesVal = texto(antes, key);
+      final ahoraVal = texto(ahora, key);
+      if (ahoraVal.isNotEmpty && ahoraVal != antesVal) {
+        cambios[key] = ahoraVal;
+      }
+    }
+    return cambios;
   }
 
   void _bindViaje() {
@@ -206,6 +306,8 @@ class ViajeConductorViewModel extends ChangeNotifier {
           errorText = null;
           _errorEsDeCarga = false;
         }
+        _sincronizarEsperaConServidor(incoming);
+        _detectarCambioMetodoPago(incoming);
         _actualizarProgresoLiviano();
         _safeNotify();
 
@@ -219,6 +321,71 @@ class ViajeConductorViewModel extends ChangeNotifier {
         _safeNotify();
       },
     );
+  }
+
+  /// Recalcula el remanente del temporizador de espera contra el ancla de
+  /// servidor (`esperaIniciadaEn`) en cada snapshot mientras la modal siga
+  /// contando — corrige la deriva del `Timer.periodic` local de 1 s (nunca
+  /// es exacto: se retrasa por jank de UI, GC, etc.) y es lo que hace que un
+  /// conductor que reabre la pantalla vea el remanente real, no 180 de
+  /// nuevo. No toca nada si la cuenta ya se detuvo (`waitingCanStartTrip`,
+  /// PIN abierto) para no pisar un estado que el usuario ya avanzó.
+  void _sincronizarEsperaConServidor(ViajeEntity v) {
+    if (!waitingModalVisible || waitingCanStartTrip) return;
+    if (v.estado != SolicitudEstado.enEspera) return;
+    waitingRemainingSeconds = segundosRestantesEspera(
+      inicio: v.esperaIniciadaEn,
+      ahora: _now(),
+    );
+  }
+
+  /// El cliente puede cambiar el método de pago en cualquier momento del
+  /// viaje (`MetodoPagoView`, sin guarda por estado) y antes eso era
+  /// silencioso para el conductor: el chip de `TripDetailsSheet` solo se
+  /// leía al abrir el sheet. `_lastMetodoPago == null` es el primer snapshot
+  /// (línea base, ya reflejada en lo que el conductor vio al aceptar) — no
+  /// cuenta como cambio.
+  void _detectarCambioMetodoPago(ViajeEntity v) {
+    final actual = v.metodoPago.trim();
+    final anterior = _lastMetodoPago;
+    _lastMetodoPago = actual;
+    if (anterior == null || actual.isEmpty) return;
+    if (anterior.toLowerCase() == actual.toLowerCase()) return;
+    if (SolicitudEstado.isTerminal(v.estado)) return;
+
+    _cambioMetodoPagoPendiente = true;
+    _metodoPagoNuevo = actual;
+    // `.catchError` (no `unawaited` pelado): el plugin de notificaciones es
+    // accesorio a este aviso — la bandera in-app ya quedó puesta arriba, así
+    // que un fallo del plugin no debe quedar como excepción sin manejar.
+    unawaited(
+      NotificacionesServicio.instance
+          .showTripNotification(
+            title: '💳 Cambió el método de pago',
+            body: 'El cliente actualizó su forma de pago a "$actual".',
+          )
+          .catchError((e, st) {
+            ErrorReporter.report(
+              e,
+              st,
+              reason:
+                  'ViajeConductorViewModel: fallo al avisar cambio de método de pago',
+            );
+          }),
+    );
+  }
+
+  /// `true` mientras haya un aviso de cambio de pago sin mostrar en pantalla.
+  bool get cambioMetodoPagoPendiente => _cambioMetodoPagoPendiente;
+
+  /// El nuevo método de pago del aviso pendiente, o `''` si no hay ninguno.
+  String get metodoPagoAvisado => _metodoPagoNuevo ?? '';
+
+  /// La pantalla llama esto tras mostrar el banner/SnackBar del cambio de
+  /// pago, para no repetirlo en el siguiente `notifyListeners()`.
+  void consumirAvisoCambioMetodoPago() {
+    _cambioMetodoPagoPendiente = false;
+    _metodoPagoNuevo = null;
   }
 
   Future<void> reportarLlegada() async {
@@ -404,54 +571,48 @@ class ViajeConductorViewModel extends ChangeNotifier {
     await _ubicacion.enviarPuntoSimulado(viajeId: viajeId, position: objetivo);
   }
 
-  /// Llamar desde `didChangeAppLifecycleState` (paused/inactive/hidden):
-  /// detiene el stream en vivo y arranca el servicio en background — nunca
-  /// ambos corriendo a la vez.
+  /// Llamar desde `didChangeAppLifecycleState` (paused/inactive/hidden).
+  ///
+  /// YA NO corta el stream de GPS ni lo releva con
+  /// `BackgroundTrackingService`. Ese relevo era el bug: en iOS
+  /// `BackgroundTrackingService.onIosBackground` no hace nada (`return
+  /// true;`), así que cancelar el stream principal ahí dejaba a NADIE
+  /// mandando ubicación — la causa de que el marcador del conductor se
+  /// congelara en la pantalla del cliente al apagar la pantalla o cambiar
+  /// de app. El stream de `DriverUbicacionDatasource.iniciarEnvio` (con
+  /// `allowBackground: true`) ya trae su propio foreground service en
+  /// Android (`AndroidSettings.foregroundNotificationConfig`) y ahora
+  /// también `AppleSettings.allowBackgroundLocationUpdates` en iOS — no
+  /// hacía falta relevarlo, solo dejarlo correr.
   Future<void> onAppPausedOrInactive() async {
     isAppInBackground = true;
-    await _ubicacion.detener();
-    try {
-      await initializeBackgroundService();
-      await startBackgroundTrackingService();
-      // Da un momento al isolate para registrar sus listeners antes de
-      // enviarle el comando — mismo margen que ya usaba `driver_trip_screen.dart`.
-      await Future<void>.delayed(const Duration(milliseconds: 450));
-      FlutterBackgroundService().invoke('startTracking', {
-        'userId': conductorId,
-        'userType': 'conductor',
-        'solicitudId': viajeId,
-      });
-    } catch (e, st) {
-      developer.log(
-        'Error al iniciar tracking en segundo plano: $e',
-        name: 'ViajeConductorViewModel',
-      );
-      FirebaseCrashlytics.instance.recordError(
-        e,
-        st,
-        reason: 'ViajeConductorViewModel: fallo al iniciar background tracking',
-      );
-    }
   }
 
-  /// Llamar desde `didChangeAppLifecycleState` (resumed): detiene el
-  /// servicio en background y retoma el stream en vivo.
+  /// Llamar desde `didChangeAppLifecycleState` (resumed).
   Future<void> onAppResumed() async {
     isAppInBackground = false;
-    await stopBackgroundTrackingService();
 
-    try {
-      await _ubicacion.iniciarEnvio(conductorId: conductorId, viajeId: viajeId);
-    } catch (e, st) {
-      developer.log(
-        'Error al retomar tracking en primer plano: $e',
-        name: 'ViajeConductorViewModel',
-      );
-      FirebaseCrashlytics.instance.recordError(
-        e,
-        st,
-        reason: 'ViajeConductorViewModel: fallo al retomar tracking foreground',
-      );
+    // Red de seguridad: el stream nunca debería haberse detenido solo, pero
+    // si el SO lo mató de todos modos (p. ej. Android mató el proceso por
+    // presión de memoria y lo revivió), esto lo retoma.
+    if (!_ubicacion.enviando) {
+      try {
+        await _ubicacion.iniciarEnvio(
+          conductorId: conductorId,
+          viajeId: viajeId,
+        );
+      } catch (e, st) {
+        developer.log(
+          'Error al retomar tracking en primer plano: $e',
+          name: 'ViajeConductorViewModel',
+        );
+        FirebaseCrashlytics.instance.recordError(
+          e,
+          st,
+          reason:
+              'ViajeConductorViewModel: fallo al retomar tracking foreground',
+        );
+      }
     }
 
     try {
@@ -682,7 +843,18 @@ class ViajeConductorViewModel extends ChangeNotifier {
 
     waitingModalVisible = true;
     waitingCanStartTrip = false;
-    if (reiniciarCuenta) waitingRemainingSeconds = _segundosEspera;
+    if (reiniciarCuenta) {
+      // Con ancla de servidor (`viaje.esperaIniciadaEn`) arranca en el
+      // remanente real, no en 180 fijos — así un conductor que vuelve a
+      // abrir esta pantalla ve la misma cuenta que ya venía corriendo. Sin
+      // ancla (doc viejo, o el snapshot con el ancla aún no llegó) cae al
+      // comportamiento previo: los 180 completos.
+      waitingRemainingSeconds = segundosRestantesEspera(
+        inicio: viaje?.esperaIniciadaEn,
+        ahora: _now(),
+        total: _segundosEspera,
+      );
+    }
 
     _stopWaitingTimer();
     _waitingTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -792,6 +964,7 @@ class ViajeConductorViewModel extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _viajeSub?.cancel();
+    _perfilSub?.cancel();
     _stopWaitingTimer();
     chat.dispose();
     unawaited(_ubicacion.detener());

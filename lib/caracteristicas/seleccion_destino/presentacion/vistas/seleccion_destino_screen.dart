@@ -147,17 +147,50 @@ class _SeleccionDestinoScreenState extends State<SeleccionDestinoScreen> {
     await SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
   }
 
-  Future<void> _tapFavoritos() async {
+  /// Guarda única de "una acción de selección a la vez" para TODA la lista
+  /// (favoritos, pegar, sugerencia, historial, elegir en el mapa): antes
+  /// cada handler tenía su propio criterio (algunos ninguno), así que un
+  /// doble tap sobre un ítem de la lista —muy fácil cuando hay que esperar
+  /// la resolución de Places antes de navegar— podía disparar el mismo
+  /// tap dos veces (dos `Navigator.push` apilados). Bloquea de inmediato
+  /// (antes de cualquier `await`) y muestra el overlay de carga desde el
+  /// primer toque, no solo en el paso final — es la parte que se sentía
+  /// "lenta" porque no había ninguna señal visual entre el tap y que algo
+  /// pasara.
+  Future<void> _conGuardaDeSeleccion(
+    Future<void> Function() accion, {
+    String mensaje = 'Abriendo ubicación...',
+  }) async {
+    if (_isPreparingNavigation) return;
+    setState(() {
+      _isPreparingNavigation = true;
+      _navigationMessage = mensaje;
+    });
+    try {
+      await accion();
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'SeleccionDestinoScreen');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isPreparingNavigation = false;
+          _navigationMessage = 'Preparando...';
+        });
+      }
+    }
+  }
+
+  Future<void> _tapFavoritos() => _conGuardaDeSeleccion(() async {
     final favorito = await mostrarFavoritosBottomSheet(context, vm: _vm);
     if (favorito == null || favorito.position == null || !mounted) return;
     await _confirmarUbicacionYNavegar(favorito.position!, favorito.direccion);
-  }
+  });
 
   /// El pegado ya pasa por `SeleccionarUbicacionMapaView` dentro del propio
   /// modal (ver `mostrarPegarUbicacionModal`) y devuelve un resultado ya
   /// confirmado — a diferencia de favoritos/sugerencias, acá no hace falta
   /// un segundo paso de mapa, se va directo al preview.
-  Future<void> _tapPegarUbicacion() async {
+  Future<void> _tapPegarUbicacion() => _conGuardaDeSeleccion(() async {
     final resultado = await mostrarPegarUbicacionModal(context, vm: _vm);
     if (resultado == null || !mounted) return;
     final direccion = resultado.direccion?.trim().isNotEmpty == true
@@ -165,43 +198,70 @@ class _SeleccionDestinoScreenState extends State<SeleccionDestinoScreen> {
         : _vm.coordsText(resultado.position);
     _destinoController.text = direccion;
     await _irAMapPreview(resultado.position, direccion);
-  }
+  });
 
-  Future<void> _tapSugerencia(UbicacionEntity sugerencia) async {
-    var posicion = sugerencia.position;
-    var direccion = sugerencia.direccion;
+  Future<void> _tapSugerencia(UbicacionEntity sugerencia) =>
+      _conGuardaDeSeleccion(() async {
+        var posicion = sugerencia.position;
+        var direccion = sugerencia.direccion;
 
-    if (posicion == null && sugerencia.placeId != null) {
-      final detalle = await _vm.resolverDetalleLugar(sugerencia.placeId!);
-      if (detalle == null || detalle.position == null) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No se pudo abrir esta ubicación.')),
-        );
-        return;
-      }
-      posicion = detalle.position;
-      if (detalle.direccion.isNotEmpty) direccion = detalle.direccion;
-    }
-    if (posicion == null) return;
+        // Único paso realmente lento del flujo: sin posición cacheada hay
+        // que resolver el detalle del lugar contra Places (red + Cloud
+        // Function). El overlay ya está visible desde `_conGuardaDeSeleccion`
+        // antes de llegar acá, así que la espera se ve, no se siente
+        // colgada.
+        if (posicion == null && sugerencia.placeId != null) {
+          final detalle = await _vm.resolverDetalleLugar(sugerencia.placeId!);
+          if (detalle == null || detalle.position == null) {
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('No se pudo abrir esta ubicación.'),
+              ),
+            );
+            return;
+          }
+          posicion = detalle.position;
+          if (detalle.direccion.isNotEmpty) direccion = detalle.direccion;
+        }
+        if (posicion == null) return;
 
-    await _confirmarUbicacionYNavegar(posicion, direccion);
-  }
+        await _confirmarUbicacionYNavegar(posicion, direccion);
+      });
 
-  Future<void> _tapHistorial(UbicacionEntity item) async {
-    final posicion = item.position;
-    if (posicion == null) return;
-    await _confirmarUbicacionYNavegar(posicion, item.direccion);
-  }
+  Future<void> _tapHistorial(UbicacionEntity item) =>
+      _conGuardaDeSeleccion(() async {
+        final posicion = item.position;
+        if (posicion == null) return;
+        await _confirmarUbicacionYNavegar(posicion, item.direccion);
+      });
 
-  /// Toda selección de destino (sugerencia de búsqueda o favorito) pasa por
-  /// acá: abre el mapa movible ya centrado en esa ubicación para que el
-  /// usuario la ajuste/confirme, y al confirmar sigue directo al preview —
-  /// esta pantalla ya no tiene un botón de "confirmar destino" propio.
+  /// El usuario elige "Elegir en el mapa" en vez de buscar por texto:
+  /// arranca en el origen ya conocido (o `currentLocation` si el origen
+  /// todavía no resolvió) y reusa el mismo picker con pin central que ya
+  /// usan favoritos/sugerencias/pegar — hereda gratis el registro en
+  /// historial y la navegación al preview.
+  Future<void> _tapElegirEnMapa() => _conGuardaDeSeleccion(() async {
+    final origen = _vm.origenPosition ?? widget.currentLocation;
+    if (origen == null) return;
+    await _confirmarUbicacionYNavegar(
+      origen,
+      _vm.coordsText(origen),
+      titulo: 'Elige tu destino en el mapa',
+    );
+  });
+
+  /// Toda selección de destino (sugerencia de búsqueda, favorito o "elegir
+  /// en el mapa") pasa por acá: abre el mapa movible ya centrado en esa
+  /// ubicación para que el usuario la ajuste/confirme, y al confirmar sigue
+  /// directo al preview — esta pantalla ya no tiene un botón de "confirmar
+  /// destino" propio. Ya corre dentro de la guarda de `_conGuardaDeSeleccion`
+  /// (todos sus llamadores pasan por ahí), así que no repite su propio guard.
   Future<void> _confirmarUbicacionYNavegar(
     LatLng posicionInicial,
-    String direccionInicial,
-  ) async {
+    String direccionInicial, {
+    String titulo = 'Confirma tu destino',
+  }) async {
     await _cerrarTeclado();
     if (!mounted) return;
     final resultado = await Navigator.of(context)
@@ -210,7 +270,7 @@ class _SeleccionDestinoScreenState extends State<SeleccionDestinoScreen> {
             builder: (_) => SeleccionarUbicacionMapaView(
               ubicacionInicial: posicionInicial,
               direccionInicial: direccionInicial,
-              titulo: 'Confirma tu destino',
+              titulo: titulo,
             ),
           ),
         );
@@ -229,47 +289,34 @@ class _SeleccionDestinoScreenState extends State<SeleccionDestinoScreen> {
     await _irAMapPreview(resultado.position, direccionFinal);
   }
 
+  /// Sin guard propio: todos sus llamadores (`_tapPegarUbicacion`,
+  /// `_confirmarUbicacionYNavegar`) ya corren dentro de
+  /// `_conGuardaDeSeleccion`.
   Future<void> _irAMapPreview(LatLng destino, String destinoDireccion) async {
     final origen = _vm.origenPosition;
-    if (origen == null || _isPreparingNavigation) return;
+    if (origen == null) return;
 
-    setState(() {
-      _isPreparingNavigation = true;
-      _navigationMessage = 'Preparando ruta...';
-    });
-    try {
-      await _cerrarTeclado();
-      if (!mounted) return;
+    if (mounted) setState(() => _navigationMessage = 'Preparando ruta...');
+    await _cerrarTeclado();
+    if (!mounted) return;
 
-      final origenModel = LocationModel(
-        position: origen,
-        title: _vm.origenDireccion,
-        subtitle: _vm.origenDireccion,
-      );
-      final destinoModel = LocationModel(
-        position: destino,
-        title: destinoDireccion,
-        subtitle: destinoDireccion,
-      );
+    final origenModel = LocationModel(
+      position: origen,
+      title: _vm.origenDireccion,
+      subtitle: _vm.origenDireccion,
+    );
+    final destinoModel = LocationModel(
+      position: destino,
+      title: destinoDireccion,
+      subtitle: destinoDireccion,
+    );
 
-      await Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => ConfirmarSolicitudView(
-            origen: origenModel,
-            destino: destinoModel,
-          ),
-        ),
-      );
-    } catch (e, st) {
-      ErrorReporter.report(e, st, reason: 'SeleccionDestinoScreen');
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isPreparingNavigation = false;
-          _navigationMessage = 'Preparando...';
-        });
-      }
-    }
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) =>
+            ConfirmarSolicitudView(origen: origenModel, destino: destinoModel),
+      ),
+    );
   }
 
   Future<bool> _manejarBack() async {
@@ -347,6 +394,7 @@ class _SeleccionDestinoScreenState extends State<SeleccionDestinoScreen> {
                               _destinoController.clear();
                               _vm.limpiarDestino();
                             },
+                            onElegirEnMapa: _tapElegirEnMapa,
                           ),
                           SizedBox(height: 12.h),
                           Expanded(
@@ -402,12 +450,14 @@ class _DestinoField extends StatelessWidget {
     required this.focusNode,
     required this.onChanged,
     required this.onClear,
+    required this.onElegirEnMapa,
   });
 
   final TextEditingController controller;
   final FocusNode focusNode;
   final ValueChanged<String> onChanged;
   final VoidCallback onClear;
+  final VoidCallback onElegirEnMapa;
 
   @override
   Widget build(BuildContext context) {
@@ -494,6 +544,22 @@ class _DestinoField extends StatelessWidget {
                   ),
               ],
             ),
+          ),
+          SizedBox(height: 10.h),
+          CustomButton(
+            text: 'Elegir en el mapa',
+            width: double.infinity,
+            height: 44.h,
+            fontSize: 13.sp,
+            color: AppColores.grey100,
+            textColor: AppColores.textPrimary,
+            borderColor: AppColores.borderSubtle,
+            icon: const Icon(
+              Icons.map_rounded,
+              size: 16,
+              color: AppColores.primary,
+            ),
+            onPressed: onElegirEnMapa,
           ),
         ],
       ),

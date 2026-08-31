@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
@@ -10,12 +11,14 @@ import 'package:taxi_app/caracteristicas/verificacion_recogida/dominio/entidades
 import 'package:taxi_app/caracteristicas/verificacion_recogida/dominio/repositorios/codigo_verificacion_repository.dart';
 import 'package:taxi_app/caracteristicas/viaje_compartido/datos/fuentes/ruta_datasource.dart';
 import 'package:taxi_app/caracteristicas/viaje_compartido/dominio/casos_uso/actualizar_estado_viaje_usecase.dart';
+import 'package:taxi_app/caracteristicas/viaje_compartido/dominio/casos_uso/actualizar_info_conductor_usecase.dart';
 import 'package:taxi_app/caracteristicas/viaje_compartido/dominio/casos_uso/watch_viaje_usecase.dart';
 import 'package:taxi_app/caracteristicas/viaje_compartido/dominio/entidades/participante_viaje_entity.dart';
 import 'package:taxi_app/caracteristicas/viaje_compartido/dominio/entidades/viaje_entity.dart';
 import 'package:taxi_app/caracteristicas/viaje_compartido/dominio/repositorios/viaje_repository.dart';
 import 'package:taxi_app/caracteristicas/viaje_compartido/presentacion/controladores/chat_controller.dart';
 import 'package:taxi_app/core/services/chat_firestore_datasource.dart';
+import 'package:taxi_app/caracteristicas/viaje_conductor/datos/fuentes/conductor_perfil_datasource.dart';
 import 'package:taxi_app/caracteristicas/viaje_conductor/datos/fuentes/driver_ubicacion_datasource.dart';
 import 'package:taxi_app/caracteristicas/viaje_conductor/datos/fuentes/navegacion_externa_datasource.dart';
 import 'package:taxi_app/caracteristicas/viaje_conductor/dominio/casos_uso/finalizar_viaje_usecase.dart';
@@ -70,6 +73,17 @@ class _FakeViajeRepository implements ViajeRepository {
     required String viajeId,
     required String canceladoPor,
   }) async {}
+
+  final infoConductorActualizada = <Map<String, dynamic>>[];
+
+  @override
+  Future<void> actualizarInfoConductor({
+    required String viajeId,
+    required Map<String, dynamic> datosConductor,
+  }) async {
+    infoConductorActualizada.add(datosConductor);
+    _bitacora.escrituras.add('infoConductor:${datosConductor.keys.join(",")}');
+  }
 }
 
 class _FakeCodigoRepository implements CodigoVerificacionRepository {
@@ -131,7 +145,11 @@ const _participante = ParticipanteViajeEntity(
   ubicacion: LatLng(4.60, -74.08),
 );
 
-ViajeEntity _viaje(String estado) => ViajeEntity(
+ViajeEntity _viaje(
+  String estado, {
+  DateTime? esperaIniciadaEn,
+  String metodoPago = '',
+}) => ViajeEntity(
   id: 'v1',
   estado: estado,
   cliente: _participante,
@@ -141,25 +159,29 @@ ViajeEntity _viaje(String estado) => ViajeEntity(
     ubicacion: LatLng(4.65, -74.05),
   ),
   updatedAt: DateTime(2026, 1, 1),
+  esperaIniciadaEn: esperaIniciadaEn,
+  metodoPago: metodoPago,
 );
 
 class _Fixture {
-  factory _Fixture() {
+  factory _Fixture({DateTime Function()? now}) {
     final bitacora = _Bitacora();
     return _Fixture._(
       bitacora,
       _FakeViajeRepository(bitacora),
       _FakeCodigoRepository(bitacora),
+      now,
     );
   }
 
-  _Fixture._(this.bitacora, this.viajeRepo, this.codigoRepo) {
+  _Fixture._(this.bitacora, this.viajeRepo, this.codigoRepo, DateTime Function()? now) {
     final actualizar = ActualizarEstadoViajeUseCase(viajeRepo);
     vm = ViajeConductorViewModel(
       viajeId: 'v1',
       conductorId: 'c1',
       watchViaje: WatchViajeUseCase(viajeRepo),
       actualizarEstado: actualizar,
+      now: now,
       reportarLlegada: ReportarLlegadaUseCase(
         actualizarEstado: actualizar,
         generarCodigo: GenerarCodigoVerificacionUseCase(codigoRepo),
@@ -169,6 +191,13 @@ class _Fixture {
         validarCodigo: ValidarCodigoVerificacionUseCase(codigoRepo),
       ),
       finalizarViaje: FinalizarViajeUseCase(actualizar),
+      actualizarInfoConductor: ActualizarInfoConductorEnViajeUseCase(viajeRepo),
+      // Firestore fake: sin esto, `_bindPerfilConductor` (que sí se activa
+      // porque `actualizarInfoConductor` está seteado arriba) pegaría contra
+      // el plugin real de `cloud_firestore`, no mockeado en este test.
+      perfilDatasource: ConductorPerfilDatasource(
+        firestore: FakeFirebaseFirestore(),
+      ),
       ubicacionDatasource: DriverUbicacionDatasource(),
       rutaDatasource: RutaDatasource(),
       navegacionDatasource: NavegacionExternaDatasource(),
@@ -301,6 +330,119 @@ void main() {
       f.vm.cerrarIngresoCodigo();
 
       expect(f.vm.waitingModalVisible, isFalse);
+    });
+  });
+
+  group('temporizador de espera: ancla de servidor', () {
+    test(
+      'con esperaIniciadaEn ya escrito en el pasado, arranca en el '
+      'remanente real y no en 180',
+      () async {
+        final ahora = DateTime(2026, 1, 1, 12, 0, 30);
+        final f = _Fixture(now: () => ahora);
+        // `init()` PRIMERO: el fake usa un `StreamController.broadcast`, así
+        // que un `emitir()` antes de suscribirse (antes de `init()`) se
+        // pierde sin avisar — el listener todavía no existe.
+        await f.vm.init();
+        // Snapshot en `asignado` para que la transición a `en espera` sea
+        // real — mismo motivo que el primer test del grupo anterior.
+        f.viajeRepo.emitir(_viaje(SolicitudEstado.asignado));
+        await pumpEventQueue();
+
+        f.viajeRepo.emitir(
+          _viaje(
+            SolicitudEstado.enEspera,
+            esperaIniciadaEn: DateTime(2026, 1, 1, 12, 0, 0),
+          ),
+        );
+        await pumpEventQueue();
+
+        // 30s ya transcurridos según el ancla -> quedan 150, no 180.
+        expect(f.vm.waitingRemainingSeconds, 150);
+      },
+    );
+
+    test(
+      'la deriva del timer local de 1s se corrige en cada snapshot '
+      'mientras la modal sigue contando',
+      () async {
+        var ahora = DateTime(2026, 1, 1, 12, 0, 30);
+        final f = _Fixture(now: () => ahora);
+        await f.vm.init();
+        f.viajeRepo.emitir(_viaje(SolicitudEstado.asignado));
+        await pumpEventQueue();
+
+        final inicio = DateTime(2026, 1, 1, 12, 0, 0);
+        f.viajeRepo.emitir(
+          _viaje(SolicitudEstado.enEspera, esperaIniciadaEn: inicio),
+        );
+        await pumpEventQueue();
+        expect(f.vm.waitingRemainingSeconds, 150);
+
+        // Otro snapshot llega más tarde sin que el ESTADO cambie (p. ej. un
+        // ping GPS del propio conductor, que escribe en la misma
+        // solicitud) — el remanente se resincroniza contra el ancla real
+        // en vez de seguir solo el conteo local.
+        ahora = DateTime(2026, 1, 1, 12, 1, 0);
+        f.viajeRepo.emitir(
+          _viaje(SolicitudEstado.enEspera, esperaIniciadaEn: inicio),
+        );
+        await pumpEventQueue();
+        expect(f.vm.waitingRemainingSeconds, 120);
+      },
+    );
+  });
+
+  group('cambio de método de pago avisa al conductor', () {
+    test(
+      'un segundo snapshot con otro método levanta el aviso pendiente',
+      () async {
+        final f = _Fixture();
+        await f.vm.init();
+        f.viajeRepo.emitir(
+          _viaje(SolicitudEstado.asignado, metodoPago: 'Efectivo'),
+        );
+        await pumpEventQueue();
+        expect(f.vm.cambioMetodoPagoPendiente, isFalse);
+
+        f.viajeRepo.emitir(
+          _viaje(SolicitudEstado.asignado, metodoPago: 'Nequi'),
+        );
+        await pumpEventQueue();
+
+        expect(f.vm.cambioMetodoPagoPendiente, isTrue);
+        expect(f.vm.metodoPagoAvisado, 'Nequi');
+
+        f.vm.consumirAvisoCambioMetodoPago();
+        expect(f.vm.cambioMetodoPagoPendiente, isFalse);
+      },
+    );
+
+    test('mismo valor con distinta capitalización no cuenta como cambio', () async {
+      final f = _Fixture();
+      await f.vm.init();
+      f.viajeRepo.emitir(
+        _viaje(SolicitudEstado.asignado, metodoPago: 'Efectivo'),
+      );
+      await pumpEventQueue();
+
+      f.viajeRepo.emitir(
+        _viaje(SolicitudEstado.asignado, metodoPago: 'EFECTIVO'),
+      );
+      await pumpEventQueue();
+
+      expect(f.vm.cambioMetodoPagoPendiente, isFalse);
+    });
+
+    test('el primer snapshot (línea base) nunca cuenta como cambio', () async {
+      final f = _Fixture();
+      await f.vm.init();
+      f.viajeRepo.emitir(
+        _viaje(SolicitudEstado.asignado, metodoPago: 'Nequi'),
+      );
+      await pumpEventQueue();
+
+      expect(f.vm.cambioMetodoPagoPendiente, isFalse);
     });
   });
 

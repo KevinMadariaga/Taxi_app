@@ -1,3 +1,5 @@
+import 'dart:async' show unawaited;
+
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
 
@@ -48,17 +50,27 @@ class _CalificacionSectionState extends State<CalificacionSection> {
 
   void _onFocusChange() {
     if (!_focus.hasFocus) return;
-    // Centrar el campo cuando aparece el teclado.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final ctx = _fieldKey.currentContext;
-      if (ctx == null) return;
-      Scrollable.ensureVisible(
-        ctx,
-        alignment: 0.5,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-      );
-    });
+    unawaited(_scrollCampoTrasTeclado());
+  }
+
+  /// Espera a que el `Scaffold` (resizeToAvoidBottomInset) termine de
+  /// encogerse por el teclado antes de medir dónde desplazar — llamado en
+  /// el frame siguiente al foco (como antes), `ensureVisible` calculaba la
+  /// posición contra el viewport TODAVÍA sin el teclado, así que el campo
+  /// multilínea quedaba a medio tapar. `alignment: 0.15` en vez de 0.5:
+  /// centrarlo dejaba la mitad de abajo (y el botón "Listo" del teclado)
+  /// por debajo del borde visible.
+  Future<void> _scrollCampoTrasTeclado() async {
+    await Future.delayed(const Duration(milliseconds: 250));
+    if (!mounted || !_focus.hasFocus) return;
+    final ctx = _fieldKey.currentContext;
+    if (ctx == null || !ctx.mounted) return;
+    await Scrollable.ensureVisible(
+      ctx,
+      alignment: 0.15,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+    );
   }
 
   @override
@@ -169,9 +181,20 @@ class _CalificacionSectionState extends State<CalificacionSection> {
                       child: TextField(
                         controller: _comentarioCtrl,
                         focusNode: _focus,
-                        // Single-line para que el teclado del dispositivo
-                        // muestre el botón "OK/Listo" que baja el teclado.
-                        maxLines: 1,
+                        // Antes `maxLines: 1`: el texto no envolvía, así que
+                        // no se podía leer completo ni desplazarse dentro
+                        // del campo. `textInputAction: done` se conserva
+                        // igual (no depende de `maxLines`) para seguir
+                        // mostrando el botón "Listo" del teclado.
+                        maxLines: 4,
+                        minLines: 2,
+                        maxLength: 240,
+                        // El default de Flutter (20px) no alcanza: el
+                        // `Scaffold` de `ResumenViajeView` tiene
+                        // `resizeToAvoidBottomInset: true` más un
+                        // `bottomNavigationBar` de 52px que se monta encima
+                        // del teclado.
+                        scrollPadding: const EdgeInsets.only(bottom: 140),
                         keyboardType: TextInputType.text,
                         textInputAction: TextInputAction.done,
                         textCapitalization: TextCapitalization.sentences,
