@@ -8,12 +8,19 @@ import 'package:taxi_app/core/helpers/responsive_helper.dart';
 
 import '../../viewmodels/confirmar_solicitud_viewmodel.dart';
 import 'comentario_sheet.dart';
+import 'tipo_vehiculo_sheet.dart';
 
 /// Fila inferior de acciones: botón "Buscar conductor" y comentario — el
 /// método de pago ya tiene su propia fila completa (`MetodoPagoCard`)
 /// arriba, así que no se repite acá. [onSolicitudCreada] navega a la
 /// pantalla de búsqueda — la vista es quien decide a dónde ir, esta fila
 /// solo dispara la creación.
+///
+/// El tipo de vehículo ya no tiene su propio selector fijo en la pantalla:
+/// "Buscar conductor" abre primero la modal de vehículo
+/// (`mostrarTipoVehiculoSheet`) y solo sigue con la creación si el usuario
+/// confirmó ahí — si cierra la modal sin confirmar, el tap completo se
+/// cancela sin tocar Firestore.
 class ConfirmarSolicitudSubmitBar extends StatelessWidget {
   const ConfirmarSolicitudSubmitBar({
     super.key,
@@ -45,6 +52,12 @@ class ConfirmarSolicitudSubmitBar extends StatelessWidget {
               onPressed: vm.isSubmitting
                   ? null
                   : () async {
+                      final confirmado = await mostrarTipoVehiculoSheet(
+                        context,
+                        vm,
+                      );
+                      if (confirmado != true || !context.mounted) return;
+
                       final messenger = ScaffoldMessenger.of(context);
                       final resultado = await vm.crearSolicitud();
                       if (!context.mounted) return;

@@ -64,18 +64,11 @@ class _ContenidoBienvenida extends StatelessWidget {
                       color: AppColores.primary.withValues(alpha: 0.16),
                     ),
                     child: Center(
-                      child: Container(
-                        width: 60,
-                        height: 60,
-                        decoration: const BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: AppColores.primary,
-                        ),
-                        child: const Icon(
-                          Icons.celebration_rounded,
-                          size: 32,
-                          color: Colors.black,
-                        ),
+                      child: Image.asset(
+                        'assets/img/Ride.png',
+                        width: 65,
+                        height: 65,
+                        fit: BoxFit.contain,
                       ),
                     ),
                   ),

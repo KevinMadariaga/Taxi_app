@@ -47,8 +47,13 @@ class ClientUserFirestoreDataSource {
     String? photoUrl,
   }) async {
     final foto = (photoUrl ?? '').trim();
-    final existing = await getById(uid);
-    if (existing != null) {
+    final doc = await _firestore.collection('usuarios').doc(uid).get();
+
+    if (doc.exists) {
+      final existing = ClientUserModel.fromFirestore(
+        uid,
+        doc.data() ?? <String, dynamic>{},
+      );
       final patch = <String, dynamic>{};
       if ((existing.email ?? '').isEmpty && (email ?? '').trim().isNotEmpty) {
         patch['email'] = email!.trim();
@@ -77,7 +82,23 @@ class ClientUserFirestoreDataSource {
       return (await getById(uid)) ?? existing;
     }
 
-    // Separar displayName en nombre + apellido (lo que venga del proveedor).
+    // El doc no existe en ESTA lectura, pero si vino solo de caché local
+    // (sin confirmar con el servidor) no es seguro asumir que es un alta
+    // nueva — puede ser una cuenta YA registrada en un dispositivo que
+    // nunca cacheó su doc (p. ej. iOS: la sesión de FirebaseAuth sobrevive
+    // una reinstalación vía Keychain, pero el caché de Firestore no).
+    // Crear un doc nuevo acá pisaría/duplicaría una cuenta real y mandaría
+    // a un usuario ya registrado a "Completar perfil" de cero, en vez de
+    // avisarle que el problema fue la conexión.
+    if (doc.metadata.isFromCache) {
+      throw StateError(
+        'No se pudo verificar tu cuenta por falta de conexión. '
+        'Verifica tu conexión e intenta de nuevo.',
+      );
+    }
+
+    // Confirmado con el servidor: alta genuinamente nueva. Separar
+    // displayName en nombre + apellido (lo que venga del proveedor).
     final full = (displayName ?? '').trim();
     final partes = full.isEmpty ? <String>[] : full.split(RegExp(r'\s+'));
     final nombre = partes.isNotEmpty ? partes.first : '';

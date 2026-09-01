@@ -56,6 +56,13 @@ class CompleteClientProfileUseCase {
       email: params.email,
     );
 
+    // Igual que en el sign-in: sincroniza `displayName` de Auth con el
+    // nombre recién guardado, para que ningún lector caiga en el nombre
+    // viejo del proveedor.
+    await _repository.syncAuthDisplayName(
+      '${params.nombre} ${params.apellido}'.trim(),
+    );
+
     final updated = await _repository.getClientUserById(params.uid);
     if (updated == null) {
       throw StateError('No fue posible cargar el perfil actualizado.');

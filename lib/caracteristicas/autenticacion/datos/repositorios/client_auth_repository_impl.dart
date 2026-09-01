@@ -79,6 +79,11 @@ class ClientAuthRepositoryImpl implements ClientAuthRepository {
   }
 
   @override
+  Future<void> syncAuthDisplayName(String nombreCompleto) {
+    return _authDataSource.updateDisplayName(nombreCompleto);
+  }
+
+  @override
   Future<String> loginWithEmail({
     required String email,
     required String password,

@@ -20,6 +20,13 @@ class SignInGoogleClientUseCase {
       photoUrl: null,
     );
 
+    // El nombre guardado en Firestore manda sobre el de Gmail: si el usuario
+    // ya había editado su nombre, esto corrige el `displayName` de Auth (que
+    // se había quedado congelado con el de Google) para que el resto de la
+    // app deje de caer en el fallback viejo.
+    final nombreCompleto = '${user.nombre} ${user.apellido}'.trim();
+    await _repository.syncAuthDisplayName(nombreCompleto);
+
     return AuthFlowResult(
       destination: user.isProfileComplete
           ? AuthFlowDestination.clientHome

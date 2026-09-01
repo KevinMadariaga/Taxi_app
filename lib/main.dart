@@ -21,6 +21,7 @@ import 'package:taxi_app/caracteristicas/autenticacion/dominio/casos_uso/get_cli
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/casos_uso/complete_client_profile_usecase.dart';
 import 'package:taxi_app/routes/app_routes.dart';
 import 'package:taxi_app/presentation/widgets/app_update_gate.dart';
+import 'package:taxi_app/core/widgets/conectividad_gate.dart';
 import 'package:taxi_app/features/client/data/firebaseDB.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/datos/repositorios/app_auth_adapter.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/repositorios/client_auth_repository.dart';
@@ -353,9 +354,12 @@ class MyApp extends StatelessWidget {
             builder: (context, child) {
               return AppUpdateGate(
                 navigatorKey: appNavigatorKey,
-                child: AnnotatedRegion<SystemUiOverlayStyle>(
-                  value: _globalSystemOverlayStyle,
-                  child: child ?? const SizedBox.shrink(),
+                child: ConectividadGate(
+                  navigatorKey: appNavigatorKey,
+                  child: AnnotatedRegion<SystemUiOverlayStyle>(
+                    value: _globalSystemOverlayStyle,
+                    child: child ?? const SizedBox.shrink(),
+                  ),
                 ),
               );
             },

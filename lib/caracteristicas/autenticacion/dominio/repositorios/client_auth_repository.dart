@@ -29,6 +29,14 @@ abstract class ClientAuthRepository {
     String? email,
   });
 
+  /// Sincroniza el `displayName` de FirebaseAuth con el nombre guardado en
+  /// Firestore, para que ningún lector que caiga en ese fallback (chat de
+  /// soporte, perfil sin red) muestre el nombre viejo del proveedor
+  /// (Google/Apple) tras un login o una edición de perfil. No-op si
+  /// [nombreCompleto] viene vacío; nunca lanza (ver
+  /// `ClientAuthFirebaseDataSource.updateDisplayName`).
+  Future<void> syncAuthDisplayName(String nombreCompleto);
+
   /// Login legado con correo/contraseña (panel de administración/conductores).
   /// Devuelve el uid del usuario recién autenticado.
   Future<String> loginWithEmail({

@@ -69,6 +69,16 @@ class AppRemoteConfigService {
     ).then((value) => value ?? '');
   }
 
+  /// Limpia el Future memoizado de la key de Static Maps. Sin red,
+  /// `fetchStaticMapsApiKey()` cae a `''` y ese resultado queda pegado toda
+  /// la sesión (ver comentario en `_staticMapsKeyFuture`) — `ConectividadGate`
+  /// llama esto al detectar que la conexión volvió, para que el próximo
+  /// build del mapa pida la key de nuevo en vez de seguir mostrando el
+  /// placeholder hasta que el usuario reinicie la app.
+  void invalidateStaticMapsKeyCache() {
+    _staticMapsKeyFuture = null;
+  }
+
   Future<String?> _fetchString(String key) async {
     try {
       await _ensureConfigured();

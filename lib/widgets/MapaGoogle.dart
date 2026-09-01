@@ -14,6 +14,7 @@ class Mapagoogle extends StatelessWidget {
   final Set<Circle> circles;
   final Set<Polygon> polygons;
   final ValueChanged<GoogleMapController>? onMapCreated;
+  final VoidCallback? onCameraMoveStarted;
   final ValueChanged<CameraPosition>? onCameraMove;
   final VoidCallback? onCameraIdle;
   final ArgumentCallback<LatLng>? onTap;
@@ -45,6 +46,7 @@ class Mapagoogle extends StatelessWidget {
     this.circles = const {},
     this.polygons = const {},
     this.onMapCreated,
+    this.onCameraMoveStarted,
     this.onCameraMove,
     this.onCameraIdle,
     this.onTap,
@@ -95,6 +97,7 @@ class Mapagoogle extends StatelessWidget {
         circles: circles,
         polygons: polygons,
         onMapCreated: onMapCreated,
+        onCameraMoveStarted: onCameraMoveStarted,
         onCameraMove: onCameraMove,
         onCameraIdle: onCameraIdle,
         onTap: onTap,

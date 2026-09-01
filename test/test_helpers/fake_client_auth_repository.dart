@@ -61,6 +61,11 @@ class FakeClientAuthRepository implements ClientAuthRepository {
   }
 
   @override
+  Future<void> syncAuthDisplayName(String nombreCompleto) async {
+    return;
+  }
+
+  @override
   Future<String> loginWithEmail({
     required String email,
     required String password,

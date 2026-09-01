@@ -1162,7 +1162,7 @@ class _LoadersOverlay extends StatelessWidget {
             if (isLoadingLocation.value)
               const _LoadingOverlay(message: 'Obteniendo ubicación...'),
             if (isPreparingNavigation.value)
-              const _LoadingOverlay(message: 'Preparando destino...'),
+              const _LoadingOverlay(message: '', soloLoader: true),
           ],
         );
       },
@@ -1171,9 +1171,12 @@ class _LoadersOverlay extends StatelessWidget {
 }
 
 class _LoadingOverlay extends StatelessWidget {
-  const _LoadingOverlay({required this.message});
+  const _LoadingOverlay({required this.message, this.soloLoader = false});
 
   final String message;
+  // "Preparando destino..." pasó a mostrar solo el spinner, sin texto ni
+  // ningún otro elemento debajo.
+  final bool soloLoader;
 
   @override
   Widget build(BuildContext context) {
@@ -1181,17 +1184,22 @@ class _LoadingOverlay extends StatelessWidget {
       child: Container(
         color: AppColores.overlayDark,
         child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const CircularProgressIndicator(),
-              SizedBox(height: 12.h),
-              Text(
-                message,
-                style: TextStyle(color: AppColores.textWhite, fontSize: 16.sp),
-              ),
-            ],
-          ),
+          child: soloLoader
+              ? const CircularProgressIndicator()
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const CircularProgressIndicator(),
+                    SizedBox(height: 12.h),
+                    Text(
+                      message,
+                      style: TextStyle(
+                        color: AppColores.textWhite,
+                        fontSize: 16.sp,
+                      ),
+                    ),
+                  ],
+                ),
         ),
       ),
     );

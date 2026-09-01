@@ -846,6 +846,13 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen>
                           myLocationEnabled: false,
                           myLocationButtonEnabled: false,
                           compassEnabled: true,
+                          // Android muestra los botones nativos +/- de zoom
+                          // por defecto (`zoomControlsEnabled` es `true` en
+                          // el plugin si no se pisa) — quedaban en la misma
+                          // esquina inferior derecha que el botón de
+                          // centrado, superpuestos. El gesto de pellizco
+                          // sigue sirviendo para hacer zoom.
+                          zoomControlsEnabled: false,
                           // Explícitos (van en su default `true`): así un
                           // cambio futuro no los apaga sin querer — es lo
                           // que permite que el usuario rote/incline el mapa
@@ -888,12 +895,15 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen>
                         Positioned(
                           right: 16,
                           bottom: 16 + viewPaddingBottom,
+                          // Fijo (ya no condicionado a que el usuario haya
+                          // rotado el mapa): ocupa el lugar de los botones
+                          // +/- de zoom que se quitaron arriba, así que
+                          // siempre hay algo útil ahí — centrar conductor +
+                          // destino, y de paso restablecer la orientación si
+                          // el mapa estaba rotado.
                           child: ValueListenableBuilder<double>(
                             valueListenable: _bearingNotifier,
                             builder: (context, bearing, _) {
-                              final mostrar =
-                                  _usuarioAjustoCamara || bearing.abs() > 0.5;
-                              if (!mostrar) return const SizedBox.shrink();
                               return FloatingActionButton(
                                 heroTag: 'brujulaViajeCliente',
                                 mini: true,

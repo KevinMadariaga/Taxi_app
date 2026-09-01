@@ -16,6 +16,7 @@ class _FakeClientAuthRepository implements ClientAuthRepository {
 
   ClientUserEntity? _existing;
   bool completeClientProfileLlamado = false;
+  String? nombreSincronizadoEnAuth;
 
   @override
   Future<ClientUserEntity?> getClientUserById(String uid) async => _existing;
@@ -47,6 +48,11 @@ class _FakeClientAuthRepository implements ClientAuthRepository {
       createdAt: DateTime(2026, 1, 1),
       email: email,
     );
+  }
+
+  @override
+  Future<void> syncAuthDisplayName(String nombreCompleto) async {
+    nombreSincronizadoEnAuth = nombreCompleto;
   }
 
   // Resto de la interfaz: sin uso en este test.
@@ -148,6 +154,28 @@ void main() {
 
         expect(repo.completeClientProfileLlamado, isTrue);
         expect(resultado.fotoUrl, 'https://ejemplo.com/foto-previa.webp');
+      },
+    );
+  });
+
+  group('CompleteClientProfileUseCase — sincroniza displayName de Auth', () {
+    test(
+      'al completar el perfil, sincroniza el displayName con "nombre apellido"',
+      () async {
+        final repo = _FakeClientAuthRepository(existing: null);
+        final usecase = CompleteClientProfileUseCase(repo);
+
+        await usecase(
+          CompleteClientProfileParams(
+            uid: 'u1',
+            nombre: 'Ana',
+            apellido: 'Pérez',
+            telefono: '3001234567',
+            profileImageFile: File('foto_local.jpg'),
+          ),
+        );
+
+        expect(repo.nombreSincronizadoEnAuth, 'Ana Pérez');
       },
     );
   });

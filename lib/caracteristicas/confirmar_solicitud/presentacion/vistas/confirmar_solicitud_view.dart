@@ -15,7 +15,6 @@ import '../viewmodels/confirmar_solicitud_viewmodel.dart';
 import 'widgets/confirmar_solicitud_submit_bar.dart';
 import 'widgets/mapa_ruta_card.dart';
 import 'widgets/metodo_pago_card.dart';
-import 'widgets/servicio_valor_row.dart';
 import 'widgets/ubicacion_info_card.dart';
 
 /// Pantalla "Confirmar solicitud": mapa con origen+destino, tarifa, método
@@ -178,13 +177,17 @@ class _ConfirmarSolicitudViewState extends State<ConfirmarSolicitudView>
           body: LayoutBuilder(
             builder: (context, constraints) {
               final resp = ResponsiveHelper.getResponsiveData(context);
+              // Bajado desde 45/33/27: el selector de vehículo (que ocupaba
+              // esta tarjeta) se movió a la modal de "Buscar conductor", así
+              // que la tarjeta de abajo necesita menos alto — el que sobra
+              // se lo queda el mapa.
               double bottomPct;
               if (resp.deviceType == DeviceType.mobile) {
-                bottomPct = 45.0;
+                bottomPct = 38.0;
               } else if (resp.deviceType == DeviceType.tablet) {
-                bottomPct = 33.0;
+                bottomPct = 28.0;
               } else {
-                bottomPct = 27.0;
+                bottomPct = 23.0;
               }
 
               final double bottomHeight = ResponsiveHelper.hp(
@@ -285,8 +288,6 @@ class _BottomContent extends StatelessWidget {
                   cardBorderRadius: ResponsiveHelper.wp(context, 3),
                   onTap: onAjustarDestino,
                 ),
-                SizedBox(height: ResponsiveHelper.hp(context, 0.6)),
-                const ServicioValorRow(),
                 SizedBox(height: ResponsiveHelper.hp(context, 0.6)),
                 const MetodoPagoCard(),
                 SizedBox(height: ResponsiveHelper.hp(context, 0.8)),

@@ -1,3 +1,6 @@
+import 'dart:async' show unawaited;
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -30,6 +33,11 @@ class _MapaRutaCardState extends State<MapaRutaCard> {
   BitmapDescriptor? _destIcon;
   BitmapDescriptor? _carIcon;
   BitmapDescriptor? _motoIcon;
+
+  /// Rumbo actual del mapa — alimenta el botón de brújula (visible mientras
+  /// el usuario rotó el mapa con gestos) y la rotación del ícono de la
+  /// brújula, igual que en `viaje_cliente_screen.dart`.
+  final ValueNotifier<double> _bearingNotifier = ValueNotifier<double>(0);
 
   @override
   void initState() {
@@ -123,6 +131,14 @@ class _MapaRutaCardState extends State<MapaRutaCard> {
   // el controller del mapa ANTERIOR (ya destruido por el remonte) — la fuente
   // del "GoogleMapController ... used after ... disposed" de cada ajuste.
 
+  /// Botón de brújula: restablece norte arriba (`_fitBounds` deja bearing y
+  /// tilt en 0) y reencuadra origen+destino — mismo criterio que
+  /// `viaje_cliente_screen.dart._restablecerOrientacionMapa`.
+  void _restablecerOrientacion() {
+    _bearingNotifier.value = 0;
+    unawaited(_fitBounds());
+  }
+
   @override
   void dispose() {
     // El controller NO se dispone a mano: `GoogleMapState.dispose()` del
@@ -130,6 +146,7 @@ class _MapaRutaCardState extends State<MapaRutaCard> {
     // doble dispose y, tras un remonte por la `ValueKey`, se ejecutaba además
     // sobre un controller que ya no era el vigente.
     _controller = null;
+    _bearingNotifier.dispose();
     super.dispose();
   }
 
@@ -202,6 +219,9 @@ class _MapaRutaCardState extends State<MapaRutaCard> {
                   // realmente se usa en la solicitud.
                   myLocationEnabled: false,
                   onMapCreated: _onMapCreated,
+                  onCameraMove: (position) {
+                    _bearingNotifier.value = position.bearing;
+                  },
                   markers: {
                     Marker(
                       markerId: const MarkerId('origen'),
@@ -254,6 +274,30 @@ class _MapaRutaCardState extends State<MapaRutaCard> {
                       ),
                     ),
                   ),
+                Positioned(
+                  right: 10.w,
+                  bottom: 10.h,
+                  child: ValueListenableBuilder<double>(
+                    valueListenable: _bearingNotifier,
+                    builder: (context, bearing, _) {
+                      if (bearing.abs() < 0.5) return const SizedBox.shrink();
+                      return FloatingActionButton(
+                        heroTag: 'brujulaMapaRuta',
+                        mini: true,
+                        backgroundColor: AppColores.surface,
+                        foregroundColor: AppColores.textPrimary,
+                        onPressed: _restablecerOrientacion,
+                        child: Transform.rotate(
+                          // Igual que en `viaje_cliente_screen.dart`: la
+                          // aguja gira al revés de la rotación del mapa para
+                          // seguir señalando el norte real.
+                          angle: -bearing * math.pi / 180,
+                          child: const Icon(Icons.explore),
+                        ),
+                      );
+                    },
+                  ),
+                ),
               ],
             ),
           ),

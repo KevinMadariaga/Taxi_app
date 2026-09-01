@@ -102,6 +102,23 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
     } catch (e, st) {
       ErrorReporter.report(e, st, reason: 'perfil');
     }
+    // Sincronizar displayName de Auth: sin esto quedaba congelado con el
+    // nombre del proveedor (Google/Apple) para siempre, y lectores como el
+    // chat de soporte o esta misma pantalla (fallback sin red) seguían
+    // mostrando el nombre viejo aunque el usuario ya hubiera editado el suyo.
+    try {
+      final nombre = nuevosDatos['nombre']?.toString().trim() ?? '';
+      final apellido = nuevosDatos['apellido']?.toString().trim() ?? '';
+      final nombreCompleto = '$nombre $apellido'.trim();
+      if (nombreCompleto.isNotEmpty) {
+        final user = _auth.currentUser;
+        if (user != null && user.displayName != nombreCompleto) {
+          await user.updateDisplayName(nombreCompleto);
+        }
+      }
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'perfil');
+    }
     _cargarDatos();
     // Mensaje de 'Datos guardados' eliminado por solicitud
     setState(() => _guardando = false);

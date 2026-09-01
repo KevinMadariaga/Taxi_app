@@ -123,14 +123,14 @@ class InicioClienteViewModel extends ChangeNotifier {
     } catch (e) {
       debugPrint('Error obteniendo ubicación actual: $e');
     }
-    if (loc == null) return;
+    if (loc == null || _disposed) return;
 
     _isLoadingLocation = true;
     isLoadingLocationNotifier.value = true;
     if (!_disposed) notifyListeners();
     try {
       _currentLocation = loc;
-      currentLocationNotifier.value = loc;
+      if (!_disposed) currentLocationNotifier.value = loc;
       await _guardarUbicacionCliente(loc);
       await _guardarUbicacionCache(loc);
       _ubicacionNueva = true;
@@ -138,7 +138,7 @@ class InicioClienteViewModel extends ChangeNotifier {
       debugPrint('Error guardando ubicación: $e');
     } finally {
       _isLoadingLocation = false;
-      isLoadingLocationNotifier.value = false;
+      if (!_disposed) isLoadingLocationNotifier.value = false;
       if (!_disposed) notifyListeners();
     }
   }
@@ -181,9 +181,10 @@ class InicioClienteViewModel extends ChangeNotifier {
                 );
               }
             }
+            if (_disposed) return;
             _conductoresMarkers = markers;
             conductoresMarkersNotifier.value = markers;
-            if (!_disposed) notifyListeners();
+            notifyListeners();
           },
           onError: (e) {
             debugPrint('Error escuchando conductores conectados: $e');
@@ -269,6 +270,13 @@ class InicioClienteViewModel extends ChangeNotifier {
 
   Future<String> _obtenerNombreCliente(User user) async {
     String name = 'Cliente';
+    // Solo se cachea si el nombre vino de Firestore (fuente autoritativa,
+    // la que refleja lo que el usuario editó en Perfil/Completar registro).
+    // El fallback a `displayName`/email es el nombre del proveedor
+    // (Google/Apple) o derivado del correo — cachearlo lo dejaba pegado en
+    // SharedPreferences y `hydrateFromUid` lo mostraba en cada arranque
+    // siguiente aunque Firestore ya tuviera el nombre correcto.
+    bool nombreDesdeFirestore = false;
     try {
       // 0. Intentar leer primero desde la nueva coleccion unificada 'usuarios'.
       final userDoc = await FirebaseFirestore.instance
@@ -280,6 +288,7 @@ class InicioClienteViewModel extends ChangeNotifier {
         final dynamic maybeName = userData != null ? userData['nombre'] : null;
         if (maybeName is String && maybeName.trim().isNotEmpty) {
           name = maybeName.trim();
+          nombreDesdeFirestore = true;
         }
       }
 
@@ -294,6 +303,7 @@ class InicioClienteViewModel extends ChangeNotifier {
           final dynamic maybeName = data != null ? data['nombre'] : null;
           if (maybeName is String && maybeName.trim().isNotEmpty) {
             name = maybeName.trim();
+            nombreDesdeFirestore = true;
           }
         }
       }
@@ -317,7 +327,7 @@ class InicioClienteViewModel extends ChangeNotifier {
     }
     // Cachear el nombre resuelto para que las recargas siguientes sean
     // instantáneas (hydrateFromUid lo usa sin volver a consultar Firestore).
-    if (name != 'Cliente') {
+    if (nombreDesdeFirestore) {
       try {
         await SessionHelper.saveCachedName(name);
       } catch (e, st) {
@@ -366,31 +376,34 @@ class InicioClienteViewModel extends ChangeNotifier {
 
   /// Actualiza la ubicación local y en Firestore si hay cliente
   Future<void> updateLocation(LatLng loc) async {
+    if (_disposed) return;
     _isLoadingLocation = true;
     isLoadingLocationNotifier.value = true;
     _currentLocation = loc;
     currentLocationNotifier.value = loc;
-    if (!_disposed) notifyListeners();
+    notifyListeners();
     try {
       await _guardarUbicacionCliente(loc);
     } catch (e) {
       debugPrint('Error guardando ubicacion: $e');
     } finally {
       _isLoadingLocation = false;
-      isLoadingLocationNotifier.value = false;
+      if (!_disposed) isLoadingLocationNotifier.value = false;
       if (!_disposed) notifyListeners();
     }
   }
 
   Future<void> cargarUbicacionActual() async {
+    if (_disposed) return;
     _ubicacionNueva = false;
 
     // 1. Mostrar de inmediato la última ubicación cacheada (sin loader).
     final cache = await _leerUbicacionCache();
+    if (_disposed) return;
     if (cache != null && _currentLocation == null) {
       _currentLocation = cache;
       currentLocationNotifier.value = cache;
-      if (!_disposed) notifyListeners();
+      notifyListeners();
     }
 
     // 2. Pedir ubicación al GPS.
@@ -400,7 +413,7 @@ class InicioClienteViewModel extends ChangeNotifier {
     } catch (e) {
       debugPrint('Error obteniendo ubicación actual: $e');
     }
-    if (loc == null) return;
+    if (loc == null || _disposed) return;
 
     // 3. Comparar con la cacheada. Si es la misma → mantenerla, sin loader.
     final base = cache ?? _currentLocation;
@@ -428,10 +441,10 @@ class InicioClienteViewModel extends ChangeNotifier {
     // 4. Ubicación nueva → mostrar "Buscando ubicación" y actualizar.
     _isLoadingLocation = true;
     isLoadingLocationNotifier.value = true;
-    if (!_disposed) notifyListeners();
+    notifyListeners();
     try {
       _currentLocation = loc;
-      currentLocationNotifier.value = loc;
+      if (!_disposed) currentLocationNotifier.value = loc;
       await _guardarUbicacionCliente(loc);
       await _guardarUbicacionCache(loc);
       _ubicacionNueva = true;
@@ -439,7 +452,7 @@ class InicioClienteViewModel extends ChangeNotifier {
       debugPrint('Error guardando ubicación: $e');
     } finally {
       _isLoadingLocation = false;
-      isLoadingLocationNotifier.value = false;
+      if (!_disposed) isLoadingLocationNotifier.value = false;
       if (!_disposed) notifyListeners();
     }
   }

@@ -71,6 +71,26 @@ class ClientAuthFirebaseDataSource {
     }
   }
 
+  /// Sincroniza `FirebaseAuth.currentUser.displayName` con el nombre que el
+  /// usuario tiene guardado en `usuarios/{uid}`. Sin esto, `displayName`
+  /// queda congelado para siempre con el nombre que trajo el proveedor
+  /// (Google/Apple) al registrarse — cualquier lector que cayera en ese
+  /// fallback (chat de soporte, perfil sin red, saludo del home) mostraba el
+  /// nombre de Gmail aunque el usuario ya hubiera editado el suyo en
+  /// Firestore. Nunca lanza: es cosmético, no debe romper un login ni un
+  /// guardado de perfil.
+  Future<void> updateDisplayName(String nombreCompleto) async {
+    final nombre = nombreCompleto.trim();
+    if (nombre.isEmpty) return;
+    try {
+      final user = _auth.currentUser;
+      if (user == null || user.displayName == nombre) return;
+      await user.updateDisplayName(nombre);
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'client_auth_firebase_datasource');
+    }
+  }
+
   static bool _esCancelacionDelUsuario(Object error) {
     if (error is! PlatformException) return false;
     final code = error.code.toLowerCase();

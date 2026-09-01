@@ -73,6 +73,11 @@ class AppAuthAdapter extends LegacyAuthRepository
   }
 
   @override
+  Future<void> syncAuthDisplayName(String nombreCompleto) {
+    return _clientRepo.syncAuthDisplayName(nombreCompleto);
+  }
+
+  @override
   Future<String> loginWithEmail({
     required String email,
     required String password,

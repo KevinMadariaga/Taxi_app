@@ -5,6 +5,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/services/soporte_chat_service.dart';
+import 'package:taxi_app/core/utils/error_reporter.dart';
+import 'package:taxi_app/caracteristicas/confirmar_solicitud/datos/repositorios/cliente_repository_impl.dart';
 
 class SoporteChatScreen extends StatefulWidget {
   const SoporteChatScreen({super.key, this.userType = 'cliente'});
@@ -21,8 +23,15 @@ class _SoporteChatScreenState extends State<SoporteChatScreen> {
   final _scrollCtrl = ScrollController();
   final _focusNode = FocusNode();
 
+  final _clienteRepository = ClienteRepositoryImpl();
+
   late final String _userId;
-  late final String _userName;
+  // Arranca con el fallback de Auth (nombre del proveedor / email) para no
+  // dejar el chat sin nombre mientras carga; `_cargarNombreDesdeFirestore`
+  // lo reemplaza por el nombre guardado en `usuarios/{uid}` apenas llega —
+  // ese es el que puede haber sido editado en Perfil, algo que `displayName`
+  // de Auth nunca refleja.
+  late String _userName;
 
   DateTime? _ultimoMensajeUsuario;
   Timer? _expiryTimer;
@@ -40,11 +49,23 @@ class _SoporteChatScreenState extends State<SoporteChatScreen> {
     final user = FirebaseAuth.instance.currentUser;
     _userId = user?.uid ?? '';
     _userName = user?.displayName ?? user?.email ?? 'Usuario';
+    _cargarNombreDesdeFirestore();
 
     // Revisa expiración cada 30 s para actualizar el banner sin esperar un evento Firestore.
     _expiryTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       if (mounted) setState(() {});
     });
+  }
+
+  Future<void> _cargarNombreDesdeFirestore() async {
+    try {
+      final actual = await _clienteRepository.obtenerActual();
+      final nombre = actual?.nombre.trim() ?? '';
+      if (nombre.isEmpty || !mounted) return;
+      setState(() => _userName = nombre);
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'soporte_chat_screen');
+    }
   }
 
   @override

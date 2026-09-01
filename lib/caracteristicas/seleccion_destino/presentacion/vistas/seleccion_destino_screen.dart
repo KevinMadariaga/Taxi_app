@@ -45,14 +45,6 @@ class _SeleccionDestinoScreenState extends State<SeleccionDestinoScreen> {
   bool _isPreparingNavigation = false;
   String _navigationMessage = 'Preparando...';
 
-  // ── Apertura automática de teclado al entrar ────────────────────────────
-  // Engancha un listener a la animación de transición de la ruta para pedir
-  // el foco del campo destino justo cuando termina de entrar (no antes: se
-  // ve feo/con jank abrir el teclado a mitad de la transición de push).
-  bool _initialKeyboardOpened = false;
-  Animation<double>? _routeAnimation;
-  AnimationStatusListener? _routeAnimationStatusListener;
-
   @override
   void initState() {
     super.initState();
@@ -65,72 +57,12 @@ class _SeleccionDestinoScreenState extends State<SeleccionDestinoScreen> {
   }
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _setupKeyboardOpenAfterTransition();
-  }
-
-  @override
   void dispose() {
     _debounce?.cancel();
-    _clearRouteAnimationListeners();
     _destinoController.dispose();
     _destinoFocus.dispose();
     _vm.dispose();
     super.dispose();
-  }
-
-  void _requestInitialDestinoFocus() {
-    if (!mounted) return;
-    FocusScope.of(context).requestFocus(_destinoFocus);
-  }
-
-  void _openKeyboardWhenRouteIsVisible() {
-    if (_initialKeyboardOpened || !mounted) return;
-    _initialKeyboardOpened = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await Future<void>.delayed(const Duration(milliseconds: 80));
-      if (!mounted) return;
-      _requestInitialDestinoFocus();
-    });
-  }
-
-  void _clearRouteAnimationListeners() {
-    if (_routeAnimation != null && _routeAnimationStatusListener != null) {
-      _routeAnimation!.removeStatusListener(_routeAnimationStatusListener!);
-    }
-    _routeAnimation = null;
-    _routeAnimationStatusListener = null;
-  }
-
-  void _setupKeyboardOpenAfterTransition() {
-    if (_initialKeyboardOpened) return;
-
-    final route = ModalRoute.of(context);
-    final animation = route?.animation;
-
-    if (route != null && !route.isCurrent) return;
-
-    if (animation == null) {
-      _openKeyboardWhenRouteIsVisible();
-      return;
-    }
-
-    if (animation.status == AnimationStatus.completed) {
-      _clearRouteAnimationListeners();
-      _openKeyboardWhenRouteIsVisible();
-      return;
-    }
-
-    if (_routeAnimationStatusListener != null) return;
-
-    _routeAnimation = animation;
-    _routeAnimationStatusListener = (status) {
-      if (status != AnimationStatus.completed) return;
-      _clearRouteAnimationListeners();
-      _openKeyboardWhenRouteIsVisible();
-    };
-    _routeAnimation!.addStatusListener(_routeAnimationStatusListener!);
   }
 
   // ── Acciones ─────────────────────────────────────────────────────────────

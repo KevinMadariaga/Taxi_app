@@ -17,6 +17,8 @@ import 'package:taxi_app/caracteristicas/viaje_conductor/presentacion/vistas/via
 import 'package:taxi_app/core/services/services.dart';
 import 'package:taxi_app/core/constants/solicitud_estado.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
+import 'package:taxi_app/core/utils/network_error_helper.dart';
+import 'package:taxi_app/core/services/conectividad_service.dart';
 
 /// Resuelve la pantalla inicial de la app según el estado de autenticación
 /// y las solicitudes activas del usuario.
@@ -106,133 +108,186 @@ class InitialScreenResolver {
       // de `cachedRole` arriba.
       if (currentUser != null) {
         role = null;
-        try {
-          final uid = currentUser.uid;
-          final adminDoc = await FirebaseFirestore.instance
-              .collection('administradores')
-              .doc(uid)
-              .get();
-
-          if (adminDoc.exists) {
-            role = 'administrador';
-          }
-
-          final usuariosDoc = await FirebaseFirestore.instance
-              .collection('usuarios')
-              .doc(uid)
-              .get();
-
-          final userData = usuariosDoc.data() ?? <String, dynamic>{};
-          // `isProfileComplete` se evalúa UNA sola vez y fuera de las ramas de
-          // rol. Antes vivía anidado dentro de `usuariosDoc.exists && rol ==
-          // 'cliente'`, así que el gate se saltaba por completo cuando el doc
-          // no existía o cuando el rol venía por el fallback `tipoUsuario`.
-          final perfilCompletoEnDoc = userData['isProfileComplete'] == true;
-
-          if (usuariosDoc.exists && role != 'administrador') {
-            final userRole = (userData['rol'] ?? userData['role'] ?? '')
-                .toString()
-                .toLowerCase();
-
-            if (userRole == 'admin' || userRole == 'administrador') {
-              role = 'administrador';
-            } else if (userRole == 'conductor') {
-              role = 'conductor';
-            } else if (userRole == 'cliente') {
-              role = 'cliente';
-            }
-          }
-
-          // Si usuarios.rol/role no resolvió, usar tipoUsuario como fallback
-          // (campo alterno que sí usa, por ejemplo, el alta de conductor).
-          if (role != 'administrador' &&
-              role != 'conductor' &&
-              role != 'cliente') {
-            final tipoUsuario = (userData['tipoUsuario'] ?? '')
-                .toString()
-                .toLowerCase();
-            if (tipoUsuario == 'conductor') {
-              role = 'conductor';
-            } else if (tipoUsuario == 'cliente') {
-              role = 'cliente';
-            }
-          }
-
-          // Ni admin, ni usuarios.rol/role, ni tipoUsuario resolvieron nada
-          // reconocible (doc inexistente, campo vacío, valor inesperado):
-          // default explícito a 'cliente' (el de menor privilegio) en vez de
-          // dejar `role` en null — null ahí terminaría reusando el rol
-          // cacheado más abajo en el resto de la función, que es justo lo
-          // que este bloque existe para evitar.
-          role ??= 'cliente';
-
-          // La foto es obligatoria (ver `complete_client_profile_usecase.dart`),
-          // pero cuentas creadas antes de ese guard —o editadas desde el
-          // panel de admin— pueden tener `isProfileComplete: true` con
-          // `foto`/`fotoUrl` vacíos. Mismo orden de fallback que usa el
-          // resto del código (`client_user_model.dart`).
-          final tieneFoto =
-              (userData['fotoUrl'] ?? userData['foto'] ?? '')
-                  .toString()
-                  .trim()
-                  .isNotEmpty;
-
-          // Un cliente autenticado SIN documento legible en `usuarios` tiene,
-          // por definición, el perfil incompleto: es el estado que queda si
-          // `ensureClientUserForGoogle` falló después de un sign-in exitoso.
-          // Tratarlo como completo lo dejaba entrar al home sin nombre, sin
-          // teléfono y sin foto.
-          final perfilCompleto =
-              usuariosDoc.exists && perfilCompletoEnDoc && tieneFoto;
-
-          // Firestore fue alcanzable y dio un rol confiable: sincronizar el
-          // caché para que, si alguna vez Firestore no es alcanzable (ver
-          // catch abajo), el fallback offline sea el último rol REAL
-          // conocido, no uno arbitrariamente viejo.
-          if (role != cachedRole) {
-            try {
-              await prefs.setString('user_role', role);
-            } catch (e, st) {
-              ErrorReporter.report(e, st, reason: 'auth_service');
-            }
-          }
-          // Se cachea también si el perfil está completo, para poder aplicar
-          // el mismo criterio cuando Firestore no responda (ver catch).
-          try {
-            await prefs.setBool('profile_complete', perfilCompleto);
-          } catch (e, st) {
-            ErrorReporter.report(e, st, reason: 'auth_service');
-          }
-
-          if (role == 'cliente' && !perfilCompleto) {
-            return CompleteProfilePage(
-              uid: uid,
-              initialNombre: (userData['nombre'] ?? '').toString(),
-              initialApellido: (userData['apellido'] ?? '').toString(),
-              initialTelefono: (userData['telefono'] ?? '').toString(),
-            );
-          }
-        } catch (e, st) {
-          debugPrint('Error al resolver rol de usuario desde Firestore: $e');
-          FirebaseCrashlytics.instance.recordError(
-            e,
-            st,
-            reason:
-                'AuthService: fallo al resolver rol de usuario desde Firestore',
-          );
-          // Sin conectividad (u otro fallo) para confirmar el rol real: usar
-          // el último rol cacheado como fallback degradado, mejor que dejar
-          // a un usuario ya autenticado varado en el login. No es el camino
-          // feliz — el rol real se re-confirma en el siguiente cold start
-          // con red disponible.
+        // Si ya sabemos, con certeza, que no hay conexión (chequeo de
+        // interfaz de red), ni se intenta leer Firestore: su comportamiento
+        // offline es ambiguo — puede resolver desde caché parcial/vacía SIN
+        // lanzar excepción, según qué haya cacheado este dispositivo, en
+        // vez de fallar de forma consistente (ver los comentarios de
+        // `lecturaConfirmadaPorServidor` más abajo, que cubren ese caso
+        // ambiguo cuando SÍ se intenta leer). Acá, con la desconexión ya
+        // confirmada, directamente se usa el mismo fallback degradado que
+        // el catch: el último rol cacheado, sin forzar "Completar perfil".
+        // `ConectividadGate` ya avisa de la falta de conexión; el rol/perfil
+        // real se re-confirma en cuanto vuelva la red.
+        final conectado = await ConectividadService.instance.hayConexion();
+        if (!conectado) {
           role = cachedRole;
+        } else {
+          try {
+            final uid = currentUser.uid;
+            final adminDoc = await FirebaseFirestore.instance
+                .collection('administradores')
+                .doc(uid)
+                .get();
 
-          // El gate de perfil también se resuelve con el caché: antes este
-          // catch lo salteaba por completo, así que un perfil incompleto
-          // entraba al home cada vez que se arrancara sin red. Si nunca se
-          // confirmó que estuviera completo, se asume incompleto.
-          if (role == 'cliente' && prefs.getBool('profile_complete') != true) {
-            return CompleteProfilePage(uid: currentUser.uid);
+            if (adminDoc.exists) {
+              role = 'administrador';
+            }
+
+            final usuariosDoc = await FirebaseFirestore.instance
+                .collection('usuarios')
+                .doc(uid)
+                .get();
+
+            final userData = usuariosDoc.data() ?? <String, dynamic>{};
+            // `isProfileComplete` se evalúa UNA sola vez y fuera de las ramas de
+            // rol. Antes vivía anidado dentro de `usuariosDoc.exists && rol ==
+            // 'cliente'`, así que el gate se saltaba por completo cuando el doc
+            // no existía o cuando el rol venía por el fallback `tipoUsuario`.
+            final perfilCompletoEnDoc = userData['isProfileComplete'] == true;
+
+            if (usuariosDoc.exists && role != 'administrador') {
+              final userRole = (userData['rol'] ?? userData['role'] ?? '')
+                  .toString()
+                  .toLowerCase();
+
+              if (userRole == 'admin' || userRole == 'administrador') {
+                role = 'administrador';
+              } else if (userRole == 'conductor') {
+                role = 'conductor';
+              } else if (userRole == 'cliente') {
+                role = 'cliente';
+              }
+            }
+
+            // Si usuarios.rol/role no resolvió, usar tipoUsuario como fallback
+            // (campo alterno que sí usa, por ejemplo, el alta de conductor).
+            if (role != 'administrador' &&
+                role != 'conductor' &&
+                role != 'cliente') {
+              final tipoUsuario = (userData['tipoUsuario'] ?? '')
+                  .toString()
+                  .toLowerCase();
+              if (tipoUsuario == 'conductor') {
+                role = 'conductor';
+              } else if (tipoUsuario == 'cliente') {
+                role = 'cliente';
+              }
+            }
+
+            // Ni admin, ni usuarios.rol/role, ni tipoUsuario resolvieron nada
+            // reconocible (doc inexistente, campo vacío, valor inesperado):
+            // default explícito a 'cliente' (el de menor privilegio) en vez de
+            // dejar `role` en null — null ahí terminaría reusando el rol
+            // cacheado más abajo en el resto de la función, que es justo lo
+            // que este bloque existe para evitar.
+            role ??= 'cliente';
+
+            // La foto es obligatoria (ver `complete_client_profile_usecase.dart`),
+            // pero cuentas creadas antes de ese guard —o editadas desde el
+            // panel de admin— pueden tener `isProfileComplete: true` con
+            // `foto`/`fotoUrl` vacíos. Mismo orden de fallback que usa el
+            // resto del código (`client_user_model.dart`).
+            final tieneFoto = (userData['fotoUrl'] ?? userData['foto'] ?? '')
+                .toString()
+                .trim()
+                .isNotEmpty;
+
+            // Un cliente autenticado SIN documento legible en `usuarios` tiene,
+            // por definición, el perfil incompleto: es el estado que queda si
+            // `ensureClientUserForGoogle` falló después de un sign-in exitoso.
+            // Tratarlo como completo lo dejaba entrar al home sin nombre, sin
+            // teléfono y sin foto.
+            final perfilCompleto =
+                usuariosDoc.exists && perfilCompletoEnDoc && tieneFoto;
+
+            // `.get()` sin red puede resolver SIN lanzar (a diferencia del
+            // catch de más abajo) si Firestore no tiene NADA cacheado para
+            // este doc — no confirma que el doc no exista, solo que este
+            // dispositivo nunca lo vio. Pasa, por ejemplo, en iOS: la sesión
+            // de FirebaseAuth sobrevive una reinstalación (Keychain), pero el
+            // caché local de Firestore se borra con la app. `isFromCache`
+            // distingue "confirmado con el servidor" de "solo lo que había en
+            // caché" — sin esto, un `usuariosDoc.exists == false` por caché
+            // vacía se trataba igual que un usuario genuinamente sin doc.
+            final lecturaConfirmadaPorServidor =
+                !usuariosDoc.metadata.isFromCache;
+
+            // Firestore fue alcanzable y dio un rol confiable: sincronizar el
+            // caché para que, si alguna vez Firestore no es alcanzable (ver
+            // catch abajo), el fallback offline sea el último rol REAL
+            // conocido, no uno arbitrariamente viejo.
+            if (role != cachedRole) {
+              try {
+                await prefs.setString('user_role', role);
+              } catch (e, st) {
+                ErrorReporter.report(e, st, reason: 'auth_service');
+              }
+            }
+            // Se cachea también si el perfil está completo, para poder aplicar
+            // el mismo criterio cuando Firestore no responda (ver catch) — solo
+            // cuando la lectura fue confirmada por el servidor, para no pisar
+            // el último valor real conocido con un falso "incompleto" leído
+            // de un caché vacío.
+            if (lecturaConfirmadaPorServidor) {
+              try {
+                await prefs.setBool('profile_complete', perfilCompleto);
+              } catch (e, st) {
+                ErrorReporter.report(e, st, reason: 'auth_service');
+              }
+            }
+
+            // Igual que en el catch: si no se pudo confirmar con el servidor
+            // Y encima el doc parece no existir, no es un caso confiable de
+            // "hace falta completar el perfil" — puede ser un usuario YA
+            // registrado en un dispositivo que nunca cacheó su doc. Si el doc
+            // SÍ está en caché (aunque sea vieja) y muestra perfil incompleto,
+            // se respeta — probablemente es real.
+            final motivoIncompletoNoConfiable =
+                !lecturaConfirmadaPorServidor && !usuariosDoc.exists;
+            if (role == 'cliente' &&
+                !perfilCompleto &&
+                !motivoIncompletoNoConfiable) {
+              return CompleteProfilePage(
+                uid: uid,
+                initialNombre: (userData['nombre'] ?? '').toString(),
+                initialApellido: (userData['apellido'] ?? '').toString(),
+                initialTelefono: (userData['telefono'] ?? '').toString(),
+              );
+            }
+          } catch (e, st) {
+            debugPrint('Error al resolver rol de usuario desde Firestore: $e');
+            FirebaseCrashlytics.instance.recordError(
+              e,
+              st,
+              reason:
+                  'AuthService: fallo al resolver rol de usuario desde Firestore',
+            );
+            // Sin conectividad (u otro fallo) para confirmar el rol real: usar
+            // el último rol cacheado como fallback degradado, mejor que dejar
+            // a un usuario ya autenticado varado en el login. No es el camino
+            // feliz — el rol real se re-confirma en el siguiente cold start
+            // con red disponible.
+            role = cachedRole;
+
+            // El gate de perfil también se resuelve con el caché: si nunca se
+            // confirmó que estuviera completo, se asume incompleto — PERO solo
+            // cuando el fallo NO es de conectividad. `profile_complete` en
+            // SharedPreferences solo lo escribe este mismo resolver (nunca el
+            // flujo de login/completar-perfil), así que un usuario que ya
+            // completó su perfil hace tiempo y recién ahora reabre la app SIN
+            // red por primera vez desde entonces tiene ese caché vacío — sin
+            // este `!esErrorDeConexion(e)` se lo mandaba a "Completar perfil"
+            // aunque su perfil ya estuviera completo en Firestore, solo porque
+            // no se pudo confirmar por falta de red. `ConectividadGate` ya
+            // avisa de la falta de conexión; cuando vuelva, el rol/perfil real
+            // se re-confirma. Con otros errores (permisos, Firestore caído)
+            // sigue el comportamiento defensivo original.
+            if (!esErrorDeConexion(e) &&
+                role == 'cliente' &&
+                prefs.getBool('profile_complete') != true) {
+              return CompleteProfilePage(uid: currentUser.uid);
+            }
           }
         }
       }
