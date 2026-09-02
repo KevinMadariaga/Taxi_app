@@ -67,6 +67,7 @@ class TripDetailsSheet extends StatelessWidget {
               const SizedBox(height: 18),
               const Text(
                 'Detalles del viaje',
+                textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.w800,
@@ -190,12 +191,11 @@ class TripDetailsSheet extends StatelessWidget {
   }
 
   static String _currency(double value) {
-    final f = NumberFormat.currency(
-      locale: 'es_CO',
-      symbol: r'$',
-      decimalDigits: 0,
-    );
-    return f.format(value);
+    // Formatea el número y antepone el signo peso a mano: dejarle la
+    // posición del símbolo al patrón de `es_CO` de NumberFormat.currency
+    // podía terminar mostrándolo después del valor.
+    final f = NumberFormat.decimalPattern('es_CO');
+    return '\$${f.format(value)}';
   }
 }
 
@@ -228,7 +228,7 @@ class _Estrellas extends StatelessWidget {
         }),
         const SizedBox(width: 4),
         Text(
-          '${valor.toStringAsFixed(1)} ($total)',
+          valor.toStringAsFixed(1),
           style: const TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w600,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/widgets/visor_foto_pantalla_completa.dart';
 
 /// Avatar + nombre + dirección del cliente — renderizado inline en la
 /// tarjeta (antes solo aparecía si el conductor abría el sheet de
@@ -34,20 +35,25 @@ class ClienteHeaderRow extends StatelessWidget {
 
     return Row(
       children: [
-        CircleAvatar(
-          radius: 28,
-          backgroundColor: AppColores.brand200,
-          backgroundImage: tienePhoto ? NetworkImage(photoUrl!) : null,
-          child: tienePhoto
-              ? null
-              : Text(
-                  _iniciales(nombre),
-                  style: const TextStyle(
-                    color: AppColores.brand900,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 18,
+        GestureDetector(
+          onTap: tienePhoto
+              ? () => mostrarFotoPantallaCompleta(context, photoUrl!)
+              : null,
+          child: CircleAvatar(
+            radius: 28,
+            backgroundColor: AppColores.brand200,
+            backgroundImage: tienePhoto ? NetworkImage(photoUrl!) : null,
+            child: tienePhoto
+                ? null
+                : Text(
+                    _iniciales(nombre),
+                    style: const TextStyle(
+                      color: AppColores.brand900,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 18,
+                    ),
                   ),
-                ),
+          ),
         ),
         const SizedBox(width: 10),
         Expanded(

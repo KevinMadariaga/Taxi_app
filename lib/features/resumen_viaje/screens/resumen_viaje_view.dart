@@ -382,12 +382,11 @@ class _SummaryCard extends StatelessWidget {
   }
 
   String _currency(double value) {
-    final formatter = NumberFormat.currency(
-      locale: 'es_CO',
-      symbol: r'$',
-      decimalDigits: 0,
-    );
-    return formatter.format(value);
+    // Formatea el número y antepone el signo peso a mano: dejarle la
+    // posición del símbolo al patrón de `es_CO` de NumberFormat.currency
+    // podía terminar mostrándolo después del valor.
+    final formatter = NumberFormat.decimalPattern('es_CO');
+    return '\$${formatter.format(value)}';
   }
 
   String _fecha(DateTime? value) {

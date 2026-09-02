@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/widgets/visor_foto_pantalla_completa.dart';
 
 /// Izquierda: foto del conductor (grande) + calificación debajo, con el
 /// nombre al lado de la foto. Derecha: foto del vehículo + placa/tipo
@@ -57,22 +58,27 @@ class ConductorVehiculoInfo extends StatelessWidget {
       children: [
         // Bloque conductor: foto grande, nombre al lado, calificación
         // debajo del nombre (no debajo de la foto).
-        CircleAvatar(
-          radius: avatarRadius,
-          backgroundColor: AppColores.brand200,
-          backgroundImage: tieneFotoConductor
-              ? NetworkImage(fotoConductorUrl!)
+        GestureDetector(
+          onTap: tieneFotoConductor
+              ? () => mostrarFotoPantallaCompleta(context, fotoConductorUrl!)
               : null,
-          child: tieneFotoConductor
-              ? null
-              : Text(
-                  _iniciales(nombre),
-                  style: TextStyle(
-                    color: AppColores.brand900,
-                    fontWeight: FontWeight.w700,
-                    fontSize: avatarRadius * (22 / 36),
+          child: CircleAvatar(
+            radius: avatarRadius,
+            backgroundColor: AppColores.brand200,
+            backgroundImage: tieneFotoConductor
+                ? NetworkImage(fotoConductorUrl!)
+                : null,
+            child: tieneFotoConductor
+                ? null
+                : Text(
+                    _iniciales(nombre),
+                    style: TextStyle(
+                      color: AppColores.brand900,
+                      fontWeight: FontWeight.w700,
+                      fontSize: avatarRadius * (22 / 36),
+                    ),
                   ),
-                ),
+          ),
         ),
         const SizedBox(width: 8),
         Expanded(
@@ -116,31 +122,36 @@ class ConductorVehiculoInfo extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 8),
-        // Bloque vehículo: foto, placa/tipo debajo — alineado a la derecha.
+        // Bloque vehículo: foto, placa/tipo debajo — centrada bajo la foto.
         Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: Container(
-                width: vehiculoWidth,
-                height: vehiculoHeight,
-                color: AppColores.grey100,
-                child: tieneFotoVehiculo
-                    ? CachedNetworkImage(
-                        imageUrl: fotoVehiculoUrl!,
-                        fit: BoxFit.cover,
-                        errorWidget: (context, _, error) => const Icon(
-                          Icons.directions_car_outlined,
+            GestureDetector(
+              onTap: tieneFotoVehiculo
+                  ? () => mostrarFotoPantallaCompleta(context, fotoVehiculoUrl!)
+                  : null,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  width: vehiculoWidth,
+                  height: vehiculoHeight,
+                  color: AppColores.grey100,
+                  child: tieneFotoVehiculo
+                      ? CachedNetworkImage(
+                          imageUrl: fotoVehiculoUrl!,
+                          fit: BoxFit.cover,
+                          errorWidget: (context, _, error) => const Icon(
+                            Icons.directions_car_outlined,
+                            color: AppColores.textSecondary,
+                          ),
+                        )
+                      : Icon(
+                          isMoto
+                              ? Icons.two_wheeler_outlined
+                              : Icons.directions_car_outlined,
                           color: AppColores.textSecondary,
                         ),
-                      )
-                    : Icon(
-                        isMoto
-                            ? Icons.two_wheeler_outlined
-                            : Icons.directions_car_outlined,
-                        color: AppColores.textSecondary,
-                      ),
+                ),
               ),
             ),
             if (tienePlaca) ...[

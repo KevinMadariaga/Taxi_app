@@ -5,6 +5,20 @@ import 'package:geocoding/geocoding.dart';
 import 'package:taxi_app/core/constants/solicitud_estado.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
 
+/// Rango de fechas para filtrar el historial. Por defecto la lista muestra
+/// solo `hoy` — mostrar TODOS los viajes desde siempre confundía al
+/// conductor con las ganancias totales (pantalla separada, "Ver ganancias").
+enum FiltroHistorial { hoy, ayer, semana, todos }
+
+extension FiltroHistorialLabel on FiltroHistorial {
+  String get label => switch (this) {
+    FiltroHistorial.hoy => 'Hoy',
+    FiltroHistorial.ayer => 'Ayer',
+    FiltroHistorial.semana => 'Esta semana',
+    FiltroHistorial.todos => 'Todos',
+  };
+}
+
 /// Resumen agregado de una lista de viajes completados: promedio de
 /// calificación, cantidad de viajes calificados y total ganado.
 class HistorialConductorResumen {
@@ -149,6 +163,45 @@ class HistorialConductorViewModel extends ChangeNotifier {
       return ubicacion;
     }
     return 'Origen desconocido';
+  }
+
+  /// Filtra [viajes] (ya completados) por [filtro], comparando la fecha de
+  /// finalización en horario de Colombia (UTC-5) — mismo criterio que
+  /// [formatoFechaHora], para que lo que se ve en cada tarjeta coincida con
+  /// el filtro aplicado. Un viaje sin fecha de finalización registrada
+  /// nunca aparece bajo `hoy`/`ayer`/`semana` (no se puede ubicar en el
+  /// tiempo), pero sí bajo `todos`.
+  List<Map<String, dynamic>> filtrarPorRango(
+    List<Map<String, dynamic>> viajes,
+    FiltroHistorial filtro,
+  ) {
+    if (filtro == FiltroHistorial.todos) return viajes;
+
+    DateTime? fechaFinDeViaje(Map<String, dynamic> data) {
+      final raw = data['completedAt'] ?? data['fecha de terminacion'];
+      if (raw is! Timestamp) return null;
+      final fecha = raw.toDate().toUtc().subtract(const Duration(hours: 5));
+      return DateTime(fecha.year, fecha.month, fecha.day);
+    }
+
+    final ahora = DateTime.now().toUtc().subtract(const Duration(hours: 5));
+    final hoy = DateTime(ahora.year, ahora.month, ahora.day);
+
+    switch (filtro) {
+      case FiltroHistorial.hoy:
+        return viajes.where((v) => fechaFinDeViaje(v) == hoy).toList();
+      case FiltroHistorial.ayer:
+        final ayer = hoy.subtract(const Duration(days: 1));
+        return viajes.where((v) => fechaFinDeViaje(v) == ayer).toList();
+      case FiltroHistorial.semana:
+        final inicioSemana = hoy.subtract(Duration(days: hoy.weekday - 1));
+        return viajes.where((v) {
+          final f = fechaFinDeViaje(v);
+          return f != null && !f.isBefore(inicioSemana) && !f.isAfter(hoy);
+        }).toList();
+      case FiltroHistorial.todos:
+        return viajes;
+    }
   }
 
   /// Agrega [viajes] (ya filtrados a completados) en promedio de

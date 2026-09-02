@@ -16,6 +16,7 @@ class HistorialConductor extends StatefulWidget {
 
 class HistorialConductorState extends State<HistorialConductor> {
   final _vm = HistorialConductorViewModel();
+  FiltroHistorial _filtro = FiltroHistorial.hoy;
 
   double? _lastSyncedAverageRating;
   int? _lastSyncedRatingsCount;
@@ -151,15 +152,17 @@ class HistorialConductorState extends State<HistorialConductor> {
           }
 
           final viajes = snapshot.data ?? [];
-          final resumen = _vm.resumenDe(viajes);
-          final promedio = resumen.promedio;
-          final totalGanado = resumen.totalGanado;
+          // La calificación sincronizada al perfil público del conductor es
+          // SIEMPRE sobre el historial completo, sin importar el filtro de
+          // fecha que se esté mostrando en pantalla — filtrar por "Hoy" no
+          // debe reemplazar el promedio real por el de un solo día.
+          final resumenSync = _vm.resumenDe(viajes);
 
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!mounted) return;
             _scheduleConductorRatingSync(
-              averageRating: promedio,
-              ratingsCount: resumen.ratedCount,
+              averageRating: resumenSync.promedio,
+              ratingsCount: resumenSync.ratedCount,
             );
           });
 
@@ -171,43 +174,105 @@ class HistorialConductorState extends State<HistorialConductor> {
             );
           }
 
+          final viajesFiltrados = _vm.filtrarPorRango(viajes, _filtro);
+          final resumen = _vm.resumenDe(viajesFiltrados);
+
           return Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 700),
               child: Column(
                 children: [
+                  _FiltroHistorialChips(
+                    filtro: _filtro,
+                    onChanged: (nuevo) => setState(() => _filtro = nuevo),
+                  ),
                   _ResumenConductor(
-                    totalViajes: viajes.length,
-                    promedio: promedio,
-                    totalGanado: totalGanado,
+                    totalViajes: viajesFiltrados.length,
+                    promedio: resumen.promedio,
+                    totalGanado: resumen.totalGanado,
                   ),
                   Expanded(
-                    child: ListView.builder(
-                      padding: EdgeInsets.fromLTRB(12, 4, 12, MediaQuery.of(context).padding.bottom + 90),
-                      itemCount: viajes.length,
-                      itemBuilder: (context, index) {
-                        final data = viajes[index];
-                        final destinoField = data['destino'];
-                        return HistorialViajeCard(
-                          destinoFuture: _vm.obtenerDireccion(destinoField),
-                          destinoFallback: _fallbackDestino(destinoField),
-                          fecha: _vm.formatarHoraFin(data),
-                          valor: formatPesos(_vm.extraerValorServicio(data)),
-                          calificacion: _vm
-                              .extraerCalificacion(data)
-                              .clamp(0, 5)
-                              .toDouble(),
-                          onTap: () => _mostrarDetalle(context, data),
-                          isMoto: (data['tipoVehiculo'] ?? '').toString().toLowerCase() == 'moto',
-                        );
-                      },
-                    ),
+                    child: viajesFiltrados.isEmpty
+                        ? HistorialEstadoMensaje(
+                            icon: Icons.event_busy_rounded,
+                            titulo: 'Sin viajes en este rango',
+                            subtitulo:
+                                'No hay viajes completados en "${_filtro.label}". '
+                                'Prueba con otro filtro.',
+                          )
+                        : ListView.builder(
+                            padding: EdgeInsets.fromLTRB(12, 4, 12, MediaQuery.of(context).padding.bottom + 90),
+                            itemCount: viajesFiltrados.length,
+                            itemBuilder: (context, index) {
+                              final data = viajesFiltrados[index];
+                              final destinoField = data['destino'];
+                              return HistorialViajeCard(
+                                destinoFuture: _vm.obtenerDireccion(destinoField),
+                                destinoFallback: _fallbackDestino(destinoField),
+                                fecha: _vm.formatarHoraFin(data),
+                                valor: formatPesos(_vm.extraerValorServicio(data)),
+                                calificacion: _vm
+                                    .extraerCalificacion(data)
+                                    .clamp(0, 5)
+                                    .toDouble(),
+                                onTap: () => _mostrarDetalle(context, data),
+                                isMoto: (data['tipoVehiculo'] ?? '').toString().toLowerCase() == 'moto',
+                              );
+                            },
+                          ),
                   ),
                 ],
               ),
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+/// Fila de chips para filtrar el historial por fecha — "Hoy" por defecto,
+/// para no mezclar la lista completa de viajes con las ganancias (pantalla
+/// separada, FAB "Ver ganancias").
+class _FiltroHistorialChips extends StatelessWidget {
+  const _FiltroHistorialChips({required this.filtro, required this.onChanged});
+
+  final FiltroHistorial filtro;
+  final ValueChanged<FiltroHistorial> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            for (final opcion in FiltroHistorial.values) ...[
+              ChoiceChip(
+                label: Text(opcion.label),
+                selected: filtro == opcion,
+                onSelected: (_) => onChanged(opcion),
+                showCheckmark: false,
+                selectedColor: AppColores.primary,
+                backgroundColor: AppColores.surface,
+                labelStyle: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: filtro == opcion
+                      ? AppColores.textWhite
+                      : AppColores.textPrimary,
+                ),
+                side: BorderSide(
+                  color: filtro == opcion
+                      ? AppColores.primary
+                      : AppColores.borderSubtle,
+                ),
+              ),
+              if (opcion != FiltroHistorial.values.last)
+                const SizedBox(width: 8),
+            ],
+          ],
+        ),
       ),
     );
   }

@@ -61,20 +61,28 @@ Future<bool?> mostrarTipoVehiculoSheet(
                           ),
                         ),
                       ),
-                      Text(
-                        'Tipo de vehículo',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 18.sp,
-                          color: Colors.black,
+                      SizedBox(
+                        width: double.infinity,
+                        child: Text(
+                          'Tipo de vehículo',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 18.sp,
+                            color: Colors.black,
+                          ),
                         ),
                       ),
                       SizedBox(height: 4.h),
-                      Text(
-                        'El precio varía según el vehículo',
-                        style: TextStyle(
-                          color: Colors.black54,
-                          fontSize: 13.sp,
+                      SizedBox(
+                        width: double.infinity,
+                        child: Text(
+                          'El precio varía según el vehículo',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.black54,
+                            fontSize: 13.sp,
+                          ),
                         ),
                       ),
                       SizedBox(height: 18.h),
@@ -112,7 +120,10 @@ Future<bool?> mostrarTipoVehiculoSheet(
                           },
                           child: const Text(
                             'Confirmar vehículo',
-                            style: TextStyle(fontWeight: FontWeight.w700),
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: AppColores.textWhite,
+                            ),
                           ),
                         ),
                       ),
@@ -186,24 +197,16 @@ class _VehiculoCuadro extends StatelessWidget {
               ),
             ),
             SizedBox(height: 4.h),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.sell, color: Colors.green, size: 14),
-                SizedBox(width: 4.w),
-                Flexible(
-                  child: Text(
-                    '\$${formatCurrencyFromRaw(precio)}',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 14.sp,
-                      color: Colors.black,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
+            Text(
+              '\$${formatCurrencyFromRaw(precio)}',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 14.sp,
+                color: Colors.black,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
