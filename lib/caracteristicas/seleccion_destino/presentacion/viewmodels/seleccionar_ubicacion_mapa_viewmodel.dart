@@ -44,6 +44,7 @@ class SeleccionarUbicacionMapaViewModel extends ChangeNotifier {
   int _requestToken = 0;
   Timer? _idleDebounce;
   LatLng? _ultimaCoordConsultada;
+  bool _disposed = false;
 
   LatLng get center => _center;
   String get direccion => _direccion;
@@ -94,18 +95,18 @@ class SeleccionarUbicacionMapaViewModel extends ChangeNotifier {
       if (_direccion == cacheada && !_resolviendoDireccion) return;
       _direccion = cacheada;
       _resolviendoDireccion = false;
-      notifyListeners();
+      if (!_disposed) notifyListeners();
       return;
     }
 
     final token = ++_requestToken;
     if (!_resolviendoDireccion) {
       _resolviendoDireccion = true;
-      notifyListeners();
+      if (!_disposed) notifyListeners();
     }
 
     final resuelta = await _obtenerDireccion(coordenada);
-    if (token != _requestToken) return;
+    if (token != _requestToken || _disposed) return;
 
     _direccionCache[key] = resuelta;
     _direccion = resuelta;
@@ -115,6 +116,7 @@ class SeleccionarUbicacionMapaViewModel extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
     _idleDebounce?.cancel();
     super.dispose();
   }

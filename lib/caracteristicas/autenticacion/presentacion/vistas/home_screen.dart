@@ -9,6 +9,7 @@ import 'package:taxi_app/caracteristicas/autenticacion/dominio/repositorios/clie
 import 'package:taxi_app/caracteristicas/autenticacion/presentacion/controladores/home_auth_controller.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/casos_uso/sign_in_google_client_usecase.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/presentacion/vistas/complete_profile_page.dart';
+import 'package:taxi_app/core/widgets/cuenta_deshabilitada_page.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/home_cliente_view.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioConductorView.dart';
 import 'package:taxi_app/routes/app_routes.dart';
@@ -91,24 +92,44 @@ class _HomeViewState extends State<HomeView> {
     }
 
     // Enrutar según rol: admin → panel admin, conductor → inicio conductor,
-    // cliente (o desconocido) → home cliente. Se detecta por doc en
-    // `administradores` o por el rol resuelto de `usuarios`.
-    bool esAdmin = false;
+    // cliente (o desconocido) → home cliente.
+    //
+    // Los tres roles se deciden de la MISMA forma: el campo `usuarios/{uid}
+    // .rol` (`resolveUserRole`, que acepta 'admin'/'administrador' y
+    // normaliza a 'administrador'). Coincide con `firestore.rules
+    // isAdminRole()` y con `initial_screen_resolver.dart` (cold-start), que
+    // usan el mismo campo — así el rol que se ve en Firestore console es
+    // literalmente el que decide a qué pantalla entra el usuario, sin una
+    // colección aparte (`administradores`) que pueda desalinearse.
     String rol = '';
+    bool deshabilitado = false;
     try {
       final authRepository = Provider.of<ClientAuthRepository>(
         context,
         listen: false,
       );
-      esAdmin = await authRepository.isRegisteredAdmin(result.user.id);
       rol = await authRepository.resolveUserRole(result.user.id);
-      if (rol == 'administrador') esAdmin = true;
+      deshabilitado = await authRepository.isDisabled(result.user.id);
     } catch (e, st) {
       ErrorReporter.report(e, st, reason: 'home_screen');
     }
 
     if (!mounted) return;
-    if (esAdmin) {
+
+    // Mismo chequeo que hace `initial_screen_resolver.dart` en el
+    // cold-start — este es un camino de enrutado SEPARADO (login
+    // interactivo con Google/Apple sin matar el proceso de la app) que
+    // antes no lo miraba en absoluto: una cuenta deshabilitada por un admin
+    // podía cerrar sesión y volver a entrar sin ningún bloqueo.
+    if (deshabilitado) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const CuentaDeshabilitadaPage()),
+        (route) => false,
+      );
+      return;
+    }
+
+    if (rol == 'administrador') {
       Navigator.of(context).pushNamedAndRemoveUntil(
         AppRoutes.adminHome,
         (route) => false,

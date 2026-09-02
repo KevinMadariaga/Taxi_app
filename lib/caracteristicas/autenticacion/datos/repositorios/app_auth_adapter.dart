@@ -92,8 +92,8 @@ class AppAuthAdapter extends LegacyAuthRepository
   }
 
   @override
-  Future<bool> isRegisteredAdmin(String uid) {
-    return _clientRepo.isRegisteredAdmin(uid);
+  Future<bool> isDisabled(String uid) {
+    return _clientRepo.isDisabled(uid);
   }
 
   // logout() ya lo satisface el implementado heredado de LegacyAuthRepository.

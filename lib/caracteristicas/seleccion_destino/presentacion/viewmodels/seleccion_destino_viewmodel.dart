@@ -9,6 +9,7 @@ import '../../datos/repositorios/lugares_repository_impl.dart';
 import '../../datos/repositorios/ubicaciones_repository_impl.dart';
 import '../../dominio/entidades/ubicacion_entity.dart';
 import '../../dominio/casos_uso/buscar_destinos_usecase.dart';
+import '../../dominio/casos_uso/eliminar_favorito_usecase.dart';
 import '../../dominio/casos_uso/extraer_ubicacion_desde_texto_usecase.dart';
 import '../../dominio/casos_uso/guardar_favorito_usecase.dart';
 import '../../dominio/casos_uso/obtener_favoritos_usecase.dart';
@@ -26,6 +27,7 @@ class SeleccionDestinoViewModel extends ChangeNotifier {
     BuscarDestinosUseCase? buscarDestinos,
     GuardarFavoritoUseCase? guardarFavorito,
     ObtenerFavoritosUseCase? obtenerFavoritos,
+    EliminarFavoritoUseCase? eliminarFavorito,
     ResolverDetalleLugarUseCase? resolverDetalleLugar,
     ExtraerUbicacionDesdeTextoUseCase? extraerUbicacionDesdeTexto,
     ObtenerHistorialDestinosUseCase? obtenerHistorialDestinos,
@@ -42,6 +44,9 @@ class SeleccionDestinoViewModel extends ChangeNotifier {
        _obtenerFavoritosUseCase =
            obtenerFavoritos ??
            ObtenerFavoritosUseCase(UbicacionesRepositoryImpl()),
+       _eliminarFavoritoUseCase =
+           eliminarFavorito ??
+           EliminarFavoritoUseCase(UbicacionesRepositoryImpl()),
        _resolverDetalleLugar =
            resolverDetalleLugar ??
            ResolverDetalleLugarUseCase(LugaresRepositoryImpl()),
@@ -58,12 +63,15 @@ class SeleccionDestinoViewModel extends ChangeNotifier {
   final BuscarDestinosUseCase _buscarDestinos;
   final GuardarFavoritoUseCase _guardarFavoritoUseCase;
   final ObtenerFavoritosUseCase _obtenerFavoritosUseCase;
+  final EliminarFavoritoUseCase _eliminarFavoritoUseCase;
   final ResolverDetalleLugarUseCase _resolverDetalleLugar;
   final ExtraerUbicacionDesdeTextoUseCase _extraerUbicacionDesdeTexto;
   final ObtenerHistorialDestinosUseCase _obtenerHistorialDestinos;
   final RegistrarDestinoRecienteUseCase _registrarDestinoReciente;
 
   final Map<String, String> _direccionCache = <String, String>{};
+
+  bool _disposed = false;
 
   LatLng? _origenPosition;
   String _origenDireccion = '';
@@ -77,6 +85,13 @@ class SeleccionDestinoViewModel extends ChangeNotifier {
   bool _cargandoSugerencias = false;
   bool _cargandoFavoritos = false;
   bool _guardandoFavorito = false;
+  // `Set`, no un solo `String?`: si el usuario borra dos favoritos casi a
+  // la vez (nada en la UI lo impide, cada fila tiene su propio botón), un
+  // solo campo mutable hacía que el `finally` del segundo borrado pisara el
+  // indicador de carga del primero antes de que terminara — el spinner de
+  // una fila desaparecía mientras esa fila todavía tenía un borrado en
+  // vuelo.
+  final Set<String> _eliminandoFavoritoIds = {};
   bool _cargandoHistorial = false;
   String? _error;
 
@@ -90,9 +105,30 @@ class SeleccionDestinoViewModel extends ChangeNotifier {
   bool get cargandoSugerencias => _cargandoSugerencias;
   bool get cargandoFavoritos => _cargandoFavoritos;
   bool get guardandoFavorito => _guardandoFavorito;
+  Set<String> get eliminandoFavoritoIds => _eliminandoFavoritoIds;
   bool get cargandoHistorial => _cargandoHistorial;
   String? get error => _error;
   bool get tieneDestino => _destinoPosition != null;
+
+  // `notifyListeners()` sobreescrito (en vez de guardar cada call site a
+  // mano) protege TODOS los usos, presentes y futuros: el flujo de
+  // favoritos (`mostrarFavoritosBottomSheet`) encadena varios `await`
+  // seguidos (picker de mapa → diálogo de etiqueta → guardar en Firestore →
+  // reabrir el sheet) — si el usuario sale de la pantalla en cualquiera de
+  // esas esperas, este VM ya disposed recibiría un `notifyListeners()` y
+  // explotaría con "used after being disposed", el mismo bug ya encontrado
+  // y corregido esta sesión en `SeleccionarUbicacionMapaViewModel`.
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
+  @override
+  void notifyListeners() {
+    if (_disposed) return;
+    super.notifyListeners();
+  }
 
   String _keyFromLatLng(LatLng point) {
     return '${point.latitude.toStringAsFixed(5)},${point.longitude.toStringAsFixed(5)}';
@@ -213,11 +249,11 @@ class SeleccionDestinoViewModel extends ChangeNotifier {
     return _resolverDetalleLugar(placeId);
   }
 
-  Future<void> cargarFavoritos({String tipo = 'Favorito'}) async {
+  Future<void> cargarFavoritos() async {
     _cargandoFavoritos = true;
     notifyListeners();
     try {
-      _favoritos = await _obtenerFavoritosUseCase(tipo: tipo);
+      _favoritos = await _obtenerFavoritosUseCase();
     } catch (e, st) {
       ErrorReporter.report(e, st, reason: 'SeleccionDestinoViewModel');
       _favoritos = [];
@@ -237,12 +273,26 @@ class SeleccionDestinoViewModel extends ChangeNotifier {
     _error = null;
     notifyListeners();
     try {
-      await _guardarFavoritoUseCase(
+      final id = await _guardarFavoritoUseCase(
         nombre: nombre,
         direccion: direccion,
         ubicacion: ubicacion,
         tipo: tipo,
       );
+      // Se inserta en memoria en vez de recargar con `cargarFavoritos()`:
+      // el doc recién escrito llega con `createdAt == null` hasta que el
+      // servidor confirma el `serverTimestamp`, así que una re-consulta
+      // inmediata no lo mostraría ordenado como el más reciente.
+      _favoritos = [
+        UbicacionEntity(
+          id: id,
+          nombre: nombre,
+          direccion: direccion,
+          position: ubicacion,
+          tipo: tipo,
+        ),
+        ..._favoritos,
+      ];
       return true;
     } catch (e, st) {
       ErrorReporter.report(e, st, reason: 'SeleccionDestinoViewModel');
@@ -250,6 +300,24 @@ class SeleccionDestinoViewModel extends ChangeNotifier {
       return false;
     } finally {
       _guardandoFavorito = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> eliminarFavorito(String id) async {
+    _eliminandoFavoritoIds.add(id);
+    _error = null;
+    notifyListeners();
+    try {
+      await _eliminarFavoritoUseCase(id);
+      _favoritos = _favoritos.where((f) => f.id != id).toList();
+      return true;
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'SeleccionDestinoViewModel');
+      _error = 'No se pudo eliminar el favorito.';
+      return false;
+    } finally {
+      _eliminandoFavoritoIds.remove(id);
       notifyListeners();
     }
   }

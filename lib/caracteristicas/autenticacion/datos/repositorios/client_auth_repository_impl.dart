@@ -97,8 +97,8 @@ class ClientAuthRepositoryImpl implements ClientAuthRepository {
   }
 
   @override
-  Future<bool> isRegisteredAdmin(String uid) {
-    return _userDataSource.isRegisteredAdmin(uid);
+  Future<bool> isDisabled(String uid) {
+    return _userDataSource.isDisabled(uid);
   }
 
   @override

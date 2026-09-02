@@ -50,10 +50,10 @@ abstract class ClientAuthRepository {
   /// Devuelve 'cliente' si no se pudo determinar.
   Future<String> resolveUserRole(String uid);
 
-  /// Indica si [uid] tiene un documento propio en `administradores` (distinto
-  /// de `usuarios.rol == 'admin'`, ambas señales se combinan al enrutar tras
-  /// login social — ver `HomeView._navegarTrasLogin`).
-  Future<bool> isRegisteredAdmin(String uid);
+  /// `true` si un admin deshabilitó esta cuenta (`usuarios/{uid}
+  /// .deshabilitado`). Debe chequearse antes de enrutar tras login — el
+  /// cold-start (`initial_screen_resolver.dart`) ya lo hace por su cuenta.
+  Future<bool> isDisabled(String uid);
 
   Future<void> logout();
 }

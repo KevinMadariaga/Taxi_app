@@ -6,7 +6,7 @@ class ObtenerFavoritosUseCase {
 
   final UbicacionesRepository _repository;
 
-  Future<List<UbicacionEntity>> call({String tipo = 'Favorito'}) {
-    return _repository.favoritosPorTipo(tipo);
+  Future<List<UbicacionEntity>> call({int? limit}) {
+    return _repository.favoritos(limit: limit);
   }
 }

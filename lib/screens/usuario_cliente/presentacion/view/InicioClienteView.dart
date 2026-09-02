@@ -5,6 +5,9 @@ import 'package:google_maps_flutter/google_maps_flutter.dart' show LatLng;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:taxi_app/caracteristicas/seleccion_destino/dominio/casos_uso/buscar_destinos_usecase.dart';
+import 'package:taxi_app/caracteristicas/seleccion_destino/presentacion/vistas/seleccionar_ubicacion_mapa_view.dart';
+import 'package:taxi_app/caracteristicas/seleccion_destino/presentacion/vistas/widgets/etiqueta_favorito_dialog.dart';
 import 'package:taxi_app/core/helpers/permisos_helper.dart';
 import 'package:taxi_app/core/services/app_remote_config_service.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/navigation/inicio_cliente_navigation.dart';
@@ -17,6 +20,7 @@ import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/ubicacion_resultado.dart';
 import 'package:taxi_app/screens/perfil/perfil.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
+import 'package:taxi_app/widgets/confirmar_dialog.dart';
 
 class InicioClienteView extends StatefulWidget {
   const InicioClienteView({super.key, this.authUid});
@@ -391,39 +395,72 @@ class _InicioClienteViewState extends State<InicioClienteView>
         vm.currentLocation,
         origenDireccionInicial: origenDireccionInicial,
       );
+      // El usuario pudo haber creado (o borrado) un favorito desde el sheet
+      // de selección de destino ("Agregar" en `favoritos_bottom_sheet.dart`)
+      // — sin este refresh, el home seguía mostrando la lista vieja hasta
+      // reiniciar la app, porque `cargarFavoritosUnaVez` solo corre una vez
+      // por sesión de auth.
+      if (mounted) unawaited(vm.recargarFavoritos());
     } finally {
       if (mounted) _isPreparingNavigationNotifier.value = false;
     }
   }
 
   /// Maneja el tap sobre una sugerencia ("Casa", "Trabajo", "Otros") del
-  /// bloque de favoritos. Vive en el State porque necesita `context` y el
-  /// estado actual de `vm.favoritos`.
+  /// bloque de favoritos — solo se muestran cuando `vm.favoritos` está
+  /// vacía, así que su propósito es CREAR ese favorito, no buscar uno que
+  /// ya existe (antes intentaba encontrar un favorito llamado literalmente
+  /// "casa" en una lista que, por construcción, siempre estaba vacía en ese
+  /// punto — nunca podía encontrar nada). Abre el picker de mapa centrado en
+  /// la ubicación actual, pide confirmar la etiqueta y guarda.
   Future<void> _onSugerenciaTap(String label) async {
-    if (label == 'Casa') {
-      final casa = vm.favoritos
-          .where((f) => f.nombre.trim().toLowerCase() == 'casa')
-          .cast<UbicacionResultado?>()
-          .firstWhere((f) => f != null, orElse: () => null);
-      if (casa != null && casa.location != null) {
-        // Sin GPS todavía no se puede fijar el punto de recogida: se cae al
-        // flujo normal de selección en vez de crear una solicitud con
-        // recogida == destino.
-        final origen = vm.currentLocation;
-        if (origen == null) {
-          _navigateToDestinoSeleccion();
-          return;
-        }
-        await InicioClienteNavigation.irAMapaPreviewFavoritoCasa(
-          context,
-          casa.location!,
-          casa.direccion,
-          origenLocation: origen,
-        );
-        return;
-      }
-    }
-    _navigateToDestinoSeleccion();
+    final origen = vm.currentLocation ?? BuscarDestinosUseCase.ocanaCenter;
+    final picked = await Navigator.of(context).push<SeleccionUbicacionResult>(
+      MaterialPageRoute(
+        builder: (_) => SeleccionarUbicacionMapaView(
+          ubicacionInicial: origen,
+          titulo: 'Elige la ubicación de "$label"',
+        ),
+      ),
+    );
+    if (picked == null || !mounted) return;
+
+    final etiqueta = await mostrarEtiquetaFavoritoDialog(
+      context,
+      etiquetaInicial: label,
+    );
+    if (etiqueta == null || !mounted) return;
+
+    final direccion = picked.direccion?.trim().isNotEmpty == true
+        ? picked.direccion!.trim()
+        : '${picked.position.latitude}, ${picked.position.longitude}';
+    final ok = await vm.guardarFavorito(
+      nombre: etiqueta,
+      direccion: direccion,
+      ubicacion: picked.position,
+    );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          ok ? '"$etiqueta" guardado en favoritos.' : 'No se pudo guardar.',
+        ),
+      ),
+    );
+  }
+
+  Future<void> _onFavoritoEliminar(UbicacionResultado favorito) async {
+    final id = favorito.id;
+    if (id == null) return;
+    final ok = await mostrarConfirmacion(
+      context,
+      titulo: 'Eliminar favorito',
+      mensaje: '¿Eliminar "${favorito.nombre}" de tus favoritos?',
+      accion: 'Eliminar',
+      peligro: true,
+    );
+    if (!ok) return;
+    await vm.eliminarFavorito(id);
   }
 
   Future<void> _onBottomNavTap(int index) async {
@@ -581,6 +618,7 @@ class _InicioClienteViewState extends State<InicioClienteView>
                                   isLoading: vm.isLoadingFavoritos,
                                   onFavoriteTap: _onFavoriteSelected,
                                   onSugerenciaTap: _onSugerenciaTap,
+                                  onFavoritoEliminar: _onFavoritoEliminar,
                                 ),
                               ],
                             ),
@@ -1350,6 +1388,7 @@ class _FavoritosSection extends StatelessWidget {
     required this.isLoading,
     required this.onFavoriteTap,
     required this.onSugerenciaTap,
+    required this.onFavoritoEliminar,
   });
 
   final bool isTablet;
@@ -1357,6 +1396,7 @@ class _FavoritosSection extends StatelessWidget {
   final bool isLoading;
   final ValueChanged<UbicacionResultado> onFavoriteTap;
   final ValueChanged<String> onSugerenciaTap;
+  final ValueChanged<UbicacionResultado> onFavoritoEliminar;
 
   @override
   Widget build(BuildContext context) {
@@ -1389,6 +1429,7 @@ class _FavoritosSection extends StatelessWidget {
                         (f) => _FavoritoItem(
                           favorito: f,
                           onTap: () => onFavoriteTap(f),
+                          onEliminar: () => onFavoritoEliminar(f),
                         ),
                       )
                       .toList()
@@ -1409,10 +1450,15 @@ class _FavoritosSection extends StatelessWidget {
 }
 
 class _FavoritoItem extends StatelessWidget {
-  const _FavoritoItem({required this.favorito, required this.onTap});
+  const _FavoritoItem({
+    required this.favorito,
+    required this.onTap,
+    required this.onEliminar,
+  });
 
   final UbicacionResultado favorito;
   final VoidCallback onTap;
+  final VoidCallback onEliminar;
 
   @override
   Widget build(BuildContext context) {
@@ -1422,38 +1468,58 @@ class _FavoritoItem extends StatelessWidget {
     final icon = label.trim().toLowerCase() == 'casa'
         ? Icons.home_rounded
         : Icons.star_rounded;
+    // Favorito guardado sin coordenadas resueltas: se conserva visible (y
+    // borrable) en vez de ocultarlo, pero atenuado — el tap avisa que no hay
+    // ubicación en vez de no hacer nada.
+    final sinUbicacion = favorito.location == null;
 
     return Padding(
       padding: EdgeInsets.only(right: 8.w),
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
-          decoration: BoxDecoration(
-            color: AppColores.surface,
-            borderRadius: BorderRadius.circular(20.r),
-            border: Border.all(color: AppColores.borderSubtle),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 4,
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 15, color: AppColores.primary),
-              SizedBox(width: 6.w),
-              Text(
-                label,
-                style: TextStyle(
-                  color: AppColores.textPrimary,
-                  fontSize: 13.sp,
-                  fontWeight: FontWeight.w600,
+      child: Opacity(
+        opacity: sinUbicacion ? 0.5 : 1,
+        child: GestureDetector(
+          onTap: onTap,
+          child: Container(
+            padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 8.h),
+            decoration: BoxDecoration(
+              color: AppColores.surface,
+              borderRadius: BorderRadius.circular(20.r),
+              border: Border.all(color: AppColores.borderSubtle),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 4,
                 ),
-              ),
-            ],
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 15, color: AppColores.primary),
+                SizedBox(width: 6.w),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: AppColores.textPrimary,
+                    fontSize: 13.sp,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                SizedBox(width: 2.w),
+                GestureDetector(
+                  onTap: onEliminar,
+                  behavior: HitTestBehavior.opaque,
+                  child: Padding(
+                    padding: EdgeInsets.all(6.w),
+                    child: Icon(
+                      Icons.close_rounded,
+                      size: 14,
+                      color: AppColores.textSecondary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

@@ -202,7 +202,6 @@ class _EditarOfertaBusquedaViewState extends State<EditarOfertaBusquedaView> {
               SizedBox(height: 10.h),
               TextField(
                 controller: _controller,
-                autofocus: true,
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: false,
                   signed: false,
@@ -261,9 +260,9 @@ class _EditarOfertaBusquedaViewState extends State<EditarOfertaBusquedaView> {
               Row(
                 children: VehicleType.values.map((tipo) {
                   final isSelected = _tipoSeleccionado == tipo;
-                  final icon = tipo == VehicleType.moto
-                      ? Icons.two_wheeler
-                      : Icons.directions_car;
+                  final vehicleAsset = tipo == VehicleType.moto
+                      ? 'assets/img/icono_moto.png'
+                      : 'assets/img/icono_carro.png';
                   return Expanded(
                     child: Padding(
                       padding: EdgeInsets.symmetric(horizontal: 6.w),
@@ -291,12 +290,10 @@ class _EditarOfertaBusquedaViewState extends State<EditarOfertaBusquedaView> {
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(
-                                icon,
-                                size: 36.sp,
-                                color: isSelected
-                                    ? AppColores.textPrimary
-                                    : AppColores.textSecondary,
+                              Image.asset(
+                                vehicleAsset,
+                                height: 40.h,
+                                fit: BoxFit.contain,
                               ),
                               SizedBox(height: 8.h),
                               Text(

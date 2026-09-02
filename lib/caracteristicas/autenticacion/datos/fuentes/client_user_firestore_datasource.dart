@@ -33,11 +33,16 @@ class ClientUserFirestoreDataSource {
     return 'cliente';
   }
 
-  /// Indica si [uid] tiene documento propio en `administradores`. Antes esta
-  /// lectura vivía inline en `HomeView._navegarTrasLogin`.
-  Future<bool> isRegisteredAdmin(String uid) async {
-    final doc = await _firestore.collection('administradores').doc(uid).get();
-    return doc.exists;
+  /// `usuarios/{uid}.deshabilitado` — cuenta deshabilitada por un admin
+  /// (`UserDataService.deshabilitarUsuario`). Debe chequearse en TODO
+  /// camino de enrutado tras autenticar, no solo en el cold-start
+  /// (`initial_screen_resolver.dart`, que sí lo cubre): el login
+  /// interactivo (`home_screen.dart`) es un camino de enrutado separado
+  /// que antes no lo miraba en absoluto, dejando entrar a una cuenta
+  /// deshabilitada con solo cerrar sesión y volver a loguearse.
+  Future<bool> isDisabled(String uid) async {
+    final doc = await _firestore.collection('usuarios').doc(uid).get();
+    return doc.data()?['deshabilitado'] == true;
   }
 
   Future<ClientUserModel> ensureForGoogle({

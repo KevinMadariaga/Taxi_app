@@ -77,7 +77,7 @@ class _FakeClientAuthRepository implements ClientAuthRepository {
   Future<String> resolveUserRole(String uid) => throw UnimplementedError();
 
   @override
-  Future<bool> isRegisteredAdmin(String uid) => throw UnimplementedError();
+  Future<bool> isDisabled(String uid) => throw UnimplementedError();
 
   @override
   Future<void> logout() => throw UnimplementedError();

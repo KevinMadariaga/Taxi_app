@@ -7,6 +7,13 @@ class ReportesService {
   ReportesService._();
   static final ReportesService instance = ReportesService._();
 
+  /// Escribe `visto: false` al crear — sin esto, el badge de la campana de
+  /// admin (`where('visto', isEqualTo: false)`) nunca contaba un reporte
+  /// nuevo: Firestore excluye de un `where` los docs donde el campo no
+  /// existe, así que solo empezaba a "existir" para el badge cuando
+  /// [marcarVisto] lo dejaba en `true` — momento en el que ya no debía
+  /// contar. La lista de `AdminHubScreen` sí lo mostraba bien (usa `?? false`
+  /// al leer), por eso el badge y la lista se contradecían.
   Future<void> enviarReporteConductor({
     required String solicitudId,
     required String clienteId,
@@ -23,6 +30,7 @@ class ReportesService {
         'motivos': motivos,
         'comentario': comentario,
         'createdAt': FieldValue.serverTimestamp(),
+        'visto': false,
       });
       debugPrint('[ReportesService] Reporte de conductor enviado para $solicitudId');
     } catch (e) {
@@ -47,6 +55,7 @@ class ReportesService {
         'tipo': tipo,
         'descripcion': descripcion,
         'createdAt': FieldValue.serverTimestamp(),
+        'visto': false,
       });
       debugPrint('[ReportesService] Reporte de conductor enviado para $solicitudId');
     } catch (e) {

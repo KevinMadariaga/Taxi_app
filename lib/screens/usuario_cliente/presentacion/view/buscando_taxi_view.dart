@@ -236,7 +236,14 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
 
   Future<void> _cancelSolicitud() async {
     if (_vm.isCancelling) return;
+    _viajeNavegado = true;
     _vm.marcarFlujoTerminado();
+    // Para el listener de Firestore antes de escribir 'cancelado': si no,
+    // detecta su propia escritura y dispara `_onSolicitudTerminada` en
+    // paralelo, empujando una segunda pantalla intermedia (burbuja naranja
+    // de "Búsqueda finalizada") justo antes de esta.
+    await _vm.detenerEscucha();
+    if (!mounted) return;
     await _vm.cancelarSolicitud();
     if (!mounted) return;
     _vm.finalizarTrackingConductores();

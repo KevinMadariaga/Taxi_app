@@ -180,6 +180,46 @@ describe('usuarios', () => {
     );
   });
 
+  // `UserDataService.deshabilitarUsuario` (panel admin) reemplazó al borrado
+  // duro de `usuarios/{uid}`, que era cosmético: la cuenta de Auth seguía
+  // viva y el doc se recreaba solo en el siguiente login o con cualquier
+  // `set(merge:true)` propio (p.ej. `FcmService._persistToken`). El flag
+  // `deshabilitado` sigue el mismo patrón que `membresia`/`membresiaVence`:
+  // solo el admin puede tocarlo.
+  test('un usuario NO puede quitarse el flag deshabilitado', async () => {
+    await sembrar(env, `usuarios/${CLIENTE}`, {
+      rol: 'cliente', deshabilitado: true,
+    });
+    const db = como(env, CLIENTE);
+    await assertFails(
+      db.doc(`usuarios/${CLIENTE}`).set({ deshabilitado: false }, { merge: true }),
+    );
+    // Tampoco colándolo junto a una escritura por lo demás normal, como el
+    // `set(merge:true)` que hace `FcmService._persistToken` en cada refresh
+    // de token — si esto pasara, un usuario deshabilitado se reactivaría
+    // solo con tener la app abierta.
+    await assertFails(
+      db.doc(`usuarios/${CLIENTE}`).set(
+        { fcmToken: 'tok-nuevo', deshabilitado: false }, { merge: true },
+      ),
+    );
+    // Pero sí puede seguir escribiendo campos que no tocan el flag.
+    await assertSucceeds(
+      db.doc(`usuarios/${CLIENTE}`).set({ fcmToken: 'tok-nuevo' }, { merge: true }),
+    );
+  });
+
+  test('el admin sí deshabilita y rehabilita un usuario', async () => {
+    await sembrar(env, `usuarios/${CLIENTE}`, { rol: 'cliente' });
+    const db = como(env, ADMIN);
+    await assertSucceeds(
+      db.doc(`usuarios/${CLIENTE}`).set({ deshabilitado: true }, { merge: true }),
+    );
+    await assertSucceeds(
+      db.doc(`usuarios/${CLIENTE}`).set({ deshabilitado: false }, { merge: true }),
+    );
+  });
+
   // `adminId` (modelo de gremios) quedó sin uso: ningún documento lo tiene y
   // nada filtra por él, así que las reglas ya no lo miran. Esta prueba fija
   // que, por eso mismo, escribírselo NO otorga ningún privilegio — quien lo
@@ -190,6 +230,28 @@ describe('usuarios', () => {
     await assertFails(db.doc(`usuarios/${OTRO_CLIENTE}`).get());
     await assertFails(db.collection('usuarios').get());
     await assertFails(db.doc(`usuarios/${CONDUCTOR}`).update({ membresia: 'activa' }));
+  });
+
+  // `isAdminRole()` ahora lee `usuarios/{uid}.rol` directamente (ya no exige
+  // un doc en `administradores`) — así que el hueco a cerrar es que nadie
+  // pueda autodeclararse admin escribiendo ese campo en su PROPIO doc, ni
+  // al crearlo (primer registro) ni al actualizarlo después.
+  test('un usuario nuevo NO puede autodeclararse admin al registrarse', async () => {
+    // UID sin doc previo a propósito: `set()` sobre un doc YA existente es
+    // un `update` para las reglas, no un `create` — hay que probar contra
+    // el primer registro real.
+    const NUEVO = 'cliente-nuevo-sin-doc';
+    const db = como(env, NUEVO);
+    await assertFails(
+      db.doc(`usuarios/${NUEVO}`).set({ rol: 'admin', nombre: 'Impostor' }),
+    );
+    await assertFails(
+      db.doc(`usuarios/${NUEVO}`).set({ rol: 'administrador' }),
+    );
+    // El registro normal (sin rol o con uno válido) sigue funcionando.
+    await assertSucceeds(
+      db.doc(`usuarios/${NUEVO}`).set({ rol: 'cliente', nombre: 'Nuevo' }),
+    );
   });
 
   // FcmService: persistir el token es la escritura más frecuente de la app.

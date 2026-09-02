@@ -10,11 +10,16 @@ class UbicacionEntity {
   const UbicacionEntity({
     required this.nombre,
     required this.direccion,
+    this.id,
     this.position,
     this.placeId,
     this.tipo,
   });
 
+  /// Id del documento en `usuarios/{uid}/favoritos`. `null` cuando esta
+  /// ubicación no está persistida como favorito (sugerencia de Places,
+  /// entrada del historial local) — sin id no se puede borrar.
+  final String? id;
   final String nombre;
   final String direccion;
   final LatLng? position;
@@ -22,6 +27,7 @@ class UbicacionEntity {
   final String? tipo;
 
   UbicacionEntity copyWith({
+    String? id,
     String? nombre,
     String? direccion,
     LatLng? position,
@@ -29,6 +35,7 @@ class UbicacionEntity {
     String? tipo,
   }) {
     return UbicacionEntity(
+      id: id ?? this.id,
       nombre: nombre ?? this.nombre,
       direccion: direccion ?? this.direccion,
       position: position ?? this.position,

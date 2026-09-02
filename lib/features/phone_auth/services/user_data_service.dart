@@ -310,11 +310,33 @@ class UserDataService {
     }, SetOptions(merge: true));
   }
 
-  /// Elimina el registro de un usuario (cliente o conductor) desde el panel
-  /// de administración. Antes esto era `doc.reference.delete()` directo desde
-  /// `_ClienteCard`/`_ConductorCard` en `admin_home_screen.dart`.
-  Future<void> eliminarUsuario(String uid) {
-    return _firestore.collection('usuarios').doc(uid).delete();
+  /// Deshabilita la cuenta de un usuario (cliente o conductor) desde el panel
+  /// de administración. Reemplaza al borrado duro que había antes
+  /// (`doc.reference.delete()` en `admin_home_screen.dart`): ese borrado era
+  /// solo cosmético — la cuenta de Auth seguía viva y `ensureForGoogle`
+  /// (login) o `FcmService._persistToken` (con la app en background, sin
+  /// login) recreaban el doc solos, así que el usuario "volvía" apenas
+  /// entraba de nuevo o simplemente tenía la app abierta.
+  ///
+  /// El flag `deshabilitado` sí persiste: ninguno de esos dos flujos lo toca
+  /// (son `merge: true` sobre otros campos), y `initial_screen_resolver.dart`
+  /// lo respeta expulsando al usuario a una pantalla de cuenta deshabilitada
+  /// antes de dejarlo entrar a ningún home.
+  Future<void> deshabilitarUsuario(String uid, {required String adminUid}) {
+    return _firestore.collection('usuarios').doc(uid).set({
+      'deshabilitado': true,
+      'deshabilitadoAt': FieldValue.serverTimestamp(),
+      'deshabilitadoPor': adminUid,
+    }, SetOptions(merge: true));
+  }
+
+  /// Revierte [deshabilitarUsuario]. Sin esto la acción del panel era de
+  /// una sola vía: un admin podía deshabilitar por error y no había forma de
+  /// deshacerlo desde la UI, solo editando Firestore a mano.
+  Future<void> habilitarUsuario(String uid) {
+    return _firestore.collection('usuarios').doc(uid).set({
+      'deshabilitado': false,
+    }, SetOptions(merge: true));
   }
 
   Stream<Map<String, dynamic>?> streamUsuario(String uid) {

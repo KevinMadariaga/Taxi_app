@@ -8,6 +8,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:taxi_app/core/helpers/session_helper.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/presentacion/vistas/home_screen.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/presentacion/vistas/complete_profile_page.dart';
+import 'package:taxi_app/core/widgets/cuenta_deshabilitada_page.dart';
 import 'package:taxi_app/features/admin/admin_home_screen.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/home_cliente_view.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioConductorView.dart';
@@ -125,28 +126,36 @@ class InitialScreenResolver {
         } else {
           try {
             final uid = currentUser.uid;
-            final adminDoc = await FirebaseFirestore.instance
-                .collection('administradores')
-                .doc(uid)
-                .get();
-
-            if (adminDoc.exists) {
-              role = 'administrador';
-            }
-
             final usuariosDoc = await FirebaseFirestore.instance
                 .collection('usuarios')
                 .doc(uid)
                 .get();
 
             final userData = usuariosDoc.data() ?? <String, dynamic>{};
+
+            // Cuenta deshabilitada por un admin (`UserDataService.
+            // deshabilitarUsuario`): expulsar antes de resolver cualquier
+            // otra cosa, sin importar el rol. Se chequea aunque `adminDoc`
+            // haya existido arriba — un admin también puede ser deshabilitado
+            // por otro admin.
+            if (userData['deshabilitado'] == true) {
+              return const CuentaDeshabilitadaPage();
+            }
+
             // `isProfileComplete` se evalúa UNA sola vez y fuera de las ramas de
             // rol. Antes vivía anidado dentro de `usuariosDoc.exists && rol ==
             // 'cliente'`, así que el gate se saltaba por completo cuando el doc
             // no existía o cuando el rol venía por el fallback `tipoUsuario`.
             final perfilCompletoEnDoc = userData['isProfileComplete'] == true;
 
-            if (usuariosDoc.exists && role != 'administrador') {
+            // Los tres roles se leen de la MISMA fuente: `usuarios/{uid}
+            // .rol` (o `role`). No hay una colección `administradores`
+            // aparte que pueda desalinearse de este campo — el valor que se
+            // ve en Firestore console es literalmente el que decide la
+            // pantalla, igual que `isAdminRole()` en `firestore.rules` (que
+            // lee este mismo campo) y que `home_screen.dart` (login
+            // interactivo).
+            if (usuariosDoc.exists) {
               final userRole = (userData['rol'] ?? userData['role'] ?? '')
                   .toString()
                   .toLowerCase();

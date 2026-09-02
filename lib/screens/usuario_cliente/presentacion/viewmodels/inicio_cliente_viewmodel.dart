@@ -7,6 +7,11 @@ import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:taxi_app/caracteristicas/seleccion_destino/datos/repositorios/ubicaciones_repository_impl.dart';
+import 'package:taxi_app/caracteristicas/seleccion_destino/dominio/casos_uso/eliminar_favorito_usecase.dart';
+import 'package:taxi_app/caracteristicas/seleccion_destino/dominio/casos_uso/guardar_favorito_usecase.dart';
+import 'package:taxi_app/caracteristicas/seleccion_destino/dominio/casos_uso/obtener_favoritos_usecase.dart';
+import 'package:taxi_app/caracteristicas/seleccion_destino/dominio/entidades/ubicacion_entity.dart';
 import 'package:taxi_app/core/helpers/map_helper.dart';
 import 'package:taxi_app/core/helpers/session_helper.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/ubicacion_resultado.dart';
@@ -16,6 +21,27 @@ import 'package:taxi_app/core/services/ubicacion_servicio.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
 
 class InicioClienteViewModel extends ChangeNotifier {
+  // Wiring local de favoritos (mismo patrón que `SeleccionDestinoViewModel`):
+  // casos de uso opcionales con default a la implementación real, porque
+  // este ViewModel no vive en el árbol de providers de `main.dart`.
+  InicioClienteViewModel({
+    ObtenerFavoritosUseCase? obtenerFavoritos,
+    EliminarFavoritoUseCase? eliminarFavorito,
+    GuardarFavoritoUseCase? guardarFavorito,
+  }) : _obtenerFavoritosUseCase =
+           obtenerFavoritos ??
+           ObtenerFavoritosUseCase(UbicacionesRepositoryImpl()),
+       _eliminarFavoritoUseCase =
+           eliminarFavorito ??
+           EliminarFavoritoUseCase(UbicacionesRepositoryImpl()),
+       _guardarFavoritoUseCase =
+           guardarFavorito ??
+           GuardarFavoritoUseCase(UbicacionesRepositoryImpl());
+
+  final ObtenerFavoritosUseCase _obtenerFavoritosUseCase;
+  final EliminarFavoritoUseCase _eliminarFavoritoUseCase;
+  final GuardarFavoritoUseCase _guardarFavoritoUseCase;
+
   // --- Estado principal ---
   String search = '';
   String _clientName = 'Cliente';
@@ -192,9 +218,16 @@ class InicioClienteViewModel extends ChangeNotifier {
         );
   }
 
-  Future<void> cargarFavoritosUnaVez() async {
-    if (_favoritosLoaded) return;
+  UbicacionResultado _mapFavorito(UbicacionEntity e) {
+    return UbicacionResultado(
+      id: e.id,
+      location: e.position,
+      nombre: e.nombre.isNotEmpty ? e.nombre : 'Favorito',
+      direccion: e.direccion.isNotEmpty ? e.direccion : e.nombre,
+    );
+  }
 
+  Future<void> _cargarFavoritos() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
@@ -202,47 +235,59 @@ class InicioClienteViewModel extends ChangeNotifier {
     if (!_disposed) notifyListeners();
 
     try {
-      final userFavSnapshot = await FirebaseFirestore.instance
-          .collection('usuarios')
-          .doc(user.uid)
-          .collection('favoritos')
-          .get();
-
-      QuerySnapshot<Map<String, dynamic>> snapshot = userFavSnapshot;
-
-      // Compatibilidad con estructura legacy mientras se migra la data.
-      if (snapshot.docs.isEmpty) {
-        snapshot = await FirebaseFirestore.instance
-            .collection('ubicaciones')
-            .where('userId', isEqualTo: user.uid)
-            .get();
-      }
-
-      _favoritos = snapshot.docs.map((doc) {
-        final data = doc.data();
-        final nombre = (data['nombre'] ?? '') as String;
-        final direccion = (data['direccion'] ?? '') as String;
-        final geo = data['ubicacion'] as GeoPoint?;
-        if (geo == null) {
-          return UbicacionResultado(
-            location: null,
-            nombre: nombre.isNotEmpty ? nombre : 'Favorito',
-            direccion: direccion.isNotEmpty ? direccion : nombre,
-          );
-        }
-        return UbicacionResultado(
-          location: LatLng(geo.latitude, geo.longitude),
-          nombre: nombre.isNotEmpty ? nombre : 'Favorito',
-          direccion: direccion.isNotEmpty ? direccion : nombre,
-        );
-      }).toList();
-
+      final favoritos = await _obtenerFavoritosUseCase();
+      _favoritos = favoritos.map(_mapFavorito).toList();
       _favoritosLoaded = true;
     } catch (e) {
       debugPrint('Error cargando favoritos: $e');
     } finally {
       _isLoadingFavoritos = false;
       if (!_disposed) notifyListeners();
+    }
+  }
+
+  Future<void> cargarFavoritosUnaVez() async {
+    if (_favoritosLoaded) return;
+    await _cargarFavoritos();
+  }
+
+  /// Recarga sin el guard de [cargarFavoritosUnaVez] — se usa tras crear un
+  /// favorito nuevo (desde el chip de sugerencia de este home, o desde el
+  /// sheet de selección de destino y volver a esta pantalla), porque el
+  /// guard existe para no re-consultar en cada emisión del listener de auth
+  /// con el mismo uid, no para bloquear un refresh real.
+  Future<void> recargarFavoritos() => _cargarFavoritos();
+
+  /// Guarda un favorito nuevo (usado por los chips de sugerencia "Casa" /
+  /// "Trabajo" / "Otros" cuando la lista está vacía) y recarga la lista.
+  Future<bool> guardarFavorito({
+    required String nombre,
+    required String direccion,
+    required LatLng ubicacion,
+  }) async {
+    try {
+      await _guardarFavoritoUseCase(
+        nombre: nombre,
+        direccion: direccion,
+        ubicacion: ubicacion,
+      );
+      await recargarFavoritos();
+      return true;
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'InicioClienteViewModel');
+      return false;
+    }
+  }
+
+  Future<bool> eliminarFavorito(String id) async {
+    try {
+      await _eliminarFavoritoUseCase(id);
+      _favoritos = _favoritos.where((f) => f.id != id).toList();
+      if (!_disposed) notifyListeners();
+      return true;
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'InicioClienteViewModel');
+      return false;
     }
   }
 

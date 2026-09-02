@@ -79,7 +79,7 @@ class FakeClientAuthRepository implements ClientAuthRepository {
   }
 
   @override
-  Future<bool> isRegisteredAdmin(String uid) async {
+  Future<bool> isDisabled(String uid) async {
     return false;
   }
 

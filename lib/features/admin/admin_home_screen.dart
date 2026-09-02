@@ -1,13 +1,16 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/services/soporte_notification_service.dart';
+import 'package:taxi_app/core/utils/error_reporter.dart';
 import 'package:taxi_app/features/admin/admin_configuracion_screen.dart';
+import 'package:taxi_app/features/admin/admin_usuario_filtros.dart';
 import 'package:taxi_app/features/phone_auth/screens/admin_hub_screen.dart';
 import 'package:taxi_app/features/phone_auth/services/user_data_service.dart';
+import 'package:taxi_app/widgets/confirmar_dialog.dart';
+import 'package:taxi_app/widgets/dialogo_dias_membresia.dart';
 
 class AdminHomeScreen extends StatefulWidget {
   const AdminHomeScreen({super.key, required this.adminId});
@@ -44,8 +47,12 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     return _userDataService.quitarRolConductorComoAdmin(uid);
   }
 
-  Future<void> _eliminarUsuario(String uid) {
-    return _userDataService.eliminarUsuario(uid);
+  Future<void> _deshabilitarUsuario(String uid) {
+    return _userDataService.deshabilitarUsuario(uid, adminUid: widget.adminId);
+  }
+
+  Future<void> _habilitarUsuario(String uid) {
+    return _userDataService.habilitarUsuario(uid);
   }
 
   @override
@@ -61,14 +68,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   void dispose() {
     SoporteNotificationService.instance.detenerEscuchaAdmin();
     super.dispose();
-  }
-
-  bool _coincide(Map<String, dynamic> data) {
-    final q = _query.trim().toLowerCase();
-    if (q.isEmpty) return true;
-    final nombre = '${data['nombre'] ?? ''} ${data['apellido'] ?? ''}'
-        .toLowerCase();
-    return nombre.contains(q);
   }
 
   @override
@@ -123,7 +122,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                     child: TextField(
                       onChanged: (v) => setState(() => _query = v),
                       decoration: InputDecoration(
-                        hintText: 'Buscar por nombre o apellido',
+                        hintText: 'Buscar por nombre, teléfono o placa',
                         prefixIcon: const Icon(Icons.search),
                         filled: true,
                         fillColor: AppColores.surface,
@@ -166,13 +165,12 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                         <QueryDocumentSnapshot<Map<String, dynamic>>>[];
                     for (final d in docs) {
                       final data = d.data();
-                      if (!_coincide(data)) continue;
-                      final rol = (data['rol'] ?? '').toString().toLowerCase();
-                      final pidioConductor = data['solicitudConductor'] == true;
-                      if (rol == 'conductor' || pidioConductor) {
-                        conductores.add(d);
-                      } else if (rol == 'cliente' || rol.isEmpty) {
-                        clientes.add(d);
+                      if (!coincideBusqueda(data, _query)) continue;
+                      switch (clasificarUsuario(data)) {
+                        case AdminUserBucket.conductor:
+                          conductores.add(d);
+                        case AdminUserBucket.cliente:
+                          clientes.add(d);
                       }
                     }
 
@@ -183,11 +181,13 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                           onAprobar: _aprobarMembresia,
                           onRevocar: _revocarMembresia,
                           onQuitar: _quitarConductor,
-                          onEliminar: _eliminarUsuario,
+                          onDeshabilitar: _deshabilitarUsuario,
+                          onHabilitar: _habilitarUsuario,
                         ),
                         _ListaClientes(
                           docs: clientes,
-                          onEliminar: _eliminarUsuario,
+                          onDeshabilitar: _deshabilitarUsuario,
+                          onHabilitar: _habilitarUsuario,
                         ),
                       ],
                     );
@@ -202,21 +202,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   }
 }
 
-/// Una membresía está activa solo si el campo dice 'activa' **y** la fecha de
-/// vencimiento no pasó. Mirar solo `membresia` no alcanza: la expiración la
-/// hace un job programado server-side, así que entre el vencimiento real y el
-/// barrido (o si el barrido falla) el campo sigue diciendo 'activa'. Mismo
-/// criterio que la transacción de `InicioConductorViewModel.aceptarSolicitud`,
-/// que es la que de verdad bloquea tomar viajes.
-bool _membresiaActiva(Map<String, dynamic> data) {
-  final activa = (data['membresia'] ?? '').toString().toLowerCase() == 'activa';
-  if (!activa) return false;
-  final vence = data['membresiaVence'];
-  if (vence is Timestamp && vence.toDate().isBefore(DateTime.now())) {
-    return false;
-  }
-  return true;
-}
 
 String _str(Map<String, dynamic> data, List<String> keys, String fallback) {
   for (final k in keys) {
@@ -241,36 +226,6 @@ String _fechaCorta(Timestamp? ts) {
       '${d.month.toString().padLeft(2, '0')}/${d.year}';
 }
 
-Future<bool> _confirmar(
-  BuildContext context,
-  String titulo,
-  String mensaje, {
-  String accion = 'Aceptar',
-  bool peligro = false,
-}) async {
-  final r = await showDialog<bool>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: Text(titulo),
-      content: Text(mensaje),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(ctx, false),
-          child: const Text('Cancelar'),
-        ),
-        FilledButton(
-          style: peligro
-              ? FilledButton.styleFrom(backgroundColor: AppColores.error)
-              : null,
-          onPressed: () => Navigator.pop(ctx, true),
-          child: Text(accion),
-        ),
-      ],
-    ),
-  );
-  return r == true;
-}
-
 void _verDetalles(BuildContext context, Map<String, dynamic> data) {
   Widget fila(String k, String v) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
@@ -289,7 +244,7 @@ void _verDetalles(BuildContext context, Map<String, dynamic> data) {
         ),
       );
 
-  final activa = _membresiaActiva(data);
+  final activa = membresiaActiva(data);
   final vence = data['membresiaVence'];
   showDialog(
     context: context,
@@ -332,13 +287,15 @@ class _ListaConductores extends StatelessWidget {
     required this.onAprobar,
     required this.onRevocar,
     required this.onQuitar,
-    required this.onEliminar,
+    required this.onDeshabilitar,
+    required this.onHabilitar,
   });
   final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs;
   final _AprobarMembresiaCallback onAprobar;
   final Future<void> Function(String uid) onRevocar;
   final Future<void> Function(String uid) onQuitar;
-  final Future<void> Function(String uid) onEliminar;
+  final Future<void> Function(String uid) onDeshabilitar;
+  final Future<void> Function(String uid) onHabilitar;
 
   @override
   Widget build(BuildContext context) {
@@ -348,7 +305,7 @@ class _ListaConductores extends StatelessWidget {
     final pendientes = docs
         .where((d) =>
             d.data()['solicitudConductor'] == true &&
-            !_membresiaActiva(d.data()))
+            !membresiaActiva(d.data()))
         .length;
 
     return Center(
@@ -394,7 +351,8 @@ class _ListaConductores extends StatelessWidget {
                   onAprobar: onAprobar,
                   onRevocar: onRevocar,
                   onQuitar: onQuitar,
-                  onEliminar: onEliminar,
+                  onDeshabilitar: onDeshabilitar,
+                  onHabilitar: onHabilitar,
                 ),
               ),
             ),
@@ -406,9 +364,14 @@ class _ListaConductores extends StatelessWidget {
 }
 
 class _ListaClientes extends StatelessWidget {
-  const _ListaClientes({required this.docs, required this.onEliminar});
+  const _ListaClientes({
+    required this.docs,
+    required this.onDeshabilitar,
+    required this.onHabilitar,
+  });
   final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs;
-  final Future<void> Function(String uid) onEliminar;
+  final Future<void> Function(String uid) onDeshabilitar;
+  final Future<void> Function(String uid) onHabilitar;
 
   @override
   Widget build(BuildContext context) {
@@ -421,8 +384,11 @@ class _ListaClientes extends StatelessWidget {
         child: ListView.builder(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
           itemCount: docs.length,
-          itemBuilder: (context, i) =>
-              _ClienteCard(doc: docs[i], onEliminar: onEliminar),
+          itemBuilder: (context, i) => _ClienteCard(
+            doc: docs[i],
+            onDeshabilitar: onDeshabilitar,
+            onHabilitar: onHabilitar,
+          ),
         ),
       ),
     );
@@ -448,23 +414,38 @@ class _EmptyTile extends StatelessWidget {
 }
 
 class _ClienteCard extends StatelessWidget {
-  const _ClienteCard({required this.doc, required this.onEliminar});
+  const _ClienteCard({
+    required this.doc,
+    required this.onDeshabilitar,
+    required this.onHabilitar,
+  });
   final QueryDocumentSnapshot<Map<String, dynamic>> doc;
-  final Future<void> Function(String uid) onEliminar;
+  final Future<void> Function(String uid) onDeshabilitar;
+  final Future<void> Function(String uid) onHabilitar;
 
-  Future<void> _eliminar(BuildContext context, String nombre) async {
-    final ok = await _confirmar(
+  Future<void> _deshabilitar(BuildContext context, String nombre) async {
+    final ok = await mostrarConfirmacion(
       context,
-      'Eliminar usuario',
-      'Se eliminará el registro de $nombre. Esta acción no se puede deshacer.',
-      accion: 'Eliminar',
+      titulo: 'Deshabilitar usuario',
+      mensaje:
+          '$nombre no podrá volver a entrar a la app hasta que se lo habilite de nuevo.',
+      accion: 'Deshabilitar',
       peligro: true,
     );
     if (!ok) return;
-    await onEliminar(doc.id);
+    await onDeshabilitar(doc.id);
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$nombre eliminado.')),
+        SnackBar(content: Text('$nombre deshabilitado.')),
+      );
+    }
+  }
+
+  Future<void> _habilitar(BuildContext context, String nombre) async {
+    await onHabilitar(doc.id);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$nombre habilitado.')),
       );
     }
   }
@@ -476,6 +457,7 @@ class _ClienteCard extends StatelessWidget {
     final contacto =
         _str(data, ['correo', 'email', 'telefono'], 'Sin contacto');
     final foto = _str(data, ['foto', 'fotoUrl'], '');
+    final deshabilitado = data['deshabilitado'] == true;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
@@ -483,20 +465,68 @@ class _ClienteCard extends StatelessWidget {
         leading: CircleAvatar(
           backgroundColor: AppColores.grey200,
           backgroundImage: foto.isNotEmpty ? NetworkImage(foto) : null,
+          onBackgroundImageError: foto.isNotEmpty ? (_, _) {} : null,
           child: foto.isEmpty ? const Icon(Icons.person) : null,
         ),
-        title: Text(nombre,
-            style: const TextStyle(fontWeight: FontWeight.w600)),
+        title: Row(
+          children: [
+            Flexible(
+              child: Text(nombre,
+                  style: const TextStyle(fontWeight: FontWeight.w600)),
+            ),
+            if (deshabilitado) ...[
+              const SizedBox(width: 6),
+              const _BadgeDeshabilitado(),
+            ],
+          ],
+        ),
         subtitle: Text(contacto),
         trailing: PopupMenuButton<String>(
           onSelected: (v) {
+            // Sin esto, al cerrarse el menú y reconstruirse la card (la
+            // lista completa viene de un `StreamBuilder` que reemite en
+            // cuanto la acción escribe en Firestore), el foco caía por
+            // defecto en el buscador de arriba y abría el teclado solo —
+            // visto en dispositivo real al tocar "Habilitar usuario".
+            FocusScope.of(context).unfocus();
             if (v == 'detalles') _verDetalles(context, data);
-            if (v == 'eliminar') _eliminar(context, nombre);
+            if (v == 'deshabilitar') _deshabilitar(context, nombre);
+            if (v == 'habilitar') _habilitar(context, nombre);
           },
-          itemBuilder: (_) => const [
-            PopupMenuItem(value: 'detalles', child: Text('Ver detalles')),
-            PopupMenuItem(value: 'eliminar', child: Text('Eliminar usuario')),
+          itemBuilder: (_) => [
+            const PopupMenuItem(
+                value: 'detalles', child: Text('Ver detalles')),
+            if (deshabilitado)
+              const PopupMenuItem(
+                  value: 'habilitar', child: Text('Habilitar usuario'))
+            else
+              const PopupMenuItem(
+                  value: 'deshabilitar',
+                  child: Text('Deshabilitar usuario')),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BadgeDeshabilitado extends StatelessWidget {
+  const _BadgeDeshabilitado();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: AppColores.error.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: const Text(
+        'Deshabilitado',
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          color: AppColores.error,
         ),
       ),
     );
@@ -509,62 +539,30 @@ class _ConductorCard extends StatelessWidget {
     required this.onAprobar,
     required this.onRevocar,
     required this.onQuitar,
-    required this.onEliminar,
+    required this.onDeshabilitar,
+    required this.onHabilitar,
   });
   final QueryDocumentSnapshot<Map<String, dynamic>> doc;
   final _AprobarMembresiaCallback onAprobar;
   final Future<void> Function(String uid) onRevocar;
   final Future<void> Function(String uid) onQuitar;
-  final Future<void> Function(String uid) onEliminar;
-
-  Future<int?> _pedirDias(BuildContext context) {
-    final controller = TextEditingController(text: '30');
-    return showDialog<int>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Activar membresía'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('¿Por cuántos días se activa el servicio?'),
-            const SizedBox(height: 12),
-            TextField(
-              controller: controller,
-              autofocus: true,
-              keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: const InputDecoration(
-                labelText: 'Días',
-                suffixText: 'días',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColores.buttonPrimary,
-              foregroundColor: AppColores.textWhite,
-            ),
-            onPressed: () {
-              final dias = int.tryParse(controller.text.trim());
-              if (dias == null || dias <= 0) return;
-              Navigator.pop(ctx, dias);
-            },
-            child: const Text('Aprobar'),
-          ),
-        ],
-      ),
-    );
-  }
+  final Future<void> Function(String uid) onDeshabilitar;
+  final Future<void> Function(String uid) onHabilitar;
 
   Future<void> _aprobar(BuildContext context, String nombre) async {
-    final dias = await _pedirDias(context);
+    final pidio = doc.data()['solicitudConductor'] == true;
+    if (!pidio) {
+      final ok = await mostrarConfirmacion(
+        context,
+        titulo: 'Activar sin solicitud',
+        mensaje:
+            '$nombre no solicitó la activación. ¿Activar de todas formas?',
+        accion: 'Activar',
+      );
+      if (!ok) return;
+      if (!context.mounted) return;
+    }
+    final dias = await mostrarDialogoDiasMembresia(context);
     if (dias == null) return;
     final conductorToken = (doc.data()['fcmToken'] as String?) ?? '';
     await onAprobar(
@@ -585,10 +583,10 @@ class _ConductorCard extends StatelessWidget {
   }
 
   Future<void> _revocar(BuildContext context, String nombre) async {
-    final ok = await _confirmar(
+    final ok = await mostrarConfirmacion(
       context,
-      'Revocar membresía',
-      'Se desactivará el servicio de $nombre. Tendrá que activar de nuevo.',
+      titulo: 'Revocar membresía',
+      mensaje: 'Se desactivará el servicio de $nombre. Tendrá que activar de nuevo.',
       accion: 'Revocar',
       peligro: true,
     );
@@ -602,10 +600,10 @@ class _ConductorCard extends StatelessWidget {
   }
 
   Future<void> _quitarConductor(BuildContext context, String nombre) async {
-    final ok = await _confirmar(
+    final ok = await mostrarConfirmacion(
       context,
-      'Quitar como conductor',
-      '$nombre volverá a ser cliente. Se desactiva su servicio.',
+      titulo: 'Quitar como conductor',
+      mensaje: '$nombre volverá a ser cliente. Se desactiva su servicio.',
       accion: 'Quitar',
       peligro: true,
     );
@@ -618,19 +616,29 @@ class _ConductorCard extends StatelessWidget {
     }
   }
 
-  Future<void> _eliminar(BuildContext context, String nombre) async {
-    final ok = await _confirmar(
+  Future<void> _deshabilitar(BuildContext context, String nombre) async {
+    final ok = await mostrarConfirmacion(
       context,
-      'Eliminar usuario',
-      'Se eliminará el registro de $nombre. Esta acción no se puede deshacer.',
-      accion: 'Eliminar',
+      titulo: 'Deshabilitar usuario',
+      mensaje:
+          '$nombre no podrá volver a entrar a la app hasta que se lo habilite de nuevo.',
+      accion: 'Deshabilitar',
       peligro: true,
     );
     if (!ok) return;
-    await onEliminar(doc.id);
+    await onDeshabilitar(doc.id);
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$nombre eliminado.')),
+        SnackBar(content: Text('$nombre deshabilitado.')),
+      );
+    }
+  }
+
+  Future<void> _habilitar(BuildContext context, String nombre) async {
+    await onHabilitar(doc.id);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$nombre habilitado.')),
       );
     }
   }
@@ -641,10 +649,11 @@ class _ConductorCard extends StatelessWidget {
     final nombre = _nombreCompleto(data, 'Conductor');
     final placa = _str(data, ['placa'], 'Sin placa');
     final foto = _str(data, ['foto', 'fotoUrl'], '');
-    final activa = _membresiaActiva(data);
+    final activa = membresiaActiva(data);
     final pidio = data['solicitudConductor'] == true;
     final dias = data['membresiaDias'];
     final vence = data['membresiaVence'];
+    final deshabilitado = data['deshabilitado'] == true;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
@@ -658,6 +667,7 @@ class _ConductorCard extends StatelessWidget {
                 CircleAvatar(
                   backgroundColor: AppColores.grey200,
                   backgroundImage: foto.isNotEmpty ? NetworkImage(foto) : null,
+                  onBackgroundImageError: foto.isNotEmpty ? (_, _) {} : null,
                   child:
                       foto.isEmpty ? const Icon(Icons.local_taxi) : null,
                 ),
@@ -666,9 +676,19 @@ class _ConductorCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(nombre,
-                          style:
-                              const TextStyle(fontWeight: FontWeight.w700)),
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(nombre,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w700)),
+                          ),
+                          if (deshabilitado) ...[
+                            const SizedBox(width: 6),
+                            const _BadgeDeshabilitado(),
+                          ],
+                        ],
+                      ),
                       Text('Placa: $placa',
                           style: const TextStyle(
                               color: AppColores.textSecondary)),
@@ -677,10 +697,12 @@ class _ConductorCard extends StatelessWidget {
                 ),
                 PopupMenuButton<String>(
                   onSelected: (v) {
+                    FocusScope.of(context).unfocus();
                     if (v == 'detalles') _verDetalles(context, data);
                     if (v == 'revocar') _revocar(context, nombre);
                     if (v == 'quitar') _quitarConductor(context, nombre);
-                    if (v == 'eliminar') _eliminar(context, nombre);
+                    if (v == 'deshabilitar') _deshabilitar(context, nombre);
+                    if (v == 'habilitar') _habilitar(context, nombre);
                   },
                   itemBuilder: (_) => [
                     const PopupMenuItem(
@@ -690,8 +712,13 @@ class _ConductorCard extends StatelessWidget {
                           value: 'revocar', child: Text('Revocar membresía')),
                     const PopupMenuItem(
                         value: 'quitar', child: Text('Quitar como conductor')),
-                    const PopupMenuItem(
-                        value: 'eliminar', child: Text('Eliminar usuario')),
+                    if (deshabilitado)
+                      const PopupMenuItem(
+                          value: 'habilitar', child: Text('Habilitar usuario'))
+                    else
+                      const PopupMenuItem(
+                          value: 'deshabilitar',
+                          child: Text('Deshabilitar usuario')),
                   ],
                 ),
               ],
@@ -810,13 +837,11 @@ class _AdminBellIcon extends StatefulWidget {
 class _AdminBellIconState extends State<_AdminBellIcon> {
   int _chats = 0;
   int _reportes = 0;
-  int _conductores = 0;
 
   StreamSubscription<QuerySnapshot>? _chatsSub;
   StreamSubscription<QuerySnapshot>? _reportesSub;
-  StreamSubscription<QuerySnapshot>? _conductoresSub;
 
-  int get _total => _chats + _reportes + _conductores;
+  int get _total => _chats + _reportes;
 
   @override
   void initState() {
@@ -827,41 +852,48 @@ class _AdminBellIconState extends State<_AdminBellIcon> {
         .collection('soporte_chats')
         .where('hayMensajesNuevosAdmin', isEqualTo: true)
         .snapshots()
-        .listen((snap) => setState(() => _chats = snap.docs.length));
+        .listen(
+          (snap) {
+            if (!mounted) return;
+            setState(() => _chats = snap.docs.length);
+          },
+          onError: (e, st) =>
+              ErrorReporter.report(e, st, reason: 'AdminBellIcon: chats'),
+        );
 
     _reportesSub = fs
         .collection('reportes')
         .where('visto', isEqualTo: false)
         .snapshots()
-        .listen((snap) => setState(() => _reportes = snap.docs.length));
-
-    _conductoresSub = fs
-        .collection('usuarios')
-        .where('solicitudConductor', isEqualTo: true)
-        .snapshots()
-        .listen((snap) {
-      // Mismo criterio que `_membresiaActiva` (incluye vencimiento) en vez de
-      // duplicar acá una comprobación que solo mira el campo `membresia`.
-      final pendientes = snap.docs
-          .where((d) => !_membresiaActiva(d.data()))
-          .length;
-      setState(() => _conductores = pendientes);
-    });
+        .listen(
+          (snap) {
+            if (!mounted) return;
+            setState(() => _reportes = snap.docs.length);
+          },
+          onError: (e, st) =>
+              ErrorReporter.report(e, st, reason: 'AdminBellIcon: reportes'),
+        );
   }
 
   @override
   void dispose() {
     _chatsSub?.cancel();
     _reportesSub?.cancel();
-    _conductoresSub?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final count = _total;
+    // Las solicitudes de activación de conductor NO suman acá a propósito:
+    // esta campana lleva a `AdminHubScreen` (Gestión: Reportes/Mensajes/
+    // Sugerencias), que no tiene ninguna pestaña de activaciones — un
+    // conteo que incluyera esas solicitudes nunca bajaba por más que el
+    // admin "leyera todo" en Gestión, porque ahí no hay nada que hacer con
+    // ellas. Esas se ven y se resuelven en la pestaña "Conductores" de este
+    // mismo panel (banner de pendientes + botón "Activar").
     return IconButton(
-      tooltip: 'Notificaciones — Mensajes, Reportes y Activaciones',
+      tooltip: 'Notificaciones — Mensajes y Reportes',
       onPressed: widget.onTap,
       icon: Stack(
         clipBehavior: Clip.none,

@@ -2,25 +2,37 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 class FavoritosService {
-  FavoritosService._();
-  static final FavoritosService instance = FavoritosService._();
+  // `firestore` inyectable (default a la instancia real) para poder testear
+  // contra `fake_cloud_firestore` sin tocar el singleton de producción —
+  // mismo patrón de wiring opcional que usa el resto del código
+  // (`UbicacionesRepositoryImpl`, `SeleccionDestinoViewModel`, etc.).
+  FavoritosService({FirebaseFirestore? firestore})
+    : _fs = firestore ?? FirebaseFirestore.instance;
 
-  final _fs = FirebaseFirestore.instance;
+  static final FavoritosService instance = FavoritosService();
+
+  final FirebaseFirestore _fs;
 
   CollectionReference<Map<String, dynamic>> _favoritosRef(String uid) =>
       _fs.collection('usuarios').doc(uid).collection('favoritos');
 
-  Future<QuerySnapshot<Map<String, dynamic>>> getFavoritosPorTipo(
-    String uid,
-    String tipo, {
+  /// Todos los favoritos del usuario, sin filtrar por `tipo` ni ordenar
+  /// server-side: el filtro y el orden se hacen en el repositorio, en Dart.
+  /// Un `where('tipo')` dejaría invisibles (e imborrables) los docs legacy
+  /// sin ese campo, y un `orderBy('createdAt')` combinado con ese `where`
+  /// exigiría un índice compuesto.
+  Future<QuerySnapshot<Map<String, dynamic>>> getFavoritos(
+    String uid, {
     int? limit,
   }) {
-    var q = _favoritosRef(uid).where('tipo', isEqualTo: tipo);
+    var q = _favoritosRef(uid) as Query<Map<String, dynamic>>;
     if (limit != null) q = q.limit(limit);
     return q.get();
   }
 
-  Future<void> guardarFavorito({
+  /// Guarda el favorito y devuelve el id del documento creado — lo usa el
+  /// caller para insertarlo en memoria sin necesidad de re-consultar.
+  Future<String> guardarFavorito({
     required String uid,
     required String nombre,
     required String direccion,
@@ -35,26 +47,14 @@ class FavoritosService {
       'createdAt': FieldValue.serverTimestamp(),
       'tipo': tipo,
     };
-    await _favoritosRef(uid).add(payload);
-    await _fs.collection('ubicaciones').add(payload);
+    final doc = await _favoritosRef(uid).add(payload);
+    return doc.id;
   }
 
-  /// Ubicaciones guardadas del usuario [uid].
-  ///
-  /// El filtro `userId` no es solo un ahorro: la regla de `ubicaciones` es
-  /// `resource.data.userId == request.auth.uid`, y Firestore rechaza con
-  /// `permission-denied` cualquier query de colección que no esté acotada de
-  /// forma demostrable cuando la regla depende de `resource.data`. Sin el
-  /// `where` esta consulta fallaba siempre (y de paso descargaba las
-  /// direcciones de todos los usuarios para filtrarlas en Dart).
-  Future<QuerySnapshot<Map<String, dynamic>>> getUbicacionesDeUsuario(
-    String uid, {
-    int limit = 50,
+  Future<void> eliminarFavorito({
+    required String uid,
+    required String favoritoId,
   }) {
-    return _fs
-        .collection('ubicaciones')
-        .where('userId', isEqualTo: uid)
-        .limit(limit)
-        .get();
+    return _favoritosRef(uid).doc(favoritoId).delete();
   }
 }

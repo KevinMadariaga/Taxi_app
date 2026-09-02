@@ -30,8 +30,10 @@ export async function crearEntorno() {
 
 /**
  * Siembra los documentos de los que dependen las reglas para clasificar a
- * quien hace la petición: `isConductorRole` lee `usuarios/{uid}.rol` y
- * `isAdminRole` comprueba que exista `administradores/{uid}`.
+ * quien hace la petición: `isConductorRole` e `isAdminRole` leen el mismo
+ * campo `usuarios/{uid}.rol` (no una colección `administradores` aparte —
+ * ese doc se sigue sembrando solo porque algunos tests prueban sus propias
+ * reglas de escritura, ya sin relación con el rol de admin).
  *
  * Se escribe con `withSecurityRulesDisabled` porque es el montaje del
  * escenario, no parte de lo que se está probando.

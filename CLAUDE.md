@@ -101,9 +101,9 @@ Implementado en `lib/core/constants/solicitud_estado.dart`. La clase `SolicitudE
 | Colección | Descripción |
 |---|---|
 | `solicitudes` | Documentos de viaje. Campos clave: `estado`, `cliente{}`, `conductor{}`, `tarifa{}`, `destino{}`, `updatedAt`. |
-| `usuarios` | Perfil de **cliente Y conductor** (comparten colección, doc id = uid, campo `rol`/`tipoUsuario` los distingue): `nombre`, `apellido`, `placa`, `foto`/`fotoUrl`, `fotoVehiculo`, `telefono`, `rol`, `isProfileComplete`, `membresia`/`membresiaVence` (conductor). |
+| `usuarios` | Perfil de **cliente, conductor Y admin** (comparten colección, doc id = uid, campo `rol`/`tipoUsuario` los distingue: `'cliente'`, `'conductor'`, `'admin'`/`'administrador'`): `nombre`, `apellido`, `placa`, `foto`/`fotoUrl`, `fotoVehiculo`, `telefono`, `rol`, `isProfileComplete`, `membresia`/`membresiaVence` (conductor), `deshabilitado` (cuenta deshabilitada por un admin). |
 | `conductores_conectados` | Presencia en vivo del conductor conectado (doc id = uid): `ubicacion{lat,lng}`, `updatedAt`. Es lo que usa el reparto de solicitudes y el mapa "sonar" del cliente — **no** `conductores`. |
-| `administradores` | Perfil del admin: `nombre`, `telefono`, `foto`, `gremio`, `gremioFoto`. |
+| `administradores` | **Ya NO determina quién es admin** (ver más abajo) — colección legacy que solo guarda datos de perfil opcionales (`nombre`, `telefono`, `foto`, `gremio`) y el token FCM para el broadcast de `AdminFcmService.sendToAllAdmins`. Un doc puede no existir para un admin real. |
 
 `conductores` (sin guion bajo) **existe pero NO es el perfil del conductor**: son reglas de solo lectura (`firestore.rules`, `allow write: if false`) y aparece una sola vez en todo el código como fallback legacy de lectura. Antes esta tabla decía lo contrario — verificado y corregido en la auditoría de tracking/nombre de conductor (ver más abajo).
 
@@ -113,9 +113,22 @@ Implementado en `lib/core/constants/solicitud_estado.dart`. La clase `SolicitudE
 
 - **Clientes**: Google Sign-In, Apple Sign-In, OTP por teléfono (Firebase Phone Auth).
 - **Conductores**: correo + contraseña (gestionado por admin, no auto-registro).
-- **Administradores**: flujo propio separado.
+- **Administradores**: sin flujo de registro en la app — se otorga a mano en Firestore console.
 
 Punto de entrada de auth: `lib/core/auth/app_auth_adapter.dart` implementa `ClientAuthRepository`.
+
+### Cómo se decide el rol (cliente / conductor / admin)
+
+Los tres roles se leen del **mismo campo**: `usuarios/{uid}.rol` (o `role`; `tipoUsuario` es fallback legacy solo para conductor/cliente). No hay una colección aparte que determine quién es admin — decisión explícita para que el valor que se ve en Firestore console sea literalmente el que decide la pantalla, sin dos fuentes que puedan desalinearse (ver hallazgo del 2026-09-02 más abajo).
+
+- `firestore.rules` → `isAdminRole()` lee `usuarios/{request.auth.uid}.rol in ['admin','administrador']`.
+- `lib/core/services/initial_screen_resolver.dart` (cold-start) y `lib/caracteristicas/autenticacion/presentacion/vistas/home_screen.dart` (login interactivo) enrutan con la misma lectura.
+
+**Para dar de alta un admin**: en Firestore console, editar `usuarios/{uid}.rol` a `'admin'` (o `'administrador'`) para esa cuenta. No hace falta crear ningún otro documento — la colección `administradores` es legacy (ver tabla de colecciones) y no se lee para esto.
+
+**Por qué no puede ser una auto-elevación**: `usuarios/{uid}` permite `create`/`update` propios, pero ambas reglas exigen `rol in ['cliente','conductor']` cuando el que escribe es el dueño del doc — un usuario nunca puede ponerse `rol: 'admin'` a sí mismo, ni al registrarse ni después. Solo otro admin (bypass de `isAdminRole()` en esas mismas reglas) o una edición directa en consola pueden otorgarlo. Cubierto por `rules-tests/colecciones.test.js` ("un usuario nuevo NO puede autodeclararse admin al registrarse").
+
+**Consecuencia aceptada**: `AdminFcmService.sendToAllAdmins` (push a todos los admins) sigue leyendo tokens de la colección `administradores`, no de `usuarios` — un admin dado de alta solo por `rol` no recibe esas notificaciones push salvo que además tenga (o se le cree) un doc en `administradores/{uid}` con `fcmToken`. `FcmService` lo sincroniza solo si ese doc ya existe. No bloquea el acceso al panel, solo esa notificación específica.
 
 ---
 
@@ -227,6 +240,13 @@ El proyecto tiene un grafo de conocimiento del código generado con Graphify en 
    Recovery y Delete Protection deshabilitados, y hay borrado duro de solicitudes.
 7. Nombres de campo con espacios en Firestore: `'fecha de terminacion'`,
    `'fecha de aceptacion conductor'`.
+8. **`usuarios/{uid}.deshabilitado` es 100% client-side** (auditoría 2026-09-02).
+   `firestore.rules` solo lo usa para impedir que el propio dueño se lo quite; no es
+   condición de `allow` en ninguna otra colección (`solicitudes`, `soporte_chats`, etc.).
+   Un token de Firebase Auth ya emitido sigue siendo válido tras deshabilitar — nada
+   llama `admin.auth().disableUser()` (requeriría una Cloud Function con Admin SDK, no
+   implementada). El flag bloquea la navegación de la app (`initial_screen_resolver.dart`,
+   `home_screen.dart`), no el acceso real a Firestore mientras el token no expire.
 
 ## Verificar antes de dar por hecho
 

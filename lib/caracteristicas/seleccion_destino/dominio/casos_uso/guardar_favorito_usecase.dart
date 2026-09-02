@@ -7,7 +7,8 @@ class GuardarFavoritoUseCase {
 
   final UbicacionesRepository _repository;
 
-  Future<void> call({
+  /// Devuelve el id del favorito creado.
+  Future<String> call({
     required String nombre,
     required String direccion,
     required LatLng ubicacion,

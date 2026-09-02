@@ -45,15 +45,18 @@ class _FakeUbicaciones implements UbicacionesRepository {
   }
 
   @override
-  Future<List<UbicacionEntity>> favoritosPorTipo(String tipo, {int? limit}) async => const [];
+  Future<List<UbicacionEntity>> favoritos({int? limit}) async => const [];
 
   @override
-  Future<void> guardarFavorito({
+  Future<String> guardarFavorito({
     required String nombre,
     required String direccion,
     required LatLng ubicacion,
     required String tipo,
-  }) async {}
+  }) async => 'fake-id';
+
+  @override
+  Future<void> eliminarFavorito(String id) async {}
 }
 
 class _FakeLugares implements LugaresRepository {

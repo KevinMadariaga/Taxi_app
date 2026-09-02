@@ -2,6 +2,10 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 /// Resultado simple de búsqueda de ubicación usado en selección de destino.
 class UbicacionResultado {
+  /// Id del documento en `usuarios/{uid}/favoritos`. `null` cuando esta
+  /// ubicación no está persistida como favorito — sin id no se puede borrar.
+  final String? id;
+
   /// Coordenadas de la ubicación. Null cuando viene de Google Places
   /// Autocomplete: ahí solo se conoce el `placeId` hasta que el usuario toca
   /// la sugerencia y se resuelve con Place Details (más barato que pedir
@@ -22,6 +26,7 @@ class UbicacionResultado {
     required this.location,
     required this.nombre,
     required this.direccion,
+    this.id,
     this.placeId,
   });
 }

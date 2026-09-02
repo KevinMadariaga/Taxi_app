@@ -32,9 +32,23 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // Decisión de diseño (reemplaza a la versión anterior, que exigía
+    // `exists(administradores/{uid})`): el admin se determina por el MISMO
+    // campo `usuarios/{uid}.rol` que decide cliente/conductor — sin una
+    // colección aparte que pueda desalinearse de lo que el código realmente
+    // usa para enrutar (`initial_screen_resolver.dart`, `home_screen.dart`).
+    //
+    // Hueco cerrado para que esto sea seguro: `usuarios/{uid}` permite
+    // `create` propio sin restricción de `rol` (solo `update` la tenía) —
+    // así que un usuario nuevo podía auto-declararse admin en su propio
+    // registro. La regla de `create` de abajo ahora exige `rol in
+    // ['cliente','conductor']` igual que `update`, así que la ÚNICA forma de
+    // que un doc quede con `rol: 'admin'/'administrador'` es que lo escriba
+    // un admin ya existente (bypass de `isAdminRole()` en el `update`) o que
+    // se edite directo en Firestore console — nunca el propio usuario.
     function isAdminRole() {
       return isSignedIn() &&
-        exists(/databases/$(database)/documents/administradores/$(request.auth.uid));
+        get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.get('rol', '') in ['admin', 'administrador'];
     }
 
     // Acepta las DOS marcas de conductor que reconoce el código, no solo
@@ -133,8 +147,17 @@ service cloud.firestore {
       allow read: if isSignedIn() &&
         (request.auth.uid == uid || isAdminRole());
 
+      // El propio usuario SÍ puede crear su doc con `rol` en
+      // `['cliente','conductor']` (o ausente, default 'cliente') — igual
+      // que el `update` de abajo. Sin esta restricción, un usuario nuevo
+      // podía mandar `rol: 'administrador'` en su PRIMER `set` (el `create`
+      // no tenía ningún filtro de campos) y autodeclararse admin apenas se
+      // registraba, ya que `isAdminRole()` ahora lee este mismo campo — el
+      // hueco que hay que cerrar para que ese diseño sea seguro.
       allow create: if isSignedIn() &&
-        (request.auth.uid == uid || isAdminRole());
+        ((request.auth.uid == uid &&
+            request.resource.data.get('rol', 'cliente') in ['cliente', 'conductor']) ||
+          isAdminRole());
 
       // El propio usuario SÍ puede cambiar su `rol`: es un flujo real de la
       // app, no una escalada. "Modo conductor" / "Volver a ser cliente" en
@@ -172,13 +195,22 @@ service cloud.firestore {
       // `rol: 'cliente'` con `solicitudConductor: true`, así que exigir
       // `rol == 'conductor'` bloqueaba justo la operación principal del panel
       // (`UserDataService.aprobarMembresiaConductor`).
+      // `deshabilitado` sigue el mismo patrón que `membresia`/`membresiaVence`
+      // arriba: el propio dueño no puede tocarlo, solo el admin
+      // (`UserDataService.deshabilitarUsuario`, reemplaza al borrado duro
+      // que había antes — ver ese método). Sin esta restricción, un usuario
+      // deshabilitado podría reactivarse solo con cualquier escritura propia
+      // normal (p.ej. `FcmService._persistToken`, que hace `set(merge:true)`
+      // sobre su propio doc constantemente).
       allow update: if isSignedIn() &&
         ((request.auth.uid == uid &&
             request.resource.data.get('rol', 'cliente') in ['cliente', 'conductor'] &&
             request.resource.data.get('membresia', '') ==
               resource.data.get('membresia', '') &&
             request.resource.data.get('membresiaVence', null) ==
-              resource.data.get('membresiaVence', null)) ||
+              resource.data.get('membresiaVence', null) &&
+            request.resource.data.get('deshabilitado', false) ==
+              resource.data.get('deshabilitado', false)) ||
           isAdminRole());
 
       // El propio usuario puede eliminar su cuenta (`EliminarCuentaScreen`,
