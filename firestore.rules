@@ -181,7 +181,12 @@ service cloud.firestore {
               resource.data.get('membresiaVence', null)) ||
           isAdminRole());
 
-      allow delete: if isAdminRole();
+      // El propio usuario puede eliminar su cuenta (`EliminarCuentaScreen`,
+      // botón "Eliminar cuenta" en Configuración de la app, cliente y
+      // conductor). Antes solo el admin podía borrar `usuarios/{uid}`, así
+      // que ese flujo fallaba con permission-denied para todo el mundo — la
+      // UI ya existía pero no tenía forma real de completarse.
+      allow delete: if isAdminRole() || (isSignedIn() && request.auth.uid == uid);
 
       // Direcciones favoritas del propio usuario.
       match /favoritos/{favoritoId} {

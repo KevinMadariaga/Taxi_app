@@ -316,12 +316,18 @@ class FcmService {
         await firestore.collection('usuarios').doc(uid).update(borrado);
         debugPrint('[FCM] ✅ Token desvinculado de usuarios/$uid');
       } catch (e, st) {
-        // `not-found` es esperado si el doc no existe; el resto sí importa.
-        ErrorReporter.report(
-          e,
-          st,
-          reason: 'FcmService: fallo al desvincular token de usuarios/$uid',
-        );
+        // `not-found` es esperado si el doc ya no existe — pasa siempre que
+        // el logout corre justo después de eliminar la cuenta
+        // (`EliminarCuentaScreen._eliminarCuenta` borra el doc antes de
+        // llamar a `logout()`). El resto sí importa.
+        final esNotFound = e is FirebaseException && e.code == 'not-found';
+        if (!esNotFound) {
+          ErrorReporter.report(
+            e,
+            st,
+            reason: 'FcmService: fallo al desvincular token de usuarios/$uid',
+          );
+        }
       }
 
       try {

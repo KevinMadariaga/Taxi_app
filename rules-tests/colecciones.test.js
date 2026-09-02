@@ -71,9 +71,15 @@ describe('usuarios', () => {
     await assertSucceeds(como(env, ADMIN).doc(`usuarios/${CONDUCTOR}`).delete());
   });
 
-  test('un no-admin no puede eliminar a nadie, ni a sí mismo', async () => {
+  test('un no-admin no puede eliminar a otro usuario', async () => {
     await assertFails(como(env, CLIENTE).doc(`usuarios/${OTRO_CLIENTE}`).delete());
-    await assertFails(como(env, CLIENTE).doc(`usuarios/${CLIENTE}`).delete());
+  });
+
+  // EliminarCuentaScreen (botón "Eliminar cuenta" en Configuración de la
+  // app, cliente y conductor): el usuario borra su propio doc.
+  test('un usuario elimina su propia cuenta', async () => {
+    await assertSucceeds(como(env, CLIENTE).doc(`usuarios/${CLIENTE}`).delete());
+    await assertSucceeds(como(env, CONDUCTOR).doc(`usuarios/${CONDUCTOR}`).delete());
   });
 
   // CompleteProfileController.saveProfile

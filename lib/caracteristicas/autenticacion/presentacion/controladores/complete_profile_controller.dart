@@ -7,6 +7,7 @@ import 'package:taxi_app/core/validators/phone_validator.dart';
 import 'package:taxi_app/core/services/image_cropper_service.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
 import 'package:taxi_app/widgets/flip_preview_view.dart';
+import 'package:taxi_app/widgets/elegir_origen_imagen_sheet.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/repositorios/client_auth_repository.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/datos/repositorios/client_auth_repository_impl.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/entidades/client_user_entity.dart';
@@ -72,18 +73,23 @@ class CompleteProfileController extends ChangeNotifier {
     }
   }
 
-  /// Toma la foto de perfil con la cámara.
+  /// Toma o elige la foto de perfil (cámara o galería, a elección del
+  /// usuario).
   ///
   /// Va envuelto en try/catch porque se invoca fire-and-forget desde el `onTap`
-  /// del avatar: sin captura, un `PlatformException` (permiso de cámara
-  /// denegado — que esta app nunca solicita explícitamente —, equipo sin
-  /// cámara, o fallo del cropper) se convertía en un error async sin manejar y
-  /// al usuario **no le pasaba absolutamente nada** al tocar el avatar,
+  /// del avatar: sin captura, un `PlatformException` (permiso denegado —
+  /// que esta app nunca solicita explícitamente —, equipo sin cámara, o
+  /// fallo del cropper) se convertía en un error async sin manejar y al
+  /// usuario **no le pasaba absolutamente nada** al tocar el avatar,
   /// dejándolo atrapado en "Completa tu perfil" sin mensaje ni salida.
   Future<void> pickProfileImage(BuildContext context) async {
     try {
+      final origen = await mostrarElegirOrigenImagen(context);
+      if (origen == null) return;
+
+      if (!context.mounted) return;
       final picked = await _imagePicker.pickImage(
-        source: ImageSource.camera,
+        source: origen,
         imageQuality: 100,
         maxWidth: 512,
         maxHeight: 512,
@@ -91,15 +97,19 @@ class CompleteProfileController extends ChangeNotifier {
 
       if (picked == null) return;
 
-      if (!context.mounted) return;
-      final flipped = await showFlipPreview(
-        context,
-        imageFile: File(picked.path),
-      );
-      if (flipped == null) return;
+      File sourceFile = File(picked.path);
+
+      // El "voltear" corrige el espejado que aplica la cámara frontal — no
+      // aplica a una foto ya elegida de galería.
+      if (origen == ImageSource.camera) {
+        if (!context.mounted) return;
+        final flipped = await showFlipPreview(context, imageFile: sourceFile);
+        if (flipped == null) return;
+        sourceFile = flipped;
+      }
 
       final cropped = await _imageCropperService.cropProfileImage(
-        sourcePath: flipped.path,
+        sourcePath: sourceFile.path,
       );
       if (cropped == null) return;
 
@@ -109,8 +119,8 @@ class CompleteProfileController extends ChangeNotifier {
     } catch (e, st) {
       ErrorReporter.report(e, st, reason: 'complete_profile_controller');
       _errorMessage = tieneFotoPrevia
-          ? 'No se pudo abrir la cámara. Puedes continuar con tu foto actual.'
-          : 'No se pudo abrir la cámara. Revisa los permisos de la app e '
+          ? 'No se pudo obtener la foto. Puedes continuar con tu foto actual.'
+          : 'No se pudo obtener la foto. Revisa los permisos de la app e '
                 'intenta de nuevo.';
       notifyListeners();
     }

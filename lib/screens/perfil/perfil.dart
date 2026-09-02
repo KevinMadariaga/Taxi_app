@@ -119,9 +119,9 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
     } catch (e, st) {
       ErrorReporter.report(e, st, reason: 'perfil');
     }
-    _cargarDatos();
+    await _cargarDatos();
     // Mensaje de 'Datos guardados' eliminado por solicitud
-    setState(() => _guardando = false);
+    if (mounted) setState(() => _guardando = false);
   }
 
   Future<File> _cacheFileForUid(String uid) async {

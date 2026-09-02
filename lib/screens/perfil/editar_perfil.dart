@@ -7,6 +7,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:taxi_app/widgets/boton.dart';
 import 'package:taxi_app/widgets/flip_preview_view.dart';
+import 'package:taxi_app/widgets/elegir_origen_imagen_sheet.dart';
 
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/services/image_cropper_service.dart';
@@ -22,9 +23,9 @@ class EditarPerfilScreen extends StatefulWidget {
   final bool esConductor;
   final File? selectedImage;
   final File? selectedVehicleImage;
-  final Function(File?) onImageChanged;
-  final Function(File?) onVehicleImageChanged;
-  final Function(Map<String, dynamic>) onSave;
+  final Future<void> Function(File?) onImageChanged;
+  final Future<void> Function(File?) onVehicleImageChanged;
+  final Future<void> Function(Map<String, dynamic>) onSave;
 
   const EditarPerfilScreen({
     Key? key,
@@ -98,8 +99,12 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
 
   Future<void> _pickImage(bool isVehicle) async {
     try {
+      if (!mounted) return;
+      final origen = await mostrarElegirOrigenImagen(context);
+      if (origen == null) return;
+
       final XFile? picked = await _picker.pickImage(
-        source: ImageSource.camera,
+        source: origen,
         imageQuality: 80,
         maxWidth: 1200,
       );
@@ -110,6 +115,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
       // Foto de perfil: debe ser un rostro real, no cualquier objeto/escena.
       // Se valida ANTES del flip/crop para no hacerle perder tiempo al
       // usuario ajustando un recorte que de todas formas se va a rechazar.
+      // Aplica sin importar el origen: sigue siendo la foto de perfil.
       if (!isVehicle) {
         setState(() => _isValidatingFace = true);
         final tieneRostro = await _faceDetectionService.hasFace(
@@ -126,10 +132,17 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
           return;
         }
 
-        if (!mounted) return;
-        final flipped = await showFlipPreview(context, imageFile: sourceFile);
-        if (flipped == null) return;
-        sourceFile = flipped;
+        // El "voltear" corrige el espejado que aplica la cámara frontal —
+        // no aplica a una foto ya elegida de galería.
+        if (origen == ImageSource.camera) {
+          if (!mounted) return;
+          final flipped = await showFlipPreview(
+            context,
+            imageFile: sourceFile,
+          );
+          if (flipped == null) return;
+          sourceFile = flipped;
+        }
       }
 
       final cropped = isVehicle
@@ -210,13 +223,13 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
         Container(
           padding: EdgeInsets.all(screenWidth * 0.018),
           decoration: BoxDecoration(
-            color: AppColores.secondary.withValues(alpha: 0.12),
+            color: AppColores.primary.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(10),
           ),
           child: Icon(
             icon,
             size: screenWidth * 0.05,
-            color: AppColores.secondary,
+            color: AppColores.primary,
           ),
         ),
         SizedBox(width: screenWidth * 0.03),
@@ -243,12 +256,12 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
     return InputDecoration(
       labelText: label,
       labelStyle: const TextStyle(color: AppColores.textSecondary),
-      prefixIcon: Icon(icon, color: AppColores.secondary),
+      prefixIcon: Icon(icon, color: AppColores.primary),
       filled: true,
       fillColor: AppColores.background,
       border: border(AppColores.divider, 1),
       enabledBorder: border(AppColores.divider, 1),
-      focusedBorder: border(AppColores.secondary, 1.6),
+      focusedBorder: border(AppColores.primary, 1.6),
     );
   }
 
@@ -474,13 +487,13 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                       text: 'Cancelar',
                       icon: const Icon(
                         Icons.close,
-                        color: AppColores.secondary,
+                        color: AppColores.primary,
                         size: 18,
                       ),
                       onPressed: () => Navigator.pop(context),
                       color: Colors.white,
-                      textColor: AppColores.secondary,
-                      borderColor: AppColores.secondary,
+                      textColor: AppColores.primary,
+                      borderColor: AppColores.primary,
                       height: buttonHeight,
                       fontSize: buttonFontSize,
                     ),
@@ -493,10 +506,10 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                           ? null
                           : const Icon(
                               Icons.check,
-                              color: AppColores.textPrimary,
+                              color: AppColores.textWhite,
                               size: 18,
                             ),
-                      textColor: AppColores.textPrimary,
+                      textColor: AppColores.textWhite,
                       onPressed: _isUploading
                           ? null
                           : () async {
@@ -553,7 +566,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                                   final snapshot = await uploadTask;
                                   imageUrl = await snapshot.ref
                                       .getDownloadURL();
-                                  widget.onImageChanged(_image);
+                                  await widget.onImageChanged(_image);
                                 }
                                 // Subir imagen de vehículo solo si el usuario tomó una nueva en esta sesión
                                 if (widget.esConductor &&
@@ -600,7 +613,9 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                                   final snapshot = await uploadTask;
                                   vehicleUrl = await snapshot.ref
                                       .getDownloadURL();
-                                  widget.onVehicleImageChanged(_vehicleImage);
+                                  await widget.onVehicleImageChanged(
+                                    _vehicleImage,
+                                  );
                                 }
                                 final Map<String, dynamic> datos = {};
                                 datos['nombre'] = widget.nombreController.text
@@ -623,7 +638,8 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                                 if (vehicleUrl != null) {
                                   datos['fotoVehiculo'] = vehicleUrl;
                                 }
-                                widget.onSave(datos);
+                                await widget.onSave(datos);
+                                if (!mounted) return;
                                 AnimatedSnackBar.material(
                                   'Datos actualizados',
                                   type: AnimatedSnackBarType.success,
