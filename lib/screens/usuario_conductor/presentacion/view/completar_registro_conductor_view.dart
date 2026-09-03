@@ -12,7 +12,6 @@ import 'package:taxi_app/core/services/image_cropper_service.dart';
 import 'package:taxi_app/core/services/image_upload_service.dart';
 import 'package:taxi_app/features/phone_auth/services/user_data_service.dart';
 import 'package:taxi_app/widgets/boton.dart';
-import 'package:taxi_app/widgets/flip_preview_view.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/vehicle_type.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioConductorView.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
@@ -36,7 +35,6 @@ class _CompletarRegistroConductorViewState
   final ImageUploadService _imageUploadService = ImageUploadService();
   final TextEditingController _placaController = TextEditingController();
 
-  XFile? _fotoPerfil;
   XFile? _fotoVehiculo;
   String? _fotoExistenteUrl;
   String? _fotoVehiculoExistenteUrl;
@@ -78,35 +76,47 @@ class _CompletarRegistroConductorViewState
     super.dispose();
   }
 
-  Future<void> _pickImage({required bool esVehiculo}) async {
+  Future<ImageSource?> _elegirFuenteImagen() {
+    return showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt),
+              title: const Text('Tomar foto'),
+              onTap: () => Navigator.pop(ctx, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('Elegir de la galería'),
+              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickImageVehiculo() async {
     try {
+      final source = await _elegirFuenteImagen();
+      if (source == null) return;
+
       final XFile? picked = await _picker.pickImage(
-        source: ImageSource.camera,
+        source: source,
         imageQuality: 90,
       );
       if (picked == null) return;
 
-      File sourceFile = File(picked.path);
-      if (!esVehiculo) {
-        if (!mounted) return;
-        final flipped = await showFlipPreview(context, imageFile: sourceFile);
-        if (flipped == null) return;
-        sourceFile = flipped;
-      }
-
-      // Abrir editor para recortar/mover la foto (mismo flujo que registro cliente).
-      final cropped = esVehiculo
-          ? await _cropper.cropVehicleImage(sourcePath: sourceFile.path)
-          : await _cropper.cropProfileImage(sourcePath: sourceFile.path);
+      final cropped = await _cropper.cropVehicleImage(
+        sourcePath: picked.path,
+      );
       if (cropped == null) return; // canceló el ajuste
 
       setState(() {
-        final xf = XFile(cropped.path);
-        if (esVehiculo) {
-          _fotoVehiculo = xf;
-        } else {
-          _fotoPerfil = xf;
-        }
+        _fotoVehiculo = XFile(cropped.path);
       });
     } catch (e) {
       if (!mounted) return;
@@ -129,13 +139,6 @@ class _CompletarRegistroConductorViewState
     if (_guardando) return;
 
     final placa = _placaController.text.trim();
-    final tieneFotoPerfil =
-        _fotoPerfil != null ||
-        (_fotoExistenteUrl != null && _fotoExistenteUrl!.isNotEmpty);
-    if (!tieneFotoPerfil) {
-      _mostrarError('Agrega tu foto de perfil.');
-      return;
-    }
     final tieneFotoVehiculo =
         _fotoVehiculo != null ||
         (_fotoVehiculoExistenteUrl != null &&
@@ -157,9 +160,7 @@ class _CompletarRegistroConductorViewState
 
     setState(() => _guardando = true);
     try {
-      final fotoUrl = _fotoPerfil != null
-          ? await _subirImagen(_fotoPerfil!, 'foto', uid)
-          : _fotoExistenteUrl!;
+      final fotoUrl = _fotoExistenteUrl ?? '';
       final vehUrl = _fotoVehiculo != null
           ? await _subirImagen(_fotoVehiculo!, 'fotoVehiculo', uid)
           : _fotoVehiculoExistenteUrl!;
@@ -259,7 +260,7 @@ class _CompletarRegistroConductorViewState
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Completa el registro de conductor'),
+        title: const Text('Registro conductor'),
         backgroundColor: AppColores.primary,
       ),
       body: SafeArea(
@@ -269,81 +270,14 @@ class _CompletarRegistroConductorViewState
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: 8),
-              Center(
-                child: GestureDetector(
-                  onTap: () => _pickImage(esVehiculo: false),
-                  child: Stack(
-                    alignment: Alignment.bottomRight,
-                    children: [
-                      CircleAvatar(
-                        radius: 65,
-                        backgroundColor: Colors.grey.shade200,
-                        backgroundImage: _fotoPerfil != null
-                            ? FileImage(File(_fotoPerfil!.path))
-                                  as ImageProvider
-                            : (_fotoExistenteUrl != null &&
-                                  _fotoExistenteUrl!.isNotEmpty)
-                            ? NetworkImage(_fotoExistenteUrl!)
-                            : null,
-                        child:
-                            (_fotoPerfil == null &&
-                                (_fotoExistenteUrl == null ||
-                                    _fotoExistenteUrl!.isEmpty))
-                            ? Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: const [
-                                  Icon(
-                                    Icons.camera_alt,
-                                    size: 32,
-                                    color: Colors.black54,
-                                  ),
-                                  SizedBox(height: 6),
-                                  Text(
-                                    'Foto de perfil',
-                                    style: TextStyle(fontSize: 12),
-                                  ),
-                                ],
-                              )
-                            : null,
-                      ),
-                      // Badge cámara: siempre visible para indicar que se puede cambiar.
-                      Positioned(
-                        bottom: 2,
-                        right: 2,
-                        child: Container(
-                          width: 34,
-                          height: 34,
-                          decoration: BoxDecoration(
-                            color: AppColores.buttonPrimary,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 2),
-                            boxShadow: const [
-                              BoxShadow(
-                                color: Colors.black26,
-                                blurRadius: 4,
-                                offset: Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: const Icon(
-                            Icons.camera_alt,
-                            size: 17,
-                            color: AppColores.textPrimary,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
               const Text(
                 'Foto del vehículo',
+                textAlign: TextAlign.center,
                 style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
               ),
               const SizedBox(height: 8),
               GestureDetector(
-                onTap: () => _pickImage(esVehiculo: true),
+                onTap: _pickImageVehiculo,
                 child: Stack(
                   children: [
                     ClipRRect(
@@ -399,7 +333,7 @@ class _CompletarRegistroConductorViewState
                       bottom: 8,
                       right: 8,
                       child: InkWell(
-                        onTap: () => _pickImage(esVehiculo: true),
+                        onTap: _pickImageVehiculo,
                         child: Container(
                           width: 40,
                           height: 40,
@@ -420,9 +354,10 @@ class _CompletarRegistroConductorViewState
               const SizedBox(height: 24),
               const Text(
                 '¿Qué conduces?',
+                textAlign: TextAlign.center,
                 style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 16),
               Row(
                 children: [
                   Expanded(
