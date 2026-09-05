@@ -31,7 +31,7 @@ class _ConfiguracionAplicacionViewState
       final info = await PackageInfo.fromPlatform();
       if (!mounted) return;
       setState(() {
-        _appVersion = '${info.version}+${info.buildNumber}';
+        _appVersion = info.version;
       });
     } catch (_) {
       // Ignore; keep placeholder

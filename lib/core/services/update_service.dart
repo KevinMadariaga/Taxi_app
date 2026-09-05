@@ -1,5 +1,4 @@
-import 'dart:io' show Platform;
-
+import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
 import 'package:new_version_plus/new_version_plus.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -134,14 +133,14 @@ class UpdateService {
   /// detección automática de la tienda no devuelve enlace.
   String? _fallbackStoreUrl() {
     try {
-      if (Platform.isIOS) {
+      if (defaultTargetPlatform == TargetPlatform.iOS) {
         final id = _iOSAppStoreId;
         if (id != null && id.isNotEmpty) {
           return 'https://apps.apple.com/app/id$id';
         }
         return null;
       }
-      if (Platform.isAndroid) {
+      if (defaultTargetPlatform == TargetPlatform.android) {
         final id = _androidId;
         if (id != null && id.isNotEmpty) {
           return 'https://play.google.com/store/apps/details?id=$id';
