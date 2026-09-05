@@ -25,6 +25,7 @@ class NotificacionesServicio {
   static const int _chatNotificationId = 1;
   static const int _tripNotificationId = 2;
   static const int _systemNotificationId = 3;
+  static const int _progresoViajeNotificationId = 4;
 
   // Canales de notificación
   static const String _chatChannelId = 'taxi_chat_channel';
@@ -32,6 +33,12 @@ class NotificacionesServicio {
 
   static const String _tripChannelId = 'taxi_trip_channel';
   static const String _tripChannelName = 'Notificaciones de Viaje';
+
+  // Silencioso a propósito: se actualiza muchas veces por viaje (cada vez
+  // que cambia el ETA/distancia mostrados) y no debe sonar ni vibrar en cada
+  // actualización — solo la primera vez que aparece (`onlyAlertOnce`).
+  static const String _progresoChannelId = 'taxi_progreso_channel';
+  static const String _progresoChannelName = 'Progreso del viaje';
 
   static const String _systemChannelId = 'taxi_system_channel';
   static const String _systemChannelName = 'Notificaciones del Sistema';
@@ -131,6 +138,17 @@ class NotificacionesServicio {
         importance: Importance.max,
         playSound: true,
         enableVibration: true,
+      ),
+    );
+
+    await androidPlugin?.createNotificationChannel(
+      const AndroidNotificationChannel(
+        _progresoChannelId,
+        _progresoChannelName,
+        description: 'Tiempo y distancia restantes del viaje activo',
+        importance: Importance.low,
+        playSound: false,
+        enableVibration: false,
       ),
     );
 
@@ -284,6 +302,67 @@ class NotificacionesServicio {
       body: body,
       playSound: true,
       vibrate: true,
+    );
+  }
+
+  /// Notificación persistente y silenciosa con el progreso del viaje activo
+  /// (tiempo/distancia restantes), visible en la pantalla de bloqueo —
+  /// `NotificacionesServicio.instance.showOrUpdateProgresoViaje` se llama
+  /// muchas veces durante un mismo viaje (`ViajeClienteViewModel`, throttleado
+  /// a ~10 s), siempre con el mismo ID: cada llamada REEMPLAZA la anterior en
+  /// vez de apilar una nueva, y `onlyAlertOnce` evita que suene o vibre en
+  /// cada actualización (solo la primera vez que aparece). `ongoing: true`
+  /// para que no se pueda descartar por accidente con el viaje en curso —
+  /// se cancela sola cuando el viaje termina (`ViajeClienteViewModel.dispose`
+  /// ya llama a `cancelAll()`).
+  ///
+  /// [progreso] (0-100, opcional) dibuja la barra de progreso nativa de la
+  /// notificación (Android; en iOS solo se ve el texto). Sin barra (`null`)
+  /// si el viaje llama a este método antes de tener un progreso calculable.
+  Future<void> showOrUpdateProgresoViaje({
+    required String title,
+    required String body,
+    int? progreso,
+  }) async {
+    await _ensureInitialized();
+
+    final androidDetails = AndroidNotificationDetails(
+      _progresoChannelId,
+      _progresoChannelName,
+      channelDescription: 'Tiempo y distancia restantes del viaje activo',
+      importance: Importance.low,
+      priority: Priority.low,
+      playSound: false,
+      enableVibration: false,
+      onlyAlertOnce: true,
+      ongoing: true,
+      showProgress: progreso != null,
+      maxProgress: 100,
+      progress: progreso ?? 0,
+      icon: 'ic_notification',
+      largeIcon: const DrawableResourceAndroidBitmap('ic_notification_color'),
+      color: const Color(0xFF081B33),
+      visibility: NotificationVisibility.public,
+    );
+
+    const iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: false,
+      presentSound: false,
+      threadIdentifier: 'progreso_viaje',
+      interruptionLevel: InterruptionLevel.passive,
+    );
+
+    final notificationDetails = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
+
+    await _plugin.show(
+      _progresoViajeNotificationId,
+      title,
+      body,
+      notificationDetails,
     );
   }
 

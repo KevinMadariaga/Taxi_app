@@ -12,8 +12,22 @@ import UserNotifications
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
-    // Provide Google Maps API key for iOS
-    GMSServices.provideAPIKey("AIzaSyAUYXdeT3cOtyTSGndd-DEV12OMyAmb-40")
+    // Google Maps API key para iOS: se lee de Info.plist (GMSApiKey ->
+    // $(GMS_API_KEY), ver Info.plist:42-43), que a su vez viene de
+    // ios/Flutter/Secrets.xcconfig — NO trackeado en git. Antes estaba
+    // hardcodeada acá mismo (auditoría de seguridad: quedaba commiteada en
+    // el repo pese a que Secrets.xcconfig ya existía con el mismo valor),
+    // así que rotar la key en Cloud Console no bastaba: seguía viva en el
+    // historial de git y en cualquier build viejo.
+    if let mapsApiKey = Bundle.main.object(forInfoDictionaryKey: "GMSApiKey") as? String,
+       !mapsApiKey.isEmpty, !mapsApiKey.hasPrefix("$(") {
+      GMSServices.provideAPIKey(mapsApiKey)
+    } else {
+      assertionFailure(
+        "GMSApiKey vacío o sin resolver: copiá ios/Flutter/Secrets.xcconfig.example a "
+        + "ios/Flutter/Secrets.xcconfig y poné una key real de Maps antes de compilar."
+      )
+    }
 
     // Set UNUserNotificationCenter delegate BEFORE Flutter starts so foreground
     // notifications are delivered correctly (required by flutter_local_notifications).

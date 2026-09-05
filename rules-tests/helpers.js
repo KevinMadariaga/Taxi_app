@@ -43,7 +43,14 @@ export async function sembrarActores(testEnv) {
     const db = ctx.firestore();
     await db.doc(`usuarios/${CLIENTE}`).set({ rol: 'cliente', nombre: 'Kevin' });
     await db.doc(`usuarios/${OTRO_CLIENTE}`).set({ rol: 'cliente' });
-    await db.doc(`usuarios/${CONDUCTOR}`).set({ rol: 'conductor' });
+    // `membresia: 'activa'` en CONDUCTOR: desde la auditoría de seguridad,
+    // `solicitudes.membresiaVigente()` exige esto en el servidor para poder
+    // pasar a 'asignado' — mismo chequeo que ya hacía
+    // `InicioConductorViewModel.aceptarSolicitud` en su transacción, ahora
+    // también en las reglas. OTRO_CONDUCTOR se deja SIN membresía a
+    // propósito: es el conductor "sin membresía activa" de los tests
+    // negativos de esa misma regla.
+    await db.doc(`usuarios/${CONDUCTOR}`).set({ rol: 'conductor', membresia: 'activa' });
     await db.doc(`usuarios/${OTRO_CONDUCTOR}`).set({ rol: 'conductor' });
     await db.doc(`usuarios/${ADMIN}`).set({ rol: 'admin' });
     await db.doc(`administradores/${ADMIN}`).set({ nombre: 'Admin' });

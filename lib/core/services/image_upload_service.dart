@@ -15,12 +15,26 @@ class ImageUploadService {
   final FirebaseStorage _storage;
 
   /// Sube [file] a [storagePath] y devuelve la URL de descarga.
+  ///
+  /// Manda `contentType` explícito (inferido de la extensión de
+  /// [storagePath], todas las llamadas actuales usan `.webp` o `.jpg`) en vez
+  /// de dejar que el SDK lo adivine: `storage.rules` exige
+  /// `contentType.matches('image/.*')` en la escritura (auditoría de
+  /// seguridad — antes cualquier archivo, de cualquier tamaño, podía subirse
+  /// a `usuarios/{uid}/...`), y esa condición solo es fiable si el cliente
+  /// manda el header, no si Storage lo infiere.
   Future<String> uploadFile({
     required File file,
     required String storagePath,
   }) async {
     final ref = _storage.ref().child(storagePath);
-    await ref.putFile(file);
+    final lower = storagePath.toLowerCase();
+    final contentType = lower.endsWith('.webp')
+        ? 'image/webp'
+        : lower.endsWith('.png')
+        ? 'image/png'
+        : 'image/jpeg';
+    await ref.putFile(file, SettableMetadata(contentType: contentType));
     return ref.getDownloadURL();
   }
 

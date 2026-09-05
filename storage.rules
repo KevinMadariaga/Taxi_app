@@ -1,0 +1,50 @@
+rules_version = '2';
+
+// Reglas de Cloud Storage — auditoría de seguridad: antes NO EXISTÍA este
+// archivo en el repo ni un bloque `storage` en `firebase.json`, así que lo
+// que regía en producción era lo que hubiera quedado en la consola de
+// Firebase (plantilla por defecto: cualquier autenticado lee y escribe
+// cualquier ruta), sin versionar ni testear.
+//
+// Todo lo que sube la app va a `usuarios/{uid}/...` (foto de perfil y foto
+// de vehículo — ver `ImageUploadService.uploadFile`,
+// `ClientProfileImageDataSource.uploadProfileImage` y los dos `ref.putFile`
+// directos en `editar_perfil.dart`). No hay ninguna otra ruta de Storage en
+// uso en el código.
+//
+// Antes de desplegar: `firebase emulators:start --only storage` y probar a
+// mano subir/cambiar foto de perfil y de vehículo desde la app (no hay una
+// suite automatizada de storage.rules en este repo, a diferencia de
+// `rules-tests/` para Firestore).
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /usuarios/{uid}/{fileName} {
+      // Las fotos se muestran entre roles (el cliente ve la foto y la foto
+      // del vehículo del conductor asignado, el admin ve fotos de
+      // conductores en el panel de Gestión): lectura abierta a cualquier
+      // autenticado, no acotada al propio uid.
+      allow read: if request.auth != null;
+
+      // Solo el dueño escribe en su propia carpeta. Límite de 5 MB (el
+      // límite real de la app es mucho menor —`ClientProfileImageDataSource`
+      // comprime a 100 KB antes de subir— pero 5 MB da margen para el resto
+      // de subidas, que no recomprimen tan agresivo, sin dejar la puerta
+      // abierta a archivos de cualquier tamaño) y solo tipos de imagen:
+      // antes cualquier autenticado podía subir cualquier archivo, de
+      // cualquier tamaño, a la carpeta de CUALQUIER otro usuario —
+      // incluida la foto de vehículo que ve el pasajero antes de subir a un
+      // taxi (suplantación visual del conductor).
+      allow write: if request.auth != null &&
+        request.auth.uid == uid &&
+        request.resource.size < 5 * 1024 * 1024 &&
+        request.resource.contentType.matches('image/.*');
+
+      allow delete: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Todo lo demás, denegado por defecto.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

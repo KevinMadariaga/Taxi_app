@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import 'package:taxi_app/core/services/chat_firestore_datasource.dart';
 import 'package:taxi_app/core/services/notificacion_servicio.dart';
+import 'package:taxi_app/core/utils/error_reporter.dart';
 import 'package:taxi_app/features/trip_tracking_cliente/models/mensaje_model.dart';
 
 /// Chat del viaje, compartido por cliente y conductor — reemplaza
@@ -74,6 +75,12 @@ class ChatController {
           messages = incoming;
           _computeUnreadCount();
           onChanged?.call();
+        }, onError: (Object e, StackTrace st) {
+          // Sin esto, si el stream corta (permission-denied al terminar el
+          // viaje, índice faltante) el chat enmudecía sin ningún aviso: no
+          // llegaban mensajes nuevos y nada lo registraba (auditoría de
+          // bugs).
+          ErrorReporter.report(e, st, reason: 'chat_controller');
         });
   }
 

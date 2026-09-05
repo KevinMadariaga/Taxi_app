@@ -254,12 +254,43 @@ describe('usuarios', () => {
     );
   });
 
-  // FcmService: persistir el token es la escritura más frecuente de la app.
-  test('el usuario guarda su fcmToken', async () => {
+  // FcmService._persistToken: la escritura más frecuente de la app. Sin
+  // `rol` en el patch a propósito — es EXACTAMENTE lo que manda el código
+  // real (`fcm_service.dart:252-255`), a diferencia de una versión anterior
+  // de este test que sí lo incluía y por eso no detectó la regresión de
+  // abajo (el `.lower()` que faltaba en la regla).
+  test('el usuario guarda su fcmToken (sin tocar rol)', async () => {
     await assertSucceeds(
       como(env, CLIENTE).doc(`usuarios/${CLIENTE}`).set(
-        { fcmToken: 'tok-123', rol: 'cliente' }, { merge: true },
+        { fcmToken: 'tok-123' }, { merge: true },
       ),
+    );
+  });
+
+  // Auditoría de bugs: `rol`/`membresia` en producción no están garantizados
+  // en minúsculas exactas (por eso todo lector Dart usa `.toLowerCase()`).
+  // Antes de agregar `.lower()` a la regla, un `set(merge:true)` que NO
+  // toca `rol` (como el de arriba) heredaba el valor YA GUARDADO tal cual
+  // en `request.resource.data.rol` — con `rol: 'Cliente'` (mayúscula) eso
+  // caía fuera de `in ['cliente','conductor']` y quedaba denegado: TODO
+  // write propio (token FCM, ubicación) en loop de permission-denied desde
+  // el arranque, sin ningún error visible en la UI. Visto en dispositivo
+  // real.
+  test('un usuario con rol en mayúscula sigue pudiendo escribir su propio doc', async () => {
+    await sembrar(env, `usuarios/${CLIENTE}`, { rol: 'Cliente', nombre: 'Kevin' });
+    await assertSucceeds(
+      como(env, CLIENTE).doc(`usuarios/${CLIENTE}`).set(
+        { fcmToken: 'tok-123' }, { merge: true },
+      ),
+    );
+  });
+
+  test('un admin con rol en mayúscula sigue teniendo privilegios de admin', async () => {
+    await sembrar(env, `usuarios/${ADMIN}`, { rol: 'Administrador' });
+    const db = como(env, ADMIN);
+    await assertSucceeds(db.doc(`usuarios/${CLIENTE}`).get());
+    await assertSucceeds(
+      db.doc(`usuarios/${CLIENTE}`).set({ membresia: 'activa' }, { merge: true }),
     );
   });
 
@@ -435,12 +466,30 @@ describe('administradores', () => {
     await assertFails(como(env, ADMIN).doc(`administradores/${ADMIN}`).delete());
   });
 
-  // Limitación conocida y documentada en firestore.rules: la lectura está
-  // abierta a cualquier autenticado porque `AdminFcmService.sendToAllAdmins`
-  // lee la colección entera para juntar tokens. Se fija para que quede
-  // visible que expone nombre/teléfono/gremio de los admins.
-  test('cualquier autenticado lee la lista de admins (limitación aceptada)', async () => {
-    await assertSucceeds(como(env, CLIENTE).collection('administradores').get());
+  // Auditoría de seguridad: antes la lectura estaba abierta a cualquier
+  // autenticado porque `AdminFcmService.sendToAllAdmins` leía la colección
+  // entera para juntar tokens (exponía nombre/teléfono/gremio/fcmToken de
+  // todos los admins). Ese envío ya no vive en el cliente — lo hacen
+  // triggers de Cloud Functions con el Admin SDK, no sujetos a estas
+  // reglas — así que la lectura se acotó a "el propio doc o un admin".
+  test('un cliente NO puede listar la colección de admins', async () => {
+    await assertFails(como(env, CLIENTE).collection('administradores').get());
+  });
+
+  test('un admin sí puede listar la colección de admins', async () => {
+    await assertSucceeds(como(env, ADMIN).collection('administradores').get());
+  });
+
+  // `FcmService._saveCurrentToken` corre para todo usuario (cliente y
+  // conductor) y comprueba si tiene doc propio en `administradores` antes de
+  // persistir el token ahí — necesita poder leer SU PROPIO doc aunque no sea
+  // admin.
+  test('un cliente lee su propio doc (aunque no exista como admin)', async () => {
+    await assertSucceeds(como(env, CLIENTE).doc(`administradores/${CLIENTE}`).get());
+  });
+
+  test('un cliente NO lee el doc de otro', async () => {
+    await assertFails(como(env, CLIENTE).doc(`administradores/${ADMIN}`).get());
   });
 
   test('un anónimo no la lee', async () => {

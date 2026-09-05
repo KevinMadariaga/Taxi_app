@@ -68,11 +68,29 @@ class _PanicButtonFabState extends State<PanicButtonFab> {
       ),
     );
 
-    if (confirmar == true) {
-      final uri = Uri.parse('tel:123');
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri);
-      }
+    if (confirmar != true) return;
+
+    final uri = Uri.parse('tel:123');
+    // Sin fallback antes: si `canLaunchUrl` daba `false` (Android 11+ sin la
+    // entrada de `<queries>` para ACTION_DIAL — ver AndroidManifest.xml,
+    // ahora corregido) el botón SOS no hacía absolutamente nada, en silencio,
+    // justo cuando el usuario está en peligro (auditoría de bugs). Ahora se
+    // intenta igual y, si falla, se muestra el número para marcarlo a mano.
+    bool lanzado = false;
+    try {
+      lanzado = await launchUrl(uri);
+    } catch (_) {
+      lanzado = false;
+    }
+    if (!lanzado && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'No se pudo abrir el marcador. Llama manualmente al 123.',
+          ),
+          duration: Duration(seconds: 6),
+        ),
+      );
     }
   }
 

@@ -25,17 +25,27 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   String _query = '';
   final UserDataService _userDataService = UserDataService();
 
+  // Antes `usuariosRef.snapshots()` se llamaba dentro de `build()`, que
+  // corre en CADA pulsación del buscador (`setState` de abajo). `.snapshots()`
+  // crea un `Stream` nuevo cada vez, y `StreamBuilder` compara por
+  // referencia: veía un stream distinto en cada rebuild, cancelaba la
+  // suscripción vieja y releía la colección `usuarios` entera desde cero por
+  // cada letra tecleada (auditoría de bugs). El filtro de `_query` ya se
+  // aplica localmente sobre `docs` dentro del builder, así que hoistear el
+  // stream (una sola suscripción viva) no cambia el comportamiento de
+  // búsqueda, solo deja de releer Firestore en cada tecla.
+  final Stream<QuerySnapshot<Map<String, dynamic>>> _usuariosStream =
+      FirebaseFirestore.instance.collection('usuarios').snapshots();
+
   Future<void> _aprobarMembresia({
     required String uid,
     required int dias,
     required String nombre,
-    String? fcmToken,
   }) {
     return _userDataService.aprobarMembresiaConductor(
       uid: uid,
       dias: dias,
       nombre: nombre,
-      fcmToken: fcmToken,
     );
   }
 
@@ -72,8 +82,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final usuariosRef = FirebaseFirestore.instance.collection('usuarios');
-
     return DefaultTabController(
       length: 2,
       child: Scaffold(
@@ -141,7 +149,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
               ),
               Expanded(
                 child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                  stream: usuariosRef.snapshots(),
+                  stream: _usuariosStream,
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Center(child: CircularProgressIndicator());
@@ -278,7 +286,6 @@ typedef _AprobarMembresiaCallback = Future<void> Function({
   required String uid,
   required int dias,
   required String nombre,
-  String? fcmToken,
 });
 
 class _ListaConductores extends StatelessWidget {
@@ -564,13 +571,7 @@ class _ConductorCard extends StatelessWidget {
     }
     final dias = await mostrarDialogoDiasMembresia(context);
     if (dias == null) return;
-    final conductorToken = (doc.data()['fcmToken'] as String?) ?? '';
-    await onAprobar(
-      uid: doc.id,
-      dias: dias,
-      nombre: nombre,
-      fcmToken: conductorToken,
-    );
+    await onAprobar(uid: doc.id, dias: dias, nombre: nombre);
 
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(

@@ -156,15 +156,15 @@ class ConfirmarSolicitudViewModel extends ChangeNotifier {
     final subtitle = _origen.subtitle?.trim();
     if (subtitle != null && subtitle.isNotEmpty) {
       _direccionOrigen = subtitle;
-      notifyListeners();
+      _safeNotify();
       return;
     }
     _resolviendoDireccionOrigen = true;
-    notifyListeners();
+    _safeNotify();
     final resuelta = await _obtenerDireccion(_origen.position);
     _direccionOrigen = resuelta;
     _resolviendoDireccionOrigen = false;
-    notifyListeners();
+    _safeNotify();
   }
 
   /// Ajusta el origen (desde `SeleccionarUbicacionMapaView`) y recalcula la
@@ -184,7 +184,7 @@ class ConfirmarSolicitudViewModel extends ChangeNotifier {
       subtitle: direccion,
     );
     _direccionOrigen = direccion;
-    notifyListeners();
+    _safeNotify();
     unawaited(_recalcularRuta());
   }
 
@@ -203,7 +203,7 @@ class ConfirmarSolicitudViewModel extends ChangeNotifier {
       title: direccion,
       subtitle: direccion,
     );
-    notifyListeners();
+    _safeNotify();
     unawaited(_recalcularRuta());
   }
 
@@ -219,7 +219,7 @@ class ConfirmarSolicitudViewModel extends ChangeNotifier {
   Future<void> _recalcularRuta() async {
     final token = ++_rutaToken;
     isLoadingRoute = true;
-    notifyListeners();
+    _safeNotify();
 
     final resultado = await _trazarRutaUseCase(
       _origen.position,
@@ -239,27 +239,27 @@ class ConfirmarSolicitudViewModel extends ChangeNotifier {
     routeDistanceKm = resultado.distanciaKm;
     isLoadingRoute = false;
     _recalcularValor();
-    notifyListeners();
+    _safeNotify();
   }
 
   void setTipoVehiculo(VehicleType tipo) {
     if (tipoVehiculo == tipo) return;
     tipoVehiculo = tipo;
     _recalcularValor();
-    notifyListeners();
+    _safeNotify();
   }
 
   void setMetodoPago(String value) {
     if (metodoPago == value) return;
     metodoPago = value;
-    notifyListeners();
+    _safeNotify();
   }
 
   void setComentario(String value) {
     final next = value.trim();
     if (comentario == next) return;
     comentario = next;
-    notifyListeners();
+    _safeNotify();
   }
 
   /// Mínimo aceptable: la tarifa base del vehículo (sin el variable por km).
@@ -314,7 +314,7 @@ class ConfirmarSolicitudViewModel extends ChangeNotifier {
     if (_valorServicio == normalized) return;
 
     _valorServicio = normalized;
-    notifyListeners();
+    _safeNotify();
   }
 
   /// Crea la solicitud. El resultado distingue entre creada, ya existía una
@@ -324,7 +324,7 @@ class ConfirmarSolicitudViewModel extends ChangeNotifier {
       return const CrearSolicitudFallo('Ya se está enviando la solicitud.');
     }
     isSubmitting = true;
-    notifyListeners();
+    _safeNotify();
 
     try {
       final borrador = SolicitudBorrador(
@@ -346,7 +346,28 @@ class ConfirmarSolicitudViewModel extends ChangeNotifier {
       );
     } finally {
       isSubmitting = false;
-      notifyListeners();
+      _safeNotify();
     }
+  }
+
+  // Antes este ViewModel llamaba `notifyListeners()` directo en sus 13
+  // sitios: `init()` dispara `Future.wait([_resolverDireccionOrigenInicial(),
+  // _recalcularRuta()])` (geocoding + Directions API), y si el usuario
+  // pulsaba atrás mientras esas llamadas seguían en vuelo, `dispose()` (la
+  // vista llama a `_vm.dispose()` en su `State.dispose`) corría primero y el
+  // notify que llegaba después reventaba con "used after being disposed"
+  // (auditoría de bugs). Mismo patrón `_disposed` + `_safeNotify()` que ya
+  // usan `BuscandoTaxiViewModel`, `ViajeClienteViewModel`,
+  // `ViajeConductorViewModel` y `SeleccionDestinoViewModel`.
+  bool _disposed = false;
+
+  void _safeNotify() {
+    if (!_disposed) notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
   }
 }

@@ -2,9 +2,9 @@ name: Flutter CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, dev ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, dev ]
 
 jobs:
   analyze-and-test:
@@ -24,7 +24,7 @@ jobs:
         run: flutter pub get
 
       - name: Analyze
-        run: flutter analyze --no-fatal-warnings --no-fatal-infos
+        run: flutter analyze --no-fatal-infos
 
       - name: Run tests
         run: flutter test

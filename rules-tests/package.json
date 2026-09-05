@@ -1,10 +1,10 @@
 {
   "name": "taxi-app-rules-tests",
-  "description": "Pruebas de firestore.rules contra el emulador de Firestore",
+  "description": "Pruebas de firestore.rules y storage.rules contra los emuladores",
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "firebase emulators:exec --only firestore --project demo-taxi-rules \"node --test --test-concurrency=1\""
+    "test": "firebase emulators:exec --only firestore,storage --project demo-taxi-rules \"node --test --test-concurrency=1\""
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^3.0.4",

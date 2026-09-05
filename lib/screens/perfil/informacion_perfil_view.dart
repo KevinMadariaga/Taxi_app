@@ -242,7 +242,7 @@ class _InformacionPerfilContent extends StatelessWidget {
                         ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColores.primary,
-                          foregroundColor: AppColores.textPrimary,
+                          foregroundColor: AppColores.textWhite,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14),
                           ),

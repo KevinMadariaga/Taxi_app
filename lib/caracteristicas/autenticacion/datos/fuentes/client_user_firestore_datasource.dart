@@ -78,7 +78,17 @@ class ClientUserFirestoreDataSource {
         }
       }
       if (patch.isNotEmpty) {
-        patch['rol'] = 'cliente';
+        // Antes esto forzaba `patch['rol'] = 'cliente'` en CUALQUIER
+        // backfill (email/foto/nombre vacíos), incluso sobre una cuenta
+        // YA EXISTENTE con `rol: 'administrador'` o `'conductor'` — un
+        // admin dado de alta a mano en consola (con `email`/`nombre` sin
+        // completar) perdía su rol en el primer login con Google/Apple y
+        // quedaba enrutado como cliente para siempre (auditoría de bugs).
+        // No hace falta escribir `rol` acá: `merge: true` deja intacto
+        // cualquier campo ausente del patch, y `firestore.rules` ya
+        // permite este update tal cual (el admin pasa por `isAdminRole()`,
+        // cliente/conductor por `rol in ['cliente','conductor']` sobre el
+        // valor YA EXISTENTE, sin tocarlo).
         await _firestore
             .collection('usuarios')
             .doc(uid)

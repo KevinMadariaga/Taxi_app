@@ -75,22 +75,6 @@ class _HomeViewState extends State<HomeView> {
   Future<void> _navegarTrasLogin(AuthFlowResult result) async {
     if (!mounted) return;
 
-    if (result.destination == AuthFlowDestination.completeProfile) {
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(
-          builder: (_) => CompleteProfilePage(
-            uid: result.user.id,
-            initialNombre: result.user.nombre,
-            initialApellido: result.user.apellido,
-            initialTelefono: result.user.telefono,
-            initialCorreo: result.user.email,
-          ),
-        ),
-        (route) => false,
-      );
-      return;
-    }
-
     // Enrutar según rol: admin → panel admin, conductor → inicio conductor,
     // cliente (o desconocido) → home cliente.
     //
@@ -101,6 +85,16 @@ class _HomeViewState extends State<HomeView> {
     // usan el mismo campo — así el rol que se ve en Firestore console es
     // literalmente el que decide a qué pantalla entra el usuario, sin una
     // colección aparte (`administradores`) que pueda desalinearse.
+    //
+    // El rol se resuelve ANTES de mirar `result.destination` — antes era al
+    // revés: `sign_in_google_client_usecase.dart` decide ese destino mirando
+    // solo `isProfileComplete`, sin saber nada de roles, así que un admin
+    // dado de alta a mano en consola (que nunca pasó por "completar perfil"
+    // y por lo tanto tiene `isProfileComplete` en `false`/ausente) quedaba
+    // atrapado en `CompleteProfilePage` y nunca llegaba a esta rama. El
+    // cold-start (`initial_screen_resolver.dart:257`) ya hacía bien este
+    // orden — solo manda a completar perfil cuando `role == 'cliente'`; acá
+    // faltaba la misma excepción (auditoría de bugs).
     String rol = '';
     bool deshabilitado = false;
     try {
@@ -124,6 +118,27 @@ class _HomeViewState extends State<HomeView> {
     if (deshabilitado) {
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const CuentaDeshabilitadaPage()),
+        (route) => false,
+      );
+      return;
+    }
+
+    // Solo un cliente (o un rol que no resolvió a nada reconocible) puede
+    // necesitar completar su perfil — admin/conductor se gestionan aparte y
+    // nunca deben caer acá, tengan o no `isProfileComplete` en su doc.
+    if (rol != 'administrador' &&
+        rol != 'conductor' &&
+        result.destination == AuthFlowDestination.completeProfile) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (_) => CompleteProfilePage(
+            uid: result.user.id,
+            initialNombre: result.user.nombre,
+            initialApellido: result.user.apellido,
+            initialTelefono: result.user.telefono,
+            initialCorreo: result.user.email,
+          ),
+        ),
         (route) => false,
       );
       return;

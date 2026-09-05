@@ -1,6 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 
 import '../models/resumen_viaje_model.dart';
 
@@ -42,6 +41,46 @@ class ResumenViajeFirebaseService {
         });
   }
 
+  /// Busca el viaje completado más reciente del cliente que todavía no
+  /// tiene calificación — se usa para bloquear el home hasta que termine de
+  /// calificar el servicio anterior. `calificacion` está AUSENTE del doc (no
+  /// `null` explícito) mientras no se califique, así que se filtra del lado
+  /// del cliente en vez de usar `where('calificacion', isEqualTo: null)`:
+  /// esa query de Firestore solo matchea documentos que tengan el campo
+  /// explícitamente en `null`, no los que nunca lo escribieron.
+  ///
+  /// Sin `orderBy` a propósito: combinarlo con los dos filtros de igualdad
+  /// de abajo pediría un índice compuesto nuevo. Con `limit(20)` alcanza —
+  /// un cliente no acumula tantos viajes completados sin calificar entre
+  /// sesión y sesión.
+  Future<String?> buscarViajeCompletadoSinCalificar(String clienteId) async {
+    final snap = await _firestore
+        .collection('solicitudes')
+        .where('cliente.id', isEqualTo: clienteId)
+        .where('estado', isEqualTo: 'completado')
+        .limit(20)
+        .get();
+
+    QueryDocumentSnapshot<Map<String, dynamic>>? masReciente;
+    Timestamp? masRecienteTs;
+    for (final doc in snap.docs) {
+      final data = doc.data();
+      if (data['calificacion'] != null) continue;
+      final ts =
+          data['fecha de terminacion'] as Timestamp? ??
+          data['updatedAt'] as Timestamp?;
+      final tsAnterior = masRecienteTs;
+      final esMasReciente =
+          masReciente == null ||
+          (ts != null && (tsAnterior == null || ts.compareTo(tsAnterior) > 0));
+      if (esMasReciente) {
+        masReciente = doc;
+        masRecienteTs = ts;
+      }
+    }
+    return masReciente?.id;
+  }
+
   Future<void> guardarCalificacion({
     required String solicitudId,
     required double calificacion,
@@ -54,51 +93,11 @@ class ResumenViajeFirebaseService {
       'fechaCalificacion': FieldValue.serverTimestamp(),
     });
 
-    // Acumular el promedio en el doc del conductor para que se muestre en
-    // futuras ofertas (usuarios y/o conductores, según donde exista).
-    if (conductorId.trim().isNotEmpty) {
-      await _acumularCalificacionConductor(conductorId.trim(), calificacion);
-    }
-  }
-
-  /// Acumula la calificación del conductor SOLO en la colección `usuarios`
-  /// (no se crea colección `conductores`). Guarda el promedio en
-  /// `calificacionConductor` (campo solicitado) y mantiene `calificacionPromedio`
-  /// + `totalCalificaciones` para que la modal de ofertas muestre las estrellas.
-  Future<void> _acumularCalificacionConductor(
-    String conductorId,
-    double nuevaCalificacion,
-  ) async {
-    final ref = _firestore.collection('usuarios').doc(conductorId);
-    try {
-      await _firestore.runTransaction((tx) async {
-        final snap = await tx.get(ref);
-        final d = snap.data() ?? <String, dynamic>{};
-        final total =
-            (d['totalCalificaciones'] ?? d['totalRatings'] ?? 0) as num;
-        final prom =
-            (d['calificacionConductor'] ??
-                    d['calificacionPromedio'] ??
-                    d['calificacion'] ??
-                    d['rating'] ??
-                    0)
-                as num;
-        final nuevoTotal = total.toInt() + 1;
-        final nuevoProm =
-            ((prom.toDouble() * total.toInt()) + nuevaCalificacion) /
-            nuevoTotal;
-        tx.set(ref, {
-          'calificacionConductor': nuevoProm,
-          'calificacionPromedio': nuevoProm,
-          'totalCalificaciones': nuevoTotal,
-        }, SetOptions(merge: true));
-      });
-    } catch (e, st) {
-      FirebaseCrashlytics.instance.recordError(
-        e,
-        st,
-        reason: 'ResumenViajeFirestoreService: fallo al acumular calificación del conductor $conductorId',
-      );
-    }
+    // El promedio agregado en `usuarios/{conductorId}` lo escribe la Cloud
+    // Function `onCalificacionRegistrada` (functions/index.js), no el
+    // cliente: `firestore.rules` solo permite `update` en `usuarios/{uid}`
+    // al dueño del doc o a un admin, así que un intento de escritura directa
+    // acá siempre fallaba con permission-denied (hallazgo QA en dispositivo
+    // real, 2026-09-05) y el promedio nunca se actualizaba.
   }
 }

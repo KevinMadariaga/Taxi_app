@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:taxi_app/core/app_colores.dart';
-import 'package:taxi_app/core/services/admin_fcm_service.dart';
 import 'package:taxi_app/features/phone_auth/services/user_data_service.dart';
 import 'package:taxi_app/widgets/boton.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
@@ -19,23 +18,16 @@ const int kValorActivacion = 1000;
 
 const String _kMensajeWhatsapp = 'Quiero activar el servicio de Ride';
 
-/// Marca la solicitud de activación del conductor (dispara push al admin).
+/// Marca la solicitud de activación del conductor. El push al admin ya no lo
+/// manda el cliente (auditoría de seguridad: `AdminFcmService` usaba la
+/// server key legacy de FCM repartida a todos los dispositivos vía Remote
+/// Config); lo dispara `onSolicitudActivacionConductor` en
+/// functions/index.js al ver `solicitudConductor: true` en Firestore.
 Future<void> _marcarSolicitudActivacion() async {
   final uid = FirebaseAuth.instance.currentUser?.uid;
   if (uid == null) return;
   try {
-    final data = await UserDataService().getUsuario(uid);
-    final nombre = (data?['nombre'] ?? 'Conductor').toString();
-
     await UserDataService().marcarSolicitudActivacion(uid);
-
-    AdminFcmService.instance
-        .sendToAllAdmins(
-          title: 'Nuevo conductor registrado',
-          body: '$nombre quiere activar el servicio, revisa.',
-          type: 'solicitud_conductor',
-        )
-        .ignore();
   } catch (e, st) {
     ErrorReporter.report(e, st, reason: 'activacion_servicio_view');
   }

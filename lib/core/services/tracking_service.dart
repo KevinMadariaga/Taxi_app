@@ -217,6 +217,21 @@ class TrackingService {
                 stackTrace,
                 reason: 'TrackingService: GPS stream error',
               );
+              // Antes esto solo logueaba: `_isTracking` se quedaba en `true`
+              // con la suscripción ya muerta, así que `iniciarEscuchaGPS`
+              // (guard de arriba) jamás volvía a intentar, y el keepalive de
+              // abajo seguía reenviando `_lastSentPosition` con
+              // `updatedAt` fresco — el cliente veía al conductor "vivo" en
+              // un punto congelado (auditoría de bugs). Un stream error de
+              // Geolocator es terminal: se limpia el estado para que la
+              // próxima llamada a `iniciarEscuchaGPS` pueda reintentar en
+              // vez de quedar bloqueada para siempre.
+              _keepAliveTimer?.cancel();
+              _keepAliveTimer = null;
+              _positionSubscription = null;
+              _isTracking = false;
+              _lastSentPosition = null;
+              _lastSentTime = null;
             },
           );
 

@@ -62,7 +62,35 @@ class SolicitudFirestoreDatasource {
       payload.addAll(extra);
     }
 
-    await ref(solicitudId).set(payload, SetOptions(merge: true));
+    final documento = ref(solicitudId);
+
+    // 'sin respuesta' es la única transición de esta ruta que compite de
+    // verdad con otro escritor: la dispara un `Timer.periodic` LOCAL del
+    // conductor (`ViajeConductorViewModel._handleWaitingTimeoutNoResponse`)
+    // contra el último snapshot que le llegó, no contra el servidor. Si el
+    // cliente confirma "voy en camino" (`ConfirmarVoyEnCaminoUseCase`, MISMO
+    // método) justo cuando el timer local del conductor ya iba a disparar,
+    // ganaba quien escribiera último — el viaje podía quedar marcado 'sin
+    // respuesta' pese a que el cliente sí había respondido (auditoría de
+    // bugs). Se relee el estado FRESCO del servidor dentro de una
+    // transacción y solo se escribe si todavía sigue en 'en espera'; si ya
+    // no lo está, es un no-op silencioso (la carrera se perdió de forma
+    // correcta, no es un error).
+    if (normalized == SolicitudEstado.sinRespuesta) {
+      await _firestore.runTransaction((tx) async {
+        final snap = await tx.get(documento);
+        if (!snap.exists) return;
+        final data = snap.data() ?? <String, dynamic>{};
+        final estadoServidor = SolicitudEstado.normalize(
+          (data['estado'] ?? data['status'] ?? '').toString(),
+        );
+        if (estadoServidor != SolicitudEstado.enEspera) return;
+        tx.set(documento, payload, SetOptions(merge: true));
+      });
+      return;
+    }
+
+    await documento.set(payload, SetOptions(merge: true));
   }
 
   Future<void> marcarCancelada({

@@ -4,6 +4,7 @@ import 'dart:developer' as developer;
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:intl/intl.dart';
 
 import 'package:taxi_app/caracteristicas/viaje_cliente/dominio/casos_uso/cancelar_viaje_usecase.dart';
 import 'package:taxi_app/caracteristicas/viaje_cliente/dominio/casos_uso/confirmar_voy_en_camino_usecase.dart';
@@ -121,6 +122,10 @@ class ViajeClienteViewModel extends ChangeNotifier {
   String? _lastEstado;
   bool _disposed = false;
   DateTime? _lastTickNotifyAt;
+  // Throttle independiente del de arriba: la notificación del sistema
+  // (pantalla de bloqueo) no necesita el refresco visual de 500ms del mapa —
+  // actualizarla tan seguido gasta batería/CPU nativa sin beneficio visible.
+  DateTime? _lastProgresoNotificadoAt;
   bool _routeCalculatedOnce = false;
   LatLng? _lastFrom;
   LatLng? _lastTo;
@@ -150,6 +155,23 @@ class ViajeClienteViewModel extends ChangeNotifier {
 
   bool get hasBothLocations =>
       objetivoActual != null && conductorLatLngCrudo != null;
+
+  /// Dirección del tramo actual — mismo criterio que `objetivoActual`:
+  /// destino una vez arrancó el viaje, si no el punto de recogida.
+  String get direccionActual {
+    final v = viaje;
+    if (v == null) return '';
+    return v.estado == SolicitudEstado.enRuta
+        ? v.destino.direccion
+        : v.cliente.direccion;
+  }
+
+  /// Hora estimada de llegada ("8:19 p.m."), derivada de `eta`.
+  String get horaLlegadaText {
+    final e = eta;
+    if (e == null) return '--';
+    return DateFormat('h:mm a').format(DateTime.now().add(e));
+  }
 
   String get distanceText =>
       distanceMeters == null ? '--' : _ruta.formatearDistancia(distanceMeters!);
@@ -197,12 +219,44 @@ class ViajeClienteViewModel extends ChangeNotifier {
   void _onMovimientoTick() {
     _actualizarDistanciaLiviana();
     final now = DateTime.now();
+    _actualizarNotificacionProgreso(now);
     if (_lastTickNotifyAt != null &&
         now.difference(_lastTickNotifyAt!) < const Duration(milliseconds: 500)) {
       return;
     }
     _lastTickNotifyAt = now;
     _safeNotify();
+  }
+
+  /// Refleja el ETA/distancia en una notificación del sistema — visible con
+  /// la pantalla bloqueada, sin necesidad de tener la app abierta en
+  /// primer plano. Throttleada a ~10 s (independiente del throttle visual de
+  /// arriba): postear una notificación nativa en cada tick de 50ms sería
+  /// carísimo para nada, el usuario no necesita ese nivel de granularidad
+  /// mirando la pantalla de bloqueo.
+  void _actualizarNotificacionProgreso(DateTime now, {bool forzar = false}) {
+    if (_disposed) return;
+    if (distanceMeters == null && eta == null) return;
+    if (!forzar &&
+        _lastProgresoNotificadoAt != null &&
+        now.difference(_lastProgresoNotificadoAt!) <
+            const Duration(seconds: 10)) {
+      return;
+    }
+    _lastProgresoNotificadoAt = now;
+
+    final enRuta = viaje?.estado == SolicitudEstado.enRuta;
+    final titulo = enRuta ? 'En camino a tu destino' : 'Tu conductor va en camino';
+    final cuerpo = '$etaText · $distanceText restantes';
+    final progresoPorcentaje = (pickupProgress * 100).round();
+
+    unawaited(
+      NotificacionesServicio.instance.showOrUpdateProgresoViaje(
+        title: titulo,
+        body: cuerpo,
+        progreso: progresoPorcentaje,
+      ),
+    );
   }
 
   /// Última lista de `routePointsNotifier` sobre la que se calculó
@@ -296,6 +350,20 @@ class ViajeClienteViewModel extends ChangeNotifier {
     _handleConductorLocationUpdate(incoming);
     await _updateRouteIfNeeded();
 
+    // Postea/actualiza la notificación acá también, no solo desde
+    // `_onMovimientoTick`: ese tick solo corre mientras el motor
+    // de movimiento está animando, así que si el conductor recién aceptó y
+    // todavía no se movió, la pantalla bloqueada se quedaba sin nada durante
+    // todo el tramo de recogida (hallazgo QA en dispositivo real). Forzado
+    // (sin el throttle de 10s) la primera vez que hay datos de ruta, para
+    // que aparezca de inmediato en vez de esperar el primer tick de GPS.
+    if (!_disposed && (distanceMeters != null || eta != null)) {
+      _actualizarNotificacionProgreso(
+        DateTime.now(),
+        forzar: _lastProgresoNotificadoAt == null,
+      );
+    }
+
     if (SolicitudEstado.isTerminal(incoming.estado)) {
       unawaited(_localCache.clearSolicitudData(viajeId));
     }
@@ -317,6 +385,14 @@ class ViajeClienteViewModel extends ChangeNotifier {
       _lastTo = null;
       _initialRouteDistance = 0;
       await _updateRouteIfNeeded(forceRefresh: true);
+      // Forzado, sin el throttle de 10s: sin esto, la notificación/Live
+      // Activity dependía por completo de que al conductor le llegara un
+      // tick de GPS DESPUÉS de la transición para refrescarse — si tardaba
+      // (o el conductor estaba momentáneamente detenido), la pantalla
+      // bloqueada seguía mostrando el tramo anterior ("conductor viniendo")
+      // con la UI en pantalla ya mostrando el tramo nuevo (auditoría de bugs,
+      // hallazgo en dispositivo real).
+      _actualizarNotificacionProgreso(DateTime.now(), forzar: true);
     }
 
     if (estado == SolicitudEstado.enEspera) {

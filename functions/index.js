@@ -11,7 +11,7 @@
  * 4. Envía la notificación push vía FCM (que llega a APNs en iOS)
  */
 
-const { onDocumentUpdated, onDocumentCreated } = require("firebase-functions/v2/firestore");
+const { onDocumentUpdated, onDocumentCreated, onDocumentWritten } = require("firebase-functions/v2/firestore");
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore, Timestamp, FieldValue } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
@@ -22,6 +22,19 @@ const { defineSecret } = require("firebase-functions/params");
 // Key de Google Directions: vive solo en Secret Manager, nunca se compila en
 // el cliente. Configurar con: firebase functions:secrets:set GOOGLE_DIRECTIONS_KEY
 const googleDirectionsKey = defineSecret("GOOGLE_DIRECTIONS_KEY");
+
+// Secreto compartido de `cancelarSolicitudPorCierreApp` (ver esa función más
+// abajo). CancelSolicitudWorker.kt corre sin sesión de Firebase Auth (el
+// proceso Dart/Flutter ya murió cuando WorkManager lo dispara), así que no
+// puede mandar un ID token: la única identidad que puede probar es conocer
+// este valor, compilado en el APK como constante nativa. No es tan fuerte
+// como un ID token (extraíble descompilando el APK), pero cierra el hueco
+// real: antes cualquiera con el par (solicitudId, clienteId) —visible para
+// cualquier cuenta que se auto-declare conductor, ver firestore.rules— podía
+// cancelar la solicitud de otro con un curl, sin ninguna prueba de identidad.
+// Configurar con: firebase functions:secrets:set CANCEL_WORKER_SHARED_SECRET
+// (mismo valor que CancelSolicitudWorker.kt:SHARED_SECRET).
+const cancelWorkerSecret = defineSecret("CANCEL_WORKER_SHARED_SECRET");
 
 initializeApp();
 
@@ -1248,6 +1261,244 @@ exports.onEmergenciaCreada = onDocumentCreated(
 );
 
 /**
+ * Cloud Function: Notifica por push a TODOS los administradores cuando un
+ * usuario (cliente o conductor, nunca un admin) manda un mensaje en el chat
+ * de soporte. Reemplaza a `AdminFcmService.sendToAllAdmins`, que hacía esto
+ * mismo desde el cliente con la server key legacy de FCM repartida a todos
+ * los dispositivos vía Remote Config (auditoría de seguridad — esa key es
+ * de proyecto, no de usuario, y el endpoint Legacy HTTP que usaba ya está
+ * desmantelado por Google, así que ese envío tampoco funcionaba).
+ * Complementa a `onSoporteChatMensajeCreado` (sentido admin→usuario).
+ */
+exports.onSoporteChatMensajeUsuarioCreado = onDocumentCreated(
+  {
+    document: "soporte_chats/{userId}/mensajes/{mensajeId}",
+    region: "us-central1",
+  },
+  async (event) => {
+    const msg = event.data.data();
+    if (!msg || msg.esAdmin === true) return null;
+
+    const texto = (msg.texto || "").toString().trim();
+    if (!texto) return null;
+
+    const db = getFirestore();
+    const tokens = await getAdminTokens(db);
+    if (tokens.length === 0) return null;
+
+    let userName = "Usuario";
+    try {
+      const userDoc = await db.collection("usuarios").doc(event.params.userId).get();
+      if (userDoc.exists) {
+        userName = (userDoc.data().nombre || userName).toString();
+      }
+    } catch (err) {
+      console.error("Error buscando nombre de usuario para soporte:", err);
+    }
+
+    const message = buildFcmMessage({
+      tokens,
+      title: `Soporte — ${userName}`,
+      body: texto,
+      type: "soporte_chat",
+      extraData: { userId: event.params.userId },
+    });
+
+    try {
+      const resp = await getMessaging().sendEachForMulticast(message);
+      console.log(
+        `✅ Notif. soporte (usuario→admin): ${resp.successCount}/${tokens.length} admins notificados.`
+      );
+    } catch (err) {
+      console.error(`❌ Error enviando notif. de soporte: ${err.message}`);
+    }
+
+    return null;
+  }
+);
+
+/**
+ * Cloud Function: Notifica por push a TODOS los administradores cuando un
+ * conductor manda su solicitud de activación (registro nuevo o "Conectado"
+ * con membresía no activa). Reemplaza a las dos llamadas a
+ * `AdminFcmService.sendToAllAdmins` en
+ * `completar_registro_conductor_view.dart` y `activacion_servicio_view.dart`
+ * — mismo motivo que el trigger de soporte de arriba. Dispara con
+ * `onDocumentWritten` (no `onDocumentUpdated`) porque
+ * `UserDataService.guardarSolicitudConductor` puede ser la escritura que crea
+ * el campo en el doc.
+ */
+exports.onSolicitudActivacionConductor = onDocumentWritten(
+  {
+    document: "usuarios/{uid}",
+    region: "us-central1",
+  },
+  async (event) => {
+    const before = event.data.before.exists ? event.data.before.data() : null;
+    const after = event.data.after.exists ? event.data.after.data() : null;
+    if (!after) return null;
+
+    const eraSolicitud = before ? before.solicitudConductor === true : false;
+    if (eraSolicitud || after.solicitudConductor !== true) return null;
+
+    const db = getFirestore();
+    const tokens = await getAdminTokens(db);
+    if (tokens.length === 0) return null;
+
+    const nombre = (after.nombre || "Conductor").toString();
+    const message = buildFcmMessage({
+      tokens,
+      title: "Nuevo conductor registrado",
+      body: `${nombre} quiere activar el servicio, revisa.`,
+      type: "solicitud_conductor",
+      extraData: { uid: event.params.uid },
+    });
+
+    try {
+      const resp = await getMessaging().sendEachForMulticast(message);
+      console.log(
+        `✅ Notif. solicitud de activación: ${resp.successCount}/${tokens.length} admins notificados.`
+      );
+    } catch (err) {
+      console.error(`❌ Error enviando notif. de activación: ${err.message}`);
+    }
+
+    return null;
+  }
+);
+
+/**
+ * Cloud Function: notifica al conductor cuando un admin le aprueba la
+ * membresía. Reemplaza a `UserDataService.aprobarMembresiaConductor`
+ * mandando el `fcmToken` recibido por parámetro a
+ * `AdminFcmService.sendToToken` — mismo motivo que los dos triggers de
+ * arriba. El token ya vive en el propio doc (`FcmService._persistToken`),
+ * así que no hace falta que el cliente lo pase.
+ */
+exports.onMembresiaActivada = onDocumentWritten(
+  {
+    document: "usuarios/{uid}",
+    region: "us-central1",
+  },
+  async (event) => {
+    const before = event.data.before.exists ? event.data.before.data() : null;
+    const after = event.data.after.exists ? event.data.after.data() : null;
+    if (!after) return null;
+
+    const yaActiva = before ? before.membresia === "activa" : false;
+    if (yaActiva || after.membresia !== "activa") return null;
+
+    const fcmToken = after.fcmToken;
+    if (!fcmToken) return null;
+
+    const nombre = (after.nombre || "Conductor").toString();
+    const dias = after.membresiaDias;
+    const body = dias
+      ? `Hola ${nombre}, tu membresía de conductor ya está activa por ${dias} días.`
+      : `Hola ${nombre}, tu membresía de conductor ya está activa.`;
+
+    const message = buildFcmMessage({
+      token: fcmToken,
+      title: "¡Membresía activada!",
+      body,
+      type: "membresia_activada",
+    });
+
+    try {
+      await getMessaging().send(message);
+      console.log(`✅ Notif. membresía activada enviada a ${event.params.uid}.`);
+    } catch (err) {
+      console.error(`❌ Error enviando notif. de membresía: ${err.message}`);
+    }
+
+    return null;
+  }
+);
+
+/**
+ * Cloud Function: acumula el promedio de calificación del conductor en
+ * `usuarios/{conductorId}` cuando el cliente califica el viaje.
+ *
+ * Antes esto lo escribía el propio cliente desde la app (transacción sobre
+ * `usuarios/{conductorId}`), pero `firestore.rules` solo permite `update` en
+ * `usuarios/{uid}` al dueño del doc o a un admin — un cliente nunca puede
+ * escribir el doc de otro usuario. Fallaba en silencio (permission-denied
+ * atrapado en try/catch, solo logueado a Crashlytics): la calificación
+ * individual sí quedaba en `solicitudes/{id}.calificacion`, pero el promedio
+ * agregado nunca se actualizaba (hallazgo QA en dispositivo real,
+ * 2026-09-05). Con Admin SDK del lado servidor no aplican las reglas de
+ * cliente, así que esta es la única escritura legítima a ese agregado.
+ */
+exports.onCalificacionRegistrada = onDocumentUpdated(
+  {
+    document: "solicitudes/{solicitudId}",
+    region: "us-central1",
+  },
+  async (event) => {
+    const beforeData = event.data.before.data();
+    const afterData = event.data.after.data();
+    if (!beforeData || !afterData) return null;
+
+    // Solo procesar la primera vez que aparece la calificación en este
+    // documento — sin esto, cualquier otra escritura posterior al doc con
+    // `calificacion` ya presente reprocesaría el mismo puntaje de nuevo.
+    if (beforeData.calificacion != null || afterData.calificacion == null) {
+      return null;
+    }
+
+    const conductorId = extractConductorId(afterData);
+    if (!conductorId) {
+      console.log("onCalificacionRegistrada: sin conductorId, se omite.");
+      return null;
+    }
+
+    const nuevaCalificacion = Number(afterData.calificacion);
+    if (!Number.isFinite(nuevaCalificacion)) {
+      console.log("onCalificacionRegistrada: calificación no numérica, se omite.");
+      return null;
+    }
+
+    const db = getFirestore();
+    const ref = db.collection("usuarios").doc(conductorId);
+
+    try {
+      await db.runTransaction(async (tx) => {
+        const snap = await tx.get(ref);
+        const d = snap.exists ? snap.data() : {};
+        const total = Number(d.totalCalificaciones ?? d.totalRatings ?? 0);
+        const prom = Number(
+          d.calificacionConductor ??
+            d.calificacionPromedio ??
+            d.calificacion ??
+            d.rating ??
+            0
+        );
+        const nuevoTotal = total + 1;
+        const nuevoProm = (prom * total + nuevaCalificacion) / nuevoTotal;
+        tx.set(
+          ref,
+          {
+            calificacionConductor: nuevoProm,
+            calificacionPromedio: nuevoProm,
+            totalCalificaciones: nuevoTotal,
+          },
+          { merge: true }
+        );
+      });
+      console.log(
+        `✅ Calificación acumulada para conductor ${conductorId} (solicitud ${event.params.solicitudId}).`
+      );
+    } catch (err) {
+      console.error(
+        `❌ Error acumulando calificación del conductor ${conductorId}: ${err.message}`
+      );
+    }
+
+    return null;
+  }
+);
+
+/**
  * Cloud Function: Notifica por push a TODOS los administradores cuando se
  * crea un reporte sobre un conductor (problema reportado por el cliente).
  */
@@ -1336,13 +1587,21 @@ const PURGA_CANCELADAS_DRY_RUN = false;
  * a diferencia de cualquier Timer/callback en Dart, que muere con el
  * proceso sin llegar a escribir en Firestore.
  *
- * Validación: solo cancela si `clienteId` coincide con el dueño real de la
- * solicitud y si sigue en estado 'buscando' (evita tocar viajes ya
+ * Validación: exige el secreto compartido de `CancelSolicitudWorker.kt` en
+ * el header `X-Cancel-Worker-Secret` (auditoría de seguridad, ver
+ * `cancelWorkerSecret` arriba — antes este endpoint no comprobaba identidad
+ * alguna) y, además, solo cancela si `clienteId` coincide con el dueño real
+ * de la solicitud y si sigue en estado 'buscando' (evita tocar viajes ya
  * asignados/en curso ante una llamada tardía, duplicada o manipulada).
  */
 exports.cancelarSolicitudPorCierreApp = onRequest(
-  { region: "us-central1" },
+  { region: "us-central1", secrets: [cancelWorkerSecret] },
   async (req, res) => {
+    if (req.get("X-Cancel-Worker-Secret") !== cancelWorkerSecret.value()) {
+      res.status(401).send("no autorizado");
+      return;
+    }
+
     const solicitudId = (
       req.query.solicitudId ||
       (req.body && req.body.solicitudId) ||
@@ -1400,11 +1659,10 @@ exports.cancelarSolicitudPorCierreApp = onRequest(
         `🛑 Solicitud ${solicitudId} cancelada por cierre de app (cliente ${clienteId}).`
       );
 
-      // Borrado tras una breve gracia, igual que el resto de flujos de
-      // cancelación (da tiempo a un accept en curso de un conductor).
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      await docRef.delete();
-
+      // El borrado ya no es inmediato: lo hace `purgarSolicitudesCanceladas`
+      // (scheduled, 24 h de retención) como con cualquier otra cancelación —
+      // antes este endpoint borraba a los 2 s con `if (!auth)`, sin dejar
+      // ventana de auditoría ni margen ante un accept en curso.
       res.status(200).send("ok: cancelada");
     } catch (err) {
       console.error("❌ Error en cancelarSolicitudPorCierreApp:", err.message);

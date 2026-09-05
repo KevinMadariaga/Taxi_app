@@ -7,7 +7,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/helpers/permisos_helper.dart';
 import 'package:taxi_app/core/helpers/session_helper.dart';
-import 'package:taxi_app/core/services/admin_fcm_service.dart';
 import 'package:taxi_app/core/services/image_cropper_service.dart';
 import 'package:taxi_app/core/services/image_upload_service.dart';
 import 'package:taxi_app/features/phone_auth/services/user_data_service.dart';
@@ -165,10 +164,6 @@ class _CompletarRegistroConductorViewState
           ? await _subirImagen(_fotoVehiculo!, 'fotoVehiculo', uid)
           : _fotoVehiculoExistenteUrl!;
 
-      final nombre =
-          (FirebaseAuth.instance.currentUser?.displayName ?? 'Conductor')
-              .toString();
-
       await UserDataService().guardarSolicitudConductor(
         uid: uid,
         foto: fotoUrl,
@@ -177,14 +172,11 @@ class _CompletarRegistroConductorViewState
         tipoVehiculo: _tipoVehiculo.firestoreKey,
       );
 
-      // Notificar al admin que hay un nuevo conductor pendiente de revisión.
-      AdminFcmService.instance
-          .sendToAllAdmins(
-            title: 'Nuevo conductor registrado',
-            body: '$nombre quiere activar el servicio, revisa.',
-            type: 'solicitud_conductor',
-          )
-          .ignore();
+      // El push al admin ya no lo manda el cliente (auditoría de seguridad:
+      // `AdminFcmService` usaba la server key legacy de FCM repartida a
+      // todos los dispositivos vía Remote Config). Lo dispara
+      // `onSolicitudActivacionConductor` en functions/index.js al ver
+      // `solicitudConductor: true` en Firestore.
 
       // Sincronizar rol en caché para que al reiniciar abra como conductor.
       await SessionHelper.updateRole('conductor');

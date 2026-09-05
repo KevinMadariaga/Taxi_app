@@ -560,8 +560,15 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                                       .instance
                                       .ref()
                                       .child(path);
+                                  // contentType explícito: `storage.rules`
+                                  // exige `image/.*` en la escritura
+                                  // (auditoría de seguridad), y esa condición
+                                  // solo es fiable si el cliente lo manda.
                                   final uploadTask = ref.putFile(
                                     profileToUpload,
+                                    firebase_storage.SettableMetadata(
+                                      contentType: 'image/webp',
+                                    ),
                                   );
                                   final snapshot = await uploadTask;
                                   imageUrl = await snapshot.ref
@@ -607,8 +614,15 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                                       .instance
                                       .ref()
                                       .child(path);
+                                  // contentType explícito: `storage.rules`
+                                  // exige `image/.*` en la escritura
+                                  // (auditoría de seguridad), y esa condición
+                                  // solo es fiable si el cliente lo manda.
                                   final uploadTask = ref.putFile(
                                     vehicleToUpload,
+                                    firebase_storage.SettableMetadata(
+                                      contentType: 'image/webp',
+                                    ),
                                   );
                                   final snapshot = await uploadTask;
                                   vehicleUrl = await snapshot.ref

@@ -2010,13 +2010,19 @@ class _InicioConductorState extends State<InicioConductor>
     InicioConductorViewmodel vm,
     int valor,
   ) {
+    // Antes el `Future.delayed` vivía DENTRO de `builder:`, que Flutter
+    // re-ejecuta en cada rebuild del diálogo (teclado, rotación,
+    // MediaQuery) — se acumulaban varios timers de 3 s, cada uno con su
+    // propio `pop()`. Moverlo acá afuera asegura que se programe una sola
+    // vez, ya que `showDialog` solo se llama una vez por confirmación
+    // (auditoría de bugs).
+    BuildContext? dialogContext;
+
     showDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (ctx) {
-        Future.delayed(const Duration(seconds: 3), () {
-          if (Navigator.of(ctx).canPop()) Navigator.of(ctx).pop();
-        });
+        dialogContext = ctx;
         return AlertDialog(
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(18.r),
@@ -2048,6 +2054,21 @@ class _InicioConductorState extends State<InicioConductor>
         );
       },
     );
+
+    Future.delayed(const Duration(seconds: 3), () {
+      final ctx = dialogContext;
+      if (ctx == null || !ctx.mounted) return;
+      // `ModalRoute.of(ctx)?.isCurrent` — no basta con
+      // `Navigator.of(ctx).canPop()` (solo dice "hay algo que cerrar", no
+      // "lo que hay es ESTE diálogo"). Sin este chequeo: conductor manda
+      // contraoferta → se abre esta confirmación → el cliente la acepta en
+      // menos de 3 s → `_subscribeAssignedToMe` navega a la pantalla de
+      // viaje → a los 3 s el timer hacía `pop()` de ESA pantalla,
+      // expulsando al conductor de un viaje ya activo (auditoría de bugs).
+      if (ModalRoute.of(ctx)?.isCurrent == true) {
+        Navigator.of(ctx).pop();
+      }
+    });
   }
 
   Future<void> _abrirContraofertaModal(

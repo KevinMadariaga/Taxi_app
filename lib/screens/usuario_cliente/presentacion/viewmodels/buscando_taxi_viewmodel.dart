@@ -178,6 +178,14 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
               _asignadaHandled = false;
             }
           }
+        }, onError: (Object e, StackTrace st) {
+          // Sin esto, un `permission-denied` o un índice faltante mataba el
+          // listener en silencio: ni `onAsignada` ni `onTerminada` volvían a
+          // dispararse y el cliente se quedaba girando en "Buscando
+          // conductor" para siempre, sin ningún rastro del motivo
+          // (auditoría de bugs — mismo patrón ya corregido en
+          // `InicioConductorViewModel._subscribeAssignedToMe`).
+          ErrorReporter.report(e, st, reason: 'buscando_taxi_viewmodel');
         });
   }
 
@@ -462,14 +470,15 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
     if (solicitudId == null || solicitudId.isEmpty) return false;
     if (_isRespondingCounteroffer) return false;
 
-    // Solo para validar que la oferta exista localmente antes de abrir la
-    // transacción; el valor/payload que realmente se escribe se relee del doc
-    // fresco dentro de la transacción (ver abajo), nunca de esta variable.
-    _contraofertas.firstWhere(
-      (o) => o.conductorId == conductorId,
-      orElse: () => throw StateError('Oferta no encontrada'),
-    );
-
+    // Antes había acá un `_contraofertas.firstWhere(..., orElse: () => throw
+    // StateError(...))` "solo para validar localmente" — pero ese throw
+    // quedaba FUERA de este try/catch y el caller tampoco lo capturaba, así
+    // que si el conductor retiraba o cambiaba su oferta justo antes de que
+    // el cliente confirmara, la excepción escapaba con `_respondingOffer` y
+    // `_navegandoAViaje` ya puestos en el caller: spinner permanente, modal
+    // irreabrible (auditoría de bugs). Era puramente redundante: la
+    // transacción de abajo ya revalida la oferta contra el doc FRESCO y
+    // reporta/retorna `false` igual que cualquier otro fallo de esta ruta.
     _isRespondingCounteroffer = true;
     _safeNotify();
 
@@ -744,10 +753,27 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
     if (solicitudId == null || solicitudId.isEmpty) return;
     final docRef = _firestore.collection('solicitudes').doc(solicitudId);
     try {
-      await docRef.update({
-        'estado': SolicitudEstado.cancelado,
-        'cancelledAt': FieldValue.serverTimestamp(),
-        'cancelReason': 'inactividad',
+      // Releer el estado FRESCO del servidor dentro de una transacción y
+      // cancelar solo si sigue en 'buscando' (mismo defecto de raíz que la
+      // carrera de `SolicitudFirestoreDatasource.actualizarEstado`, ver ese
+      // comentario): `flujoTerminado` es una bandera LOCAL, así que si el
+      // conductor aceptó justo antes de que este timer disparara y el
+      // snapshot con 'asignado' todavía no había llegado al teléfono del
+      // cliente, este `update` sin condición cancelaba un viaje ya asignado
+      // (auditoría de bugs). Si ya no está en 'buscando', no-op silencioso.
+      await _firestore.runTransaction((tx) async {
+        final snap = await tx.get(docRef);
+        if (!snap.exists) return;
+        final data = snap.data() ?? <String, dynamic>{};
+        final estadoServidor = SolicitudEstado.normalize(
+          (data['estado'] ?? data['status'] ?? '').toString(),
+        );
+        if (estadoServidor != SolicitudEstado.buscando) return;
+        tx.set(docRef, {
+          'estado': SolicitudEstado.cancelado,
+          'cancelledAt': FieldValue.serverTimestamp(),
+          'cancelReason': 'inactividad',
+        }, SetOptions(merge: true));
       });
     } catch (e, st) {
       ErrorReporter.report(e, st, reason: 'buscando_taxi_viewmodel');
@@ -801,7 +827,13 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
     _conductoresSub = streamConductoresDisponibles().listen((positions) {
       conductoresPositions = Map<String, LatLng>.from(positions);
       _safeNotify();
-    }, onError: (_) {});
+    }, onError: (Object e, StackTrace st) {
+      // Vacío antes: si `streamConductoresDisponibles` revienta (p.ej. un
+      // `lat`/`lng` guardado como String en Firestore, ver el cast sin
+      // verificar más abajo), los marcadores de conductores desaparecían
+      // del mapa de búsqueda sin ningún rastro (auditoría de bugs).
+      ErrorReporter.report(e, st, reason: 'buscando_taxi_viewmodel');
+    });
   }
 
   void subscribeConductoresConectados() {
@@ -811,7 +843,9 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
     ) {
       conectadosPositions = Map<String, LatLng>.from(positions);
       _safeNotify();
-    }, onError: (_) {});
+    }, onError: (Object e, StackTrace st) {
+      ErrorReporter.report(e, st, reason: 'buscando_taxi_viewmodel');
+    });
   }
 
   // ── Timer de búsqueda ─────────────────────────────────────────────────────

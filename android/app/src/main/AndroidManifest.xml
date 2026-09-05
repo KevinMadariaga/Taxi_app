@@ -90,5 +90,13 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <!-- Botón SOS (panic_button_fab.dart): sin esto, `canLaunchUrl('tel:123')`
+             devuelve `false` en Android 11+ (API 30, visibilidad de paquetes)
+             aunque el teléfono sí tenga un marcador — el botón de emergencia
+             no hacía nada al tocarlo, sin error visible (auditoría de bugs). -->
+        <intent>
+            <action android:name="android.intent.action.DIAL"/>
+            <data android:scheme="tel"/>
+        </intent>
     </queries>
 </manifest>

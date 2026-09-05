@@ -21,6 +21,8 @@ import 'package:taxi_app/screens/usuario_cliente/presentacion/model/ubicacion_re
 import 'package:taxi_app/screens/perfil/perfil.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
 import 'package:taxi_app/widgets/confirmar_dialog.dart';
+import 'package:taxi_app/features/resumen_viaje/services/resumen_viaje_firestore_service.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/view/ResumenClienteView.dart';
 
 class InicioClienteView extends StatefulWidget {
   const InicioClienteView({super.key, this.authUid});
@@ -71,8 +73,59 @@ class _InicioClienteViewState extends State<InicioClienteView>
     _applyOverlayStyle();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _bootstrapClienteLocationFlow();
-      _maybeMostrarBienvenida();
+      // Encadenados, no en paralelo: los dos pueden terminar en un
+      // `showDialog` sobre el mismo `context` — si un cliente nuevo (sin
+      // bienvenida vista) tiene además un viaje sin calificar, disparar los
+      // dos a la vez apilaba dos diálogos casi simultáneos (hallazgo QA en
+      // dispositivo real, 2026-09-05). Se espera a que la bienvenida se
+      // cierre antes de evaluar la calificación pendiente.
+      _maybeMostrarBienvenida().then((_) => _maybeMostrarCalificacionPendiente());
     });
+  }
+
+  /// Si el cliente tiene un viaje completado sin calificar, bloquea el home
+  /// con un modal no descartable hasta que vaya a calificarlo — sin esto,
+  /// el promedio agregado del conductor (`onCalificacionRegistrada` en
+  /// functions/index.js) nunca se actualiza si el cliente sale de la app
+  /// antes de calificar, y el cliente puede olvidarse para siempre.
+  Future<void> _maybeMostrarCalificacionPendiente() async {
+    final uid = widget.authUid ?? vm.clientId;
+    if (uid == null || uid.isEmpty) return;
+    try {
+      final solicitudId = await ResumenViajeFirebaseService()
+          .buscarViajeCompletadoSinCalificar(uid);
+      if (solicitudId == null || !mounted) return;
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => PopScope(
+          canPop: false,
+          child: AlertDialog(
+            title: const Text('Calificación pendiente'),
+            content: const Text(
+              'Termina de calificar el servicio anterior para colocarle '
+              'calificación al conductor y mejorar el servicio.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          ResumenClienteView(solicitudId: solicitudId),
+                    ),
+                  );
+                },
+                child: const Text('Calificar ahora'),
+              ),
+            ],
+          ),
+        ),
+      );
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'InicioClienteView');
+    }
   }
 
   /// Muestra el diálogo de bienvenida SOLO la primera vez que este usuario

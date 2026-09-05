@@ -9,10 +9,6 @@ class AppRemoteConfigService {
   static const String minimumRequiredVersionKey = 'minimum_required_version';
   static const String latestVersionKey = 'latest_version';
 
-  /// Clave del servidor FCM (Legacy HTTP API).
-  /// Configúrala en Firebase Remote Config console con nombre `fcm_server_key`.
-  static const String fcmServerKeyKey = 'fcm_server_key';
-
   /// Key de Google Static Maps API (mapa estático de los home de cliente y
   /// conductor). Vive acá y no en `--dart-define` para que funcione sin
   /// importar cómo se corra/compile la app (terminal, botón visual, CI) —
@@ -43,7 +39,6 @@ class AppRemoteConfigService {
     await _remoteConfig.setDefaults(const {
       minimumRequiredVersionKey: '',
       latestVersionKey: '',
-      fcmServerKeyKey: '',
       staticMapsApiKeyKey: '',
     });
     _configured = true;
@@ -55,10 +50,6 @@ class AppRemoteConfigService {
 
   Future<String?> fetchLatestVersion() async {
     return _fetchString(latestVersionKey);
-  }
-
-  Future<String?> fetchFcmServerKey() async {
-    return _fetchString(fcmServerKeyKey);
   }
 
   /// Devuelve '' (nunca null) si no se pudo resolver, para que los widgets

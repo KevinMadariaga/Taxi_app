@@ -11,12 +11,16 @@ rules_version = '2';
 // - `solicitudes` en estado 'buscando': cualquier usuario con rol=='conductor'
 //   puede escribir el documento completo, no solo los campos de
 //   conductor/contraoferta, porque el código no separa esas escrituras por
-//   campo (InicioConductorViewModel.aceptarSolicitud/enviarContraoferta).
-// - `administradores`: lectura abierta a cualquier autenticado porque
-//   AdminFcmService.sendToAllAdmins (llamado por clientes y conductores)
-//   lee toda la colección sin filtro para juntar tokens FCM. Expone
-//   nombre/teléfono/gremio de admins a cualquier usuario logueado. Fix
-//   correcto a mediano plazo: mover ese envío a una Cloud Function.
+//   campo (InicioConductorViewModel.aceptarSolicitud/enviarContraoferta). Sí
+//   se cerró la parte más grave: pasar a 'asignado' exige membresía activa
+//   (`membresiaVigente()`) y, una vez el viaje está en un estado terminal,
+//   solo se puede seguir escribiendo la calificación (`soloCambiaCalificacion()`).
+// - `usuarios` con `tipoUsuario`/`rol` == 'conductor': autoasignable por
+//   diseño (botón "Ser conductor", sin aprobación) — cualquiera puede leer
+//   las solicitudes en 'buscando'. No es un descuido de esta regla: es una
+//   decisión de producto ya aceptada, y `tipoUsuario` no le agrega alcance a
+//   `rol` (ambos dan exactamente el mismo `isConductorRole()`), así que
+//   restringir uno sin el otro no cierra nada.
 // - `usuarios` con rol=='conductor': lectura abierta a cualquier admin
 //   autenticado (no solo el admin dueño del gremio) porque
 //   gestion_conductores_viewmodel.dart lista TODOS los conductores sin
@@ -24,7 +28,7 @@ rules_version = '2';
 //   solo client-side.
 //
 // Antes de desplegar a producción: probar con el emulador de Firestore
-// (firebase emulators:start) contra los flujos reales de la app.
+// (rules-tests/, `npm test`) contra los flujos reales de la app.
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -46,9 +50,18 @@ service cloud.firestore {
     // que un doc quede con `rol: 'admin'/'administrador'` es que lo escriba
     // un admin ya existente (bypass de `isAdminRole()` en el `update`) o que
     // se edite directo en Firestore console — nunca el propio usuario.
+    // `.lower()`: `client_user_firestore_datasource.dart:resolveRole` (y
+    // cada otro lector de rol en Dart) ya normaliza con `.toLowerCase()`
+    // porque el valor real en producción no está garantizado en minúsculas
+    // exactas (altas viejas, ediciones manuales en consola). Sin este
+    // `.lower()` acá, una cuenta con `rol: 'Cliente'`/`'ADMIN'` pasaba el
+    // enrutado de la app pero SIEMPRE se le negaba escribir su propio doc
+    // (token FCM, ubicación) — confirmado en dispositivo real: `usuarios/
+    // {uid}` en loop de `permission-denied` desde el arranque, sin ningún
+    // error visible en la UI (auditoría de bugs).
     function isAdminRole() {
       return isSignedIn() &&
-        get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.get('rol', '') in ['admin', 'administrador'];
+        get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.get('rol', '').lower() in ['admin', 'administrador'];
     }
 
     // Acepta las DOS marcas de conductor que reconoce el código, no solo
@@ -60,8 +73,8 @@ service cloud.firestore {
     // quedaba vacía con `permission-denied` (visto en dispositivo real).
     function isConductorRole() {
       return isSignedIn() &&
-        (get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.get('rol', '') == 'conductor' ||
-          get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.get('tipoUsuario', '') == 'conductor');
+        (get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.get('rol', '').lower() == 'conductor' ||
+          get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.get('tipoUsuario', '').lower() == 'conductor');
     }
 
     // ---------------------------------------------------------------
@@ -85,6 +98,59 @@ service cloud.firestore {
         return resource.data.estado in ['buscando', 'pending', 'pendiente'];
       }
 
+      // Estados terminales: una vez el viaje llegó a uno de estos, la única
+      // escritura que le queda al dueño es calificar (ver
+      // `soloCambiaCalificacion()` abajo). Cierra el hueco de la auditoría de
+      // seguridad: antes `allow update: if isOwner() || ...` no distinguía
+      // estado, así que el pasajero podía bajar `tarifa.total` o reabrir
+      // `estado` después de que el viaje ya había terminado o se había
+      // cancelado. Coincide con `SolicitudEstado.isTerminal()` en Dart.
+      function esEstadoTerminal(estado) {
+        return estado in ['completado', 'cancelado', 'sin respuesta'];
+      }
+
+      // Único write que sigue vivo sobre un viaje ya terminado:
+      // `ResumenViajeFirebaseService.guardarCalificacion` escribe estas 3
+      // claves (+ el `updatedAt` que el resto de escrituras ya manda de
+      // paso) sobre un doc en 'completado'. Nada de `tarifa`, `estado` ni
+      // `conductor` puede colarse en ese mismo update.
+      function soloCambiaCalificacion() {
+        return request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['calificacion', 'comentarioCalificacion', 'fechaCalificacion', 'updatedAt']);
+      }
+
+      // Verdadero solo en el instante en que el documento pasa a tener
+      // conductor asignado por primera vez (buscando -> asignado). Cubre los
+      // dos caminos que llegan a ese mismo cambio: el conductor aceptando
+      // directo (`InicioConductorViewModel.aceptarSolicitud`,
+      // `conductor.id == request.auth.uid`) y el cliente aceptando una
+      // contraoferta (`BuscandoTaxiViewModel.aceptarContraofertaDeConductor`,
+      // donde `conductor.id` es el conductor de la oferta, no quien escribe).
+      function esNuevaAsignacion() {
+        return resource.data.get('estado', '') != 'asignado' &&
+          request.resource.data.get('estado', '') == 'asignado';
+      }
+
+      // Espejo, del lado del servidor, de la validación que
+      // `InicioConductorViewModel.aceptarSolicitud` ya hace en su propia
+      // transacción (auditoría de seguridad: esa transacción es 100%
+      // cliente, y `aceptarContraofertaDeConductor` ni siquiera la repite).
+      // Mismo criterio exacto que el código: `membresia == 'activa'` Y
+      // (`membresiaVence` ausente/no-timestamp, o en el futuro) — un
+      // conductor con `membresia: 'activa'` sin `membresiaVence` sigue
+      // pasando, igual que en Dart, para no volver más estricta una regla
+      // de negocio que no es parte de esta auditoría. `.lower()` en
+      // `membresia` por el mismo motivo que `isAdminRole()`: el código Dart
+      // ya compara con `.toLowerCase() == 'activa'`
+      // (`InicioConductorViewModel:466-468`), señal de que el valor real no
+      // está garantizado en minúsculas exactas.
+      function membresiaVigente(uid) {
+        let c = get(/databases/$(database)/documents/usuarios/$(uid)).data;
+        let vence = c.get('membresiaVence', null);
+        let vencida = vence is timestamp && vence < request.time;
+        return c.get('membresia', '').lower() == 'activa' && !vencida;
+      }
+
       allow read: if isOwner() || isAssignedConductor() ||
         (isConductorRole() && isOpenForConductores());
 
@@ -92,8 +158,18 @@ service cloud.firestore {
         request.resource.data.cliente.id == request.auth.uid &&
         request.resource.data.estado == 'buscando';
 
-      allow update: if isOwner() || isAssignedConductor() ||
-        (isConductorRole() && isOpenForConductores());
+      // La propiedad del viaje (`cliente.id`) es inmutable en cualquier
+      // update, esté o no terminal.
+      allow update: if request.resource.data.cliente.id == resource.data.cliente.id &&
+        (
+          (esEstadoTerminal(resource.data.estado) &&
+            isOwner() && soloCambiaCalificacion()) ||
+          (!esEstadoTerminal(resource.data.estado) &&
+            (isOwner() || isAssignedConductor() ||
+              (isConductorRole() && isOpenForConductores())) &&
+            (!esNuevaAsignacion() ||
+              membresiaVigente(request.resource.data.conductor.id)))
+        );
 
       allow delete: if false;
 
@@ -156,7 +232,7 @@ service cloud.firestore {
       // hueco que hay que cerrar para que ese diseño sea seguro.
       allow create: if isSignedIn() &&
         ((request.auth.uid == uid &&
-            request.resource.data.get('rol', 'cliente') in ['cliente', 'conductor']) ||
+            request.resource.data.get('rol', 'cliente').lower() in ['cliente', 'conductor']) ||
           isAdminRole());
 
       // El propio usuario SÍ puede cambiar su `rol`: es un flujo real de la
@@ -172,7 +248,12 @@ service cloud.firestore {
       // (`InicioConductorViewModel:481-484`) exige `membresia == 'activa'` y
       // `membresiaVence` en el futuro dentro de su transacción, y solo el
       // admin la otorga (`aprobarMembresiaConductor`). Un usuario que se
-      // auto-marque conductor puede ver la lista, pero no tomar viajes.
+      // auto-marque conductor puede ver la lista, pero no tomar viajes —
+      // ESTO ya no depende solo de esa transacción del cliente:
+      // `solicitudes/{id}.membresiaVigente()` (auditoría de seguridad)
+      // repite el mismo chequeo del lado del servidor en la transición
+      // buscando → asignado, así que tampoco se puede tomar un viaje
+      // llamando directo al SDK sin pasar por la app.
       //
       // El rol propio queda acotado a ['cliente', 'conductor']: nadie más
       // escribe otro valor en `usuarios` (`guardarAdministrador` escribe en
@@ -202,9 +283,17 @@ service cloud.firestore {
       // deshabilitado podría reactivarse solo con cualquier escritura propia
       // normal (p.ej. `FcmService._persistToken`, que hace `set(merge:true)`
       // sobre su propio doc constantemente).
+      // `.lower()`: mismo motivo que `isAdminRole()`/`isConductorRole()` más
+      // arriba — sin esto, cualquier `set(merge:true)` sobre el doc propio
+      // que no toque `rol` (guardar token FCM, ubicación) hereda el valor
+      // YA EXISTENTE en `request.resource.data.rol` tal cual está guardado;
+      // si esa cuenta tiene `rol` con una mayúscula distinta a
+      // 'cliente'/'conductor' exactas, quedaba con TODO write propio
+      // denegado en loop, para siempre, sin ningún error visible en la UI
+      // (auditoría de bugs — visto en dispositivo real).
       allow update: if isSignedIn() &&
         ((request.auth.uid == uid &&
-            request.resource.data.get('rol', 'cliente') in ['cliente', 'conductor'] &&
+            request.resource.data.get('rol', 'cliente').lower() in ['cliente', 'conductor'] &&
             request.resource.data.get('membresia', '') ==
               resource.data.get('membresia', '') &&
             request.resource.data.get('membresiaVence', null) ==
@@ -256,12 +345,18 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------
-    // administradores: escritura solo del propio dueño. Lectura abierta a
-    // cualquier usuario autenticado porque `AdminFcmService.sendToAllAdmins`
-    // (llamado por clientes Y conductores, ver soporte_chat_service.dart,
-    // completar_registro_conductor_view.dart, activacion_servicio_view.dart)
-    // hace un `.get()` sin filtro sobre toda la colección para juntar
-    // `fcmToken` de todos los admins.
+    // administradores: escritura solo del propio dueño. Lectura acotada al
+    // propio doc o a un admin — antes era cualquier autenticado, porque
+    // `AdminFcmService.sendToAllAdmins` (llamado por clientes y conductores)
+    // hacía un `.get()` sin filtro sobre toda la colección para juntar
+    // `fcmToken` de todos los admins. Ese envío ahora lo hacen triggers de
+    // Cloud Functions (`onSoporteChatMensajeUsuarioCreado`,
+    // `onSolicitudActivacionConductor`), que corren con el Admin SDK y no
+    // están sujetos a estas reglas — auditoría de seguridad: antes cualquier
+    // usuario registrado podía leer nombre/teléfono/gremio/fcmToken de todos
+    // los administradores. `FcmService._saveCurrentToken` (todo usuario, para
+    // ver si tiene doc propio) y `AdminConfiguracionScreen` (siempre lee su
+    // propio `adminId`) siguen funcionando porque solo leen su propio uid.
     // ---------------------------------------------------------------
     // ESCALADA DE PRIVILEGIOS CERRADA: antes era
     // `allow write: if isSignedIn() && request.auth.uid == uid`, que permite
@@ -276,7 +371,7 @@ service cloud.firestore {
     // la consola o el backend. `UserDataService.guardarAdministrador` no
     // tiene llamadores, así que esto no rompe ningún flujo.
     match /administradores/{uid} {
-      allow read: if isSignedIn();
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAdminRole());
       allow update: if isSignedIn() && request.auth.uid == uid;
       allow create, delete: if false;
     }

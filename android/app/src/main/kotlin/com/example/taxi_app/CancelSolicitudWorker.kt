@@ -24,6 +24,16 @@ class CancelSolicitudWorker(context: Context, params: WorkerParameters) :
             "https://us-central1-aplicacion-taxi-fd0a7.cloudfunctions.net/cancelarSolicitudPorCierreApp"
         const val KEY_SOLICITUD_ID = "solicitudId"
         const val KEY_CLIENTE_ID = "clienteId"
+
+        // Prueba de identidad del worker: sin sesión de Firebase Auth (el
+        // proceso Dart ya murió cuando WorkManager dispara este job), el
+        // endpoint no tenía forma de distinguir esta llamada legítima de un
+        // curl con un solicitudId/clienteId cualquiera (auditoría de
+        // seguridad — el par es visible para cualquier cuenta que se
+        // auto-declare conductor). Mismo valor que
+        // functions/index.js:cancelWorkerSecret (Secret Manager,
+        // `firebase functions:secrets:set CANCEL_WORKER_SHARED_SECRET`).
+        private const val SHARED_SECRET = "37232e64a9d2a31b4877e3888f81749d0bec5d9d972a8ce125e718f3b6bc8e84"
     }
 
     override suspend fun doWork(): Result {
@@ -42,6 +52,7 @@ class CancelSolicitudWorker(context: Context, params: WorkerParameters) :
             connection.connectTimeout = 8000
             connection.readTimeout = 8000
             connection.doOutput = false
+            connection.setRequestProperty("X-Cancel-Worker-Secret", SHARED_SECRET)
             val code = connection.responseCode
             connection.disconnect()
             if (code in 200..299) Result.success() else Result.retry()

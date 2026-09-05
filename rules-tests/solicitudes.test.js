@@ -102,13 +102,59 @@ describe('solicitudes — leer', () => {
 });
 
 describe('solicitudes — actualizar', () => {
-  // InicioConductorViewmodel.aceptarSolicitud
-  test('un conductor acepta una solicitud en buscando', async () => {
+  // InicioConductorViewmodel.aceptarSolicitud. CONDUCTOR tiene
+  // `membresia: 'activa'` sembrada en `sembrarActores` — ver
+  // `membresiaVigente()` en firestore.rules.
+  test('un conductor con membresía activa acepta una solicitud en buscando', async () => {
     await sembrar(env, 'solicitudes/s1', solicitud());
     await assertSucceeds(
       como(env, CONDUCTOR).doc('solicitudes/s1').update({
         estado: 'asignado',
         conductor: { id: CONDUCTOR },
+      }),
+    );
+  });
+
+  // Auditoría de seguridad (S3): antes esta guarda era 100% del lado del
+  // cliente (la transacción de `aceptarSolicitud`); alguien que llamara
+  // directo al SDK sin pasar por la app podía tomar viajes sin pagar la
+  // membresía. OTRO_CONDUCTOR no tiene `membresia` sembrada.
+  test('un conductor SIN membresía activa NO puede autoasignarse', async () => {
+    await sembrar(env, 'solicitudes/s1', solicitud());
+    await assertFails(
+      como(env, OTRO_CONDUCTOR).doc('solicitudes/s1').update({
+        estado: 'asignado',
+        conductor: { id: OTRO_CONDUCTOR },
+      }),
+    );
+  });
+
+  // Mismo chequeo, pero por el otro camino que llega a 'asignado':
+  // BuscandoTaxiViewModel.aceptarContraofertaDeConductor. El dueño escribe
+  // el update, pero el conductor que entra en `conductor.id` es el que debe
+  // tener membresía vigente.
+  test('el dueño NO puede aceptar la contraoferta de un conductor sin membresía', async () => {
+    await sembrar(env, 'solicitudes/s1', solicitud());
+    await assertFails(
+      como(env, CLIENTE).doc('solicitudes/s1').update({
+        estado: 'asignado',
+        conductor: { id: OTRO_CONDUCTOR },
+      }),
+    );
+  });
+
+  // Auditoría de bugs: `membresia` en producción no está garantizada en
+  // minúsculas exactas — `membresiaVigente()` usa `.lower()` por eso mismo
+  // (mismo motivo que `isAdminRole()`, ver comentario en firestore.rules).
+  test('un conductor con membresía "Activa" (mayúscula) también puede asignarse', async () => {
+    await sembrar(env, `usuarios/${OTRO_CONDUCTOR}`, {
+      rol: 'conductor', membresia: 'Activa',
+    });
+    await sembrar(env, 'solicitudes/s1', solicitud());
+    await assertSucceeds(
+      como(env, OTRO_CONDUCTOR).doc('solicitudes/s1').update({
+        estado: 'asignado',
+        conductor: { id: OTRO_CONDUCTOR },
       }),
     );
   });
@@ -173,6 +219,57 @@ describe('solicitudes — actualizar', () => {
   test('un anónimo NO puede modificar nada', async () => {
     await sembrar(env, 'solicitudes/s1', solicitud());
     await assertFails(comoAnonimo(env).doc('solicitudes/s1').update({ estado: 'cancelado' }));
+  });
+
+  // Auditoría de seguridad (S5): antes `allow update: if isOwner() || ...`
+  // no distinguía estado, así que el pasajero podía bajar `tarifa.total` o
+  // reescribir `estado` después de que el viaje ya había terminado.
+  describe('viaje ya terminado (estado terminal)', () => {
+    test('el dueño NO puede tocar la tarifa de un viaje ya completado', async () => {
+      await sembrar(env, 'solicitudes/s1', solicitud({ estado: 'completado', conductorId: CONDUCTOR }));
+      await assertFails(
+        como(env, CLIENTE).doc('solicitudes/s1').update({ 'tarifa.total': 0 }),
+      );
+    });
+
+    test('el dueño NO puede reabrir un viaje cancelado', async () => {
+      await sembrar(env, 'solicitudes/s1', solicitud({ estado: 'cancelado' }));
+      await assertFails(
+        como(env, CLIENTE).doc('solicitudes/s1').update({ estado: 'buscando' }),
+      );
+    });
+
+    // ResumenViajeFirebaseService.guardarCalificacion — sigue escribiendo
+    // sobre un doc en 'completado'; es la única excepción a lo de arriba.
+    test('el dueño SÍ puede calificar un viaje ya completado', async () => {
+      await sembrar(env, 'solicitudes/s1', solicitud({ estado: 'completado', conductorId: CONDUCTOR }));
+      await assertSucceeds(
+        como(env, CLIENTE).doc('solicitudes/s1').update({
+          calificacion: 5,
+          comentarioCalificacion: 'Excelente',
+          fechaCalificacion: new Date(),
+        }),
+      );
+    });
+
+    test('calificar no sirve para colar otros campos de contrabando', async () => {
+      await sembrar(env, 'solicitudes/s1', solicitud({ estado: 'completado', conductorId: CONDUCTOR }));
+      await assertFails(
+        como(env, CLIENTE).doc('solicitudes/s1').update({
+          calificacion: 5,
+          'tarifa.total': 0,
+        }),
+      );
+    });
+  });
+
+  test('nadie puede cambiar el dueño (cliente.id) de una solicitud', async () => {
+    await sembrar(env, 'solicitudes/s1', solicitud());
+    await assertFails(
+      como(env, CLIENTE).doc('solicitudes/s1').update({
+        cliente: { id: OTRO_CLIENTE, nombre: 'Kevin' },
+      }),
+    );
   });
 });
 

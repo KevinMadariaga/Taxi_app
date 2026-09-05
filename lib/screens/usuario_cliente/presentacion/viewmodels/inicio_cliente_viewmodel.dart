@@ -476,7 +476,7 @@ class InicioClienteViewModel extends ChangeNotifier {
       _currentLocation = base;
       currentLocationNotifier.value = base;
       try {
-        await _guardarUbicacionCliente(base!);
+        await _guardarUbicacionCliente(base);
       } catch (e, st) {
         ErrorReporter.report(e, st, reason: 'inicio_cliente_viewmodel');
       }

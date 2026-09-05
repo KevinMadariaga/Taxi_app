@@ -1,7 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-import 'admin_fcm_service.dart';
-
 class SoporteChatService {
   SoporteChatService() : _firestore = FirebaseFirestore.instance;
 
@@ -50,13 +48,11 @@ class SoporteChatService {
 
     await batch.commit();
 
-    if (!esAdmin) {
-      AdminFcmService.instance.sendToAllAdmins(
-        title: 'Soporte — $userName',
-        body: texto.trim(),
-        type: 'soporte_chat',
-      );
-    }
+    // El push a los admins ya no lo manda el cliente (auditoría de
+    // seguridad: `AdminFcmService` usaba la server key legacy de FCM
+    // repartida a todos los dispositivos vía Remote Config). Lo dispara
+    // `onSoporteChatMensajeUsuarioCreado` en functions/index.js al ver este
+    // mismo mensaje en Firestore.
   }
 
   Future<void> marcarLeidoPorAdmin(String userId) {

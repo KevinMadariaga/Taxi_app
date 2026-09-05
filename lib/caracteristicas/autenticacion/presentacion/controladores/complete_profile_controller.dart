@@ -61,7 +61,7 @@ class CompleteProfileController extends ChangeNotifier {
   Future<void> loadInitialData() async {
     _loadingInitial = true;
     _errorMessage = null;
-    notifyListeners();
+    _safeNotify();
 
     try {
       _currentUser = await _getClientUserUseCase(uid);
@@ -69,7 +69,7 @@ class CompleteProfileController extends ChangeNotifier {
       _errorMessage = 'No fue posible cargar la informacion inicial.';
     } finally {
       _loadingInitial = false;
-      notifyListeners();
+      _safeNotify();
     }
   }
 
@@ -115,14 +115,14 @@ class CompleteProfileController extends ChangeNotifier {
 
       _selectedImage = XFile(cropped.path);
       _errorMessage = null;
-      notifyListeners();
+      _safeNotify();
     } catch (e, st) {
       ErrorReporter.report(e, st, reason: 'complete_profile_controller');
       _errorMessage = tieneFotoPrevia
           ? 'No se pudo obtener la foto. Puedes continuar con tu foto actual.'
           : 'No se pudo obtener la foto. Revisa los permisos de la app e '
                 'intenta de nuevo.';
-      notifyListeners();
+      _safeNotify();
     }
   }
 
@@ -179,7 +179,7 @@ class CompleteProfileController extends ChangeNotifier {
 
     _saving = true;
     _errorMessage = null;
-    notifyListeners();
+    _safeNotify();
 
     try {
       final updated = await _completeClientProfileUseCase(
@@ -208,8 +208,29 @@ class CompleteProfileController extends ChangeNotifier {
       return _errorMessage;
     } finally {
       _saving = false;
-      notifyListeners();
+      _safeNotify();
     }
+  }
+
+  // Antes este controller llamaba `notifyListeners()` directo en sus 6
+  // sitios: lo destruye el `ChangeNotifierProvider` de
+  // `complete_profile_page.dart`, y `await _imageCropperService
+  // .cropProfileImage(...)` abre UI nativa que puede tardar minutos — si el
+  // usuario sale de la pantalla mientras tanto, el notify que llega después
+  // revienta con "used after being disposed" (auditoría de bugs). Mismo
+  // patrón `_disposed` + `_safeNotify()` que ya usan `BuscandoTaxiViewModel`,
+  // `ViajeClienteViewModel`, `ViajeConductorViewModel`,
+  // `SeleccionDestinoViewModel` y `ConfirmarSolicitudViewModel`.
+  bool _disposed = false;
+
+  void _safeNotify() {
+    if (!_disposed) notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
   }
 
   String _normalizeToTenDigits(String input) {

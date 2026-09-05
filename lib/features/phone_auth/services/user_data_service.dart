@@ -9,7 +9,6 @@ import 'package:taxi_app/firebase_options.dart';
 
 import '../models/admin_model.dart';
 import '../models/driver_model.dart';
-import 'package:taxi_app/core/services/admin_fcm_service.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
 
 class ConductorCredentials {
@@ -263,7 +262,6 @@ class UserDataService {
     required String uid,
     required int dias,
     required String nombre,
-    String? fcmToken,
   }) async {
     final inicio = DateTime.now();
     await _firestore.collection('usuarios').doc(uid).set({
@@ -276,17 +274,12 @@ class UserDataService {
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
 
-    if (fcmToken != null && fcmToken.isNotEmpty) {
-      AdminFcmService.instance
-          .sendToToken(
-            token: fcmToken,
-            title: '¡Membresía activada!',
-            body:
-                'Hola $nombre, tu membresía de conductor ya está activa por $dias días.',
-            type: 'membresia_activada',
-          )
-          .ignore();
-    }
+    // El push al conductor ya no lo manda el cliente (auditoría de
+    // seguridad: `AdminFcmService` usaba la server key legacy de FCM
+    // repartida a todos los dispositivos vía Remote Config). Lo dispara
+    // `onMembresiaActivada` en functions/index.js al ver este mismo
+    // `membresia: 'activa'` en Firestore, leyendo el `fcmToken` del propio
+    // doc — no hace falta pasarlo desde acá.
   }
 
   /// Revoca la membresía activa de un conductor desde el panel de admin.

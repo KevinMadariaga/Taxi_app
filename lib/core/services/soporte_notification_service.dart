@@ -39,7 +39,7 @@ class SoporteNotificationService {
         .listen((snap) {
           for (final change in snap.docChanges) {
             if (change.type != DocumentChangeType.added) continue;
-            final data = change.doc.data() as Map<String, dynamic>?;
+            final data = change.doc.data();
             if (data == null) continue;
 
             final esAdmin = data['esAdmin'] as bool? ?? false;
@@ -79,7 +79,7 @@ class SoporteNotificationService {
             if (change.type != DocumentChangeType.added &&
                 change.type != DocumentChangeType.modified) continue;
 
-            final data = change.doc.data() as Map<String, dynamic>?;
+            final data = change.doc.data();
             if (data == null) continue;
 
             final hayNuevos =
@@ -119,7 +119,7 @@ class SoporteNotificationService {
         .listen((snap) {
           for (final change in snap.docChanges) {
             if (change.type != DocumentChangeType.added) continue;
-            final data = change.doc.data() as Map<String, dynamic>?;
+            final data = change.doc.data();
             if (data == null) continue;
 
             final ts = data['timestamp'] as Timestamp?;
@@ -173,7 +173,7 @@ class SoporteNotificationService {
         .listen((snap) {
           for (final change in snap.docChanges) {
             if (change.type != DocumentChangeType.added) continue;
-            final data = change.doc.data() as Map<String, dynamic>?;
+            final data = change.doc.data();
             if (data == null) continue;
 
             final ts = data['createdAt'] as Timestamp?;
@@ -214,7 +214,7 @@ class SoporteNotificationService {
             // added = doc recién entró al query (solicitudConductor acaba de ser true).
             if (change.type != DocumentChangeType.added) continue;
 
-            final data = change.doc.data() as Map<String, dynamic>?;
+            final data = change.doc.data();
             if (data == null) continue;
 
             // Ignorar docs que ya existían cuando arrancó el listener.

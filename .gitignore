@@ -59,3 +59,12 @@ app.*.map.json
 
 # Reportes y archivos temporales
 android/build/reports/
+
+# Dependencias de Node de las herramientas auxiliares (Cloud Functions y las
+# pruebas de firestore.rules/storage.rules) — auditoría de seguridad/orden:
+# estaban commiteadas (5586 archivos, 82% del repo trackeado), lo que impedía
+# auditar realmente lo desplegado (`npm audit` no refleja lo que hay en git)
+# y metía ruido enorme en cualquier diff. Cada uno se reinstala con
+# `npm install` en su carpeta — ver rules-tests/README.md y functions/package.json.
+/functions/node_modules/
+/rules-tests/node_modules/
