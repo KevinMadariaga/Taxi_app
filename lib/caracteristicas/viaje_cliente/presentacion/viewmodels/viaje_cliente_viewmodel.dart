@@ -221,7 +221,8 @@ class ViajeClienteViewModel extends ChangeNotifier {
     final now = DateTime.now();
     _actualizarNotificacionProgreso(now);
     if (_lastTickNotifyAt != null &&
-        now.difference(_lastTickNotifyAt!) < const Duration(milliseconds: 500)) {
+        now.difference(_lastTickNotifyAt!) <
+            const Duration(milliseconds: 500)) {
       return;
     }
     _lastTickNotifyAt = now;
@@ -246,7 +247,9 @@ class ViajeClienteViewModel extends ChangeNotifier {
     _lastProgresoNotificadoAt = now;
 
     final enRuta = viaje?.estado == SolicitudEstado.enRuta;
-    final titulo = enRuta ? 'En camino a tu destino' : 'Tu conductor va en camino';
+    final titulo = enRuta
+        ? 'En camino a tu destino'
+        : 'Tu conductor va en camino';
     final cuerpo = '$etaText · $distanceText restantes';
     final progresoPorcentaje = (pickupProgress * 100).round();
 
@@ -268,17 +271,27 @@ class ViajeClienteViewModel extends ChangeNotifier {
   /// (recién arrancado el tramo).
   List<LatLng>? _ultimaRutaMedida;
 
-  /// Recalcula `distanceMeters` contra la ruta restante que el motor ya
-  /// publica, sin llamar a la API de rutas. Equivalente del lado cliente a
-  /// `_actualizarProgresoLiviano` del conductor
-  /// (`ViajeConductorViewModel`), pero fiel a la ruta (no haversine) porque
-  /// acá sí tenemos la polilínea restante actualizada tick a tick.
+  /// Recalcula `distanceMeters` (y `eta` a partir de esa distancia, sin
+  /// llamar a la API de rutas) contra la ruta restante que el motor ya
+  /// publica. Equivalente del lado cliente a `_actualizarProgresoLiviano`
+  /// del conductor (`ViajeConductorViewModel`), pero fiel a la ruta (no
+  /// haversine) porque acá sí tenemos la polilínea restante actualizada
+  /// tick a tick.
+  ///
+  /// `eta` antes solo se tocaba en `_updateRouteIfNeeded` (recálculo
+  /// completo contra la API, que con la ruta ya en curso puede no volver a
+  /// correr en todo el tramo si el conductor no se desvía) — quedaba
+  /// congelado en la distancia total del inicio del tramo aunque
+  /// `distanceMeters` sí bajara en cada tick. `_checkProximityNotification`
+  /// compara `eta` contra 5 minutos, así que necesita que baje junto con la
+  /// distancia real, no solo en cada recálculo de ruta.
   void _actualizarDistanciaLiviana() {
     final restantes = routePointsNotifier.value;
     if (restantes.length >= 2) {
       if (identical(restantes, _ultimaRutaMedida)) return;
       _ultimaRutaMedida = restantes;
       distanceMeters = _ruta.distanciaRuta(restantes);
+      eta = _ruta.etaDesdeDistancia(distanceMeters!);
       return;
     }
     _ultimaRutaMedida = null;
@@ -286,6 +299,7 @@ class ViajeClienteViewModel extends ChangeNotifier {
     final objetivo = objetivoActual;
     if (pos != null && objetivo != null) {
       distanceMeters = _mathService.haversineMeters(pos, objetivo);
+      eta = _ruta.etaDesdeDistancia(distanceMeters!);
     }
   }
 
@@ -446,12 +460,25 @@ class ViajeClienteViewModel extends ChangeNotifier {
     );
   }
 
+  /// Espejo del criterio del lado servidor (`onConductorProximidadCliente`
+  /// en `functions/index.js`, que solo avisa cuando esta pantalla NO está
+  /// montada): mismo umbral de distancia y mismo límite de 5 minutos, pero
+  /// acá el ETA es el ya calculado por ruta real (`eta`, no una estimación
+  /// por línea recta) porque ya está disponible gratis para la tarjeta del
+  /// viaje — no hace falta recalcularlo.
+  static const double _proximidadDistanciaMetros = 80;
+  static const Duration _proximidadEtaMaxima = Duration(minutes: 5);
+
   void _checkProximityNotification(LatLng conductorPos) {
     if (_proximityNotified) return;
     final cliente = clienteLatLng;
     if (cliente == null) return;
     final distancia = _mathService.haversineMeters(conductorPos, cliente);
-    if (distancia <= 70) {
+    final etaActual = eta;
+    final estaCerca = distancia <= _proximidadDistanciaMetros;
+    final estaPorLlegar =
+        etaActual != null && etaActual <= _proximidadEtaMaxima;
+    if (estaCerca || estaPorLlegar) {
       _proximityNotified = true;
       NotificacionesServicio.instance.showNotification(
         id: 77701,

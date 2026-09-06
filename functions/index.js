@@ -588,87 +588,6 @@ async function getAdminTokens(db) {
 }
 
 /**
- * Cloud Function: Notifica a los administradores cuando un cliente solicita
- * activar el servicio de conductor (campo `solicitudConductor` pasa a true en
- * /usuarios/{uid}). Llega aunque la app del admin esté cerrada (push FCM/APNs).
- */
-exports.onSolicitudConductorNueva = onDocumentUpdated(
-  {
-    document: "usuarios/{uid}",
-    region: "us-central1",
-  },
-  async (event) => {
-    const before = event.data.before.data();
-    const after = event.data.after.data();
-    if (!before || !after) return null;
-
-    const pidioAntes = before.solicitudConductor === true;
-    const pideAhora = after.solicitudConductor === true;
-
-    // Solo cuando pasa de false/ausente a true
-    if (pidioAntes || !pideAhora) return null;
-
-    const db = getFirestore();
-    const tokens = await getAdminTokens(db);
-    if (tokens.length === 0) {
-      console.log("No hay tokens de administradores para notificar.");
-      return null;
-    }
-
-    const nombre =
-      [after.nombre, after.apellido]
-        .filter((p) => p && String(p).trim())
-        .join(" ")
-        .trim() || "Un cliente";
-
-    const title = "🚖 Nueva solicitud de conductor";
-    const body = `${nombre} quiere activar el servicio de conductor.`;
-
-    const message = {
-      tokens: tokens,
-      notification: { title, body },
-      data: {
-        type: "solicitud_conductor",
-        uid: event.params.uid,
-        title,
-        body,
-      },
-      apns: {
-        payload: {
-          aps: {
-            alert: { title, body },
-            badge: 0,
-            sound: "default",
-            contentAvailable: true,
-            mutableContent: true,
-          },
-        },
-        headers: { "apns-priority": "10" },
-      },
-      android: {
-        priority: "high",
-        notification: {
-          channelId: "taxi_trip_channel",
-          sound: "default",
-          priority: "high",
-        },
-      },
-    };
-
-    try {
-      const resp = await getMessaging().sendEachForMulticast(message);
-      console.log(
-        `✅ Notif. solicitud conductor: ${resp.successCount}/${tokens.length} enviadas.`
-      );
-    } catch (err) {
-      console.error(`❌ Error enviando notif. a admins: ${err.message}`);
-    }
-
-    return null;
-  }
-);
-
-/**
  * Cloud Function: Notifica a los conductores cercanos cuando se crea una
  * solicitud nueva (estado "buscando"). Es el equivalente push del listener
  * en tiempo real de InicioConductorViewModel — ese listener solo funciona
@@ -821,12 +740,29 @@ exports.onNuevaSolicitudCreada = onDocumentCreated(
 );
 
 /**
- * Cloud Function: Notifica al cliente por push cuando el conductor está a
- * <= 70 m del punto de recogida, mientras la solicitud está en estado
+ * Cloud Function: Notifica al cliente por push cuando el conductor está por
+ * llegar al punto de recogida, mientras la solicitud está en estado
  * "asignado" (tramo en el que el conductor se dirige hacia el cliente).
- * Complementa el aviso local de TripTrackingViewModel, que solo funciona
- * con la app del cliente abierta y en esa pantalla.
+ * Dispara si se cumple CUALQUIERA de los dos criterios (no ambos):
+ * <= [PROXIMIDAD_DISTANCIA_METROS] en línea recta, o <=
+ * [PROXIMIDAD_ETA_MINUTOS] minutos estimados a esa distancia. Complementa el
+ * aviso local de TripTrackingViewModel, que solo funciona con la app del
+ * cliente abierta y en esa pantalla.
  */
+// Umbral de distancia en línea recta para avisar "tu conductor está cerca".
+const PROXIMIDAD_DISTANCIA_METROS = 80;
+
+// Segundo criterio, independiente del anterior: si va a llegar en <= 5 min
+// aunque todavía esté a más de `PROXIMIDAD_DISTANCIA_METROS` (por ejemplo,
+// viene por una avenida rápida). Sin ruteo real (evitaría llamar a la
+// Directions API en cada actualización de GPS del conductor, que llega cada
+// ~15m mientras dura el viaje), el ETA es una estimación por velocidad
+// promedio: puede avisar algo antes o después del minuto real si hay tráfico
+// o el conductor tiene que rodear una manzana.
+const PROXIMIDAD_ETA_MINUTOS = 5;
+const PROXIMIDAD_VELOCIDAD_KMH = 25;
+const PROXIMIDAD_VELOCIDAD_M_POR_MIN = (PROXIMIDAD_VELOCIDAD_KMH * 1000) / 60;
+
 exports.onConductorProximidadCliente = onDocumentUpdated(
   {
     document: "solicitudes/{solicitudId}",
@@ -852,7 +788,10 @@ exports.onConductorProximidadCliente = onDocumentUpdated(
       pickup.lat,
       pickup.lng
     );
-    if (distancia > 70) return null;
+    const etaMinutosEstimado = distancia / PROXIMIDAD_VELOCIDAD_M_POR_MIN;
+    const estaCerca = distancia <= PROXIMIDAD_DISTANCIA_METROS;
+    const estaPorLlegar = etaMinutosEstimado <= PROXIMIDAD_ETA_MINUTOS;
+    if (!estaCerca && !estaPorLlegar) return null;
 
     const clienteId = extractClienteId(after);
     if (!clienteId) return null;
@@ -1361,6 +1300,58 @@ exports.onSolicitudActivacionConductor = onDocumentWritten(
       );
     } catch (err) {
       console.error(`❌ Error enviando notif. de activación: ${err.message}`);
+    }
+
+    return null;
+  }
+);
+
+/**
+ * Cloud Function: notifica por push a todos los administradores cuando se
+ * registra un cliente nuevo. Dispara con `onDocumentCreated` (la primera
+ * escritura del doc `usuarios/{uid}`) filtrando por `rol: 'cliente'` — el
+ * alta de un conductor la crea un admin a mano desde el panel y no debe
+ * generar esta notificación.
+ */
+exports.onNuevoClienteRegistrado = onDocumentCreated(
+  {
+    document: "usuarios/{uid}",
+    region: "us-central1",
+  },
+  async (event) => {
+    const after = event.data.exists ? event.data.data() : null;
+    if (!after) return null;
+
+    const rol = (after.rol || after.tipoUsuario || "")
+      .toString()
+      .toLowerCase();
+    if (rol !== "cliente") return null;
+
+    const db = getFirestore();
+    const tokens = await getAdminTokens(db);
+    if (tokens.length === 0) return null;
+
+    const nombre =
+      [after.nombre, after.apellido]
+        .filter((p) => p && String(p).trim())
+        .join(" ")
+        .trim() || "Un nuevo cliente";
+
+    const message = buildFcmMessage({
+      tokens,
+      title: "Nuevo cliente registrado",
+      body: `${nombre} se registró en la app.`,
+      type: "nuevo_cliente",
+      extraData: { uid: event.params.uid },
+    });
+
+    try {
+      const resp = await getMessaging().sendEachForMulticast(message);
+      console.log(
+        `✅ Notif. nuevo cliente: ${resp.successCount}/${tokens.length} admins notificados.`
+      );
+    } catch (err) {
+      console.error(`❌ Error enviando notif. de nuevo cliente: ${err.message}`);
     }
 
     return null;

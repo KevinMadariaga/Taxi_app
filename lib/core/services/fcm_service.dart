@@ -418,6 +418,22 @@ class FcmService {
   void limpiarChatAbierto(String solicitudId) =>
       _liberar(_chatsAbiertos, solicitudId);
 
+  /// Tipos que ya avisa `SoporteNotificationService` con su propio listener
+  /// de Firestore, activo sin condición mientras la sesión de ese rol está
+  /// abierta (`iniciarEscuchaConductores`/`Admin`/`Reportes`/`Emergencias`
+  /// para el admin, `iniciarEscuchaUsuario` para cliente/conductor). Mostrar
+  /// también el aviso genérico de acá duplicaba la notificación cada vez que
+  /// la app estaba en primer plano — el otro camino (background/terminado)
+  /// no se toca: ese listener no corre con la app cerrada, así que ahí el
+  /// push de FCM sigue siendo el único aviso.
+  static const Set<String> _tiposConAvisoPropioEnForeground = {
+    'solicitud_conductor', // iniciarEscuchaConductores
+    'reporte', // iniciarEscuchaReportes
+    'emergencia', // iniciarEscuchaEmergencias
+    'soporte_chat', // iniciarEscuchaAdmin
+    'soporte_chat_respuesta', // iniciarEscuchaUsuario
+  };
+
   /// Mensajes en PRIMER PLANO.
   ///
   /// En primer plano el sistema no muestra nada por su cuenta (Android nunca lo
@@ -429,11 +445,16 @@ class FcmService {
   ///   ella → este handler no hace nada.
   /// - Si no lo está, el handler muestra el aviso local.
   /// - Si el chat de ese viaje está abierto, sus mensajes no se notifican.
+  /// - Si el tipo ya lo cubre `SoporteNotificationService`, tampoco.
   void _onForegroundMessage(RemoteMessage message) {
     debugPrint('[FCM Foreground] ${message.notification?.title}');
     final notification = message.notification;
     final type = message.data['type'] as String? ?? '';
     final solicitudId = message.data['solicitudId'] as String? ?? '';
+
+    if (_tiposConAvisoPropioEnForeground.contains(type)) {
+      return;
+    }
 
     // El usuario está leyendo ese chat: no notificar lo que ya ve.
     if (type == 'trip_chat_message' &&
@@ -490,8 +511,9 @@ class FcmService {
     final nav = appNavigatorKey.currentState;
     if (nav == null) return;
 
-    // Nueva solicitud de conductor → llevar al admin a su pantalla principal.
-    if (type == 'solicitud_conductor') {
+    // Nueva solicitud de conductor, o cliente nuevo registrado → llevar al
+    // admin a su pantalla principal.
+    if (type == 'solicitud_conductor' || type == 'nuevo_cliente') {
       nav.popUntil((route) => route.isFirst);
       return;
     }
