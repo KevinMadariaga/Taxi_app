@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/helpers/permisos_helper.dart';
 import 'package:taxi_app/core/helpers/session_helper.dart';
 import 'package:taxi_app/core/services/image_cropper_service.dart';
@@ -109,9 +110,7 @@ class _CompletarRegistroConductorViewState
       );
       if (picked == null) return;
 
-      final cropped = await _cropper.cropVehicleImage(
-        sourcePath: picked.path,
-      );
+      final cropped = await _cropper.cropVehicleImage(sourcePath: picked.path);
       if (cropped == null) return; // canceló el ajuste
 
       setState(() {
@@ -219,10 +218,10 @@ class _CompletarRegistroConductorViewState
         decoration: BoxDecoration(
           color: sel
               ? AppColores.primary.withValues(alpha: 0.12)
-              : AppColores.surface,
+              : context.palette.surface,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: sel ? AppColores.primary : AppColores.grey300,
+            color: sel ? AppColores.primary : context.palette.grey300,
             width: sel ? 2 : 1,
           ),
         ),
@@ -231,7 +230,7 @@ class _CompletarRegistroConductorViewState
             Icon(
               icon,
               size: 34,
-              color: sel ? const Color(0xFFB38F00) : AppColores.grey600,
+              color: sel ? const Color(0xFFB38F00) : context.palette.grey600,
             ),
             const SizedBox(height: 8),
             Text(
@@ -239,7 +238,7 @@ class _CompletarRegistroConductorViewState
               style: TextStyle(
                 fontWeight: sel ? FontWeight.w800 : FontWeight.w600,
                 fontSize: 15,
-                color: AppColores.textPrimary,
+                color: context.palette.textPrimary,
               ),
             ),
           ],
@@ -333,9 +332,9 @@ class _CompletarRegistroConductorViewState
                             color: AppColores.buttonPrimary,
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          child: const Icon(
+                          child: Icon(
                             Icons.camera_alt,
-                            color: AppColores.textPrimary,
+                            color: context.palette.textPrimary,
                           ),
                         ),
                       ),

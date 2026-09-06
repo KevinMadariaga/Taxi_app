@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/services/sugerencias_service.dart';
 
 const _kKeyCliente = 'sugerencia_viajes_cliente';
@@ -87,15 +88,16 @@ class _SugerenciaSheetState extends State<_SugerenciaSheet> {
   @override
   Widget build(BuildContext context) {
     final keyboardH = MediaQuery.of(context).viewInsets.bottom;
+    final palette = context.palette;
 
     return AnimatedPadding(
       duration: const Duration(milliseconds: 200),
       curve: Curves.easeOut,
       padding: EdgeInsets.only(bottom: keyboardH),
       child: Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        decoration: BoxDecoration(
+          color: palette.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
         ),
         child: SafeArea(
           top: false,
@@ -112,7 +114,7 @@ class _SugerenciaSheetState extends State<_SugerenciaSheet> {
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
+                      color: palette.grey300,
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -134,23 +136,20 @@ class _SugerenciaSheetState extends State<_SugerenciaSheet> {
                 ),
                 const SizedBox(height: 14),
 
-                const Text(
+                Text(
                   '¿Qué opinas de Ride?',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w800,
-                    color: AppColores.textPrimary,
+                    color: context.palette.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 6),
                 Text(
                   'Tu opinión nos ayuda a mejorar el servicio.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey.shade600,
-                  ),
+                  style: TextStyle(fontSize: 14, color: palette.textSecondary),
                 ),
                 const SizedBox(height: 20),
 
@@ -164,11 +163,13 @@ class _SugerenciaSheetState extends State<_SugerenciaSheet> {
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 5),
                         child: Icon(
-                          filled ? Icons.star_rounded : Icons.star_outline_rounded,
+                          filled
+                              ? Icons.star_rounded
+                              : Icons.star_outline_rounded,
                           size: 38,
                           color: filled
                               ? const Color(0xFFFFC107)
-                              : Colors.grey.shade400,
+                              : palette.grey400,
                         ),
                       ),
                     );
@@ -185,24 +186,25 @@ class _SugerenciaSheetState extends State<_SugerenciaSheet> {
                   textInputAction: TextInputAction.done,
                   onSubmitted: (_) => _focusNode.unfocus(),
                   decoration: InputDecoration(
-                    hintText: 'Escribe tu sugerencia o comentario (opcional)...',
+                    hintText:
+                        'Escribe tu sugerencia o comentario (opcional)...',
                     hintStyle: TextStyle(
-                      color: Colors.grey.shade400,
+                      color: palette.textSecondary,
                       fontSize: 14,
                     ),
                     filled: true,
-                    fillColor: Colors.grey.shade50,
+                    fillColor: palette.grey100,
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 14,
                       vertical: 12,
                     ),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide(color: Colors.grey.shade200),
+                      borderSide: BorderSide(color: palette.divider),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide(color: Colors.grey.shade200),
+                      borderSide: BorderSide(color: palette.divider),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(14),
@@ -256,7 +258,7 @@ class _SugerenciaSheetState extends State<_SugerenciaSheet> {
                   child: Text(
                     'Omitir',
                     style: TextStyle(
-                      color: Colors.grey.shade500,
+                      color: palette.textSecondary,
                       fontSize: 15,
                     ),
                   ),

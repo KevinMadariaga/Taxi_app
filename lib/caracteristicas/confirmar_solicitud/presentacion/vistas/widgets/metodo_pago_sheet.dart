@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 
 import '../../viewmodels/confirmar_solicitud_viewmodel.dart';
 
@@ -19,7 +20,7 @@ Future<void> mostrarMetodoPagoSheet(
       return Padding(
         padding: EdgeInsets.fromLTRB(12.w, 0, 12.w, bottomGap),
         child: Material(
-          color: AppColores.surface,
+          color: context.palette.surface,
           borderRadius: BorderRadius.circular(20.r),
           clipBehavior: Clip.antiAlias,
           child: SafeArea(
@@ -46,7 +47,7 @@ Future<void> mostrarMetodoPagoSheet(
                       style: TextStyle(
                         fontWeight: FontWeight.w800,
                         fontSize: 18.sp,
-                        color: AppColores.textPrimary,
+                        color: context.palette.textPrimary,
                       ),
                     ),
                   ),
@@ -57,7 +58,7 @@ Future<void> mostrarMetodoPagoSheet(
                       'Seleccionado: ${vm.metodoPago}',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        color: AppColores.textSecondary,
+                        color: context.palette.textSecondary,
                         fontSize: 13.sp,
                       ),
                     ),
@@ -122,10 +123,10 @@ class _MetodoPagoOpcion extends StatelessWidget {
         decoration: BoxDecoration(
           color: isSelected
               ? AppColores.primary.withValues(alpha: 0.14)
-              : AppColores.background,
+              : context.palette.background,
           borderRadius: BorderRadius.circular(14.r),
           border: Border.all(
-            color: isSelected ? AppColores.primary : AppColores.divider,
+            color: isSelected ? AppColores.primary : context.palette.divider,
             width: isSelected ? 2 : 1,
           ),
         ),
@@ -140,7 +141,7 @@ class _MetodoPagoOpcion extends StatelessWidget {
               style: TextStyle(
                 fontWeight: FontWeight.w700,
                 fontSize: 15.sp,
-                color: AppColores.textPrimary,
+                color: context.palette.textPrimary,
               ),
             ),
             if (isSelected) ...[

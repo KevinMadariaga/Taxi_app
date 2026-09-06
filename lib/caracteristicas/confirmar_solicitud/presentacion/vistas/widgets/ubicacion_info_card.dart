@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/helpers/responsive_helper.dart';
 
 /// Tarjeta tappable de ubicación (usada para "Tu ubicación actual" y
@@ -29,7 +29,7 @@ class UbicacionInfoCard extends StatelessWidget {
   final VoidCallback onTap;
 
   /// Si se pasa, el badge del ícono se rellena por completo con este color
-  /// (sin borde) en vez del estilo por defecto (fondo blanco + borde de
+  /// (sin borde) en vez del estilo por defecto (fondo adaptativo + borde de
   /// [iconBorderColor]).
   final Color? iconBackgroundColor;
 
@@ -37,7 +37,7 @@ class UbicacionInfoCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final radius = BorderRadius.circular(cardBorderRadius);
     return Material(
-      color: AppColores.surface,
+      color: context.palette.surface,
       borderRadius: radius,
       clipBehavior: Clip.antiAlias,
       // `InkWell` (no `GestureDetector`) para que el splash arranque en el
@@ -63,7 +63,7 @@ class UbicacionInfoCard extends StatelessWidget {
                 height: ResponsiveHelper.wp(context, 11),
                 padding: EdgeInsets.all(ResponsiveHelper.wp(context, 1.6)),
                 decoration: BoxDecoration(
-                  color: iconBackgroundColor ?? Colors.white,
+                  color: iconBackgroundColor ?? context.palette.grey100,
                   shape: BoxShape.circle,
                   border: Border.all(color: iconBorderColor),
                 ),
@@ -82,7 +82,7 @@ class UbicacionInfoCard extends StatelessWidget {
                       header,
                       style: TextStyle(
                         fontSize: ResponsiveHelper.sp(context, 12),
-                        color: AppColores.textPrimary,
+                        color: context.palette.textPrimary,
                       ),
                     ),
                     SizedBox(height: ResponsiveHelper.hp(context, 0.5)),
@@ -91,7 +91,7 @@ class UbicacionInfoCard extends StatelessWidget {
                       style: TextStyle(
                         fontWeight: FontWeight.w700,
                         fontSize: ResponsiveHelper.sp(context, 14),
-                        color: AppColores.textPrimary,
+                        color: context.palette.textPrimary,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,

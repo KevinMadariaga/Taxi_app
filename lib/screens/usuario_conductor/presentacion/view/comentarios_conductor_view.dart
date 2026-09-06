@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodels/comentarios_conductor_viewmodel.dart';
 
 class ComentariosConductorView extends StatelessWidget {
@@ -10,16 +11,16 @@ class ComentariosConductorView extends StatelessWidget {
     final vm = ComentariosConductorViewModel();
 
     return Scaffold(
-      backgroundColor: AppColores.background,
+      backgroundColor: context.palette.background,
       appBar: AppBar(
         title: const Text('Comentarios de clientes'),
         backgroundColor: AppColores.primary,
       ),
       body: vm.conductorId.isEmpty
-          ? const Center(
+          ? Center(
               child: Text(
                 'No se pudo identificar el conductor.',
-                style: TextStyle(color: AppColores.textSecondary),
+                style: TextStyle(color: context.palette.textSecondary),
               ),
             )
           : StreamBuilder<List<DriverCommentItem>>(
@@ -32,8 +33,7 @@ class ComentariosConductorView extends StatelessWidget {
                   return Center(
                     child: Text(
                       'Error: ${snapshot.error}',
-                      style:
-                          const TextStyle(color: AppColores.textSecondary),
+                      style: TextStyle(color: context.palette.textSecondary),
                     ),
                   );
                 }
@@ -41,11 +41,11 @@ class ComentariosConductorView extends StatelessWidget {
                 final items = snapshot.data ?? [];
 
                 if (items.isEmpty) {
-                  return const Center(
+                  return Center(
                     child: Text(
                       'Aun no hay comentarios de clientes.',
                       style: TextStyle(
-                        color: AppColores.textSecondary,
+                        color: context.palette.textSecondary,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -63,12 +63,12 @@ class ComentariosConductorView extends StatelessWidget {
                     final item = items[index];
                     return Container(
                       decoration: BoxDecoration(
-                        color: AppColores.cardBackground,
+                        color: context.palette.cardBackground,
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: AppColores.borderSubtle),
-                        boxShadow: const [
+                        border: Border.all(color: context.palette.borderSubtle),
+                        boxShadow: [
                           BoxShadow(
-                            color: AppColores.borderSubtle,
+                            color: context.palette.borderSubtle,
                             blurRadius: 6,
                             offset: Offset(0, 2),
                           ),
@@ -87,18 +87,18 @@ class ComentariosConductorView extends StatelessWidget {
                                   shape: BoxShape.circle,
                                   color: AppColores.primary,
                                 ),
-                                child: const Icon(
+                                child: Icon(
                                   Icons.rate_review_rounded,
-                                  color: AppColores.textPrimary,
+                                  color: context.palette.textPrimary,
                                   size: 20,
                                 ),
                               ),
                               const SizedBox(width: 10),
-                              const Expanded(
+                              Expanded(
                                 child: Text(
                                   'Comentario del cliente',
                                   style: TextStyle(
-                                    color: AppColores.textPrimary,
+                                    color: context.palette.textPrimary,
                                     fontSize: 14,
                                     fontWeight: FontWeight.w800,
                                   ),
@@ -108,16 +108,16 @@ class ComentariosConductorView extends StatelessWidget {
                                 Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    const Icon(
+                                    Icon(
                                       Icons.schedule_rounded,
                                       size: 14,
-                                      color: AppColores.textSecondary,
+                                      color: context.palette.textSecondary,
                                     ),
                                     const SizedBox(width: 4),
                                     Text(
                                       vm.formatDate(item.createdAt),
-                                      style: const TextStyle(
-                                        color: AppColores.textSecondary,
+                                      style: TextStyle(
+                                        color: context.palette.textSecondary,
                                         fontSize: 11,
                                         fontWeight: FontWeight.w600,
                                       ),
@@ -139,8 +139,8 @@ class ComentariosConductorView extends StatelessWidget {
                               Expanded(
                                 child: Text(
                                   item.comment,
-                                  style: const TextStyle(
-                                    color: AppColores.textPrimary,
+                                  style: TextStyle(
+                                    color: context.palette.textPrimary,
                                     fontSize: 17,
                                     height: 1.45,
                                     fontWeight: FontWeight.w700,

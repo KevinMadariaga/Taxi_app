@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 
 /// Bloque de precio: oferta original del cliente y, si el conductor ya
 /// contraofertó, el valor contraofertado — ambos en la misma línea (servicio
@@ -39,9 +40,9 @@ class PrecioOfertaBox extends StatelessWidget {
       width: double.infinity,
       padding: EdgeInsets.all(compact ? 10.w : 14.w),
       decoration: BoxDecoration(
-        color: AppColores.background,
+        color: context.palette.background,
         borderRadius: BorderRadius.circular(14.r),
-        border: Border.all(color: AppColores.borderSubtle),
+        border: Border.all(color: context.palette.borderSubtle),
       ),
       child: valorContra == null
           ? Row(
@@ -53,7 +54,7 @@ class PrecioOfertaBox extends StatelessWidget {
                     style: TextStyle(
                       fontWeight: FontWeight.w600,
                       fontSize: (compact ? 12 : 13).sp,
-                      color: AppColores.textSecondary,
+                      color: context.palette.textSecondary,
                     ),
                   ),
                 ),
@@ -84,11 +85,13 @@ class PrecioOfertaBox extends StatelessWidget {
                     ),
                   ),
                   Padding(
-                    padding: EdgeInsets.symmetric(horizontal: compact ? 8.w : 12.w),
-                    child: const VerticalDivider(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: compact ? 8.w : 12.w,
+                    ),
+                    child: VerticalDivider(
                       width: 1,
                       thickness: 1,
-                      color: AppColores.borderSubtle,
+                      color: context.palette.borderSubtle,
                     ),
                   ),
                   Expanded(
@@ -146,7 +149,7 @@ class _PrecioColumna extends StatelessWidget {
             style: TextStyle(
               fontWeight: FontWeight.w600,
               fontSize: (compact ? 11 : 12).sp,
-              color: AppColores.textSecondary,
+              color: context.palette.textSecondary,
             ),
           )
         else
@@ -178,7 +181,7 @@ class _PrecioColumna extends StatelessWidget {
             fontSize: valorFontSize,
             color: valorColor,
             decoration: strikethrough ? TextDecoration.lineThrough : null,
-            decorationColor: AppColores.textSecondary,
+            decorationColor: context.palette.textSecondary,
           ),
         ),
       ],

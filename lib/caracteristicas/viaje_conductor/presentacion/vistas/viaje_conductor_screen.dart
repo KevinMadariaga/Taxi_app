@@ -23,6 +23,7 @@ import 'package:taxi_app/caracteristicas/viaje_conductor/presentacion/widgets/dr
 import 'package:taxi_app/caracteristicas/viaje_conductor/presentacion/widgets/driver_trip_card/driver_trip_card.dart';
 import 'package:taxi_app/caracteristicas/viaje_conductor/presentacion/widgets/driver_trip_card/widgets/codigo_verificacion_sheet.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/services/fcm_service.dart';
 import 'package:taxi_app/core/constants/solicitud_estado.dart';
 import 'package:taxi_app/core/helpers/session_helper.dart';
@@ -381,7 +382,7 @@ class _ViajeConductorScreenState extends State<ViajeConductorScreen>
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppColores.surface,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -442,7 +443,7 @@ class _ViajeConductorScreenState extends State<ViajeConductorScreen>
     return PopScope(
       canPop: false,
       child: Scaffold(
-        backgroundColor: AppColores.background,
+        backgroundColor: context.palette.background,
         body: AnimatedBuilder(
           animation: _vm,
           builder: (context, _) {
@@ -507,7 +508,7 @@ class _ViajeConductorScreenState extends State<ViajeConductorScreen>
                                   // como "voy hacia allá" y no norte-arriba.
                                   orientarHaciaCliente: true,
                                 )
-                              : Container(color: AppColores.grey300),
+                              : Container(color: context.palette.grey300),
                         ),
                         if (_vm.isLoading)
                           Positioned.fill(

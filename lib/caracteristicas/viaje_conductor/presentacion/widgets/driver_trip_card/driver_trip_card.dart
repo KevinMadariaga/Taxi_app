@@ -5,6 +5,7 @@ import 'package:taxi_app/caracteristicas/viaje_compartido/presentacion/widgets/b
 import 'package:taxi_app/caracteristicas/viaje_compartido/presentacion/widgets/eta_distancia_row.dart';
 import 'package:taxi_app/caracteristicas/viaje_conductor/presentacion/viewmodels/viaje_conductor_viewmodel.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/constants/solicitud_estado.dart';
 import 'package:taxi_app/core/theme/ride_button_styles.dart';
 
@@ -156,9 +157,12 @@ class _DriverTripCardState extends State<DriverTripCard>
 
         return Container(
           width: double.infinity,
-          padding: EdgeInsets.symmetric(horizontal: 16, vertical: m.paddingVertical),
+          padding: EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: m.paddingVertical,
+          ),
           decoration: BoxDecoration(
-            color: AppColores.cardBackground,
+            color: context.palette.cardBackground,
             borderRadius: const BorderRadius.only(
               bottomLeft: Radius.circular(24),
               bottomRight: Radius.circular(24),

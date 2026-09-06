@@ -9,6 +9,8 @@ import 'package:google_maps_flutter/google_maps_flutter.dart' show LatLng;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
+import 'package:taxi_app/core/theme/map_style.dart';
 import 'package:taxi_app/core/services/fcm_service.dart';
 import 'package:taxi_app/core/constants/solicitud_estado.dart';
 import 'package:taxi_app/core/services/app_remote_config_service.dart';
@@ -222,7 +224,9 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
     await navigateWithIntermediateLoader(
       context: context,
       nextBuilder: (_) => const HomeClienteView(),
-      title: esSinRespuesta ? 'Sin conductores disponibles' : 'Búsqueda finalizada',
+      title: esSinRespuesta
+          ? 'Sin conductores disponibles'
+          : 'Búsqueda finalizada',
       subtitle: esSinRespuesta
           ? 'Ningún conductor respondió a tu solicitud. Intenta de nuevo.'
           : 'Tu solicitud ya no está activa. Puedes pedir otro viaje.',
@@ -386,7 +390,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
         // necesita que este Scaffold también reaccione. Mismo patrón que ya
         // usa `confirmar_solicitud_view.dart`.
         resizeToAvoidBottomInset: false,
-        backgroundColor: AppColores.background,
+        backgroundColor: context.palette.background,
         body: SafeArea(
           bottom: false,
           child: Column(
@@ -448,7 +452,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
               style: TextStyle(
                 fontSize: isTablet ? 13 : 12,
                 fontWeight: FontWeight.w600,
-                color: AppColores.textSecondary,
+                color: context.palette.textSecondary,
               ),
             ),
             SizedBox(width: 6.w),
@@ -459,7 +463,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
                 style: TextStyle(
                   fontSize: isTablet ? 16 : 14.5,
                   fontWeight: FontWeight.w800,
-                  color: AppColores.textPrimary,
+                  color: context.palette.textPrimary,
                 ),
               ),
             ),
@@ -556,9 +560,9 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
         isTablet ? 32 : 16,
         bottomPad,
       ),
-      decoration: const BoxDecoration(
-        color: AppColores.background,
-        border: Border(top: BorderSide(color: AppColores.borderSubtle)),
+      decoration: BoxDecoration(
+        color: context.palette.background,
+        border: Border(top: BorderSide(color: context.palette.borderSubtle)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -572,7 +576,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
             style: TextStyle(
               fontSize: isTablet ? 18 : 16,
               fontWeight: FontWeight.w800,
-              color: AppColores.textPrimary,
+              color: context.palette.textPrimary,
             ),
           ),
           SizedBox(height: 4.h),
@@ -580,7 +584,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
             'Buscamos al conductor más cercano para ti.',
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: AppColores.textSecondary,
+              color: context.palette.textSecondary,
               fontSize: isTablet ? 14 : 12.5,
               fontWeight: FontWeight.w600,
               height: 1.3.h,
@@ -615,7 +619,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColores.error,
           foregroundColor: AppColores.textWhite,
-          disabledBackgroundColor: AppColores.grey400,
+          disabledBackgroundColor: context.palette.grey400,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12.r),
           ),
@@ -820,6 +824,7 @@ class _BuscandoTaxiStaticMap extends StatelessWidget {
     required int width,
     required int height,
     required String apiKey,
+    required bool isDark,
     String? encodedPath,
   }) {
     final uri = Uri.https('maps.googleapis.com', '/maps/api/staticmap', {
@@ -829,6 +834,7 @@ class _BuscandoTaxiStaticMap extends StatelessWidget {
       'scale': '2',
       'maptype': 'roadmap',
       'key': apiKey,
+      if (isDark) 'style': MapStyle.staticMapsQueryParams,
       // Static Maps espera RRGGBBAA (hex, sin '#', alpha al final) — se
       // arma desde `AppColores.primary` (naranja de marca) en vez de un
       // hex suelto para no volver a desincronizarse si el color cambia.
@@ -854,9 +860,9 @@ class _BuscandoTaxiStaticMap extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: AppColores.cardBackground,
+        color: context.palette.cardBackground,
         borderRadius: BorderRadius.circular(16.r),
-        border: Border.all(color: AppColores.borderSubtle),
+        border: Border.all(color: context.palette.borderSubtle),
         boxShadow: const [
           BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 2)),
         ],
@@ -929,6 +935,7 @@ class _BuscandoTaxiStaticMap extends StatelessWidget {
                 width: width.round(),
                 height: height.round(),
                 apiKey: apiKey,
+                isDark: Theme.of(context).brightness == Brightness.dark,
                 encodedPath: encodedPath,
               );
 
@@ -1045,12 +1052,12 @@ class _MapaBusquedaPlaceholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: AppColores.grey300.withValues(alpha: 0.35),
+      color: context.palette.grey300.withValues(alpha: 0.35),
       alignment: Alignment.center,
       child: Icon(
         Icons.map_outlined,
         size: 40,
-        color: AppColores.textSecondary.withValues(alpha: 0.6),
+        color: context.palette.textSecondary.withValues(alpha: 0.6),
       ),
     );
   }
@@ -1064,7 +1071,7 @@ class _MapaBusquedaCargando extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: AppColores.grey300.withValues(alpha: 0.35),
+      color: context.palette.grey300.withValues(alpha: 0.35),
       alignment: Alignment.center,
       child: const SizedBox(
         width: 28,

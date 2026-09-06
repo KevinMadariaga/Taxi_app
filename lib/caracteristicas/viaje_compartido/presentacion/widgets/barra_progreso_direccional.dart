@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 
 /// Barra "vehículo → destino" que se llena según el progreso real (0..1)
 /// del viaje — ícono del vehículo a la izquierda, línea de relleno, ícono
@@ -78,7 +79,7 @@ class BarraProgresoDireccional extends StatelessWidget {
                       Container(
                         height: 4,
                         decoration: BoxDecoration(
-                          color: AppColores.ink200,
+                          color: context.palette.ink200,
                           borderRadius: BorderRadius.circular(2),
                         ),
                       ),
@@ -109,12 +110,12 @@ class BarraProgresoDireccional extends StatelessWidget {
                 height: circleSize,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: AppColores.surface,
-                  border: Border.all(color: AppColores.ink200, width: 0.5),
+                  color: context.palette.surface,
+                  border: Border.all(color: context.palette.ink200, width: 0.5),
                 ),
                 child: Icon(
                   destinoIcon,
-                  color: AppColores.ink500,
+                  color: context.palette.ink500,
                   size: destinoIconSize,
                 ),
               ),

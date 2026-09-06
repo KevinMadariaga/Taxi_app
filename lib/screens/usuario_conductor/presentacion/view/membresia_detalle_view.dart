@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/features/phone_auth/services/user_data_service.dart';
 
 /// Detalle de la membresía del conductor. Se abre al tocar la tarjeta
@@ -34,7 +35,7 @@ class _MembresiaDetalleViewState extends State<MembresiaDetalleView> {
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
           return Scaffold(
-            backgroundColor: AppColores.background,
+            backgroundColor: context.palette.background,
             appBar: AppBar(
               title: const Text('Detalle de membresía'),
               backgroundColor: AppColores.primary,
@@ -80,7 +81,7 @@ class _MembresiaDetalleContent extends StatelessWidget {
     final color = activa ? AppColores.success : AppColores.error;
 
     return Scaffold(
-      backgroundColor: AppColores.background,
+      backgroundColor: context.palette.background,
       appBar: AppBar(
         title: const Text('Detalle de membresía'),
         backgroundColor: AppColores.primary,
@@ -102,8 +103,11 @@ class _MembresiaDetalleContent extends StatelessWidget {
                   ),
                   child: Column(
                     children: [
-                      Icon(activa ? Icons.verified : Icons.cancel,
-                          color: color, size: 48),
+                      Icon(
+                        activa ? Icons.verified : Icons.cancel,
+                        color: color,
+                        size: 48,
+                      ),
                       const SizedBox(height: 10),
                       Text(
                         activa ? 'Estás activo' : 'No estás activo',
@@ -119,9 +123,7 @@ class _MembresiaDetalleContent extends StatelessWidget {
                             ? 'Tu membresía está activa.'
                             : 'Activa tu membresía para recibir viajes.',
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: AppColores.textSecondary,
-                        ),
+                        style: TextStyle(color: context.palette.textSecondary),
                       ),
                     ],
                   ),
@@ -177,12 +179,14 @@ class _DetalleTile extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ListTile(
         leading: Icon(icon, color: AppColores.primary),
-        title: Text(titulo,
-            style: const TextStyle(
-                fontWeight: FontWeight.w600, fontSize: 14)),
-        trailing: Text(valor,
-            style: const TextStyle(
-                fontSize: 14, fontWeight: FontWeight.w600)),
+        title: Text(
+          titulo,
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+        ),
+        trailing: Text(
+          valor,
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+        ),
       ),
     );
   }

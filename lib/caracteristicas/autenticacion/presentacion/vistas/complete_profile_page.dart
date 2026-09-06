@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/casos_uso/get_client_user_usecase.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/casos_uso/complete_client_profile_usecase.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/presentacion/controladores/complete_profile_controller.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/home_cliente_view.dart';
 
@@ -104,14 +105,11 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
           _hydrateFieldsFromRemote(vm);
 
           return Scaffold(
-            backgroundColor: AppColores.background,
+            backgroundColor: context.palette.background,
             appBar: AppBar(
-              title: const Text(
-                'Completa tu perfil',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-              backgroundColor: AppColores.background,
-              foregroundColor: AppColores.textPrimary,
+              title: const Text('Completa tu perfil'),
+              backgroundColor: AppColores.primary,
+              foregroundColor: AppColores.textWhite,
               elevation: 0,
               scrolledUnderElevation: 0,
             ),
@@ -159,21 +157,21 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const SizedBox(height: 4),
-        const Text(
+        Text(
           '¡Casi listo! 🎉',
           style: TextStyle(
             fontSize: 23,
             fontWeight: FontWeight.w800,
-            color: AppColores.textPrimary,
+            color: context.palette.textPrimary,
           ),
         ),
         const SizedBox(height: 6),
-        const Text(
+        Text(
           'Confirma tus datos para empezar a pedir viajes.',
           style: TextStyle(
             fontSize: 14.5,
             height: 1.35,
-            color: AppColores.textSecondary,
+            color: context.palette.textSecondary,
             fontWeight: FontWeight.w500,
           ),
         ),
@@ -194,7 +192,7 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
           textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: 12.5,
-            color: tieneFoto ? AppColores.textSecondary : AppColores.error,
+            color: tieneFoto ? context.palette.textSecondary : AppColores.error,
             fontWeight: FontWeight.w500,
           ),
         ),
@@ -262,8 +260,8 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
     return Container(
       padding: const EdgeInsets.fromLTRB(22, 12, 22, 14),
       decoration: BoxDecoration(
-        color: AppColores.background,
-        border: Border(top: BorderSide(color: AppColores.borderSubtle)),
+        color: context.palette.background,
+        border: Border(top: BorderSide(color: context.palette.borderSubtle)),
       ),
       child: SizedBox(
         height: 54,
@@ -445,7 +443,7 @@ class _AvatarPicker extends StatelessWidget {
               decoration: BoxDecoration(
                 color: AppColores.primary,
                 shape: BoxShape.circle,
-                border: Border.all(color: AppColores.background, width: 3),
+                border: Border.all(color: context.palette.background, width: 3),
               ),
               child: const Icon(
                 Icons.photo_camera_rounded,
@@ -494,10 +492,10 @@ class _LabeledField extends StatelessWidget {
       children: [
         Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w700,
-            color: AppColores.textPrimary,
+            color: context.palette.textPrimary,
           ),
         ),
         const SizedBox(height: 8),
@@ -510,27 +508,31 @@ class _LabeledField extends StatelessWidget {
           textCapitalization: textCapitalization,
           inputFormatters: inputFormatters,
           onSubmitted: onSubmitted,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 15.5,
             fontWeight: FontWeight.w600,
-            color: AppColores.textPrimary,
+            color: context.palette.textPrimary,
           ),
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: const TextStyle(
-              color: AppColores.textSecondary,
+            hintStyle: TextStyle(
+              color: context.palette.textSecondary,
               fontWeight: FontWeight.w400,
             ),
-            prefixIcon: Icon(icon, color: AppColores.textSecondary, size: 21),
+            prefixIcon: Icon(
+              icon,
+              color: context.palette.textSecondary,
+              size: 21,
+            ),
             filled: true,
-            fillColor: AppColores.surface,
+            fillColor: context.palette.surface,
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 14,
               vertical: 16,
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
-              borderSide: BorderSide(color: AppColores.grey300),
+              borderSide: BorderSide(color: context.palette.grey300),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
@@ -541,7 +543,7 @@ class _LabeledField extends StatelessWidget {
             ),
             disabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
-              borderSide: BorderSide(color: AppColores.grey200),
+              borderSide: BorderSide(color: context.palette.grey200),
             ),
           ),
         ),
@@ -577,11 +579,11 @@ class _InlineError extends StatelessWidget {
           Expanded(
             child: Text(
               message,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
                 height: 1.35,
                 fontWeight: FontWeight.w500,
-                color: AppColores.textPrimary,
+                color: context.palette.textPrimary,
               ),
             ),
           ),

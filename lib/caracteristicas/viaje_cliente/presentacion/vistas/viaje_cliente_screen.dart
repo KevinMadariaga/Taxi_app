@@ -17,6 +17,8 @@ import 'package:taxi_app/caracteristicas/viaje_compartido/presentacion/vistas/ch
 import 'package:taxi_app/caracteristicas/verificacion_recogida/datos/repositorios/codigo_verificacion_repository_impl.dart';
 import 'package:taxi_app/caracteristicas/verificacion_recogida/dominio/entidades/codigo_verificacion_entity.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
+import 'package:taxi_app/core/theme/map_style.dart';
 import 'package:taxi_app/core/services/fcm_service.dart';
 import 'package:taxi_app/core/constants/solicitud_estado.dart';
 import 'package:taxi_app/core/theme/ride_button_styles.dart';
@@ -211,7 +213,11 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen>
       _displayedHeadingDeg = heading;
       _headingInicializado = true;
     } else {
-      _displayedHeadingDeg = MapHelper.lerpAngle(_displayedHeadingDeg, heading, 0.25);
+      _displayedHeadingDeg = MapHelper.lerpAngle(
+        _displayedHeadingDeg,
+        heading,
+        0.25,
+      );
     }
 
     // La histéresis de espejado opera sobre el heading OBJETIVO (crudo), no
@@ -540,7 +546,7 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen>
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppColores.surface,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -568,7 +574,7 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen>
   void _openAyuda() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppColores.surface,
+      backgroundColor: context.palette.surface,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -583,14 +589,14 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen>
               height: 4,
               margin: const EdgeInsets.only(bottom: 8),
               decoration: BoxDecoration(
-                color: AppColores.grey300,
+                color: context.palette.grey300,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
             ListTile(
-              leading: const Icon(
+              leading: Icon(
                 Icons.help_outline,
-                color: AppColores.textPrimary,
+                color: context.palette.textPrimary,
               ),
               title: const Text('¿Cuál es el estado de mi solicitud?'),
               trailing: const Icon(Icons.chevron_right),
@@ -603,9 +609,9 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen>
               },
             ),
             ListTile(
-              leading: const Icon(
+              leading: Icon(
                 Icons.payments_outlined,
-                color: AppColores.textPrimary,
+                color: context.palette.textPrimary,
               ),
               title: const Text('Revisar o modificar mi pago'),
               trailing: const Icon(Icons.chevron_right),
@@ -621,9 +627,9 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen>
               },
             ),
             ListTile(
-              leading: const Icon(
+              leading: Icon(
                 Icons.report_problem_outlined,
-                color: AppColores.textPrimary,
+                color: context.palette.textPrimary,
               ),
               title: const Text('Problemas con el conductor'),
               trailing: const Icon(Icons.chevron_right),
@@ -639,9 +645,9 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen>
               },
             ),
             ListTile(
-              leading: const Icon(
+              leading: Icon(
                 Icons.info_outline,
-                color: AppColores.textPrimary,
+                color: context.palette.textPrimary,
               ),
               title: const Text('Ver detalles del viaje'),
               trailing: const Icon(Icons.chevron_right),
@@ -655,7 +661,10 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen>
             if (_vm.viaje?.estado != SolicitudEstado.enRuta) ...[
               const Divider(height: 1),
               ListTile(
-                leading: const Icon(Icons.close_rounded, color: AppColores.error),
+                leading: const Icon(
+                  Icons.close_rounded,
+                  color: AppColores.error,
+                ),
                 title: const Text(
                   'Cancelar viaje',
                   style: TextStyle(color: AppColores.error),
@@ -732,7 +741,7 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen>
     return PopScope(
       canPop: false,
       child: Scaffold(
-        backgroundColor: AppColores.background,
+        backgroundColor: context.palette.background,
         body: AnimatedBuilder(
           animation: Listenable.merge([
             _vm.conductorPositionNotifier,
@@ -860,6 +869,9 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen>
                           rotateGesturesEnabled: true,
                           tiltGesturesEnabled: true,
                           padding: EdgeInsets.only(bottom: viewPaddingBottom),
+                          style: Theme.of(context).brightness == Brightness.dark
+                              ? MapStyle.googleMapJson
+                              : null,
                           markers: markers,
                           polylines: polylines,
                           onMapCreated: (controller) {
@@ -907,8 +919,8 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen>
                               return FloatingActionButton(
                                 heroTag: 'brujulaViajeCliente',
                                 mini: true,
-                                backgroundColor: AppColores.surface,
-                                foregroundColor: AppColores.textPrimary,
+                                backgroundColor: context.palette.surface,
+                                foregroundColor: context.palette.textPrimary,
                                 onPressed: _restablecerOrientacionMapa,
                                 child: Transform.rotate(
                                   // La aguja apunta al norte real: gira al

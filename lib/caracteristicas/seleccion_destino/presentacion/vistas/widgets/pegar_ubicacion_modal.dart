@@ -4,6 +4,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/widgets/boton.dart';
 
 import '../../viewmodels/seleccion_destino_viewmodel.dart';
@@ -99,7 +100,7 @@ class _PegarUbicacionSheetState extends State<_PegarUbicacionSheet> {
                 width: 40.w,
                 height: 4.h,
                 decoration: BoxDecoration(
-                  color: AppColores.grey300,
+                  color: context.palette.grey300,
                   borderRadius: BorderRadius.circular(2.r),
                 ),
               ),
@@ -110,7 +111,7 @@ class _PegarUbicacionSheetState extends State<_PegarUbicacionSheet> {
               style: TextStyle(
                 fontSize: 18.sp,
                 fontWeight: FontWeight.w800,
-                color: AppColores.textPrimary,
+                color: context.palette.textPrimary,
               ),
             ),
             SizedBox(height: 8.h),
@@ -118,7 +119,7 @@ class _PegarUbicacionSheetState extends State<_PegarUbicacionSheet> {
               'Copia un link de Google Maps o unas coordenadas y tocá pegar.',
               style: TextStyle(
                 fontSize: 13.sp,
-                color: AppColores.textSecondary,
+                color: context.palette.textSecondary,
               ),
             ),
             if (_error != null) ...[

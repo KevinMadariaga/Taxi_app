@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/services/update_service.dart';
 
 enum UpdateDialogAction { updateNow, later }
@@ -33,7 +34,7 @@ class UpdateAvailableDialog extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
         decoration: BoxDecoration(
-          color: AppColores.surface,
+          color: context.palette.surface,
           borderRadius: BorderRadius.circular(24),
         ),
         child: Column(
@@ -58,7 +59,7 @@ class UpdateAvailableDialog extends StatelessWidget {
               'Nueva actualización',
               style: theme.textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.w800,
-                color: AppColores.textPrimary,
+                color: context.palette.textPrimary,
               ),
             ),
             const SizedBox(height: 10),
@@ -116,7 +117,7 @@ class UpdateAvailableDialog extends StatelessWidget {
                     style: FilledButton.styleFrom(
                       minimumSize: const Size.fromHeight(48),
                       backgroundColor: AppColores.primary,
-                      foregroundColor: AppColores.textPrimary,
+                      foregroundColor: context.palette.textPrimary,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14),
                       ),

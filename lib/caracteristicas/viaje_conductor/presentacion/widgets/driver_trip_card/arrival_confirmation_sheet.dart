@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/widgets/boton.dart';
 
 /// Confirmación explícita antes de reportar "Ya llegué al punto" — antes
@@ -29,8 +30,8 @@ class ArrivalConfirmationSheet extends StatelessWidget {
 
     return Container(
       padding: EdgeInsets.fromLTRB(20, 20, 20, 24 + insetBottom),
-      decoration: const BoxDecoration(
-        color: AppColores.cardBackground,
+      decoration: BoxDecoration(
+        color: context.palette.cardBackground,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
@@ -43,7 +44,7 @@ class ArrivalConfirmationSheet extends StatelessWidget {
               height: 4,
               margin: const EdgeInsets.only(bottom: 16),
               decoration: BoxDecoration(
-                color: AppColores.grey300,
+                color: context.palette.grey300,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -54,20 +55,23 @@ class ArrivalConfirmationSheet extends StatelessWidget {
             size: 36,
           ),
           const SizedBox(height: 10),
-          const Text(
+          Text(
             '¿Confirmas que llegaste al punto de recogida?',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontWeight: FontWeight.w800,
               fontSize: 17,
-              color: AppColores.textPrimary,
+              color: context.palette.textPrimary,
             ),
           ),
           const SizedBox(height: 6),
-          const Text(
+          Text(
             'Se le avisará al cliente que ya estás esperándolo.',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13, color: AppColores.textSecondary),
+            style: TextStyle(
+              fontSize: 13,
+              color: context.palette.textSecondary,
+            ),
           ),
           const SizedBox(height: 18),
           CustomButton(
@@ -80,9 +84,9 @@ class ArrivalConfirmationSheet extends StatelessWidget {
           const SizedBox(height: 10),
           CustomButton(
             text: 'Todavía no',
-            color: AppColores.surface,
-            textColor: AppColores.textPrimary,
-            borderColor: AppColores.borderSubtle,
+            color: context.palette.surface,
+            textColor: context.palette.textPrimary,
+            borderColor: context.palette.borderSubtle,
             onPressed: () => Navigator.of(context).pop(false),
             width: double.infinity,
             height: 46,

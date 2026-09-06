@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import 'package:taxi_app/core/theme/map_style.dart';
+
 /// Componente reutilizable para renderizar Google Maps en la app.
 ///
 /// Mantiene valores por defecto orientados a una experiencia interactiva,
@@ -36,6 +38,13 @@ class Mapagoogle extends StatelessWidget {
   final bool indoorViewEnabled;
   final MapType mapType;
 
+  /// Estilo JSON del mapa (`GoogleMap.style`). `null` (default): se decide
+  /// solo según `Theme.of(context).brightness` — oscuro con
+  /// `MapStyle.googleMapJson`, claro sin estilo (el roadmap normal de
+  /// Google). Pasar un valor explícito solo si una pantalla puntual necesita
+  /// otro estilo.
+  final String? style;
+
   const Mapagoogle({
     super.key,
     required this.initialTarget,
@@ -67,11 +76,17 @@ class Mapagoogle extends StatelessWidget {
     this.buildingsEnabled = true,
     this.indoorViewEnabled = true,
     this.mapType = MapType.normal,
+    this.style,
   }) : assert(initialZoom > 0);
 
   @override
   Widget build(BuildContext context) {
     final allMarkers = <Marker>{...markers, ...customMarkers};
+    final effectiveStyle =
+        style ??
+        (Theme.of(context).brightness == Brightness.dark
+            ? MapStyle.googleMapJson
+            : null);
     final showLocationButton = myLocationEnabled && myLocationButtonEnabled;
     final topInset = autoAdjustPaddingForSystemUI
         ? MediaQuery.of(context).padding.top + topControlsOffset
@@ -116,6 +131,7 @@ class Mapagoogle extends StatelessWidget {
         indoorViewEnabled: indoorViewEnabled,
         mapType: mapType,
         padding: effectivePadding,
+        style: effectiveStyle,
       ),
     );
   }

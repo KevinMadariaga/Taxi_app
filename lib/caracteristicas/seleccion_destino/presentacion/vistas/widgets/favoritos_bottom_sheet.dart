@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/widgets/confirmar_dialog.dart';
 
 import '../../../dominio/casos_uso/buscar_destinos_usecase.dart';
@@ -56,7 +57,8 @@ Future<UbicacionEntity?> mostrarFavoritosBottomSheet(
   final picked = await Navigator.of(context).push<SeleccionUbicacionResult>(
     MaterialPageRoute(
       builder: (_) => SeleccionarUbicacionMapaView(
-        ubicacionInicial: vm.origenPosition ?? BuscarDestinosUseCase.ocanaCenter,
+        ubicacionInicial:
+            vm.origenPosition ?? BuscarDestinosUseCase.ocanaCenter,
         titulo: 'Elige la ubicación favorita',
       ),
     ),
@@ -124,7 +126,7 @@ class _FavoritosSheetContent extends StatelessWidget {
                 width: 40.w,
                 height: 4.h,
                 decoration: BoxDecoration(
-                  color: AppColores.grey300,
+                  color: context.palette.grey300,
                   borderRadius: BorderRadius.circular(2.r),
                 ),
               ),
@@ -138,13 +140,12 @@ class _FavoritosSheetContent extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 18.sp,
                       fontWeight: FontWeight.w800,
-                      color: AppColores.textPrimary,
+                      color: context.palette.textPrimary,
                     ),
                   ),
                 ),
                 TextButton.icon(
-                  onPressed: () =>
-                      Navigator.of(context).pop(const _Agregar()),
+                  onPressed: () => Navigator.of(context).pop(const _Agregar()),
                   icon: const Icon(Icons.add_rounded, size: 18),
                   label: const Text('Agregar'),
                 ),
@@ -163,7 +164,7 @@ class _FavoritosSheetContent extends StatelessWidget {
                   'No tienes favoritos guardados todavía.',
                   style: TextStyle(
                     fontSize: 14.sp,
-                    color: AppColores.textSecondary,
+                    color: context.palette.textSecondary,
                   ),
                 ),
               )
@@ -173,12 +174,13 @@ class _FavoritosSheetContent extends StatelessWidget {
                   shrinkWrap: true,
                   itemCount: favoritos.length,
                   separatorBuilder: (_, _) =>
-                      Divider(height: 1.h, color: AppColores.borderSubtle),
+                      Divider(height: 1.h, color: context.palette.borderSubtle),
                   itemBuilder: (context, i) {
                     final favorito = favoritos[i];
                     final sinUbicacion = favorito.position == null;
-                    final eliminando =
-                        vm.eliminandoFavoritoIds.contains(favorito.id);
+                    final eliminando = vm.eliminandoFavoritoIds.contains(
+                      favorito.id,
+                    );
                     return ListTile(
                       enabled: !sinUbicacion,
                       leading: const Icon(Icons.star, color: Colors.amber),
@@ -208,9 +210,9 @@ class _FavoritosSheetContent extends StatelessWidget {
                       ),
                       onTap: sinUbicacion
                           ? null
-                          : () => Navigator.of(context).pop(
-                                _Seleccionar(favorito),
-                              ),
+                          : () => Navigator.of(
+                              context,
+                            ).pop(_Seleccionar(favorito)),
                     );
                   },
                 ),

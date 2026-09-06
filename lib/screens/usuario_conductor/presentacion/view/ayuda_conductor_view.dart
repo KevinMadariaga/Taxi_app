@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 
 class AyudaConductorView extends StatefulWidget {
   const AyudaConductorView({super.key});
@@ -67,11 +68,11 @@ class _AyudaConductorViewState extends State<AyudaConductorView> {
       resizeToAvoidBottomInset: true,
       appBar: AppBar(
         title: const Text('Ayuda'),
-        backgroundColor: AppColores.surface,
-        foregroundColor: AppColores.textPrimary,
+        backgroundColor: AppColores.primary,
+        foregroundColor: AppColores.textWhite,
         elevation: 0,
       ),
-      backgroundColor: AppColores.background,
+      backgroundColor: context.palette.background,
       body: Column(
         children: [
           Padding(
@@ -94,10 +95,10 @@ class _AyudaConductorViewState extends State<AyudaConductorView> {
           ),
           Expanded(
             child: filtered.isEmpty
-                ? const Center(
+                ? Center(
                     child: Text(
                       'No hay resultados para tu búsqueda.',
-                      style: TextStyle(color: AppColores.textSecondary),
+                      style: TextStyle(color: context.palette.textSecondary),
                     ),
                   )
                 : ListView.builder(
@@ -109,15 +110,19 @@ class _AyudaConductorViewState extends State<AyudaConductorView> {
                       return ExpansionTile(
                         leading: const Icon(Icons.help_outline),
                         title: Text(item['q'] ?? ''),
-                        childrenPadding:
-                            const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                        childrenPadding: const EdgeInsets.fromLTRB(
+                          16,
+                          0,
+                          16,
+                          16,
+                        ),
                         children: [
                           Align(
                             alignment: Alignment.centerLeft,
                             child: Text(
                               item['a'] ?? '',
-                              style: const TextStyle(
-                                color: AppColores.textSecondary,
+                              style: TextStyle(
+                                color: context.palette.textSecondary,
                                 height: 1.3,
                               ),
                             ),

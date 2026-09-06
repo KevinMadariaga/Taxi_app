@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/constants/app_constants.dart';
 import 'package:taxi_app/presentation/viewmodels/splash/splash_viewmodel.dart';
 import 'package:taxi_app/presentation/widgets/update_available_dialog.dart';
@@ -9,11 +10,6 @@ import 'package:taxi_app/caracteristicas/autenticacion/presentacion/vistas/home_
 import 'package:taxi_app/core/services/services.dart';
 import 'package:taxi_app/core/services/initial_screen_resolver.dart';
 
-/// Fondo del splash: blanco, en sintonía con el splash nativo para que NO
-/// haya salto de color ni pantalla negra entre el arranque nativo y el primer
-/// frame de Flutter.
-const Color _fondoSplash = Colors.white;
-
 class SplashView extends StatefulWidget {
   const SplashView({super.key});
 
@@ -21,8 +17,7 @@ class SplashView extends StatefulWidget {
   State<SplashView> createState() => _SplashViewState();
 }
 
-class _SplashViewState extends State<SplashView>
-    with TickerProviderStateMixin {
+class _SplashViewState extends State<SplashView> with TickerProviderStateMixin {
   late final AnimationController _entrada;
   late final AnimationController _pulso;
   late final Animation<double> _logoFade;
@@ -190,11 +185,17 @@ class _SplashViewState extends State<SplashView>
     // El wordmark (ícono + "IDE" en un solo PNG, proporción ancha ~3:1) se
     // dimensiona por ancho, acotado para que no se vea ni chico ni desbordado
     // en tablets.
-    final double logoWidth =
-        (MediaQuery.of(context).size.width * 0.48).clamp(160.0, 260.0);
+    final double logoWidth = (MediaQuery.of(context).size.width * 0.48).clamp(
+      160.0,
+      260.0,
+    );
 
     return Scaffold(
-      backgroundColor: _fondoSplash,
+      // El splash nativo (launch screen) es blanco fijo — con tema oscuro
+      // hay un flash breve blanco→oscuro al pasar a este Scaffold, pero es
+      // mejor que dejar esta pantalla blanca mientras el resto de la app
+      // navega en oscuro.
+      backgroundColor: context.palette.background,
       body: Stack(
         children: [
           // ── Logo + marca: centrados en el medio exacto de la pantalla ──
@@ -234,10 +235,10 @@ class _SplashViewState extends State<SplashView>
                       Text(
                         AppConstants.splashMessage,
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 14.5,
                           fontWeight: FontWeight.w500,
-                          color: AppColores.textSecondary,
+                          color: context.palette.textSecondary,
                         ),
                       ),
                     ],

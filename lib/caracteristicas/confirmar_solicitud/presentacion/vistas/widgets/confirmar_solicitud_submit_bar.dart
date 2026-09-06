@@ -4,6 +4,7 @@ import '../../../dominio/modelos/crear_solicitud_resultado.dart';
 import 'package:provider/provider.dart';
 
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/helpers/responsive_helper.dart';
 
 import '../../viewmodels/confirmar_solicitud_viewmodel.dart';
@@ -119,8 +120,8 @@ class ConfirmarSolicitudSubmitBar extends StatelessWidget {
                     ResponsiveHelper.wp(context, 2),
                   ),
                 ),
-                side: const BorderSide(color: Colors.black26),
-                foregroundColor: Colors.black87,
+                side: BorderSide(color: context.palette.borderSubtle),
+                foregroundColor: context.palette.textPrimary,
                 padding: EdgeInsets.zero,
               ),
               child: Icon(

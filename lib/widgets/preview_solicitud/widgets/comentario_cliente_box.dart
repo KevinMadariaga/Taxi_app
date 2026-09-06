@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 
 /// Comentario del cliente para el conductor. `null`/vacío/valores genéricos
 /// ("ninguno", "n/a", "-"...) se normalizan a `null` antes de llegar acá —
@@ -34,29 +34,29 @@ class ComentarioClienteBox extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: AppColores.background,
+        color: context.palette.background,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColores.borderSubtle),
+        border: Border.all(color: context.palette.borderSubtle),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(
+          Icon(
             Icons.chat_bubble_outline,
             size: 15,
-            color: AppColores.textSecondary,
+            color: context.palette.textSecondary,
           ),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Comentario del cliente',
                   style: TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: 12,
-                    color: AppColores.textPrimary,
+                    color: context.palette.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -64,9 +64,9 @@ class ComentarioClienteBox extends StatelessWidget {
                   comentario,
                   maxLines: 4,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12.5,
-                    color: AppColores.textSecondary,
+                    color: context.palette.textSecondary,
                   ),
                 ),
               ],

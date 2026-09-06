@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/services/soporte_notification_service.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
 import 'package:taxi_app/features/admin/admin_configuracion_screen.dart';
@@ -85,16 +86,16 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     return DefaultTabController(
       length: 2,
       child: Scaffold(
-        backgroundColor: AppColores.background,
+        backgroundColor: context.palette.background,
         appBar: AppBar(
           title: const Text('Administrador'),
           backgroundColor: AppColores.primary,
           foregroundColor: AppColores.textWhite,
           actions: [
             _AdminBellIcon(
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const AdminHubScreen()),
-              ),
+              onTap: () => Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const AdminHubScreen())),
             ),
             IconButton(
               tooltip: 'Configuración',
@@ -133,7 +134,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                         hintText: 'Buscar por nombre, teléfono o placa',
                         prefixIcon: const Icon(Icons.search),
                         filled: true,
-                        fillColor: AppColores.surface,
+                        fillColor: context.palette.surface,
                         contentPadding: const EdgeInsets.symmetric(
                           vertical: 0,
                           horizontal: 12,
@@ -210,7 +211,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   }
 }
 
-
 String _str(Map<String, dynamic> data, List<String> keys, String fallback) {
   for (final k in keys) {
     final v = data[k];
@@ -236,21 +236,24 @@ String _fechaCorta(Timestamp? ts) {
 
 void _verDetalles(BuildContext context, Map<String, dynamic> data) {
   Widget fila(String k, String v) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              width: 90,
-              child: Text(k,
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: AppColores.textSecondary)),
+    padding: const EdgeInsets.symmetric(vertical: 4),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 90,
+          child: Text(
+            k,
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: context.palette.textSecondary,
             ),
-            Expanded(child: Text(v)),
-          ],
+          ),
         ),
-      );
+        Expanded(child: Text(v)),
+      ],
+    ),
+  );
 
   final activa = membresiaActiva(data);
   final vence = data['membresiaVence'];
@@ -268,8 +271,10 @@ void _verDetalles(BuildContext context, Map<String, dynamic> data) {
           fila('Rol', _str(data, ['rol'], 'cliente')),
           fila('Membresía', activa ? 'activa' : 'inactiva'),
           if (activa && data['membresiaDias'] != null)
-            fila('Vigencia',
-                '${data['membresiaDias']} días${vence is Timestamp ? ' · vence ${_fechaCorta(vence)}' : ''}'),
+            fila(
+              'Vigencia',
+              '${data['membresiaDias']} días${vence is Timestamp ? ' · vence ${_fechaCorta(vence)}' : ''}',
+            ),
         ],
       ),
       actions: [
@@ -282,11 +287,12 @@ void _verDetalles(BuildContext context, Map<String, dynamic> data) {
   );
 }
 
-typedef _AprobarMembresiaCallback = Future<void> Function({
-  required String uid,
-  required int dias,
-  required String nombre,
-});
+typedef _AprobarMembresiaCallback =
+    Future<void> Function({
+      required String uid,
+      required int dias,
+      required String nombre,
+    });
 
 class _ListaConductores extends StatelessWidget {
   const _ListaConductores({
@@ -310,9 +316,11 @@ class _ListaConductores extends StatelessWidget {
       return const _EmptyTile('No hay conductores.');
     }
     final pendientes = docs
-        .where((d) =>
-            d.data()['solicitudConductor'] == true &&
-            !membresiaActiva(d.data()))
+        .where(
+          (d) =>
+              d.data()['solicitudConductor'] == true &&
+              !membresiaActiva(d.data()),
+        )
         .length;
 
     return Center(
@@ -333,8 +341,11 @@ class _ListaConductores extends StatelessWidget {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.notifications_active,
-                        color: AppColores.error, size: 20),
+                    const Icon(
+                      Icons.notifications_active,
+                      color: AppColores.error,
+                      size: 20,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -413,7 +424,7 @@ class _EmptyTile extends StatelessWidget {
         padding: const EdgeInsets.all(24),
         child: Text(
           texto,
-          style: const TextStyle(color: AppColores.textSecondary),
+          style: TextStyle(color: context.palette.textSecondary),
         ),
       ),
     );
@@ -442,18 +453,18 @@ class _ClienteCard extends StatelessWidget {
     if (!ok) return;
     await onDeshabilitar(doc.id);
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$nombre deshabilitado.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('$nombre deshabilitado.')));
     }
   }
 
   Future<void> _habilitar(BuildContext context, String nombre) async {
     await onHabilitar(doc.id);
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$nombre habilitado.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('$nombre habilitado.')));
     }
   }
 
@@ -461,8 +472,11 @@ class _ClienteCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final data = doc.data();
     final nombre = _nombreCompleto(data, 'Cliente');
-    final contacto =
-        _str(data, ['correo', 'email', 'telefono'], 'Sin contacto');
+    final contacto = _str(data, [
+      'correo',
+      'email',
+      'telefono',
+    ], 'Sin contacto');
     final foto = _str(data, ['foto', 'fotoUrl'], '');
     final deshabilitado = data['deshabilitado'] == true;
 
@@ -470,7 +484,7 @@ class _ClienteCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: AppColores.grey200,
+          backgroundColor: context.palette.grey200,
           backgroundImage: foto.isNotEmpty ? NetworkImage(foto) : null,
           onBackgroundImageError: foto.isNotEmpty ? (_, _) {} : null,
           child: foto.isEmpty ? const Icon(Icons.person) : null,
@@ -478,8 +492,10 @@ class _ClienteCard extends StatelessWidget {
         title: Row(
           children: [
             Flexible(
-              child: Text(nombre,
-                  style: const TextStyle(fontWeight: FontWeight.w600)),
+              child: Text(
+                nombre,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
             ),
             if (deshabilitado) ...[
               const SizedBox(width: 6),
@@ -501,15 +517,17 @@ class _ClienteCard extends StatelessWidget {
             if (v == 'habilitar') _habilitar(context, nombre);
           },
           itemBuilder: (_) => [
-            const PopupMenuItem(
-                value: 'detalles', child: Text('Ver detalles')),
+            const PopupMenuItem(value: 'detalles', child: Text('Ver detalles')),
             if (deshabilitado)
               const PopupMenuItem(
-                  value: 'habilitar', child: Text('Habilitar usuario'))
+                value: 'habilitar',
+                child: Text('Habilitar usuario'),
+              )
             else
               const PopupMenuItem(
-                  value: 'deshabilitar',
-                  child: Text('Deshabilitar usuario')),
+                value: 'deshabilitar',
+                child: Text('Deshabilitar usuario'),
+              ),
           ],
         ),
       ),
@@ -562,8 +580,7 @@ class _ConductorCard extends StatelessWidget {
       final ok = await mostrarConfirmacion(
         context,
         titulo: 'Activar sin solicitud',
-        mensaje:
-            '$nombre no solicitó la activación. ¿Activar de todas formas?',
+        mensaje: '$nombre no solicitó la activación. ¿Activar de todas formas?',
         accion: 'Activar',
       );
       if (!ok) return;
@@ -587,16 +604,17 @@ class _ConductorCard extends StatelessWidget {
     final ok = await mostrarConfirmacion(
       context,
       titulo: 'Revocar membresía',
-      mensaje: 'Se desactivará el servicio de $nombre. Tendrá que activar de nuevo.',
+      mensaje:
+          'Se desactivará el servicio de $nombre. Tendrá que activar de nuevo.',
       accion: 'Revocar',
       peligro: true,
     );
     if (!ok) return;
     await onRevocar(doc.id);
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Membresía de $nombre revocada.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Membresía de $nombre revocada.')));
     }
   }
 
@@ -611,9 +629,9 @@ class _ConductorCard extends StatelessWidget {
     if (!ok) return;
     await onQuitar(doc.id);
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$nombre pasó a cliente.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('$nombre pasó a cliente.')));
     }
   }
 
@@ -629,18 +647,18 @@ class _ConductorCard extends StatelessWidget {
     if (!ok) return;
     await onDeshabilitar(doc.id);
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$nombre deshabilitado.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('$nombre deshabilitado.')));
     }
   }
 
   Future<void> _habilitar(BuildContext context, String nombre) async {
     await onHabilitar(doc.id);
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$nombre habilitado.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('$nombre habilitado.')));
     }
   }
 
@@ -666,11 +684,10 @@ class _ConductorCard extends StatelessWidget {
             Row(
               children: [
                 CircleAvatar(
-                  backgroundColor: AppColores.grey200,
+                  backgroundColor: context.palette.grey200,
                   backgroundImage: foto.isNotEmpty ? NetworkImage(foto) : null,
                   onBackgroundImageError: foto.isNotEmpty ? (_, _) {} : null,
-                  child:
-                      foto.isEmpty ? const Icon(Icons.local_taxi) : null,
+                  child: foto.isEmpty ? const Icon(Icons.local_taxi) : null,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -680,9 +697,12 @@ class _ConductorCard extends StatelessWidget {
                       Row(
                         children: [
                           Flexible(
-                            child: Text(nombre,
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.w700)),
+                            child: Text(
+                              nombre,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
                           ),
                           if (deshabilitado) ...[
                             const SizedBox(width: 6),
@@ -690,9 +710,10 @@ class _ConductorCard extends StatelessWidget {
                           ],
                         ],
                       ),
-                      Text('Placa: $placa',
-                          style: const TextStyle(
-                              color: AppColores.textSecondary)),
+                      Text(
+                        'Placa: $placa',
+                        style: TextStyle(color: context.palette.textSecondary),
+                      ),
                     ],
                   ),
                 ),
@@ -707,19 +728,28 @@ class _ConductorCard extends StatelessWidget {
                   },
                   itemBuilder: (_) => [
                     const PopupMenuItem(
-                        value: 'detalles', child: Text('Ver detalles')),
+                      value: 'detalles',
+                      child: Text('Ver detalles'),
+                    ),
                     if (activa)
                       const PopupMenuItem(
-                          value: 'revocar', child: Text('Revocar membresía')),
+                        value: 'revocar',
+                        child: Text('Revocar membresía'),
+                      ),
                     const PopupMenuItem(
-                        value: 'quitar', child: Text('Quitar como conductor')),
+                      value: 'quitar',
+                      child: Text('Quitar como conductor'),
+                    ),
                     if (deshabilitado)
                       const PopupMenuItem(
-                          value: 'habilitar', child: Text('Habilitar usuario'))
+                        value: 'habilitar',
+                        child: Text('Habilitar usuario'),
+                      )
                     else
                       const PopupMenuItem(
-                          value: 'deshabilitar',
-                          child: Text('Deshabilitar usuario')),
+                        value: 'deshabilitar',
+                        child: Text('Deshabilitar usuario'),
+                      ),
                   ],
                 ),
               ],
@@ -738,13 +768,19 @@ class _ConductorCard extends StatelessWidget {
                   children: [
                     const Row(
                       children: [
-                        Icon(Icons.verified,
-                            color: AppColores.success, size: 18),
+                        Icon(
+                          Icons.verified,
+                          color: AppColores.success,
+                          size: 18,
+                        ),
                         SizedBox(width: 6),
-                        Text('Membresía: activa',
-                            style: TextStyle(
-                                fontWeight: FontWeight.w700,
-                                color: AppColores.success)),
+                        Text(
+                          'Membresía: activa',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: AppColores.success,
+                          ),
+                        ),
                       ],
                     ),
                     if (dias != null)
@@ -753,8 +789,9 @@ class _ConductorCard extends StatelessWidget {
                         child: Text(
                           'Vigencia: $dias días'
                           '${vence is Timestamp ? ' · vence ${_fechaCorta(vence)}' : ''}',
-                          style: const TextStyle(
-                              color: AppColores.textSecondary),
+                          style: TextStyle(
+                            color: context.palette.textSecondary,
+                          ),
                         ),
                       ),
                   ],
@@ -773,8 +810,11 @@ class _ConductorCard extends StatelessWidget {
                     ),
                     child: const Row(
                       children: [
-                        Icon(Icons.notifications_active,
-                            color: AppColores.warning, size: 18),
+                        Icon(
+                          Icons.notifications_active,
+                          color: AppColores.warning,
+                          size: 18,
+                        ),
                         SizedBox(width: 6),
                         Expanded(
                           child: Text(
@@ -803,13 +843,16 @@ class _ConductorCard extends StatelessWidget {
             else
               Row(
                 children: [
-                  const Icon(Icons.info_outline,
-                      color: AppColores.textSecondary, size: 18),
+                  Icon(
+                    Icons.info_outline,
+                    color: context.palette.textSecondary,
+                    size: 18,
+                  ),
                   const SizedBox(width: 6),
-                  const Expanded(
+                  Expanded(
                     child: Text(
                       'Registrado · sin solicitud de activación',
-                      style: TextStyle(color: AppColores.textSecondary),
+                      style: TextStyle(color: context.palette.textSecondary),
                     ),
                   ),
                   TextButton(
@@ -906,8 +949,7 @@ class _AdminBellIconState extends State<_AdminBellIcon> {
               right: -5,
               child: Container(
                 padding: const EdgeInsets.all(2),
-                constraints:
-                    const BoxConstraints(minWidth: 17, minHeight: 17),
+                constraints: const BoxConstraints(minWidth: 17, minHeight: 17),
                 decoration: const BoxDecoration(
                   color: Colors.red,
                   shape: BoxShape.circle,

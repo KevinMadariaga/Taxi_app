@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodels/historial_conductor_viewmodel.dart';
 import 'package:taxi_app/widgets/historial/historial_widgets.dart';
 import 'historial_detalle_conductor.dart';
@@ -61,8 +62,8 @@ class HistorialConductorState extends State<HistorialConductor> {
     String cliente = 'Cliente';
     final clienteObj = data['cliente'];
     if (clienteObj is Map) {
-      cliente =
-          (clienteObj['name'] ?? clienteObj['nombre'] ?? cliente).toString();
+      cliente = (clienteObj['name'] ?? clienteObj['nombre'] ?? cliente)
+          .toString();
     }
 
     showDialog(
@@ -84,7 +85,7 @@ class HistorialConductorState extends State<HistorialConductor> {
     final conductorId = _vm.conductorId;
 
     return Scaffold(
-      backgroundColor: AppColores.background,
+      backgroundColor: context.palette.background,
       appBar: AppBar(
         title: const Text(
           'Historial de Viajes',
@@ -201,22 +202,35 @@ class HistorialConductorState extends State<HistorialConductor> {
                                 'Prueba con otro filtro.',
                           )
                         : ListView.builder(
-                            padding: EdgeInsets.fromLTRB(12, 4, 12, MediaQuery.of(context).padding.bottom + 90),
+                            padding: EdgeInsets.fromLTRB(
+                              12,
+                              4,
+                              12,
+                              MediaQuery.of(context).padding.bottom + 90,
+                            ),
                             itemCount: viajesFiltrados.length,
                             itemBuilder: (context, index) {
                               final data = viajesFiltrados[index];
                               final destinoField = data['destino'];
                               return HistorialViajeCard(
-                                destinoFuture: _vm.obtenerDireccion(destinoField),
+                                destinoFuture: _vm.obtenerDireccion(
+                                  destinoField,
+                                ),
                                 destinoFallback: _fallbackDestino(destinoField),
                                 fecha: _vm.formatarHoraFin(data),
-                                valor: formatPesos(_vm.extraerValorServicio(data)),
+                                valor: formatPesos(
+                                  _vm.extraerValorServicio(data),
+                                ),
                                 calificacion: _vm
                                     .extraerCalificacion(data)
                                     .clamp(0, 5)
                                     .toDouble(),
                                 onTap: () => _mostrarDetalle(context, data),
-                                isMoto: (data['tipoVehiculo'] ?? '').toString().toLowerCase() == 'moto',
+                                isMoto:
+                                    (data['tipoVehiculo'] ?? '')
+                                        .toString()
+                                        .toLowerCase() ==
+                                    'moto',
                               );
                             },
                           ),
@@ -255,17 +269,17 @@ class _FiltroHistorialChips extends StatelessWidget {
                 onSelected: (_) => onChanged(opcion),
                 showCheckmark: false,
                 selectedColor: AppColores.primary,
-                backgroundColor: AppColores.surface,
+                backgroundColor: context.palette.surface,
                 labelStyle: TextStyle(
                   fontWeight: FontWeight.w700,
                   color: filtro == opcion
                       ? AppColores.textWhite
-                      : AppColores.textPrimary,
+                      : context.palette.textPrimary,
                 ),
                 side: BorderSide(
                   color: filtro == opcion
                       ? AppColores.primary
-                      : AppColores.borderSubtle,
+                      : context.palette.borderSubtle,
                 ),
               ),
               if (opcion != FiltroHistorial.values.last)
@@ -301,9 +315,9 @@ class _HistorialViajeCardSkeleton extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: AppColores.borderSubtle),
+        side: BorderSide(color: context.palette.borderSubtle),
       ),
-      color: AppColores.surface,
+      color: context.palette.surface,
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Row(
@@ -311,8 +325,8 @@ class _HistorialViajeCardSkeleton extends StatelessWidget {
             Container(
               width: 46,
               height: 46,
-              decoration: const BoxDecoration(
-                color: AppColores.grey200,
+              decoration: BoxDecoration(
+                color: context.palette.grey200,
                 shape: BoxShape.circle,
               ),
             ),
@@ -325,7 +339,7 @@ class _HistorialViajeCardSkeleton extends StatelessWidget {
                     height: 15,
                     width: double.infinity,
                     decoration: BoxDecoration(
-                      color: AppColores.grey200,
+                      color: context.palette.grey200,
                       borderRadius: BorderRadius.circular(4),
                     ),
                   ),
@@ -334,7 +348,7 @@ class _HistorialViajeCardSkeleton extends StatelessWidget {
                     height: 12,
                     width: 120,
                     decoration: BoxDecoration(
-                      color: AppColores.grey200,
+                      color: context.palette.grey200,
                       borderRadius: BorderRadius.circular(4),
                     ),
                   ),
@@ -349,7 +363,7 @@ class _HistorialViajeCardSkeleton extends StatelessWidget {
                   height: 15,
                   width: 48,
                   decoration: BoxDecoration(
-                    color: AppColores.grey200,
+                    color: context.palette.grey200,
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
@@ -358,7 +372,7 @@ class _HistorialViajeCardSkeleton extends StatelessWidget {
                   height: 20,
                   width: 40,
                   decoration: BoxDecoration(
-                    color: AppColores.grey200,
+                    color: context.palette.grey200,
                     borderRadius: BorderRadius.circular(20),
                   ),
                 ),
@@ -381,9 +395,9 @@ class _ResumenConductorSkeleton extends StatelessWidget {
       margin: const EdgeInsets.fromLTRB(12, 12, 12, 8),
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
       decoration: BoxDecoration(
-        color: AppColores.surface,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColores.borderSubtle),
+        border: Border.all(color: context.palette.borderSubtle),
       ),
       child: const Row(
         children: [
@@ -408,8 +422,8 @@ class _ResumenItemSkeleton extends StatelessWidget {
         Container(
           width: 22,
           height: 22,
-          decoration: const BoxDecoration(
-            color: AppColores.grey200,
+          decoration: BoxDecoration(
+            color: context.palette.grey200,
             shape: BoxShape.circle,
           ),
         ),
@@ -418,7 +432,7 @@ class _ResumenItemSkeleton extends StatelessWidget {
           height: 16,
           width: 36,
           decoration: BoxDecoration(
-            color: AppColores.grey200,
+            color: context.palette.grey200,
             borderRadius: BorderRadius.circular(4),
           ),
         ),
@@ -427,7 +441,7 @@ class _ResumenItemSkeleton extends StatelessWidget {
           height: 11,
           width: 44,
           decoration: BoxDecoration(
-            color: AppColores.grey200,
+            color: context.palette.grey200,
             borderRadius: BorderRadius.circular(4),
           ),
         ),
@@ -453,9 +467,9 @@ class _ResumenConductor extends StatelessWidget {
       margin: const EdgeInsets.fromLTRB(12, 12, 12, 8),
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
       decoration: BoxDecoration(
-        color: AppColores.surface,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColores.borderSubtle),
+        border: Border.all(color: context.palette.borderSubtle),
       ),
       child: Row(
         children: [
@@ -508,19 +522,19 @@ class _ResumenItem extends StatelessWidget {
             fit: BoxFit.scaleDown,
             child: Text(
               valor,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w800,
-                color: AppColores.textPrimary,
+                color: context.palette.textPrimary,
               ),
             ),
           ),
           const SizedBox(height: 2),
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 11.5,
-              color: AppColores.textSecondary,
+              color: context.palette.textSecondary,
             ),
           ),
         ],
@@ -534,6 +548,6 @@ class _SeparadorVertical extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(width: 1, height: 38, color: AppColores.borderSubtle);
+    return Container(width: 1, height: 38, color: context.palette.borderSubtle);
   }
 }

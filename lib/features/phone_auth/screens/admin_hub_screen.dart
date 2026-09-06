@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/helpers/responsive_helper.dart';
 import 'package:taxi_app/core/services/reportes_service.dart';
 import 'package:taxi_app/core/services/soporte_chat_service.dart';
@@ -67,10 +68,10 @@ class _AdminHubScreenState extends State<AdminHubScreen> {
       length: 3,
       initialIndex: widget.initialTab.clamp(0, 2),
       child: Scaffold(
-        backgroundColor: AppColores.background,
+        backgroundColor: context.palette.background,
         appBar: AppBar(
           backgroundColor: AppColores.primary,
-          foregroundColor: AppColores.textPrimary,
+          foregroundColor: AppColores.textWhite,
           elevation: 0,
           title: Text(
             'Gestión',
@@ -95,22 +96,28 @@ class _AdminHubScreenState extends State<AdminHubScreen> {
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: _kContentMaxWidth),
                 child: TabBar(
-                  labelColor: AppColores.textPrimary,
-                  unselectedLabelColor: AppColores.textPrimary.withValues(
+                  labelColor: AppColores.textWhite,
+                  unselectedLabelColor: AppColores.textWhite.withValues(
                     alpha: 0.6,
                   ),
-                  indicatorColor: AppColores.textPrimary,
+                  indicatorColor: AppColores.textWhite,
                   indicatorWeight: 3,
                   labelPadding: EdgeInsets.symmetric(
                     horizontal: ResponsiveHelper.wp(context, isCompact ? 1 : 3),
                   ),
                   labelStyle: TextStyle(
                     fontWeight: FontWeight.w700,
-                    fontSize: ResponsiveHelper.sp(context, isCompact ? 12.5 : 14),
+                    fontSize: ResponsiveHelper.sp(
+                      context,
+                      isCompact ? 12.5 : 14,
+                    ),
                   ),
                   unselectedLabelStyle: TextStyle(
                     fontWeight: FontWeight.w600,
-                    fontSize: ResponsiveHelper.sp(context, isCompact ? 12.5 : 14),
+                    fontSize: ResponsiveHelper.sp(
+                      context,
+                      isCompact ? 12.5 : 14,
+                    ),
                   ),
                   tabs: [
                     _BadgeTab(label: 'Reportes', count: _reportes),
@@ -131,11 +138,7 @@ class _AdminHubScreenState extends State<AdminHubScreen> {
         body: const SafeArea(
           top: false,
           child: TabBarView(
-            children: [
-              _TabReportes(),
-              _TabMensajes(),
-              _TabSugerencias(),
-            ],
+            children: [_TabReportes(), _TabMensajes(), _TabSugerencias()],
           ),
         ),
       ),
@@ -225,13 +228,13 @@ class _EstadoVacio extends StatelessWidget {
               width: ResponsiveHelper.wp(context, 18).clamp(64.0, 96.0),
               height: ResponsiveHelper.wp(context, 18).clamp(64.0, 96.0),
               decoration: BoxDecoration(
-                color: AppColores.grey100,
+                color: context.palette.grey100,
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 icono,
                 size: ResponsiveHelper.wp(context, 8).clamp(28.0, 40.0),
-                color: AppColores.grey400,
+                color: context.palette.grey400,
               ),
             ),
             SizedBox(height: ResponsiveHelper.hp(context, 1.6)),
@@ -239,7 +242,7 @@ class _EstadoVacio extends StatelessWidget {
               texto,
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: AppColores.textSecondary,
+                color: context.palette.textSecondary,
                 fontSize: ResponsiveHelper.sp(context, 14),
                 fontWeight: FontWeight.w500,
               ),
@@ -285,13 +288,15 @@ class _ItemCard extends StatelessWidget {
       margin: EdgeInsets.zero,
       elevation: noLeido ? 1.5 : 0.5,
       shadowColor: Colors.black.withValues(alpha: 0.08),
-      color: noLeido ? accentColor.withValues(alpha: 0.05) : AppColores.surface,
+      color: noLeido
+          ? accentColor.withValues(alpha: 0.05)
+          : context.palette.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(
           color: noLeido
               ? accentColor.withValues(alpha: 0.25)
-              : AppColores.borderSubtle,
+              : context.palette.borderSubtle,
           width: 1,
         ),
       ),
@@ -342,7 +347,7 @@ class _ItemCard extends StatelessWidget {
                       trailingTop!,
                       style: TextStyle(
                         fontSize: ResponsiveHelper.sp(context, 11),
-                        color: AppColores.textSecondary,
+                        color: context.palette.textSecondary,
                       ),
                     ),
                   if (noLeido)
@@ -400,10 +405,8 @@ Future<T?> _mostrarDetalleSheet<T>(
       maxWidth: _kContentMaxWidth,
       maxHeight: maxHeight,
     ),
-    builder: (ctx) => SafeArea(
-      top: false,
-      child: SingleChildScrollView(child: builder(ctx)),
-    ),
+    builder: (ctx) =>
+        SafeArea(top: false, child: SingleChildScrollView(child: builder(ctx))),
   );
 }
 
@@ -443,7 +446,8 @@ class _TabReportes extends StatelessWidget {
               final data = docs[index].data();
               final conductor = (data['conductor'] ?? 'Conductor desconocido')
                   .toString();
-              final motivos = (data['motivos'] as List?)
+              final motivos =
+                  (data['motivos'] as List?)
                       ?.map((e) => e.toString())
                       .toList() ??
                   [];
@@ -457,9 +461,11 @@ class _TabReportes extends StatelessWidget {
               return _ItemCard(
                 leadingIcon: Icons.flag_rounded,
                 leadingBg: visto
-                    ? AppColores.grey200
+                    ? context.palette.grey200
                     : AppColores.error.withValues(alpha: 0.12),
-                leadingColor: visto ? AppColores.textSecondary : AppColores.error,
+                leadingColor: visto
+                    ? context.palette.textSecondary
+                    : AppColores.error,
                 accentColor: AppColores.error,
                 noLeido: !visto,
                 trailingTop: fecha,
@@ -482,7 +488,7 @@ class _TabReportes extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 fontSize: ResponsiveHelper.sp(context, 12),
-                                color: AppColores.textSecondary,
+                                color: context.palette.textSecondary,
                               ),
                             ),
                           if (comentario.isNotEmpty)
@@ -543,7 +549,7 @@ class _TabReportes extends StatelessWidget {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: AppColores.grey300,
+                  color: context.palette.grey300,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -563,9 +569,9 @@ class _TabReportes extends StatelessWidget {
                 const Spacer(),
                 Text(
                   fecha,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
-                    color: AppColores.textSecondary,
+                    color: context.palette.textSecondary,
                   ),
                 ),
               ],
@@ -590,10 +596,10 @@ class _TabReportes extends StatelessWidget {
       children: [
         Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w700,
-            color: AppColores.textSecondary,
+            color: context.palette.textSecondary,
           ),
         ),
         const SizedBox(height: 2),
@@ -654,13 +660,15 @@ class _TabMensajes extends StatelessWidget {
                   : '';
 
               return _ItemCard(
-                leadingIcon:
-                    userType == 'conductor' ? Icons.local_taxi : Icons.person,
-                leadingBg:
-                    hayNuevos ? AppColores.primary : AppColores.grey200,
+                leadingIcon: userType == 'conductor'
+                    ? Icons.local_taxi
+                    : Icons.person,
+                leadingBg: hayNuevos
+                    ? AppColores.primary
+                    : context.palette.grey200,
                 leadingColor: hayNuevos
-                    ? AppColores.textPrimary
-                    : AppColores.textSecondary,
+                    ? context.palette.textPrimary
+                    : context.palette.textSecondary,
                 noLeido: hayNuevos,
                 trailingTop: hora,
                 title: Text(
@@ -677,10 +685,9 @@ class _TabMensajes extends StatelessWidget {
                   style: TextStyle(
                     fontSize: ResponsiveHelper.sp(context, 12.5),
                     color: hayNuevos
-                        ? AppColores.textPrimary
-                        : AppColores.textSecondary,
-                    fontWeight:
-                        hayNuevos ? FontWeight.w600 : FontWeight.normal,
+                        ? context.palette.textPrimary
+                        : context.palette.textSecondary,
+                    fontWeight: hayNuevos ? FontWeight.w600 : FontWeight.normal,
                   ),
                 ),
                 onTap: () {
@@ -749,10 +756,11 @@ class _TabSugerencias extends StatelessWidget {
               return _ItemCard(
                 leadingIcon: esConductor ? Icons.local_taxi : Icons.person,
                 leadingBg: visto
-                    ? AppColores.grey200
+                    ? context.palette.grey200
                     : AppColores.primary.withValues(alpha: 0.15),
-                leadingColor:
-                    visto ? AppColores.textSecondary : AppColores.textPrimary,
+                leadingColor: visto
+                    ? context.palette.textSecondary
+                    : context.palette.textPrimary,
                 noLeido: !visto,
                 trailingTop: fecha,
                 title: Wrap(
@@ -805,10 +813,11 @@ class _TabSugerencias extends StatelessWidget {
                         style: TextStyle(
                           fontSize: ResponsiveHelper.sp(context, 12.5),
                           color: visto
-                              ? AppColores.textSecondary
-                              : AppColores.textPrimary,
-                          fontWeight:
-                              visto ? FontWeight.normal : FontWeight.w500,
+                              ? context.palette.textSecondary
+                              : context.palette.textPrimary,
+                          fontWeight: visto
+                              ? FontWeight.normal
+                              : FontWeight.w500,
                         ),
                       ),
                 onTap: () async {
@@ -860,7 +869,7 @@ class _TabSugerencias extends StatelessWidget {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: AppColores.grey300,
+                  color: context.palette.grey300,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -883,9 +892,9 @@ class _TabSugerencias extends StatelessWidget {
                 const Spacer(),
                 Text(
                   fecha,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
-                    color: AppColores.textSecondary,
+                    color: context.palette.textSecondary,
                   ),
                 ),
               ],
@@ -893,10 +902,10 @@ class _TabSugerencias extends StatelessWidget {
             const SizedBox(height: 12),
             Text(
               tipo == 'conductor' ? 'Conductor' : 'Cliente',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
-                color: AppColores.textSecondary,
+                color: context.palette.textSecondary,
               ),
             ),
             if (estrellas > 0) ...[

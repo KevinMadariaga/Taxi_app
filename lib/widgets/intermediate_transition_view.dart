@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 
 Future<void> navigateWithIntermediateLoader({
   required BuildContext context,
@@ -31,7 +32,10 @@ Future<void> navigateWithIntermediateLoader({
         onAfterDelay: onAfterDelay,
       ),
       transitionsBuilder: (_, animation, _, child) {
-        final curved = CurvedAnimation(parent: animation, curve: Curves.easeOut);
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOut,
+        );
         return FadeTransition(opacity: curved, child: child);
       },
     ),
@@ -67,7 +71,10 @@ Future<void> showIntermediateTransitionOverlay({
         drawCheck: drawCheck,
       ),
       transitionsBuilder: (_, animation, _, child) {
-        final curved = CurvedAnimation(parent: animation, curve: Curves.easeOut);
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOut,
+        );
         return FadeTransition(opacity: curved, child: child);
       },
     ),
@@ -187,7 +194,9 @@ class _IntermediateTransitionViewState extends State<IntermediateTransitionView>
       );
       return;
     }
-    Navigator.of(context).pushReplacement(MaterialPageRoute(builder: nextBuilder));
+    Navigator.of(
+      context,
+    ).pushReplacement(MaterialPageRoute(builder: nextBuilder));
   }
 
   @override
@@ -204,7 +213,7 @@ class _IntermediateTransitionViewState extends State<IntermediateTransitionView>
     final accent = widget.accentColor;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F7F5),
+      backgroundColor: context.palette.background,
       body: SafeArea(
         child: Center(
           child: Padding(
@@ -287,7 +296,7 @@ class _IntermediateTransitionViewState extends State<IntermediateTransitionView>
                         style: TextStyle(
                           fontSize: isTablet ? 26 : 22,
                           fontWeight: FontWeight.w800,
-                          color: Colors.black87,
+                          color: context.palette.textPrimary,
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -297,7 +306,7 @@ class _IntermediateTransitionViewState extends State<IntermediateTransitionView>
                         style: TextStyle(
                           fontSize: isTablet ? 16 : 14,
                           fontWeight: FontWeight.w500,
-                          color: Colors.black54,
+                          color: context.palette.textSecondary,
                         ),
                       ),
                     ],

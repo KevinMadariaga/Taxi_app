@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/widgets/visor_foto_pantalla_completa.dart';
 
 /// Avatar + nombre + dirección del cliente — renderizado inline en la
@@ -64,20 +65,20 @@ class ClienteHeaderRow extends StatelessWidget {
                 nombre,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
+                style: TextStyle(
                   fontWeight: FontWeight.w700,
                   fontSize: 18,
-                  color: AppColores.ink900,
+                  color: context.palette.ink900,
                 ),
               ),
               if (direccion.isNotEmpty) ...[
                 const SizedBox(height: 3),
                 Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.place_outlined,
                       size: 14,
-                      color: AppColores.ink500,
+                      color: context.palette.ink500,
                     ),
                     const SizedBox(width: 3),
                     Expanded(
@@ -85,9 +86,9 @@ class ClienteHeaderRow extends StatelessWidget {
                         direccion,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
-                          color: AppColores.ink500,
+                          color: context.palette.ink500,
                         ),
                       ),
                     ),

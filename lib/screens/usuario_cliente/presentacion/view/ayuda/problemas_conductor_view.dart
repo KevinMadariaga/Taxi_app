@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/services/reportes_service.dart';
 
 /// Formulario para reportar problemas con el conductor. Guarda el reporte en la
@@ -86,21 +87,21 @@ class _ProblemasConductorViewState extends State<ProblemasConductorView> {
                 ),
               ),
               const SizedBox(height: 16),
-              const Text(
+              Text(
                 'Reporte enviado',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
-                  color: AppColores.textPrimary,
+                  color: context.palette.textPrimary,
                 ),
               ),
               const SizedBox(height: 8),
-              const Text(
+              Text(
                 'Gracias por avisarnos. Revisaremos tu reporte.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 14,
-                  color: AppColores.textSecondary,
+                  color: context.palette.textSecondary,
                 ),
               ),
               const SizedBox(height: 20),
@@ -133,10 +134,10 @@ class _ProblemasConductorViewState extends State<ProblemasConductorView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColores.background,
+      backgroundColor: context.palette.background,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        foregroundColor: AppColores.textPrimary,
+        backgroundColor: AppColores.primary,
+        foregroundColor: AppColores.textWhite,
         elevation: 0,
         title: const Text(
           'Problemas con el conductor',
@@ -149,20 +150,20 @@ class _ProblemasConductorViewState extends State<ProblemasConductorView> {
           if (widget.nombreConductor.isNotEmpty) ...[
             Text(
               'Conductor: ${widget.nombreConductor}',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
-                color: AppColores.textSecondary,
+                color: context.palette.textSecondary,
               ),
             ),
             const SizedBox(height: 16),
           ],
-          const Text(
+          Text(
             '¿Qué problema tuviste?',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w800,
-              color: AppColores.textPrimary,
+              color: context.palette.textPrimary,
             ),
           ),
           const SizedBox(height: 12),
@@ -189,12 +190,12 @@ class _ProblemasConductorViewState extends State<ProblemasConductorView> {
                   decoration: BoxDecoration(
                     color: sel
                         ? AppColores.buttonPrimary.withValues(alpha: 0.08)
-                        : Colors.white,
+                        : context.palette.surface,
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
                       color: sel
                           ? AppColores.buttonPrimary
-                          : AppColores.borderSubtle,
+                          : context.palette.borderSubtle,
                       width: sel ? 1.6 : 1,
                     ),
                   ),
@@ -206,7 +207,7 @@ class _ProblemasConductorViewState extends State<ProblemasConductorView> {
                             : Icons.circle_outlined,
                         color: sel
                             ? AppColores.buttonPrimary
-                            : AppColores.grey400,
+                            : context.palette.grey400,
                         size: 22,
                       ),
                       const SizedBox(width: 12),
@@ -215,10 +216,8 @@ class _ProblemasConductorViewState extends State<ProblemasConductorView> {
                           m,
                           style: TextStyle(
                             fontSize: 15,
-                            fontWeight: sel
-                                ? FontWeight.w700
-                                : FontWeight.w500,
-                            color: AppColores.textPrimary,
+                            fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
+                            color: context.palette.textPrimary,
                           ),
                         ),
                       ),
@@ -229,12 +228,12 @@ class _ProblemasConductorViewState extends State<ProblemasConductorView> {
             );
           }),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'Comentario (opcional)',
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w700,
-              color: AppColores.textPrimary,
+              color: context.palette.textPrimary,
             ),
           ),
           const SizedBox(height: 8),
@@ -245,14 +244,14 @@ class _ProblemasConductorViewState extends State<ProblemasConductorView> {
             decoration: InputDecoration(
               hintText: 'Cuéntanos qué pasó...',
               filled: true,
-              fillColor: Colors.white,
+              fillColor: context.palette.surface,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
-                borderSide: const BorderSide(color: AppColores.borderSubtle),
+                borderSide: BorderSide(color: context.palette.borderSubtle),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
-                borderSide: const BorderSide(color: AppColores.borderSubtle),
+                borderSide: BorderSide(color: context.palette.borderSubtle),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
@@ -284,7 +283,10 @@ class _ProblemasConductorViewState extends State<ProblemasConductorView> {
                     )
                   : const Text(
                       'Enviar reporte',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
                     ),
             ),
           ),

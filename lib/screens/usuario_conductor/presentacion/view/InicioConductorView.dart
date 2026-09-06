@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show FilteringTextInputFormatter;
+import 'package:flutter/services.dart'
+    show FilteringTextInputFormatter, SystemUiOverlayStyle;
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -9,6 +10,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
+import 'package:taxi_app/core/theme/map_style.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/navigation/inicio_conductor_navigation.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodels/preview_solicitud.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodels/InicioConductorViewModel.dart';
@@ -367,7 +370,7 @@ class _InicioConductorState extends State<InicioConductor>
           };
           if (_isPreparingLocation) {
             return Scaffold(
-              backgroundColor: AppColores.background,
+              backgroundColor: context.palette.background,
               body: SafeArea(
                 child: Center(
                   child: Column(
@@ -378,7 +381,7 @@ class _InicioConductorState extends State<InicioConductor>
                       Text(
                         'Preparando ubicación...',
                         style: TextStyle(
-                          color: AppColores.textPrimary,
+                          color: context.palette.textPrimary,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -391,7 +394,7 @@ class _InicioConductorState extends State<InicioConductor>
 
           if (vm.isLoading) {
             return Scaffold(
-              backgroundColor: AppColores.background,
+              backgroundColor: context.palette.background,
               body: SafeArea(
                 child: Center(
                   child: Column(
@@ -402,7 +405,7 @@ class _InicioConductorState extends State<InicioConductor>
                       Text(
                         'Cargando panel del conductor...',
                         style: TextStyle(
-                          color: AppColores.textPrimary,
+                          color: context.palette.textPrimary,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -433,15 +436,30 @@ class _InicioConductorState extends State<InicioConductor>
           return PopScope(
             canPop: false,
             child: Scaffold(
-              backgroundColor: AppColores.background,
+              backgroundColor: context.palette.background,
               resizeToAvoidBottomInset: false,
               appBar: previewVisible
                   ? null
                   : AppBar(
-                      backgroundColor: AppColores.background,
-                      foregroundColor: AppColores.textPrimary,
+                      backgroundColor: context.palette.background,
+                      foregroundColor: context.palette.textPrimary,
                       elevation: 0,
                       automaticallyImplyLeading: false,
+                      // Este AppBar no tiene título ni marca: se funde con el
+                      // fondo de la pantalla (mapa/dashboard), así que la
+                      // barra de estado debe seguir ese mismo fondo — no el
+                      // amarillo de marca que usan los demás AppBar de la app.
+                      systemOverlayStyle: SystemUiOverlayStyle(
+                        statusBarColor: context.palette.background,
+                        statusBarIconBrightness:
+                            Theme.of(context).brightness == Brightness.dark
+                            ? Brightness.light
+                            : Brightness.dark,
+                        statusBarBrightness:
+                            Theme.of(context).brightness == Brightness.dark
+                            ? Brightness.dark
+                            : Brightness.light,
+                      ),
                     ),
               body: SafeArea(
                 child: Stack(
@@ -462,15 +480,15 @@ class _InicioConductorState extends State<InicioConductor>
                               width: double.infinity,
                               constraints: const BoxConstraints(minHeight: 110),
                               decoration: BoxDecoration(
-                                color: AppColores.cardBackground,
+                                color: context.palette.cardBackground,
                                 borderRadius: BorderRadius.circular(12.0.r),
                                 border: Border.all(
-                                  color: AppColores.borderSubtle,
+                                  color: context.palette.borderSubtle,
                                   width: 1.2,
                                 ),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: AppColores.borderSubtle,
+                                    color: context.palette.borderSubtle,
                                     blurRadius: 4,
                                     offset: const Offset(0, 2),
                                   ),
@@ -494,7 +512,7 @@ class _InicioConductorState extends State<InicioConductor>
                                           style: TextStyle(
                                             fontSize: 20.sp,
                                             fontWeight: FontWeight.w900,
-                                            color: AppColores.textPrimary,
+                                            color: context.palette.textPrimary,
                                           ),
                                         ),
 
@@ -555,7 +573,8 @@ class _InicioConductorState extends State<InicioConductor>
                                                                   1,
                                                                 ),
                                                             style: TextStyle(
-                                                              color: AppColores
+                                                              color: context
+                                                                  .palette
                                                                   .textPrimary,
                                                               fontSize: 16.sp,
                                                               fontWeight:
@@ -568,7 +587,8 @@ class _InicioConductorState extends State<InicioConductor>
                                                           Text(
                                                             '/5.0',
                                                             style: TextStyle(
-                                                              color: AppColores
+                                                              color: context
+                                                                  .palette
                                                                   .textSecondary,
                                                               fontSize: 13.sp,
                                                               fontWeight:
@@ -584,7 +604,8 @@ class _InicioConductorState extends State<InicioConductor>
                                                       ? 'Basado en ${vm.totalRatings} calificaciones de clientes'
                                                       : 'Aun sin calificaciones de clientes',
                                                   style: TextStyle(
-                                                    color: AppColores
+                                                    color: context
+                                                        .palette
                                                         .textSecondary,
                                                     fontSize: 13.sp,
                                                     fontWeight: FontWeight.w600,
@@ -617,8 +638,9 @@ class _InicioConductorState extends State<InicioConductor>
                                               return Container(
                                                 width: 100.w,
                                                 height: 100.h,
-                                                decoration: const BoxDecoration(
-                                                  color: AppColores.grey200,
+                                                decoration: BoxDecoration(
+                                                  color:
+                                                      context.palette.grey200,
                                                   shape: BoxShape.circle,
                                                 ),
                                                 alignment: Alignment.center,
@@ -639,8 +661,9 @@ class _InicioConductorState extends State<InicioConductor>
                                               return Container(
                                                 width: 100.w,
                                                 height: 100.h,
-                                                decoration: const BoxDecoration(
-                                                  color: AppColores.grey200,
+                                                decoration: BoxDecoration(
+                                                  color:
+                                                      context.palette.grey200,
                                                   shape: BoxShape.circle,
                                                 ),
                                                 alignment: Alignment.center,
@@ -653,8 +676,9 @@ class _InicioConductorState extends State<InicioConductor>
                                                   style: TextStyle(
                                                     fontSize: 40.sp,
                                                     fontWeight: FontWeight.bold,
-                                                    color:
-                                                        AppColores.textPrimary,
+                                                    color: context
+                                                        .palette
+                                                        .textPrimary,
                                                   ),
                                                 ),
                                               );
@@ -666,8 +690,8 @@ class _InicioConductorState extends State<InicioConductor>
                                       return Container(
                                         width: 100.w,
                                         height: 100.h,
-                                        decoration: const BoxDecoration(
-                                          color: AppColores.grey200,
+                                        decoration: BoxDecoration(
+                                          color: context.palette.grey200,
                                           shape: BoxShape.circle,
                                         ),
                                         alignment: Alignment.center,
@@ -680,7 +704,7 @@ class _InicioConductorState extends State<InicioConductor>
                                           style: TextStyle(
                                             fontSize: 40.sp,
                                             fontWeight: FontWeight.bold,
-                                            color: AppColores.textPrimary,
+                                            color: context.palette.textPrimary,
                                           ),
                                         ),
                                       );
@@ -706,13 +730,13 @@ class _InicioConductorState extends State<InicioConductor>
                               width: double.infinity,
                               decoration: BoxDecoration(
                                 color: vm.selectedPreview == null
-                                    ? AppColores.cardBackground
+                                    ? context.palette.cardBackground
                                     : Colors.transparent,
                                 borderRadius: vm.selectedPreview == null
                                     ? BorderRadius.circular(12.r)
                                     : BorderRadius.zero,
                                 border: Border.all(
-                                  color: AppColores.borderSubtle,
+                                  color: context.palette.borderSubtle,
                                   width: 1.2,
                                 ),
                               ),
@@ -996,7 +1020,7 @@ class _InicioConductorState extends State<InicioConductor>
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: connected
                                           ? AppColores.buttonPrimary
-                                          : AppColores.grey400,
+                                          : context.palette.grey400,
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(
                                           8.r,
@@ -1195,9 +1219,9 @@ class _InicioConductorState extends State<InicioConductor>
                                                     ),
                                                     backgroundColor:
                                                         e.code ==
-                                                                'permission-denied'
-                                                            ? Colors.orange
-                                                            : null,
+                                                            'permission-denied'
+                                                        ? Colors.orange
+                                                        : null,
                                                   ),
                                                 );
                                               }
@@ -1246,7 +1270,7 @@ class _InicioConductorState extends State<InicioConductor>
                         return BottomNavigationBar(
                           currentIndex: selectedIndex,
                           selectedItemColor: AppColores.primary,
-                          unselectedItemColor: AppColores.textSecondary,
+                          unselectedItemColor: context.palette.textSecondary,
                           items: const [
                             BottomNavigationBarItem(
                               icon: Icon(Icons.menu),
@@ -1394,10 +1418,10 @@ class _InicioConductorState extends State<InicioConductor>
                 color: AppColores.primary,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.location_on_rounded,
                 size: 38,
-                color: AppColores.textPrimary,
+                color: context.palette.textPrimary,
               ),
             ),
             SizedBox(height: 16.h),
@@ -1406,7 +1430,7 @@ class _InicioConductorState extends State<InicioConductor>
               style: TextStyle(
                 fontSize: 18.sp,
                 fontWeight: FontWeight.w800,
-                color: AppColores.textPrimary,
+                color: context.palette.textPrimary,
               ),
               textAlign: TextAlign.center,
             ),
@@ -1417,7 +1441,7 @@ class _InicioConductorState extends State<InicioConductor>
               'siempre, incluso en segundo plano.',
               style: TextStyle(
                 fontSize: 14.sp,
-                color: AppColores.textSecondary,
+                color: context.palette.textSecondary,
                 height: 1.4.h,
               ),
               textAlign: TextAlign.center,
@@ -1427,7 +1451,7 @@ class _InicioConductorState extends State<InicioConductor>
               Container(
                 padding: EdgeInsets.all(12.w),
                 decoration: BoxDecoration(
-                  color: AppColores.grey100,
+                  color: context.palette.grey100,
                   borderRadius: BorderRadius.circular(10.r),
                 ),
                 child: Text(
@@ -1435,7 +1459,7 @@ class _InicioConductorState extends State<InicioConductor>
                   '"Siempre" para activar el seguimiento en segundo plano.',
                   style: TextStyle(
                     fontSize: 12.sp,
-                    color: AppColores.textSecondary,
+                    color: context.palette.textSecondary,
                     height: 1.4.h,
                   ),
                   textAlign: TextAlign.center,
@@ -1455,7 +1479,7 @@ class _InicioConductorState extends State<InicioConductor>
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColores.buttonPrimary,
-                    foregroundColor: AppColores.textPrimary,
+                    foregroundColor: context.palette.textPrimary,
                     minimumSize: const Size.fromHeight(48),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(15.r),
@@ -1477,7 +1501,7 @@ class _InicioConductorState extends State<InicioConductor>
                 child: Text(
                   'Recordar más tarde',
                   style: TextStyle(
-                    color: AppColores.textSecondary,
+                    color: context.palette.textSecondary,
                     fontSize: 13.sp,
                   ),
                 ),
@@ -1513,10 +1537,10 @@ class _InicioConductorState extends State<InicioConductor>
                 color: AppColores.primary,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.location_off_rounded,
                 size: 38,
-                color: AppColores.textPrimary,
+                color: context.palette.textPrimary,
               ),
             ),
             SizedBox(height: 16.h),
@@ -1525,7 +1549,7 @@ class _InicioConductorState extends State<InicioConductor>
               style: TextStyle(
                 fontSize: 18.sp,
                 fontWeight: FontWeight.w800,
-                color: AppColores.textPrimary,
+                color: context.palette.textPrimary,
               ),
               textAlign: TextAlign.center,
             ),
@@ -1536,7 +1560,7 @@ class _InicioConductorState extends State<InicioConductor>
                   : 'Ve a Ajustes → Aplicaciones → Ride → Permisos → Ubicación y selecciona "Permitir todo el tiempo".',
               style: TextStyle(
                 fontSize: 14.sp,
-                color: AppColores.textSecondary,
+                color: context.palette.textSecondary,
                 height: 1.4.h,
               ),
               textAlign: TextAlign.center,
@@ -1550,7 +1574,7 @@ class _InicioConductorState extends State<InicioConductor>
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColores.buttonPrimary,
-                foregroundColor: AppColores.textPrimary,
+                foregroundColor: context.palette.textPrimary,
                 minimumSize: const Size.fromHeight(48),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(15.r),
@@ -1572,7 +1596,7 @@ class _InicioConductorState extends State<InicioConductor>
             child: Text(
               'Después',
               style: TextStyle(
-                color: AppColores.textSecondary,
+                color: context.palette.textSecondary,
                 fontSize: 13.sp,
               ),
             ),
@@ -1604,7 +1628,10 @@ class _InicioConductorState extends State<InicioConductor>
             SizedBox(height: 10.h),
             Text(
               'Bienvenido como conductor activo. Ya puedes conectarte y recibir solicitudes de viaje.',
-              style: TextStyle(color: AppColores.textSecondary, height: 1.4.h),
+              style: TextStyle(
+                color: context.palette.textSecondary,
+                height: 1.4.h,
+              ),
               textAlign: TextAlign.center,
             ),
           ],
@@ -1615,7 +1642,7 @@ class _InicioConductorState extends State<InicioConductor>
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColores.buttonPrimary,
-                foregroundColor: AppColores.textPrimary,
+                foregroundColor: context.palette.textPrimary,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12.r),
                 ),
@@ -1693,7 +1720,11 @@ class _InicioConductorState extends State<InicioConductor>
         // Sincronizar caché para que al reiniciar abra como cliente.
         SessionHelper.updateRole('cliente');
       } catch (e, st) {
-        ErrorReporter.report(e, st, reason: 'InicioConductorView: volver a cliente');
+        ErrorReporter.report(
+          e,
+          st,
+          reason: 'InicioConductorView: volver a cliente',
+        );
       }
     }
 
@@ -2038,14 +2069,18 @@ class _InicioConductorState extends State<InicioConductor>
               SizedBox(height: 12.h),
               Text(
                 'Contraoferta enviada',
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 17.sp),
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 17.sp,
+                  color: context.palette.textPrimary,
+                ),
               ),
               SizedBox(height: 6.h),
               Text(
                 'Se hizo contraoferta de \$${vm.formatMoneda(valor)}',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: AppColores.textSecondary,
+                  color: context.palette.textSecondary,
                   fontSize: 14.sp,
                 ),
               ),
@@ -2111,7 +2146,7 @@ class _InicioConductorState extends State<InicioConductor>
       // — y un scrim más claro que el `Colors.black54` por defecto para
       // que el mapa/tarjeta de abajo sigan reconocibles detrás, no se
       // vean "apagados" del todo mientras el conductor escribe el valor.
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       barrierColor: Colors.black.withValues(alpha: 0.32),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20.r)),
@@ -2136,19 +2171,23 @@ class _InicioConductorState extends State<InicioConductor>
                   height: 4.h,
                   margin: EdgeInsets.only(bottom: 12.h),
                   decoration: BoxDecoration(
-                    color: AppColores.grey300,
+                    color: context.palette.grey300,
                     borderRadius: BorderRadius.circular(2.r),
                   ),
                 ),
               ),
               Text(
                 'Enviar contraoferta',
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18.sp),
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 18.sp,
+                  color: context.palette.textPrimary,
+                ),
               ),
               SizedBox(height: 8.h),
               Text(
                 'Oferta actual del cliente: \$${vm.formatMoneda(valorBase)}',
-                style: const TextStyle(color: Colors.black54),
+                style: TextStyle(color: context.palette.textSecondary),
               ),
               SizedBox(height: 10.h),
               TextField(
@@ -2187,7 +2226,7 @@ class _InicioConductorState extends State<InicioConductor>
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: submitting
-                            ? AppColores.grey400
+                            ? context.palette.grey400
                             : AppColores.buttonPrimary,
                         foregroundColor: AppColores.textWhite,
                         minimumSize: const Size.fromHeight(48),
@@ -2296,7 +2335,13 @@ class _HomeConductorIdleMap extends StatelessWidget {
     return '${point.latitude.toStringAsFixed(4)},${point.longitude.toStringAsFixed(4)}';
   }
 
-  String _staticMapUrl(LatLng center, int width, int height, String apiKey) {
+  String _staticMapUrl(
+    LatLng center,
+    int width,
+    int height,
+    String apiKey, {
+    required bool isDark,
+  }) {
     final uri = Uri.https('maps.googleapis.com', '/maps/api/staticmap', {
       'center': _keyFromLatLng(center),
       'zoom': '16',
@@ -2304,6 +2349,7 @@ class _HomeConductorIdleMap extends StatelessWidget {
       'scale': '2',
       'maptype': 'roadmap',
       'key': apiKey,
+      if (isDark) 'style': MapStyle.staticMapsQueryParams,
     });
     return uri.toString();
   }
@@ -2327,6 +2373,8 @@ class _HomeConductorIdleMap extends StatelessWidget {
                 future: AppRemoteConfigService.instance.fetchStaticMapsApiKey(),
                 builder: (context, keySnapshot) {
                   final apiKey = keySnapshot.data ?? '';
+                  final isDark =
+                      Theme.of(context).brightness == Brightness.dark;
                   return AnimatedBuilder(
                     animation: currentLocationNotifier,
                     builder: (context, _) {
@@ -2345,9 +2393,15 @@ class _HomeConductorIdleMap extends StatelessWidget {
                       }
                       return CachedNetworkImage(
                         key: ValueKey(
-                          '${_keyFromLatLng(center)},$width,$height',
+                          '${_keyFromLatLng(center)},$width,$height,$isDark',
                         ),
-                        imageUrl: _staticMapUrl(center, width, height, apiKey),
+                        imageUrl: _staticMapUrl(
+                          center,
+                          width,
+                          height,
+                          apiKey,
+                          isDark: isDark,
+                        ),
                         fit: BoxFit.cover,
                         width: double.infinity,
                         height: double.infinity,
@@ -2409,12 +2463,12 @@ class _MapaConductorPlaceholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: AppColores.grey300.withValues(alpha: 0.35),
+      color: context.palette.grey300.withValues(alpha: 0.35),
       alignment: Alignment.center,
       child: Icon(
         Icons.map_outlined,
         size: 40,
-        color: AppColores.textSecondary.withValues(alpha: 0.6),
+        color: context.palette.textSecondary.withValues(alpha: 0.6),
       ),
     );
   }
@@ -2428,7 +2482,7 @@ class _MapaConductorCargandoUbicacion extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: AppColores.grey300.withValues(alpha: 0.35),
+      color: context.palette.grey300.withValues(alpha: 0.35),
       alignment: Alignment.center,
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -2444,7 +2498,7 @@ class _MapaConductorCargandoUbicacion extends StatelessWidget {
             style: TextStyle(
               fontSize: 12.5.sp,
               fontWeight: FontWeight.w600,
-              color: AppColores.textSecondary,
+              color: context.palette.textSecondary,
             ),
           ),
         ],

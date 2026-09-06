@@ -17,6 +17,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../viewmodels/inicio_cliente_viewmodel.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/widgets/bienvenida_dialog.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
+import 'package:taxi_app/core/theme/map_style.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/ubicacion_resultado.dart';
 import 'package:taxi_app/screens/perfil/perfil.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
@@ -70,7 +72,8 @@ class _InicioClienteViewState extends State<InicioClienteView>
     _vmListener = () => setState(() {});
     vm.addListener(_vmListener);
     vm.init();
-    _applyOverlayStyle();
+    // El estilo inicial se aplica en didChangeDependencies, no acá: Theme.of
+    // no se puede leer todavía dentro de initState.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _bootstrapClienteLocationFlow();
       // Encadenados, no en paralelo: los dos pueden terminar en un
@@ -79,7 +82,9 @@ class _InicioClienteViewState extends State<InicioClienteView>
       // dos a la vez apilaba dos diálogos casi simultáneos (hallazgo QA en
       // dispositivo real, 2026-09-05). Se espera a que la bienvenida se
       // cierre antes de evaluar la calificación pendiente.
-      _maybeMostrarBienvenida().then((_) => _maybeMostrarCalificacionPendiente());
+      _maybeMostrarBienvenida().then(
+        (_) => _maybeMostrarCalificacionPendiente(),
+      );
     });
   }
 
@@ -145,14 +150,44 @@ class _InicioClienteViewState extends State<InicioClienteView>
     }
   }
 
-  /// Aplica el estilo de la barra de estado según la pestaña activa.
-  /// Se invoca solo al iniciar y al cambiar de pestaña, no en cada rebuild.
+  /// Aplica el estilo de la barra de estado según la pestaña activa y el
+  /// tema actual. Se invoca al iniciar, al cambiar de pestaña y cuando
+  /// cambia el tema ([didChangeDependencies]) — no en cada rebuild, porque
+  /// eso dispararía una llamada al canal de plataforma en cada notificación
+  /// del VM.
+  Brightness? _lastOverlayBrightness;
+
   void _applyOverlayStyle() {
+    final brightness = Theme.of(context).brightness;
+    final isDark = brightness == Brightness.dark;
+    _lastOverlayBrightness = brightness;
+    // Pestañas 0 (Historial, sin uso hoy) y 2 (Perfil) tienen su propio
+    // AppBar amarillo de marca — la franja de la barra de estado debe ser
+    // igual. La pestaña 1 (Home) no tiene AppBar propio, así que sigue el
+    // fondo adaptativo del tema.
     SystemChrome.setSystemUIOverlayStyle(
-      _selectedIndex == 0
-          ? SystemUiOverlayStyle.light.copyWith(statusBarColor: Colors.amber)
-          : SystemUiOverlayStyle.dark.copyWith(statusBarColor: Colors.white),
+      _selectedIndex == 0 || _selectedIndex == 2
+          ? const SystemUiOverlayStyle(
+              statusBarColor: AppColores.primary,
+              statusBarIconBrightness: Brightness.dark,
+              statusBarBrightness: Brightness.light,
+            )
+          : SystemUiOverlayStyle(
+              statusBarColor: context.palette.surface,
+              statusBarIconBrightness: isDark
+                  ? Brightness.light
+                  : Brightness.dark,
+              statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
+            ),
     );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (Theme.of(context).brightness != _lastOverlayBrightness) {
+      _applyOverlayStyle();
+    }
   }
 
   @override
@@ -548,7 +583,7 @@ class _InicioClienteViewState extends State<InicioClienteView>
                 width: 40.w,
                 height: 4.h,
                 decoration: BoxDecoration(
-                  color: AppColores.grey300,
+                  color: context.palette.grey300,
                   borderRadius: BorderRadius.circular(2.r),
                 ),
               ),
@@ -628,12 +663,14 @@ class _InicioClienteViewState extends State<InicioClienteView>
       child: Scaffold(
         extendBodyBehindAppBar: true,
         key: _scaffoldKey,
-        backgroundColor: AppColores.background,
+        backgroundColor: context.palette.background,
         body: Stack(
           children: [
             Container(
               height: MediaQuery.of(context).padding.top,
-              color: _selectedIndex == 0 ? Colors.amber : Colors.white,
+              color: _selectedIndex == 0 || _selectedIndex == 2
+                  ? AppColores.primary
+                  : context.palette.surface,
             ),
             SafeArea(
               child: Stack(
@@ -755,7 +792,7 @@ class _InicioClienteViewState extends State<InicioClienteView>
                   width: 40.w,
                   height: 4.h,
                   decoration: BoxDecoration(
-                    color: AppColores.grey300,
+                    color: context.palette.grey300,
                     borderRadius: BorderRadius.circular(2.r),
                   ),
                 ),
@@ -780,7 +817,7 @@ class _InicioClienteViewState extends State<InicioClienteView>
                   style: TextStyle(
                     fontSize: 18.sp,
                     fontWeight: FontWeight.w800,
-                    color: AppColores.textPrimary,
+                    color: context.palette.textPrimary,
                   ),
                 ),
                 SizedBox(height: 8.h),
@@ -789,7 +826,7 @@ class _InicioClienteViewState extends State<InicioClienteView>
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 14.sp,
-                    color: AppColores.textSecondary,
+                    color: context.palette.textSecondary,
                   ),
                 ),
                 SizedBox(height: 22.h),
@@ -935,7 +972,7 @@ class _UbicacionOkBanner extends StatelessWidget {
               child: Container(
                 padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 10.h),
                 decoration: BoxDecoration(
-                  color: AppColores.surface,
+                  color: context.palette.surface,
                   borderRadius: BorderRadius.circular(30.r),
                   boxShadow: [
                     BoxShadow(
@@ -967,7 +1004,7 @@ class _UbicacionOkBanner extends StatelessWidget {
                       style: TextStyle(
                         fontWeight: FontWeight.w700,
                         fontSize: 13.5.sp,
-                        color: AppColores.textPrimary,
+                        color: context.palette.textPrimary,
                       ),
                     ),
                   ],
@@ -1002,7 +1039,13 @@ class _HomeClienteMap extends StatelessWidget {
 
   final ValueNotifier<LatLng?> currentLocationNotifier;
 
-  String _staticMapUrl(LatLng center, int width, int height, String apiKey) {
+  String _staticMapUrl(
+    LatLng center,
+    int width,
+    int height,
+    String apiKey, {
+    required bool isDark,
+  }) {
     final uri = Uri.https('maps.googleapis.com', '/maps/api/staticmap', {
       'center': '${center.latitude},${center.longitude}',
       'zoom': '16',
@@ -1010,6 +1053,7 @@ class _HomeClienteMap extends StatelessWidget {
       'scale': '2',
       'maptype': 'roadmap',
       'key': apiKey,
+      if (isDark) 'style': MapStyle.staticMapsQueryParams,
     });
     return uri.toString();
   }
@@ -1051,6 +1095,8 @@ class _HomeClienteMap extends StatelessWidget {
                         .fetchStaticMapsApiKey(),
                     builder: (context, keySnapshot) {
                       final apiKey = keySnapshot.data ?? '';
+                      final isDark =
+                          Theme.of(context).brightness == Brightness.dark;
                       return AnimatedBuilder(
                         animation: currentLocationNotifier,
                         builder: (context, _) {
@@ -1070,13 +1116,14 @@ class _HomeClienteMap extends StatelessWidget {
                           }
                           return CachedNetworkImage(
                             key: ValueKey(
-                              '${center.latitude},${center.longitude},$width,$height',
+                              '${center.latitude},${center.longitude},$width,$height,$isDark',
                             ),
                             imageUrl: _staticMapUrl(
                               center,
                               width,
                               height,
                               apiKey,
+                              isDark: isDark,
                             ),
                             fit: BoxFit.cover,
                             width: double.infinity,
@@ -1136,7 +1183,7 @@ class _HomeClienteMap extends StatelessWidget {
               child: Container(
                 padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.92),
+                  color: context.palette.surface.withValues(alpha: 0.92),
                   borderRadius: BorderRadius.circular(20.r),
                   boxShadow: [
                     BoxShadow(
@@ -1159,7 +1206,7 @@ class _HomeClienteMap extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 12.sp,
                         fontWeight: FontWeight.w600,
-                        color: AppColores.textPrimary,
+                        color: context.palette.textPrimary,
                       ),
                     ),
                   ],
@@ -1182,12 +1229,12 @@ class _MapaPlaceholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: AppColores.grey300.withValues(alpha: 0.35),
+      color: context.palette.grey300.withValues(alpha: 0.35),
       alignment: Alignment.center,
       child: Icon(
         Icons.map_outlined,
         size: 40,
-        color: AppColores.textSecondary.withValues(alpha: 0.6),
+        color: context.palette.textSecondary.withValues(alpha: 0.6),
       ),
     );
   }
@@ -1202,7 +1249,7 @@ class _MapaCargandoUbicacion extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: AppColores.grey300.withValues(alpha: 0.35),
+      color: context.palette.grey300.withValues(alpha: 0.35),
       alignment: Alignment.center,
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -1218,7 +1265,7 @@ class _MapaCargandoUbicacion extends StatelessWidget {
             style: TextStyle(
               fontSize: 12.5.sp,
               fontWeight: FontWeight.w600,
-              color: AppColores.textSecondary,
+              color: context.palette.textSecondary,
             ),
           ),
         ],
@@ -1273,7 +1320,7 @@ class _LoadingOverlay extends StatelessWidget {
   Widget build(BuildContext context) {
     return Positioned.fill(
       child: Container(
-        color: AppColores.overlayDark,
+        color: context.palette.overlayDark,
         child: Center(
           child: soloLoader
               ? const CircularProgressIndicator()
@@ -1333,7 +1380,7 @@ class _HeaderSection extends StatelessWidget {
                   style: TextStyle(
                     fontSize: isTablet ? 27 : 25,
                     fontWeight: FontWeight.w800,
-                    color: AppColores.textPrimary,
+                    color: context.palette.textPrimary,
                   ),
                 ),
                 SizedBox(height: 2.h),
@@ -1359,7 +1406,7 @@ class _SearchBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColores.surface,
+      color: context.palette.surface,
       elevation: 0,
       borderRadius: BorderRadius.circular(18.r),
       child: InkWell(
@@ -1367,7 +1414,7 @@ class _SearchBox extends StatelessWidget {
         borderRadius: BorderRadius.circular(18.r),
         child: Ink(
           decoration: BoxDecoration(
-            color: AppColores.surface,
+            color: context.palette.surface,
             borderRadius: BorderRadius.circular(18.r),
             border: Border.all(
               color: AppColores.primary.withValues(alpha: 0.35),
@@ -1407,7 +1454,7 @@ class _SearchBox extends StatelessWidget {
                     Text(
                       '¿A dónde vamos?',
                       style: TextStyle(
-                        color: AppColores.textPrimary,
+                        color: context.palette.textPrimary,
                         fontSize: isTablet ? 18 : 16.5,
                         fontWeight: FontWeight.w800,
                       ),
@@ -1416,7 +1463,7 @@ class _SearchBox extends StatelessWidget {
                     Text(
                       'Toca para elegir tu destino',
                       style: TextStyle(
-                        color: AppColores.textSecondary,
+                        color: context.palette.textSecondary,
                         fontSize: 12.5.sp,
                         fontWeight: FontWeight.w500,
                       ),
@@ -1463,7 +1510,7 @@ class _FavoritosSection extends StatelessWidget {
               ? 'Ubicaciones favoritas'
               : 'Sugerencias: agrega tu ubicación favorita',
           style: TextStyle(
-            color: AppColores.textSecondary,
+            color: context.palette.textSecondary,
             fontSize: isTablet ? 13 : 12,
             fontWeight: FontWeight.w500,
           ),
@@ -1535,9 +1582,9 @@ class _FavoritoItem extends StatelessWidget {
           child: Container(
             padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 8.h),
             decoration: BoxDecoration(
-              color: AppColores.surface,
+              color: context.palette.surface,
               borderRadius: BorderRadius.circular(20.r),
-              border: Border.all(color: AppColores.borderSubtle),
+              border: Border.all(color: context.palette.borderSubtle),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.05),
@@ -1553,7 +1600,7 @@ class _FavoritoItem extends StatelessWidget {
                 Text(
                   label,
                   style: TextStyle(
-                    color: AppColores.textPrimary,
+                    color: context.palette.textPrimary,
                     fontSize: 13.sp,
                     fontWeight: FontWeight.w600,
                   ),
@@ -1567,7 +1614,7 @@ class _FavoritoItem extends StatelessWidget {
                     child: Icon(
                       Icons.close_rounded,
                       size: 14,
-                      color: AppColores.textSecondary,
+                      color: context.palette.textSecondary,
                     ),
                   ),
                 ),
@@ -1607,9 +1654,9 @@ class _SugerenciaItem extends StatelessWidget {
         child: Container(
           padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
           decoration: BoxDecoration(
-            color: AppColores.surface,
+            color: context.palette.surface,
             borderRadius: BorderRadius.circular(20.r),
-            border: Border.all(color: AppColores.borderSubtle),
+            border: Border.all(color: context.palette.borderSubtle),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.05),
@@ -1625,7 +1672,7 @@ class _SugerenciaItem extends StatelessWidget {
               Text(
                 label,
                 style: TextStyle(
-                  color: AppColores.textPrimary,
+                  color: context.palette.textPrimary,
                   fontSize: 13.sp,
                   fontWeight: FontWeight.w600,
                 ),
@@ -1714,7 +1761,7 @@ class _CarouselSection extends StatelessWidget {
                                 Icon(
                                   item['icon'] as IconData,
                                   size: 30,
-                                  color: AppColores.textPrimary.withValues(
+                                  color: context.palette.textPrimary.withValues(
                                     alpha: 0.85,
                                   ),
                                 ),
@@ -1768,7 +1815,7 @@ class _BottomNavBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: AppColores.surface,
+        color: context.palette.surface,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.08),
@@ -1778,11 +1825,11 @@ class _BottomNavBar extends StatelessWidget {
         ],
       ),
       child: BottomNavigationBar(
-        backgroundColor: AppColores.surface,
+        backgroundColor: context.palette.surface,
         elevation: 0,
         type: BottomNavigationBarType.fixed,
         selectedItemColor: AppColores.primary,
-        unselectedItemColor: AppColores.textSecondary,
+        unselectedItemColor: context.palette.textSecondary,
         currentIndex: selectedIndex,
         onTap: onTap,
         selectedLabelStyle: TextStyle(

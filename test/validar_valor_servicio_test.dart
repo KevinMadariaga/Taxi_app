@@ -42,21 +42,21 @@ void main() {
       final vm = buildVm(VehicleType.carro);
       expect(vm.validarValorServicio('1'), isNotNull);
       expect(
-        vm.validarValorServicio('${vm.valorMinimoPermitido - 1}'),
+        vm.validarValorServicio('${vm.valorMinimoPermitido() - 1}'),
         isNotNull,
       );
     });
 
     test('acepta exactamente el mínimo', () {
       final vm = buildVm(VehicleType.carro);
-      expect(vm.validarValorServicio('${vm.valorMinimoPermitido}'), isNull);
+      expect(vm.validarValorServicio('${vm.valorMinimoPermitido()}'), isNull);
     });
 
     test('rechaza el fat-finger por encima del máximo', () {
       final vm = buildVm(VehicleType.carro);
       expect(vm.validarValorServicio('999999999999'), isNotNull);
       expect(
-        vm.validarValorServicio('${vm.valorMaximoPermitido + 1}'),
+        vm.validarValorServicio('${vm.valorMaximoPermitido() + 1}'),
         isNotNull,
       );
     });
@@ -64,9 +64,15 @@ void main() {
     test('la moto admite un mínimo menor que el carro', () {
       final moto = buildVm(VehicleType.moto);
       final carro = buildVm(VehicleType.carro);
-      expect(moto.valorMinimoPermitido, lessThan(carro.valorMinimoPermitido));
+      expect(
+        moto.valorMinimoPermitido(),
+        lessThan(carro.valorMinimoPermitido()),
+      );
       // Un valor válido para moto puede no serlo para carro.
-      expect(moto.validarValorServicio('${moto.valorMinimoPermitido}'), isNull);
+      expect(
+        moto.validarValorServicio('${moto.valorMinimoPermitido()}'),
+        isNull,
+      );
     });
 
     test('el mensaje de error explica el límite en pesos', () {

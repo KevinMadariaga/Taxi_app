@@ -6,6 +6,7 @@ import 'package:taxi_app/screens/usuario_cliente/presentacion/model/location_mod
 
 import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/mapapreview_viewmodel.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/widgets/MapaGoogle.dart';
 
 /// Vista para seleccionar el destino en el mapa.
@@ -130,11 +131,11 @@ class _MapaPreviewViewState extends State<MapaPreviewView> {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Mapa del destino'),
-          backgroundColor: Colors.white,
-          foregroundColor: Colors.black87,
+          backgroundColor: AppColores.primary,
+          foregroundColor: AppColores.textWhite,
           elevation: 0,
         ),
-        backgroundColor: Colors.white,
+        backgroundColor: context.palette.surface,
         body: SafeArea(
           child: Center(
             child: Container(
@@ -157,7 +158,7 @@ class _MapaPreviewViewState extends State<MapaPreviewView> {
                           'Mueve el indicador en el mapa',
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                            color: Colors.black87,
+                            color: context.palette.textPrimary,
                             fontSize: titleFontSize,
                             fontWeight: FontWeight.w600,
                           ),
@@ -178,7 +179,7 @@ class _MapaPreviewViewState extends State<MapaPreviewView> {
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(10),
                                 border: Border.all(
-                                  color: Colors.black,
+                                  color: context.palette.divider,
                                   width: 1,
                                 ),
                               ),
@@ -231,7 +232,7 @@ class _MapaPreviewViewState extends State<MapaPreviewView> {
                                 style: TextStyle(
                                   fontSize: addressTitleFontSize,
                                   fontWeight: FontWeight.w800,
-                                  color: Colors.black87,
+                                  color: context.palette.textPrimary,
                                 ),
                               ),
                             ),
@@ -246,7 +247,7 @@ class _MapaPreviewViewState extends State<MapaPreviewView> {
                                     : '${vm.center.latitude.toStringAsFixed(6)}, ${vm.center.longitude.toStringAsFixed(6)}',
                                 style: TextStyle(
                                   fontSize: addressSubtitleFontSize,
-                                  color: Colors.black54,
+                                  color: context.palette.textSecondary,
                                 ),
                               ),
                             ),

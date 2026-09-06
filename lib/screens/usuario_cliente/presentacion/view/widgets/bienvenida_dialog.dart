@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 
 /// Muestra el diálogo de bienvenida animado (entrada con escala + fade).
 /// Pensado para mostrarse SOLO la primera vez que el usuario inicia sesión.
@@ -43,7 +44,7 @@ class _ContenidoBienvenida extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.fromLTRB(24, 28, 24, 22),
               decoration: BoxDecoration(
-                color: AppColores.surface,
+                color: context.palette.surface,
                 borderRadius: BorderRadius.circular(24),
                 boxShadow: [
                   BoxShadow(
@@ -73,18 +74,18 @@ class _ContenidoBienvenida extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  const Text(
+                  Text(
                     '¡Bienvenido a Ride!',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w900,
                       letterSpacing: -0.3,
-                      color: AppColores.textPrimary,
+                      color: context.palette.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 10),
-                  const Text(
+                  Text(
                     'Puedes solicitar tu servicio de transporte de '
                     'manera fácil y rápida.',
                     textAlign: TextAlign.center,
@@ -92,7 +93,7 @@ class _ContenidoBienvenida extends StatelessWidget {
                       fontSize: 14.5,
                       height: 1.4,
                       fontWeight: FontWeight.w500,
-                      color: AppColores.textSecondary,
+                      color: context.palette.textSecondary,
                     ),
                   ),
                   const SizedBox(height: 24),

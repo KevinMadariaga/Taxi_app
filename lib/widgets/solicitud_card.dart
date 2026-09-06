@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/data/models/solicitud_item.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodels/preview_solicitud.dart';
 
@@ -90,22 +91,24 @@ class SolicitudCard extends StatelessWidget {
                                               crossAxisAlignment:
                                                   CrossAxisAlignment.start,
                                               children: [
-                                                const Text(
+                                                Text(
                                                   'Recoger en',
                                                   style: TextStyle(
                                                     fontWeight: FontWeight.bold,
                                                     fontSize: 14,
-                                                    color:
-                                                        AppColores.textPrimary,
+                                                    color: context
+                                                        .palette
+                                                        .textPrimary,
                                                   ),
                                                 ),
                                                 const SizedBox(height: 4),
                                                 Text(
                                                   pickupText,
-                                                  style: const TextStyle(
+                                                  style: TextStyle(
                                                     fontSize: 14,
-                                                    color:
-                                                        AppColores.textPrimary,
+                                                    color: context
+                                                        .palette
+                                                        .textPrimary,
                                                   ),
                                                   maxLines: 2,
                                                   overflow:
@@ -123,11 +126,11 @@ class SolicitudCard extends StatelessWidget {
                                 Column(
                                   crossAxisAlignment: CrossAxisAlignment.end,
                                   children: [
-                                    const Text(
+                                    Text(
                                       'Distancia',
                                       style: TextStyle(
                                         fontSize: 13,
-                                        color: AppColores.textPrimary,
+                                        color: context.palette.textPrimary,
                                         fontWeight: FontWeight.bold,
                                       ),
                                     ),
@@ -135,7 +138,7 @@ class SolicitudCard extends StatelessWidget {
                                     Text(
                                       cercania,
                                       style: TextStyle(
-                                        color: AppColores.textPrimary,
+                                        color: context.palette.textPrimary,
                                         fontSize: 14,
                                       ),
                                     ),
@@ -156,7 +159,7 @@ class SolicitudCard extends StatelessWidget {
                 top: 4,
                 right: 4,
                 child: Material(
-                  color: AppColores.cardBackground.withValues(alpha: 0.9),
+                  color: context.palette.cardBackground.withValues(alpha: 0.9),
                   shape: const CircleBorder(),
                   elevation: 2,
                   child: IconButton(

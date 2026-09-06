@@ -7,6 +7,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
 
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/location_model.dart';
 import 'package:taxi_app/caracteristicas/confirmar_solicitud/presentacion/vistas/confirmar_solicitud_view.dart';
@@ -147,9 +148,7 @@ class _SeleccionDestinoScreenState extends State<SeleccionDestinoScreen> {
           if (detalle == null || detalle.position == null) {
             if (!mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('No se pudo abrir esta ubicación.'),
-              ),
+              const SnackBar(content: Text('No se pudo abrir esta ubicación.')),
             );
             return;
           }
@@ -281,16 +280,17 @@ class _SeleccionDestinoScreenState extends State<SeleccionDestinoScreen> {
             canPop: false,
             onPopInvokedWithResult: (_, _) => _manejarBack(),
             child: Scaffold(
-              backgroundColor: AppColores.background,
+              backgroundColor: context.palette.background,
               appBar: AppBar(
-                backgroundColor: AppColores.surface,
+                backgroundColor: AppColores.primary,
+                foregroundColor: AppColores.textWhite,
                 elevation: 0,
                 centerTitle: true,
                 leading: IconButton(
                   icon: const Icon(
                     Icons.arrow_back_ios_new_rounded,
                     size: 20,
-                    color: AppColores.textPrimary,
+                    color: AppColores.textWhite,
                   ),
                   onPressed: () async {
                     if (await _manejarBack()) return;
@@ -301,12 +301,8 @@ class _SeleccionDestinoScreenState extends State<SeleccionDestinoScreen> {
                   style: TextStyle(
                     fontSize: 17.sp,
                     fontWeight: FontWeight.w700,
-                    color: AppColores.textPrimary,
+                    color: AppColores.textWhite,
                   ),
-                ),
-                bottom: PreferredSize(
-                  preferredSize: const Size.fromHeight(1),
-                  child: Container(height: 1, color: AppColores.borderSubtle),
                 ),
               ),
               body: SafeArea(
@@ -395,9 +391,9 @@ class _DestinoField extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: AppColores.surface,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16.r),
-        border: Border.all(color: AppColores.borderSubtle),
+        border: Border.all(color: context.palette.borderSubtle),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.06),
@@ -415,22 +411,22 @@ class _DestinoField extends StatelessWidget {
             style: TextStyle(
               fontSize: 13.sp,
               fontWeight: FontWeight.w600,
-              color: AppColores.textSecondary,
+              color: context.palette.textSecondary,
             ),
           ),
           SizedBox(height: 8.h),
           Container(
             padding: EdgeInsets.symmetric(horizontal: 12.w),
             decoration: BoxDecoration(
-              color: AppColores.grey100,
+              color: context.palette.grey100,
               borderRadius: BorderRadius.circular(12.r),
             ),
             child: Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.search_rounded,
                   size: 18,
-                  color: AppColores.textSecondary,
+                  color: context.palette.textSecondary,
                 ),
                 SizedBox(width: 10.w),
                 Expanded(
@@ -439,13 +435,13 @@ class _DestinoField extends StatelessWidget {
                     focusNode: focusNode,
                     style: TextStyle(
                       fontSize: 14.sp,
-                      color: AppColores.textPrimary,
+                      color: context.palette.textPrimary,
                     ),
                     decoration: InputDecoration(
                       hintText: 'Escribe una dirección (ej. Carrera 10 # 5-20)',
                       hintStyle: TextStyle(
                         fontSize: 13.sp,
-                        color: AppColores.textSecondary,
+                        color: context.palette.textSecondary,
                       ),
                       // El tema global define `filled`/bordes por-estado
                       // (enabled/focused) para todo TextField — solo pisar
@@ -467,10 +463,10 @@ class _DestinoField extends StatelessWidget {
                   IconButton(
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.close_rounded,
                       size: 18,
-                      color: AppColores.textSecondary,
+                      color: context.palette.textSecondary,
                     ),
                     onPressed: onClear,
                   ),
@@ -483,9 +479,9 @@ class _DestinoField extends StatelessWidget {
             width: double.infinity,
             height: 44.h,
             fontSize: 13.sp,
-            color: AppColores.grey100,
-            textColor: AppColores.textPrimary,
-            borderColor: AppColores.borderSubtle,
+            color: context.palette.grey100,
+            textColor: context.palette.textPrimary,
+            borderColor: context.palette.borderSubtle,
             icon: const Icon(
               Icons.map_rounded,
               size: 16,
@@ -511,7 +507,7 @@ class _SugerenciasList extends StatelessWidget {
       padding: EdgeInsets.zero,
       itemCount: sugerencias.length,
       separatorBuilder: (_, _) =>
-          Divider(height: 1.h, indent: 64, color: AppColores.borderSubtle),
+          Divider(height: 1.h, indent: 64, color: context.palette.borderSubtle),
       itemBuilder: (context, i) {
         final sugerencia = sugerencias[i];
         final nombre = sugerencia.nombre.isNotEmpty
@@ -529,13 +525,13 @@ class _SugerenciasList extends StatelessWidget {
                 Container(
                   width: 36.w,
                   height: 36.w,
-                  decoration: const BoxDecoration(
-                    color: AppColores.grey100,
+                  decoration: BoxDecoration(
+                    color: context.palette.grey100,
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.location_on_outlined,
-                    color: AppColores.textSecondary,
+                    color: context.palette.textSecondary,
                     size: 18,
                   ),
                 ),
@@ -551,7 +547,7 @@ class _SugerenciasList extends StatelessWidget {
                         style: TextStyle(
                           fontWeight: FontWeight.w600,
                           fontSize: 14.sp,
-                          color: AppColores.textPrimary,
+                          color: context.palette.textPrimary,
                         ),
                       ),
                       if (mostrarDireccion) ...[
@@ -562,7 +558,7 @@ class _SugerenciasList extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: 12.sp,
-                            color: AppColores.textSecondary,
+                            color: context.palette.textSecondary,
                           ),
                         ),
                       ],
@@ -602,13 +598,13 @@ class _HistorialSection extends StatelessWidget {
                   Container(
                     width: 36.w,
                     height: 36.w,
-                    decoration: const BoxDecoration(
-                      color: AppColores.grey100,
+                    decoration: BoxDecoration(
+                      color: context.palette.grey100,
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.history_rounded,
-                      color: AppColores.textSecondary,
+                      color: context.palette.textSecondary,
                       size: 18,
                     ),
                   ),
@@ -621,7 +617,7 @@ class _HistorialSection extends StatelessWidget {
                       style: TextStyle(
                         fontWeight: FontWeight.w600,
                         fontSize: 14.sp,
-                        color: AppColores.textPrimary,
+                        color: context.palette.textPrimary,
                       ),
                     ),
                   ),
@@ -629,7 +625,7 @@ class _HistorialSection extends StatelessWidget {
               ),
             ),
           ),
-        Divider(height: 1.h, indent: 64, color: AppColores.borderSubtle),
+        Divider(height: 1.h, indent: 64, color: context.palette.borderSubtle),
       ],
     );
   }
@@ -654,9 +650,9 @@ class _AccionesSection extends StatelessWidget {
             width: double.infinity,
             height: 48.h,
             fontSize: 13.sp,
-            color: AppColores.surface,
-            textColor: AppColores.textPrimary,
-            borderColor: AppColores.borderSubtle,
+            color: context.palette.surface,
+            textColor: context.palette.textPrimary,
+            borderColor: context.palette.borderSubtle,
             icon: const Icon(
               Icons.star_rounded,
               size: 16,
@@ -672,9 +668,9 @@ class _AccionesSection extends StatelessWidget {
             width: double.infinity,
             height: 48.h,
             fontSize: 13.sp,
-            color: AppColores.surface,
-            textColor: AppColores.textPrimary,
-            borderColor: AppColores.borderSubtle,
+            color: context.palette.surface,
+            textColor: context.palette.textPrimary,
+            borderColor: context.palette.borderSubtle,
             icon: const Icon(
               Icons.content_paste_rounded,
               size: 16,
@@ -697,13 +693,13 @@ class _NavigationOverlay extends StatelessWidget {
   Widget build(BuildContext context) {
     return Positioned.fill(
       child: Container(
-        color: AppColores.overlayDark,
+        color: context.palette.overlayDark,
         child: Center(
           child: Container(
             margin: EdgeInsets.symmetric(horizontal: 28.w),
             padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 16.h),
             decoration: BoxDecoration(
-              color: AppColores.surface,
+              color: context.palette.surface,
               borderRadius: BorderRadius.circular(16.r),
             ),
             child: Row(
@@ -723,8 +719,8 @@ class _NavigationOverlay extends StatelessWidget {
                 Flexible(
                   child: Text(
                     message,
-                    style: const TextStyle(
-                      color: AppColores.textPrimary,
+                    style: TextStyle(
+                      color: context.palette.textPrimary,
                       fontWeight: FontWeight.w600,
                     ),
                   ),

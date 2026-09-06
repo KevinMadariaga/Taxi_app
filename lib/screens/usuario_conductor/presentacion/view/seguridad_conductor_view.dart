@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/features/phone_auth/services/user_data_service.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/soporte_chat_screen.dart';
 
@@ -8,8 +9,7 @@ class SeguridadConductorView extends StatefulWidget {
   const SeguridadConductorView({super.key});
 
   @override
-  State<SeguridadConductorView> createState() =>
-      _SeguridadConductorViewState();
+  State<SeguridadConductorView> createState() => _SeguridadConductorViewState();
 }
 
 class _SeguridadConductorViewState extends State<SeguridadConductorView> {
@@ -80,8 +80,7 @@ class _SeguridadConductorViewState extends State<SeguridadConductorView> {
                       hintText: 'Nombre y teléfono',
                     ),
                     textInputAction: TextInputAction.done,
-                    onSubmitted: (v) =>
-                        Navigator.of(dialogCtx).pop(v.trim()),
+                    onSubmitted: (v) => Navigator.of(dialogCtx).pop(v.trim()),
                   ),
                   actions: [
                     TextButton(
@@ -125,15 +124,15 @@ class _SeguridadConductorViewState extends State<SeguridadConductorView> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    const Text(
+                    Text(
                       'Puedes agregar hasta 5 contactos de emergencia.',
-                      style: TextStyle(color: AppColores.textSecondary),
+                      style: TextStyle(color: context.palette.textSecondary),
                     ),
                     const SizedBox(height: 14),
                     if (_emergencyContacts.isEmpty)
-                      const Text(
+                      Text(
                         'No tienes contactos agregados todavía.',
-                        style: TextStyle(color: AppColores.textSecondary),
+                        style: TextStyle(color: context.palette.textSecondary),
                       )
                     else
                       ...List.generate(_emergencyContacts.length, (index) {
@@ -183,11 +182,11 @@ class _SeguridadConductorViewState extends State<SeguridadConductorView> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Seguridad'),
-        backgroundColor: AppColores.surface,
-        foregroundColor: AppColores.textPrimary,
+        backgroundColor: AppColores.primary,
+        foregroundColor: AppColores.textWhite,
         elevation: 0,
       ),
-      backgroundColor: AppColores.background,
+      backgroundColor: context.palette.background,
       body: ListView(
         children: [
           const SizedBox(height: 8),

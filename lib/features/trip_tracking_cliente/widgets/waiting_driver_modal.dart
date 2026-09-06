@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 
 class WaitingDriverModal extends StatelessWidget {
   const WaitingDriverModal({
@@ -17,8 +18,8 @@ class WaitingDriverModal extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 22),
-      decoration: const BoxDecoration(
-        color: AppColores.surface,
+      decoration: BoxDecoration(
+        color: context.palette.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
       ),
       child: SafeArea(
@@ -30,17 +31,17 @@ class WaitingDriverModal extends StatelessWidget {
               width: 42,
               height: 4,
               decoration: BoxDecoration(
-                color: AppColores.grey300,
+                color: context.palette.grey300,
                 borderRadius: BorderRadius.circular(999),
               ),
             ),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'El conductor está afuera',
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.w800,
-                color: AppColores.textPrimary,
+                color: context.palette.textPrimary,
               ),
             ),
             const SizedBox(height: 10),
@@ -58,9 +59,12 @@ class WaitingDriverModal extends StatelessWidget {
               },
             ),
             const SizedBox(height: 4),
-            const Text(
+            Text(
               'Tienes 3 minutos para confirmar.',
-              style: TextStyle(fontSize: 13, color: AppColores.textSecondary),
+              style: TextStyle(
+                fontSize: 13,
+                color: context.palette.textSecondary,
+              ),
             ),
             const SizedBox(height: 18),
             SizedBox(
@@ -69,19 +73,19 @@ class WaitingDriverModal extends StatelessWidget {
                 onPressed: isUpdating ? null : onVoyEnCamino,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColores.buttonPrimary,
-                  foregroundColor: AppColores.textPrimary,
+                  foregroundColor: context.palette.textPrimary,
                   minimumSize: const Size.fromHeight(52),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
                 child: isUpdating
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 20,
                         height: 20,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: AppColores.textPrimary,
+                          color: context.palette.textPrimary,
                         ),
                       )
                     : const Text(

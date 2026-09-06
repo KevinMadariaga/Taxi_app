@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:taxi_app/widgets/boton.dart';
 import 'package:taxi_app/widgets/sugerencia_modal.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/InicioClienteView.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioConductorView.dart';
 import 'package:taxi_app/core/services/services.dart';
@@ -92,15 +93,15 @@ class _ResumenViajeBodyState extends State<_ResumenViajeBody> {
       stream: controller.resumenStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            backgroundColor: AppColores.background,
+          return Scaffold(
+            backgroundColor: context.palette.background,
             body: Center(child: CircularProgressIndicator()),
           );
         }
 
         if (snapshot.hasError) {
           return Scaffold(
-            backgroundColor: AppColores.background,
+            backgroundColor: context.palette.background,
             body: Center(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -113,11 +114,11 @@ class _ResumenViajeBodyState extends State<_ResumenViajeBody> {
                       size: 48,
                     ),
                     const SizedBox(height: 12),
-                    const Text(
+                    Text(
                       'No pudimos cargar el resumen del viaje.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        color: AppColores.textPrimary,
+                        color: context.palette.textPrimary,
                         fontWeight: FontWeight.w700,
                         fontSize: 16,
                       ),
@@ -126,7 +127,7 @@ class _ResumenViajeBodyState extends State<_ResumenViajeBody> {
                     Text(
                       '${snapshot.error}',
                       textAlign: TextAlign.center,
-                      style: const TextStyle(color: AppColores.textSecondary),
+                      style: TextStyle(color: context.palette.textSecondary),
                     ),
                   ],
                 ),
@@ -137,13 +138,13 @@ class _ResumenViajeBodyState extends State<_ResumenViajeBody> {
 
         final resumen = snapshot.data;
         if (resumen == null) {
-          return const Scaffold(
-            backgroundColor: AppColores.background,
+          return Scaffold(
+            backgroundColor: context.palette.background,
             body: Center(
               child: Text(
                 'No hay informacion disponible para este viaje.',
                 style: TextStyle(
-                  color: AppColores.textPrimary,
+                  color: context.palette.textPrimary,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -165,15 +166,18 @@ class _ResumenViajeBodyState extends State<_ResumenViajeBody> {
               },
               child: Scaffold(
                 resizeToAvoidBottomInset: true,
-                backgroundColor: AppColores.background,
+                backgroundColor: context.palette.background,
                 body: SafeArea(
                   bottom: false,
                   child: Container(
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
-                        colors: [AppColores.surface, AppColores.background],
+                        colors: [
+                          context.palette.surface,
+                          context.palette.background,
+                        ],
                       ),
                     ),
                     child: Center(
@@ -314,12 +318,12 @@ class _SummaryCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
+            Text(
               'Detalles del viaje',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w800,
-                color: AppColores.textPrimary,
+                color: context.palette.textPrimary,
               ),
             ),
             const SizedBox(height: 14),
@@ -354,22 +358,22 @@ class _SummaryCard extends StatelessWidget {
                 children: [
                   const Icon(Icons.local_taxi, color: AppColores.primary),
                   const SizedBox(width: 10),
-                  const Expanded(
+                  Expanded(
                     child: Text(
                       'Valor del servicio',
                       style: TextStyle(
                         fontWeight: FontWeight.w600,
-                        color: AppColores.textPrimary,
+                        color: context.palette.textPrimary,
                         fontSize: 14,
                       ),
                     ),
                   ),
                   Text(
                     _currency(resumen.valorServicio),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontWeight: FontWeight.w800,
                       fontSize: 20,
-                      color: AppColores.textPrimary,
+                      color: context.palette.textPrimary,
                     ),
                   ),
                 ],

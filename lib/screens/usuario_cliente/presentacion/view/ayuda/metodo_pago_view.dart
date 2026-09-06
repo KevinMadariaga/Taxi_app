@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/features/trip_tracking_cliente/services/trip_tracking_firestore_service.dart';
 
 /// Permite al cliente revisar y modificar el método de pago del viaje.
@@ -58,19 +59,19 @@ class _MetodoPagoViewState extends State<MetodoPagoView> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _guardando = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('No se pudo actualizar: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('No se pudo actualizar: $e')));
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColores.background,
+      backgroundColor: context.palette.background,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        foregroundColor: AppColores.textPrimary,
+        backgroundColor: AppColores.primary,
+        foregroundColor: AppColores.textWhite,
         elevation: 0,
         title: const Text(
           'Método de pago',
@@ -83,12 +84,12 @@ class _MetodoPagoViewState extends State<MetodoPagoView> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
               children: [
-                const Text(
+                Text(
                   '¿Cómo deseas pagar tu viaje?',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
-                    color: AppColores.textPrimary,
+                    color: context.palette.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 14),
@@ -107,12 +108,12 @@ class _MetodoPagoViewState extends State<MetodoPagoView> {
                         decoration: BoxDecoration(
                           color: sel
                               ? AppColores.buttonPrimary.withValues(alpha: 0.08)
-                              : Colors.white,
+                              : context.palette.surface,
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
                             color: sel
                                 ? AppColores.buttonPrimary
-                                : AppColores.borderSubtle,
+                                : context.palette.borderSubtle,
                             width: sel ? 1.6 : 1,
                           ),
                         ),
@@ -123,6 +124,11 @@ class _MetodoPagoViewState extends State<MetodoPagoView> {
                               height: 40,
                               alignment: Alignment.center,
                               decoration: BoxDecoration(
+                                // El logo de Nequi lleva navy sólido en el
+                                // centro: sobre `surface` oscuro perdería
+                                // contraste, así que este chip se queda
+                                // blanco fijo en los dos temas (igual que un
+                                // logo de tarjeta/billetera en cualquier app).
                                 color: o.asset != null
                                     ? Colors.white
                                     : AppColores.secondary.withValues(
@@ -130,7 +136,9 @@ class _MetodoPagoViewState extends State<MetodoPagoView> {
                                       ),
                                 shape: BoxShape.circle,
                                 border: o.asset != null
-                                    ? Border.all(color: AppColores.borderSubtle)
+                                    ? Border.all(
+                                        color: context.palette.borderSubtle,
+                                      )
                                     : null,
                               ),
                               child: o.asset != null
@@ -159,7 +167,7 @@ class _MetodoPagoViewState extends State<MetodoPagoView> {
                                   fontWeight: sel
                                       ? FontWeight.w800
                                       : FontWeight.w600,
-                                  color: AppColores.textPrimary,
+                                  color: context.palette.textPrimary,
                                 ),
                               ),
                             ),
@@ -169,7 +177,7 @@ class _MetodoPagoViewState extends State<MetodoPagoView> {
                                   : Icons.radio_button_unchecked,
                               color: sel
                                   ? AppColores.buttonPrimary
-                                  : AppColores.grey400,
+                                  : context.palette.grey400,
                             ),
                           ],
                         ),
@@ -182,7 +190,7 @@ class _MetodoPagoViewState extends State<MetodoPagoView> {
           ),
           Container(
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-            color: Colors.white,
+            color: context.palette.surface,
             child: SafeArea(
               top: false,
               child: SizedBox(

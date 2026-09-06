@@ -1,13 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'dart:math' as math;
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/helpers/responsive_helper.dart';
 import 'package:taxi_app/core/helpers/session_helper.dart';
 import 'package:taxi_app/features/phone_auth/services/user_data_service.dart';
@@ -452,7 +452,7 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
                 size: 28,
               ),
               const SizedBox(width: 12),
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -461,21 +461,21 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
                       style: TextStyle(
                         fontWeight: FontWeight.w700,
                         fontSize: 16,
-                        color: AppColores.textPrimary,
+                        color: context.palette.textPrimary,
                       ),
                     ),
                     SizedBox(height: 4),
                     Text(
                       'Datos personales y vehículos',
                       style: TextStyle(
-                        color: AppColores.textSecondary,
+                        color: context.palette.textSecondary,
                         fontSize: 13,
                       ),
                     ),
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right, color: AppColores.textSecondary),
+              Icon(Icons.chevron_right, color: context.palette.textSecondary),
             ],
           ),
         ),
@@ -519,26 +519,26 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'Cambiar de vehículo',
                       style: TextStyle(
                         fontWeight: FontWeight.w700,
                         fontSize: 16,
-                        color: AppColores.textPrimary,
+                        color: context.palette.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       'Actual: $tipoLabel · Cambia tipo, foto y placa',
-                      style: const TextStyle(
-                        color: AppColores.textSecondary,
+                      style: TextStyle(
+                        color: context.palette.textSecondary,
                         fontSize: 13,
                       ),
                     ),
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right, color: AppColores.textSecondary),
+              Icon(Icons.chevron_right, color: context.palette.textSecondary),
             ],
           ),
         ),
@@ -570,9 +570,7 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
           final uid = _auth.currentUser?.uid;
           if (uid == null) return;
           Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => MembresiaDetalleView(uid: uid),
-            ),
+            MaterialPageRoute(builder: (_) => MembresiaDetalleView(uid: uid)),
           );
         },
         child: Padding(
@@ -609,23 +607,23 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
                                       '${venceStr != null ? ' · vence $venceStr' : ''}'
                                 : 'Membresía activa')
                           : 'Activa tu membresía para recibir viajes',
-                      style: const TextStyle(
-                        color: AppColores.textSecondary,
+                      style: TextStyle(
+                        color: context.palette.textSecondary,
                         fontSize: 13,
                       ),
                     ),
                     const SizedBox(height: 2),
-                    const Text(
+                    Text(
                       'Toca para más detalles',
                       style: TextStyle(
-                        color: AppColores.textSecondary,
+                        color: context.palette.textSecondary,
                         fontSize: 11,
                       ),
                     ),
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right, color: AppColores.textSecondary),
+              Icon(Icons.chevron_right, color: context.palette.textSecondary),
             ],
           ),
         ),
@@ -664,7 +662,6 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
             ? false
             : true,
         title: Text('Perfil', style: TextStyle(fontSize: appBarFontSize)),
-        systemOverlayStyle: SystemUiOverlayStyle.dark,
         actions: [
           IconButton(
             tooltip: 'Configuración',
@@ -751,7 +748,7 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
                                 style: TextStyle(
                                   fontSize: computedNameFontSize,
                                   fontWeight: FontWeight.bold,
-                                  color: AppColores.textPrimary,
+                                  color: context.palette.textPrimary,
                                 ),
                               ),
                             ),

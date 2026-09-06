@@ -2,6 +2,7 @@ import 'dart:async' show unawaited;
 
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 
 /// Sección de calificación del servicio (lado cliente).
 /// - Estrellas seleccionables con etiqueta de feedback.
@@ -107,7 +108,7 @@ class _CalificacionSectionState extends State<CalificacionSection> {
                   ),
                 ),
                 const SizedBox(width: 10),
-                const Expanded(
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -116,14 +117,14 @@ class _CalificacionSectionState extends State<CalificacionSection> {
                         style: TextStyle(
                           fontSize: 17,
                           fontWeight: FontWeight.w800,
-                          color: AppColores.textPrimary,
+                          color: context.palette.textPrimary,
                         ),
                       ),
                       SizedBox(height: 2),
                       Text(
                         'Tu opinión ayuda a mejorar el servicio.',
                         style: TextStyle(
-                          color: AppColores.textSecondary,
+                          color: context.palette.textSecondary,
                           fontSize: 12.5,
                           fontWeight: FontWeight.w500,
                         ),
@@ -151,7 +152,7 @@ class _CalificacionSectionState extends State<CalificacionSection> {
                           : Icons.star_outline_rounded,
                       color: selected
                           ? AppColores.primary
-                          : AppColores.grey400,
+                          : context.palette.grey400,
                       size: 42,
                     ),
                   ),
@@ -204,17 +205,17 @@ class _CalificacionSectionState extends State<CalificacionSection> {
                         decoration: InputDecoration(
                           hintText: 'Cuéntanos qué pasó (obligatorio)',
                           filled: true,
-                          fillColor: AppColores.background,
+                          fillColor: context.palette.background,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(
-                              color: AppColores.borderSubtle,
+                            borderSide: BorderSide(
+                              color: context.palette.borderSubtle,
                             ),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(
-                              color: AppColores.borderSubtle,
+                            borderSide: BorderSide(
+                              color: context.palette.borderSubtle,
                             ),
                           ),
                           focusedBorder: OutlineInputBorder(

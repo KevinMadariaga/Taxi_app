@@ -10,6 +10,7 @@ import 'package:taxi_app/widgets/flip_preview_view.dart';
 import 'package:taxi_app/widgets/elegir_origen_imagen_sheet.dart';
 
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/services/image_cropper_service.dart';
 import 'package:taxi_app/core/services/image_processing_service.dart';
 import 'package:taxi_app/core/services/face_detection_service.dart';
@@ -136,10 +137,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
         // no aplica a una foto ya elegida de galería.
         if (origen == ImageSource.camera) {
           if (!mounted) return;
-          final flipped = await showFlipPreview(
-            context,
-            imageFile: sourceFile,
-          );
+          final flipped = await showFlipPreview(context, imageFile: sourceFile);
           if (flipped == null) return;
           sourceFile = flipped;
         }
@@ -195,12 +193,12 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
       width: double.infinity,
       padding: EdgeInsets.all(screenWidth * 0.045),
       decoration: BoxDecoration(
-        color: AppColores.surface,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColores.borderSubtle),
+        border: Border.all(color: context.palette.borderSubtle),
         boxShadow: [
           BoxShadow(
-            color: AppColores.overlayLight,
+            color: context.palette.overlayLight,
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -238,7 +236,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
           style: TextStyle(
             fontSize: screenWidth * 0.042,
             fontWeight: FontWeight.w700,
-            color: AppColores.textPrimary,
+            color: context.palette.textPrimary,
           ),
         ),
       ],
@@ -255,12 +253,12 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
     );
     return InputDecoration(
       labelText: label,
-      labelStyle: const TextStyle(color: AppColores.textSecondary),
+      labelStyle: TextStyle(color: context.palette.textSecondary),
       prefixIcon: Icon(icon, color: AppColores.primary),
       filled: true,
-      fillColor: AppColores.background,
-      border: border(AppColores.divider, 1),
-      enabledBorder: border(AppColores.divider, 1),
+      fillColor: context.palette.background,
+      border: border(context.palette.divider, 1),
+      enabledBorder: border(context.palette.divider, 1),
       focusedBorder: border(AppColores.primary, 1.6),
     );
   }
@@ -282,22 +280,23 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
     final buttonFontSize = screenWidth * 0.045;
     final fieldTextStyle = TextStyle(
       fontSize: fieldFontSize,
-      color: AppColores.textPrimary,
+      color: context.palette.textPrimary,
     );
     return Scaffold(
       appBar: AppBar(
         backgroundColor: AppColores.primary,
+        foregroundColor: AppColores.textWhite,
         elevation: 0,
         title: const Text(
           'Editar perfil',
           style: TextStyle(
-            color: AppColores.textPrimary,
+            color: AppColores.textWhite,
             fontWeight: FontWeight.w700,
           ),
         ),
-        iconTheme: const IconThemeData(color: AppColores.textPrimary),
+        iconTheme: const IconThemeData(color: AppColores.textWhite),
       ),
-      backgroundColor: AppColores.background,
+      backgroundColor: context.palette.background,
       body: SafeArea(
         child: SingleChildScrollView(
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
@@ -322,7 +321,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                       ),
                       child: CircleAvatar(
                         radius: avatarRadius,
-                        backgroundColor: AppColores.grey200,
+                        backgroundColor: context.palette.grey200,
                         backgroundImage: _image != null
                             ? FileImage(_image!)
                             : null,
@@ -330,7 +329,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                             ? Icon(
                                 Icons.person,
                                 size: avatarIconSize,
-                                color: AppColores.grey600,
+                                color: context.palette.grey600,
                               )
                             : null,
                       ),
@@ -350,15 +349,15 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                               ? SizedBox(
                                   width: cameraIconSize,
                                   height: cameraIconSize,
-                                  child: const CircularProgressIndicator(
+                                  child: CircularProgressIndicator(
                                     strokeWidth: 2,
-                                    color: AppColores.textPrimary,
+                                    color: context.palette.textPrimary,
                                   ),
                                 )
                               : Icon(
                                   Icons.camera_alt,
                                   size: cameraIconSize,
-                                  color: AppColores.textPrimary,
+                                  color: context.palette.textPrimary,
                                 ),
                         ),
                       ),
@@ -439,10 +438,10 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                                       fit: BoxFit.cover,
                                     )
                                   : Container(
-                                      color: AppColores.grey200,
+                                      color: context.palette.grey200,
                                       child: Icon(
                                         Icons.directions_car,
-                                        color: AppColores.grey600,
+                                        color: context.palette.grey600,
                                         size: vehicleImgHeight * 0.5,
                                       ),
                                     ),
@@ -468,7 +467,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                                 child: Icon(
                                   Icons.camera_alt,
                                   size: vehicleCameraIconSize,
-                                  color: AppColores.textPrimary,
+                                  color: context.palette.textPrimary,
                                 ),
                               ),
                             ),
@@ -491,7 +490,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                         size: 18,
                       ),
                       onPressed: () => Navigator.pop(context),
-                      color: Colors.white,
+                      color: context.palette.surface,
                       textColor: AppColores.primary,
                       borderColor: AppColores.primary,
                       height: buttonHeight,

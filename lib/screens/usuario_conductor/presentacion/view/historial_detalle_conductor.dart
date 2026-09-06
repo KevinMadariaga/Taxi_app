@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:taxi_app/data/solicitud_repository.dart';
@@ -115,7 +116,7 @@ class _HistorialDetalleConductorState extends State<HistorialDetalleConductor> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColores.background,
+      backgroundColor: context.palette.background,
       appBar: AppBar(
         title: const Text(
           'Detalle de Ganancias',
@@ -336,10 +337,10 @@ class _HeroGanancias extends StatelessWidget {
           Text(
             subtitulo,
             textAlign: TextAlign.center,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13.5,
               fontWeight: FontWeight.w600,
-              color: AppColores.textSecondary,
+              color: context.palette.textSecondary,
             ),
           ),
           const SizedBox(height: 10),
@@ -366,10 +367,10 @@ class _HeroGanancias extends StatelessWidget {
               const SizedBox(width: 6),
               Text(
                 '$solicitudes solicitudes hoy',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 13.5,
                   fontWeight: FontWeight.w600,
-                  color: AppColores.textSecondary,
+                  color: context.palette.textSecondary,
                 ),
               ),
             ],
@@ -396,7 +397,7 @@ class _SelectorModo extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: AppColores.grey200,
+        color: context.palette.grey200,
         borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
@@ -410,7 +411,7 @@ class _SelectorModo extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(vertical: 10),
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: sel ? AppColores.surface : Colors.transparent,
+                  color: sel ? context.palette.surface : Colors.transparent,
                   borderRadius: BorderRadius.circular(11),
                   boxShadow: sel
                       ? [
@@ -428,8 +429,8 @@ class _SelectorModo extends StatelessWidget {
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
                     color: sel
-                        ? AppColores.textPrimary
-                        : AppColores.textSecondary,
+                        ? context.palette.textPrimary
+                        : context.palette.textSecondary,
                   ),
                 ),
               ),
@@ -452,9 +453,9 @@ class _ChartCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColores.surface,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColores.borderSubtle),
+        border: Border.all(color: context.palette.borderSubtle),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -465,10 +466,10 @@ class _ChartCard extends StatelessWidget {
                 child: Text(
                   titulo,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w800,
                     fontSize: 15,
-                    color: AppColores.textPrimary,
+                    color: context.palette.textPrimary,
                   ),
                 ),
               ),
@@ -500,7 +501,7 @@ class _SelectorSemana extends StatelessWidget {
         value: selected,
         isDense: true,
         borderRadius: BorderRadius.circular(12),
-        style: const TextStyle(fontSize: 11.5, color: AppColores.textPrimary),
+        style: TextStyle(fontSize: 11.5, color: context.palette.textPrimary),
         items: List.generate(weekStarts.length, (i) {
           final ws = weekStarts[i];
           final we = ws.add(const Duration(days: 6));
@@ -547,10 +548,12 @@ class _SelectorMes extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: sel ? AppColores.primary : AppColores.surface,
+                color: sel ? AppColores.primary : context.palette.surface,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: sel ? AppColores.primary : AppColores.borderSubtle,
+                  color: sel
+                      ? AppColores.primary
+                      : context.palette.borderSubtle,
                 ),
               ),
               child: Text(
@@ -558,7 +561,7 @@ class _SelectorMes extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
-                  color: sel ? Colors.white : AppColores.textPrimary,
+                  color: sel ? Colors.white : context.palette.textPrimary,
                 ),
               ),
             ),
@@ -602,10 +605,10 @@ class _GraficoMes extends StatelessWidget {
                 children: [
                   Text(
                     count.toString(),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
-                      color: AppColores.textSecondary,
+                      color: context.palette.textSecondary,
                     ),
                   ),
                   const SizedBox(height: 6),
@@ -627,9 +630,9 @@ class _GraficoMes extends StatelessWidget {
                   const SizedBox(height: 8),
                   Text(
                     label,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 11,
-                      color: AppColores.textSecondary,
+                      color: context.palette.textSecondary,
                     ),
                   ),
                 ],
@@ -686,10 +689,10 @@ class _GraficoSemana extends StatelessWidget {
                   if (hasData)
                     Text(
                       count.toString(),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
-                        color: AppColores.textSecondary,
+                        color: context.palette.textSecondary,
                       ),
                     ),
                   const SizedBox(height: 4),
@@ -698,24 +701,26 @@ class _GraficoSemana extends StatelessWidget {
                     width: 26,
                     height: h,
                     decoration: BoxDecoration(
-                      color: hasData ? AppColores.primary : AppColores.grey300,
+                      color: hasData
+                          ? AppColores.primary
+                          : context.palette.grey300,
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     dayLabel,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 11,
-                      color: AppColores.textSecondary,
+                      color: context.palette.textSecondary,
                     ),
                   ),
                   Text(
                     dayDate.day.toString(),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 10.5,
                       fontWeight: FontWeight.w600,
-                      color: AppColores.textPrimary,
+                      color: context.palette.textPrimary,
                     ),
                   ),
                 ],
@@ -772,12 +777,12 @@ class _GraficoDia extends StatelessWidget {
     final total = hourlyEarnings.fold<double>(0, (p, e) => p + e);
 
     if (total == 0) {
-      return const SizedBox(
+      return SizedBox(
         height: 80,
         child: Center(
           child: Text(
             'Sin actividad este día',
-            style: TextStyle(color: AppColores.textSecondary),
+            style: TextStyle(color: context.palette.textSecondary),
           ),
         ),
       );
@@ -850,6 +855,7 @@ class _GraficoDia extends StatelessWidget {
           children: [
             Expanded(
               child: _buildTurnoCard(
+                context,
                 0,
                 turnoEarnings,
                 turnoCounts,
@@ -860,6 +866,7 @@ class _GraficoDia extends StatelessWidget {
             const SizedBox(width: 10),
             Expanded(
               child: _buildTurnoCard(
+                context,
                 1,
                 turnoEarnings,
                 turnoCounts,
@@ -874,6 +881,7 @@ class _GraficoDia extends StatelessWidget {
           children: [
             Expanded(
               child: _buildTurnoCard(
+                context,
                 2,
                 turnoEarnings,
                 turnoCounts,
@@ -884,6 +892,7 @@ class _GraficoDia extends StatelessWidget {
             const SizedBox(width: 10),
             Expanded(
               child: _buildTurnoCard(
+                context,
                 3,
                 turnoEarnings,
                 turnoCounts,
@@ -898,6 +907,7 @@ class _GraficoDia extends StatelessWidget {
   }
 
   Widget _buildTurnoCard(
+    BuildContext context,
     int i,
     List<double> earnings,
     List<int> counts,
@@ -952,7 +962,9 @@ class _GraficoDia extends StatelessWidget {
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w900,
-              color: c > 0 ? AppColores.textPrimary : AppColores.textSecondary,
+              color: c > 0
+                  ? context.palette.textPrimary
+                  : context.palette.textSecondary,
             ),
           ),
           Text(
@@ -960,7 +972,7 @@ class _GraficoDia extends StatelessWidget {
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w700,
-              color: e > 0 ? AppColores.success : AppColores.textSecondary,
+              color: e > 0 ? AppColores.success : context.palette.textSecondary,
             ),
           ),
           const SizedBox(height: 8),
@@ -996,9 +1008,9 @@ class _StatCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColores.surface,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColores.borderSubtle),
+        border: Border.all(color: context.palette.borderSubtle),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1010,19 +1022,19 @@ class _StatCard extends StatelessWidget {
             alignment: Alignment.centerLeft,
             child: Text(
               value,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.w900,
-                color: AppColores.textPrimary,
+                color: context.palette.textPrimary,
               ),
             ),
           ),
-          const SizedBox(height: 2),
+          SizedBox(height: 2),
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
-              color: AppColores.textSecondary,
+              color: context.palette.textSecondary,
             ),
           ),
         ],
@@ -1047,17 +1059,17 @@ class _DetalleLinea extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(icon, size: 18, color: color ?? AppColores.textSecondary),
+        Icon(icon, size: 18, color: color ?? context.palette.textSecondary),
         const SizedBox(width: 8),
         Text(
           '$label: ',
-          style: const TextStyle(color: AppColores.textSecondary),
+          style: TextStyle(color: context.palette.textSecondary),
         ),
         Text(
           value,
           style: TextStyle(
             fontWeight: FontWeight.w700,
-            color: color ?? AppColores.textPrimary,
+            color: color ?? context.palette.textPrimary,
           ),
         ),
       ],

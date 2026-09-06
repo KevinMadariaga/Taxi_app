@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/helpers/permisos_helper.dart';
 import 'package:taxi_app/core/services/notificacion_servicio.dart';
 
@@ -90,11 +91,11 @@ class _NotificacionesViewState extends State<NotificacionesView> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Notificaciones'),
-        backgroundColor: AppColores.surface,
-        foregroundColor: AppColores.textPrimary,
+        backgroundColor: AppColores.primary,
+        foregroundColor: AppColores.textWhite,
         elevation: 0,
       ),
-      backgroundColor: AppColores.background,
+      backgroundColor: context.palette.background,
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : ListView(

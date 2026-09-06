@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 
 class DriverWaitingClientModal extends StatelessWidget {
   const DriverWaitingClientModal({
@@ -19,8 +20,8 @@ class DriverWaitingClientModal extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 22),
-      decoration: const BoxDecoration(
-        color: AppColores.surface,
+      decoration: BoxDecoration(
+        color: context.palette.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
       ),
       child: SafeArea(
@@ -32,17 +33,17 @@ class DriverWaitingClientModal extends StatelessWidget {
               width: 42,
               height: 4,
               decoration: BoxDecoration(
-                color: AppColores.grey300,
+                color: context.palette.grey300,
                 borderRadius: BorderRadius.circular(999),
               ),
             ),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'En espera del cliente',
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.w800,
-                color: AppColores.textPrimary,
+                color: context.palette.textPrimary,
               ),
             ),
             const SizedBox(height: 10),
@@ -62,9 +63,9 @@ class DriverWaitingClientModal extends StatelessWidget {
                   ? 'Cliente confirmado. Ya puedes iniciar la ruta.'
                   : 'Esperando confirmación del cliente (estado en camino).',
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
-                color: AppColores.textSecondary,
+                color: context.palette.textSecondary,
               ),
             ),
             const SizedBox(height: 18),
@@ -75,20 +76,20 @@ class DriverWaitingClientModal extends StatelessWidget {
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size.fromHeight(52),
                   backgroundColor: AppColores.buttonPrimary,
-                  foregroundColor: AppColores.textPrimary,
-                  disabledBackgroundColor: AppColores.grey300,
-                  disabledForegroundColor: AppColores.textSecondary,
+                  foregroundColor: context.palette.textPrimary,
+                  disabledBackgroundColor: context.palette.grey300,
+                  disabledForegroundColor: context.palette.textSecondary,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
                 child: isLoading
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 20,
                         height: 20,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: AppColores.textPrimary,
+                          color: context.palette.textPrimary,
                         ),
                       )
                     : const Text(

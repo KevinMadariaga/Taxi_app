@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
+import 'package:taxi_app/widgets/boton.dart';
 
 const List<String> _etiquetasSugeridas = ['Casa', 'Trabajo', 'Otro'];
 
@@ -30,16 +32,20 @@ class _EtiquetaFavoritoDialog extends StatefulWidget {
 
 class _EtiquetaFavoritoDialogState extends State<_EtiquetaFavoritoDialog> {
   late final TextEditingController _controller;
-  late String _seleccionado;
+  // `null` = nada seleccionado todavía. Antes arrancaba en 'Otro' por
+  // defecto, lo que mostraba el campo de texto con el teclado abierto ni
+  // bien aparecía el diálogo, sin que el usuario tocara nada.
+  String? _seleccionado;
 
   @override
   void initState() {
     super.initState();
     final inicial = widget.etiquetaInicial?.trim() ?? '';
-    _seleccionado = _etiquetasSugeridas.contains(inicial) ? inicial : 'Otro';
+    _seleccionado = _etiquetasSugeridas.contains(inicial) ? inicial : null;
     _controller = TextEditingController(
-      text: _seleccionado == 'Otro' ? inicial : '',
+      text: _seleccionado == null && inicial.isNotEmpty ? inicial : '',
     );
+    if (_controller.text.isNotEmpty) _seleccionado = 'Otro';
   }
 
   @override
@@ -49,6 +55,7 @@ class _EtiquetaFavoritoDialogState extends State<_EtiquetaFavoritoDialog> {
   }
 
   String? get _nombreFinal {
+    if (_seleccionado == null) return null;
     if (_seleccionado != 'Otro') return _seleccionado;
     final texto = _controller.text.trim();
     return texto.isEmpty ? null : texto;
@@ -58,6 +65,9 @@ class _EtiquetaFavoritoDialogState extends State<_EtiquetaFavoritoDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: const Text('Guardar como favorito'),
+      // Sin esto, el `TextField` que aparece al elegir "Otro" (con el
+      // teclado ya abierto) puede desbordar la modal en pantallas chicas.
+      scrollable: true,
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -88,16 +98,35 @@ class _EtiquetaFavoritoDialogState extends State<_EtiquetaFavoritoDialog> {
           ],
         ],
       ),
+      actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
       actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancelar'),
-        ),
-        FilledButton(
-          onPressed: _nombreFinal == null
-              ? null
-              : () => Navigator.of(context).pop(_nombreFinal),
-          child: const Text('Guardar'),
+        Row(
+          children: [
+            Expanded(
+              child: CustomButton(
+                text: 'Cancelar',
+                color: context.palette.surface,
+                textColor: AppColores.primary,
+                borderColor: AppColores.primary,
+                height: 44,
+                fontSize: 14,
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ),
+            SizedBox(width: 12.w),
+            Expanded(
+              child: CustomButton(
+                text: 'Guardar',
+                color: AppColores.buttonPrimary,
+                textColor: AppColores.textWhite,
+                height: 44,
+                fontSize: 14,
+                onPressed: _nombreFinal == null
+                    ? null
+                    : () => Navigator.of(context).pop(_nombreFinal),
+              ),
+            ),
+          ],
         ),
       ],
     );

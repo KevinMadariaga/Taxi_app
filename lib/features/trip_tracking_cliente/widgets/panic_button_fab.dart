@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 
 class PanicButtonFab extends StatefulWidget {
   const PanicButtonFab({super.key});
@@ -46,9 +47,9 @@ class _PanicButtonFabState extends State<PanicButtonFab> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text(
+            child: Text(
               'Cancelar',
-              style: TextStyle(color: AppColores.textSecondary),
+              style: TextStyle(color: context.palette.textSecondary),
             ),
           ),
           FilledButton(
@@ -61,7 +62,10 @@ class _PanicButtonFabState extends State<PanicButtonFab> {
             onPressed: () => Navigator.of(ctx).pop(true),
             child: const Text(
               'Llamar al 123',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ],

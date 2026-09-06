@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 
 /// Hoja de detalles del viaje (lado cliente y conductor).
 /// Muestra a la contraparte (nombre + calificación), vehículo, direcciones,
@@ -59,19 +60,19 @@ class TripDetailsSheet extends StatelessWidget {
                   width: 44,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: AppColores.grey300,
+                    color: context.palette.grey300,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
               ),
               const SizedBox(height: 18),
-              const Text(
+              Text(
                 'Detalles del viaje',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.w800,
-                  color: AppColores.textPrimary,
+                  color: context.palette.textPrimary,
                 ),
               ),
               const SizedBox(height: 16),
@@ -81,11 +82,15 @@ class TripDetailsSheet extends StatelessWidget {
                   CircleAvatar(
                     radius: 32,
                     backgroundColor: AppColores.primary,
-                    backgroundImage:
-                        fotoPersona.isNotEmpty ? NetworkImage(fotoPersona) : null,
+                    backgroundImage: fotoPersona.isNotEmpty
+                        ? NetworkImage(fotoPersona)
+                        : null,
                     child: fotoPersona.isEmpty
-                        ? const Icon(Icons.person,
-                            size: 32, color: Colors.white)
+                        ? const Icon(
+                            Icons.person,
+                            size: 32,
+                            color: Colors.white,
+                          )
                         : null,
                   ),
                   const SizedBox(width: 14),
@@ -95,8 +100,8 @@ class TripDetailsSheet extends StatelessWidget {
                       children: [
                         Text(
                           tituloPersona,
-                          style: const TextStyle(
-                            color: AppColores.textSecondary,
+                          style: TextStyle(
+                            color: context.palette.textSecondary,
                             fontSize: 12.5,
                             fontWeight: FontWeight.w600,
                           ),
@@ -106,10 +111,10 @@ class TripDetailsSheet extends StatelessWidget {
                           nombrePersona.isEmpty ? '—' : nombrePersona,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontWeight: FontWeight.w800,
                             fontSize: 17,
-                            color: AppColores.textPrimary,
+                            color: context.palette.textPrimary,
                           ),
                         ),
                         if (mostrarCalificacion) ...[
@@ -129,7 +134,7 @@ class TripDetailsSheet extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 18),
-              const Divider(height: 1, color: AppColores.borderSubtle),
+              Divider(height: 1, color: context.palette.borderSubtle),
               const SizedBox(height: 14),
               _DireccionRow(
                 icon: Icons.my_location,
@@ -149,9 +154,9 @@ class TripDetailsSheet extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: AppColores.background,
+                  color: context.palette.background,
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppColores.borderSubtle),
+                  border: Border.all(color: context.palette.borderSubtle),
                 ),
                 child: Row(
                   children: [
@@ -159,10 +164,10 @@ class TripDetailsSheet extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          Text(
                             'Valor del servicio',
                             style: TextStyle(
-                              color: AppColores.textSecondary,
+                              color: context.palette.textSecondary,
                               fontSize: 12.5,
                               fontWeight: FontWeight.w600,
                             ),
@@ -170,10 +175,10 @@ class TripDetailsSheet extends StatelessWidget {
                           const SizedBox(height: 2),
                           Text(
                             _currency(valorServicio),
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontWeight: FontWeight.w800,
                               fontSize: 20,
-                              color: AppColores.textPrimary,
+                              color: context.palette.textPrimary,
                             ),
                           ),
                         ],
@@ -207,9 +212,9 @@ class _Estrellas extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (total <= 0 && valor <= 0) {
-      return const Text(
+      return Text(
         'Conductor nuevo',
-        style: TextStyle(fontSize: 12, color: AppColores.textSecondary),
+        style: TextStyle(fontSize: 12, color: context.palette.textSecondary),
       );
     }
     return Row(
@@ -229,10 +234,10 @@ class _Estrellas extends StatelessWidget {
         const SizedBox(width: 4),
         Text(
           valor.toStringAsFixed(1),
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w600,
-            color: AppColores.textSecondary,
+            color: context.palette.textSecondary,
           ),
         ),
       ],
@@ -255,7 +260,7 @@ class _VehiculoChip extends StatelessWidget {
           child: Container(
             width: 72,
             height: 54,
-            color: AppColores.grey200,
+            color: context.palette.grey200,
             child: foto.isNotEmpty
                 ? CachedNetworkImage(
                     imageUrl: foto,
@@ -269,12 +274,10 @@ class _VehiculoChip extends StatelessWidget {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       ),
                     ),
-                    errorWidget: (context, url, error) => const Icon(
-                      Icons.local_taxi,
-                      color: AppColores.grey400,
-                    ),
+                    errorWidget: (context, url, error) =>
+                        Icon(Icons.local_taxi, color: context.palette.grey400),
                   )
-                : const Icon(Icons.local_taxi, color: AppColores.grey400),
+                : Icon(Icons.local_taxi, color: context.palette.grey400),
           ),
         ),
         if (placa.isNotEmpty) ...[
@@ -282,7 +285,7 @@ class _VehiculoChip extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
             decoration: BoxDecoration(
-              color: AppColores.textPrimary,
+              color: context.palette.textPrimary,
               borderRadius: BorderRadius.circular(6),
             ),
             child: Text(
@@ -333,8 +336,8 @@ class _DireccionRow extends StatelessWidget {
             children: [
               Text(
                 label,
-                style: const TextStyle(
-                  color: AppColores.textSecondary,
+                style: TextStyle(
+                  color: context.palette.textSecondary,
                   fontSize: 12.5,
                   fontWeight: FontWeight.w600,
                 ),
@@ -342,8 +345,8 @@ class _DireccionRow extends StatelessWidget {
               const SizedBox(height: 2),
               Text(
                 value,
-                style: const TextStyle(
-                  color: AppColores.textPrimary,
+                style: TextStyle(
+                  color: context.palette.textPrimary,
                   fontSize: 14.5,
                   fontWeight: FontWeight.w600,
                 ),
@@ -366,8 +369,11 @@ class _MetodoPagoChip extends StatelessWidget {
     Widget icono;
     String label;
     if (lower.contains('efectivo') || lower.contains('cash')) {
-      icono = const Icon(Icons.payments_rounded,
-          color: AppColores.success, size: 22);
+      icono = const Icon(
+        Icons.payments_rounded,
+        color: AppColores.success,
+        size: 22,
+      );
       label = 'Efectivo';
     } else if (lower.contains('nequi')) {
       icono = Image.asset(
@@ -382,21 +388,27 @@ class _MetodoPagoChip extends StatelessWidget {
       );
       label = 'Nequi';
     } else if (lower.contains('transfer') || lower.contains('banco')) {
-      icono = const Icon(Icons.account_balance,
-          color: AppColores.secondary, size: 22);
+      icono = const Icon(
+        Icons.account_balance,
+        color: AppColores.secondary,
+        size: 22,
+      );
       label = 'Transferencia';
     } else {
-      icono =
-          const Icon(Icons.payment, color: AppColores.textSecondary, size: 22);
+      icono = Icon(
+        Icons.payment,
+        color: context.palette.textSecondary,
+        size: 22,
+      );
       label = metodo.isEmpty ? '—' : metodo;
     }
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: AppColores.surface,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColores.borderSubtle),
+        border: Border.all(color: context.palette.borderSubtle),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -405,10 +417,10 @@ class _MetodoPagoChip extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 11.5,
               fontWeight: FontWeight.w700,
-              color: AppColores.textPrimary,
+              color: context.palette.textPrimary,
             ),
           ),
         ],

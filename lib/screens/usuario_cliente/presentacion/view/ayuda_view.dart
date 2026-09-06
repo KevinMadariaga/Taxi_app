@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 
 class AyudaView extends StatefulWidget {
   const AyudaView({super.key});
@@ -52,75 +53,75 @@ class _AyudaViewState extends State<AyudaView> {
     }).toList();
 
     return Scaffold(
-        resizeToAvoidBottomInset: true,
-        appBar: AppBar(
-          title: const Text('Ayuda'),
-          backgroundColor: AppColores.surface,
-          foregroundColor: AppColores.textPrimary,
-          elevation: 0,
-        ),
-        backgroundColor: AppColores.background,
-        body: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: TextField(
-                controller: _searchController,
-                focusNode: _searchFocusNode,
-                onTapOutside: (_) => _searchFocusNode.unfocus(),
-                onChanged: (value) {
-                  if (!mounted) return;
-                  setState(() => _query = value);
-                },
-                decoration: const InputDecoration(
-                  hintText: 'Buscar en ayuda',
-                  prefixIcon: Icon(Icons.search),
-                  border: OutlineInputBorder(),
-                  isDense: true,
-                ),
+      resizeToAvoidBottomInset: true,
+      appBar: AppBar(
+        title: const Text('Ayuda'),
+        backgroundColor: AppColores.primary,
+        foregroundColor: AppColores.textWhite,
+        elevation: 0,
+      ),
+      backgroundColor: context.palette.background,
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: TextField(
+              controller: _searchController,
+              focusNode: _searchFocusNode,
+              onTapOutside: (_) => _searchFocusNode.unfocus(),
+              onChanged: (value) {
+                if (!mounted) return;
+                setState(() => _query = value);
+              },
+              decoration: const InputDecoration(
+                hintText: 'Buscar en ayuda',
+                prefixIcon: Icon(Icons.search),
+                border: OutlineInputBorder(),
+                isDense: true,
               ),
             ),
-            Expanded(
-              child: filtered.isEmpty
-                  ? const Center(
-                      child: Text(
-                        'No hay resultados para tu búsqueda.',
-                        style: TextStyle(color: AppColores.textSecondary),
-                      ),
-                    )
-                  : ListView.builder(
-                      keyboardDismissBehavior:
-                          ScrollViewKeyboardDismissBehavior.onDrag,
-                      itemCount: filtered.length,
-                      itemBuilder: (context, index) {
-                        final item = filtered[index];
-                        return ExpansionTile(
-                          leading: const Icon(Icons.help_outline),
-                          title: Text(item['q'] ?? ''),
-                          childrenPadding: const EdgeInsets.fromLTRB(
-                            16,
-                            0,
-                            16,
-                            16,
-                          ),
-                          children: [
-                            Align(
-                              alignment: Alignment.centerLeft,
-                              child: Text(
-                                item['a'] ?? '',
-                                style: const TextStyle(
-                                  color: AppColores.textSecondary,
-                                  height: 1.3,
-                                ),
+          ),
+          Expanded(
+            child: filtered.isEmpty
+                ? Center(
+                    child: Text(
+                      'No hay resultados para tu búsqueda.',
+                      style: TextStyle(color: context.palette.textSecondary),
+                    ),
+                  )
+                : ListView.builder(
+                    keyboardDismissBehavior:
+                        ScrollViewKeyboardDismissBehavior.onDrag,
+                    itemCount: filtered.length,
+                    itemBuilder: (context, index) {
+                      final item = filtered[index];
+                      return ExpansionTile(
+                        leading: const Icon(Icons.help_outline),
+                        title: Text(item['q'] ?? ''),
+                        childrenPadding: const EdgeInsets.fromLTRB(
+                          16,
+                          0,
+                          16,
+                          16,
+                        ),
+                        children: [
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              item['a'] ?? '',
+                              style: TextStyle(
+                                color: context.palette.textSecondary,
+                                height: 1.3,
                               ),
                             ),
-                          ],
-                        );
-                      },
-                    ),
-            ),
-          ],
-        ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
     );
   }
 }

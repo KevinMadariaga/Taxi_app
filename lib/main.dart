@@ -15,6 +15,7 @@ import 'package:taxi_app/core/helpers/firebase_helper.dart';
 import 'package:taxi_app/core/helpers/permisos_helper.dart';
 import 'package:taxi_app/core/constants/app_constants.dart';
 import 'package:taxi_app/core/theme/app_theme.dart';
+import 'package:taxi_app/core/theme/theme_controller.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/casos_uso/sign_in_google_client_usecase.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/casos_uso/sign_in_apple_client_usecase.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/casos_uso/get_client_user_usecase.dart';
@@ -40,6 +41,16 @@ const SystemUiOverlayStyle _globalSystemOverlayStyle = SystemUiOverlayStyle(
   statusBarColor: Colors.transparent,
   statusBarIconBrightness: Brightness.dark,
   statusBarBrightness: Brightness.light,
+);
+
+/// Íconos de la barra de estado en modo oscuro: claros sobre fondo oscuro —
+/// lo inverso de `_globalSystemOverlayStyle`. Elegido dentro del `builder` de
+/// `MaterialApp` según el brillo efectivo (`Theme.of(context).brightness`),
+/// que ya resuelve `ThemeMode.system` contra el SO.
+const SystemUiOverlayStyle _darkSystemOverlayStyle = SystemUiOverlayStyle(
+  statusBarColor: Colors.transparent,
+  statusBarIconBrightness: Brightness.light,
+  statusBarBrightness: Brightness.dark,
 );
 
 /// Error benigno conocido de google_maps_flutter_ios: cuando la vista del mapa
@@ -129,6 +140,8 @@ class _ErrorArranqueApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      theme: AppThemeConfig.lightTheme,
+      darkTheme: AppThemeConfig.darkTheme,
       home: Scaffold(
         body: Center(
           child: Padding(
@@ -262,7 +275,13 @@ Future<void> main() async {
 
   WidgetsBinding.instance.addObserver(_LimpiadorDeBandeja());
 
-  runApp(MyApp());
+  // Se carga ANTES de `runApp` para que el primer frame ya pinte con el tema
+  // guardado — si se cargara dentro de un `FutureBuilder`/`initState`, la app
+  // arrancaría siempre en claro y "saltaría" a oscuro un frame después.
+  final themeController = ThemeController();
+  await themeController.load();
+
+  runApp(MyApp(themeController: themeController));
 
   // Inicialización diferida en segundo plano: no bloquea el primer frame ni
   // el splash. Los permisos se piden con el splash animado ya visible.
@@ -309,9 +328,13 @@ Future<void> _inicializarServiciosDiferidos() async {
 /// Root widget for the Taxi App.
 /// Sets up providers, theming, and navigation.
 class MyApp extends StatelessWidget {
-  MyApp({super.key}) : _authAdapter = AppAuthAdapter(FirebaseDataSource());
+  MyApp({super.key, required ThemeController themeController})
+    : _authAdapter = AppAuthAdapter(FirebaseDataSource()),
+      _themeController = themeController;
 
   final AppAuthAdapter _authAdapter;
+  final ThemeController _themeController;
+
   @override
   Widget build(BuildContext context) {
     return ScreenUtilInit(
@@ -343,24 +366,37 @@ class MyApp extends StatelessWidget {
             ),
 
             ChangeNotifierProvider(create: (_) => AuthViewModel(_authAdapter)),
+            ChangeNotifierProvider<ThemeController>.value(
+              value: _themeController,
+            ),
           ],
-          child: MaterialApp(
-            debugShowCheckedModeBanner: false,
-            title: AppConstants.appTitle,
-            theme: AppThemeConfig.lightTheme,
-            navigatorKey: appNavigatorKey,
-            initialRoute: AppRoutes.splash,
-            onGenerateRoute: AppRoutes.onGenerateRoute,
-            builder: (context, child) {
-              return AppUpdateGate(
+          child: Consumer<ThemeController>(
+            builder: (context, themeController, _) {
+              return MaterialApp(
+                debugShowCheckedModeBanner: false,
+                title: AppConstants.appTitle,
+                theme: AppThemeConfig.lightTheme,
+                darkTheme: AppThemeConfig.darkTheme,
+                themeMode: themeController.themeMode,
                 navigatorKey: appNavigatorKey,
-                child: ConectividadGate(
-                  navigatorKey: appNavigatorKey,
-                  child: AnnotatedRegion<SystemUiOverlayStyle>(
-                    value: _globalSystemOverlayStyle,
-                    child: child ?? const SizedBox.shrink(),
-                  ),
-                ),
+                initialRoute: AppRoutes.splash,
+                onGenerateRoute: AppRoutes.onGenerateRoute,
+                builder: (context, child) {
+                  final isDark =
+                      Theme.of(context).brightness == Brightness.dark;
+                  return AppUpdateGate(
+                    navigatorKey: appNavigatorKey,
+                    child: ConectividadGate(
+                      navigatorKey: appNavigatorKey,
+                      child: AnnotatedRegion<SystemUiOverlayStyle>(
+                        value: isDark
+                            ? _darkSystemOverlayStyle
+                            : _globalSystemOverlayStyle,
+                        child: child ?? const SizedBox.shrink(),
+                      ),
+                    ),
+                  );
+                },
               );
             },
           ),

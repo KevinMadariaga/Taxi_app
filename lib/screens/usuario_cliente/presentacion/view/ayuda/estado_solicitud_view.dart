@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/constants/solicitud_estado.dart';
 import 'package:taxi_app/features/trip_tracking_cliente/services/trip_tracking_firestore_service.dart';
 
@@ -54,10 +55,10 @@ class EstadoSolicitudView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColores.background,
+      backgroundColor: context.palette.background,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        foregroundColor: AppColores.textPrimary,
+        backgroundColor: AppColores.primary,
+        foregroundColor: AppColores.textWhite,
         elevation: 0,
         title: const Text(
           'Estado de mi solicitud',
@@ -133,7 +134,7 @@ class _TimelineTile extends StatelessWidget {
     final activo = completado || actual;
     final color = actual
         ? AppColores.buttonPrimary
-        : (completado ? AppColores.success : AppColores.grey400);
+        : (completado ? AppColores.success : context.palette.grey400);
 
     return IntrinsicHeight(
       child: Row(
@@ -147,7 +148,7 @@ class _TimelineTile extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: activo
                       ? color.withValues(alpha: 0.15)
-                      : AppColores.grey200,
+                      : context.palette.grey200,
                   shape: BoxShape.circle,
                   border: Border.all(color: color, width: actual ? 2.5 : 1.5),
                 ),
@@ -161,7 +162,9 @@ class _TimelineTile extends StatelessWidget {
                 Expanded(
                   child: Container(
                     width: 2.5,
-                    color: completado ? AppColores.success : AppColores.grey300,
+                    color: completado
+                        ? AppColores.success
+                        : context.palette.grey300,
                   ),
                 ),
             ],
@@ -180,16 +183,16 @@ class _TimelineTile extends StatelessWidget {
                       fontWeight: actual ? FontWeight.w800 : FontWeight.w600,
                       fontSize: 16,
                       color: activo
-                          ? AppColores.textPrimary
-                          : AppColores.textSecondary,
+                          ? context.palette.textPrimary
+                          : context.palette.textSecondary,
                     ),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     paso.descripcion,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13.5,
-                      color: AppColores.textSecondary,
+                      color: context.palette.textSecondary,
                     ),
                   ),
                   if (actual) ...[
@@ -251,10 +254,10 @@ class _EstadoTerminal extends StatelessWidget {
             const SizedBox(height: 18),
             Text(
               cancelado ? 'Solicitud cancelada' : 'Sin respuesta',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.w800,
-                color: AppColores.textPrimary,
+                color: context.palette.textPrimary,
               ),
             ),
             const SizedBox(height: 8),
@@ -263,9 +266,9 @@ class _EstadoTerminal extends StatelessWidget {
                   ? 'Tu solicitud de viaje fue cancelada.'
                   : 'Ningún conductor respondió a tu solicitud.',
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 14,
-                color: AppColores.textSecondary,
+                color: context.palette.textSecondary,
               ),
             ),
           ],

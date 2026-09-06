@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
+import 'package:taxi_app/core/theme/app_palette.dart';
+
 import '../../viewmodels/confirmar_solicitud_viewmodel.dart';
 
 /// Tope del comentario al conductor. Suficiente para una indicación de
@@ -79,10 +81,11 @@ class _ComentarioSheetState extends State<_ComentarioSheet> {
         : media.viewPadding.bottom + 10;
     final comentarioGuardado = widget.vm.comentario;
 
+    final palette = context.palette;
     return Padding(
       padding: EdgeInsets.fromLTRB(12.w, 16.h, 12.w, bottomGap),
       child: Material(
-        color: Colors.white,
+        color: palette.surface,
         borderRadius: BorderRadius.circular(16.r),
         clipBehavior: Clip.antiAlias,
         child: Padding(
@@ -93,14 +96,18 @@ class _ComentarioSheetState extends State<_ComentarioSheet> {
             children: [
               Text(
                 'Comentario para el conductor',
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18.sp),
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 18.sp,
+                  color: palette.textPrimary,
+                ),
               ),
               SizedBox(height: 4.h),
               Text(
                 comentarioGuardado.isEmpty
                     ? 'Sin comentario guardado'
                     : 'Guardado: $comentarioGuardado',
-                style: const TextStyle(color: Colors.black54),
+                style: TextStyle(color: palette.textSecondary),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),

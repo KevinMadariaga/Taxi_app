@@ -3,6 +3,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
 
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/widgets/MapaGoogle.dart';
 import 'package:taxi_app/widgets/boton.dart';
 
@@ -83,16 +84,16 @@ class _SeleccionarUbicacionMapaBodyState
               widget.titulo ?? 'Selecciona ubicación',
               style: TextStyle(
                 fontSize: titleFontSize.toDouble(),
-                color: AppColores.textPrimary,
+                color: AppColores.textWhite,
               ),
             );
           },
         ),
-        backgroundColor: AppColores.surface,
-        foregroundColor: AppColores.textPrimary,
+        backgroundColor: AppColores.primary,
+        foregroundColor: AppColores.textWhite,
         elevation: 0,
       ),
-      backgroundColor: AppColores.surface,
+      backgroundColor: context.palette.surface,
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -141,7 +142,7 @@ class _MapaConPin extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColores.textPrimary, width: 1),
+        border: Border.all(color: context.palette.textPrimary, width: 1),
       ),
       clipBehavior: Clip.antiAlias,
       child: ClipRRect(
@@ -206,12 +207,16 @@ class _SombraPin extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // En modo oscuro el mapa (`MapStyle.googleMapJson`) es casi negro, así
+    // que el punto de sombra oscuro se volvía invisible sobre él — ahí se
+    // usa el amarillo de marca (mismo color del pin) en vez del scrim negro.
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       width: _PinCentral._sombraDiametro,
       height: _PinCentral._sombraDiametro,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: AppColores.overlayDark,
+        color: isDark ? AppColores.primary : context.palette.overlayDark,
       ),
     );
   }
@@ -237,11 +242,14 @@ class _ContenidoInferior extends StatelessWidget {
         child: Column(
           children: [
             SizedBox(height: compact ? 10 : 18),
-            const Padding(
+            Padding(
               padding: EdgeInsets.symmetric(horizontal: 18),
               child: Text(
                 'Mueve el mapa para seleccionar la ubicación',
-                style: TextStyle(fontSize: 16, color: AppColores.textPrimary),
+                style: TextStyle(
+                  fontSize: 16,
+                  color: context.palette.textPrimary,
+                ),
                 textAlign: TextAlign.center,
               ),
             ),
@@ -272,9 +280,9 @@ class _ContenidoInferior extends StatelessWidget {
                             vm.direccion.isNotEmpty
                                 ? vm.direccion
                                 : 'Buscando dirección...',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 15,
-                              color: AppColores.textPrimary,
+                              color: context.palette.textPrimary,
                             ),
                             maxLines: compact ? 1 : 2,
                             overflow: TextOverflow.ellipsis,

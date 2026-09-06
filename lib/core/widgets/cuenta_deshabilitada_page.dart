@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import 'package:taxi_app/caracteristicas/autenticacion/presentacion/vistas/home_screen.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 
 /// Pantalla terminal para un usuario con `usuarios/{uid}.deshabilitado ==
 /// true` — cuenta deshabilitada por un administrador desde el panel
@@ -34,7 +35,7 @@ class _CuentaDeshabilitadaPageState extends State<CuentaDeshabilitadaPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColores.background,
+      backgroundColor: context.palette.background,
       body: SafeArea(
         child: Center(
           child: Padding(
@@ -48,19 +49,19 @@ class _CuentaDeshabilitadaPageState extends State<CuentaDeshabilitadaPage> {
                   size: 56,
                 ),
                 const SizedBox(height: 18),
-                const Text(
+                Text(
                   'Cuenta deshabilitada',
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w800,
-                    color: AppColores.textPrimary,
+                    color: context.palette.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Text(
+                Text(
                   'Un administrador deshabilitó esta cuenta. Si crees que es un error, contacta con soporte.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: AppColores.textSecondary),
+                  style: TextStyle(color: context.palette.textSecondary),
                 ),
                 const SizedBox(height: 24),
                 FilledButton(

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 
 /// Fila de ETA/distancia — dos variantes (expandida: texto largo con
 /// separador; colapsada: chips con ícono), promovida tal cual desde
@@ -33,30 +33,30 @@ class EtaDistanciaRow extends StatelessWidget {
           : '$etaText · $distanceText';
       return Text(
         texto,
-        style: const TextStyle(color: AppColores.ink500, fontSize: 12),
+        style: TextStyle(color: context.palette.ink500, fontSize: 12),
       );
     }
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        const Icon(Icons.schedule_rounded, size: 16, color: AppColores.ink500),
+        Icon(Icons.schedule_rounded, size: 16, color: context.palette.ink500),
         const SizedBox(width: 4),
         Text(
           etaText,
-          style: const TextStyle(
-            color: AppColores.ink700,
+          style: TextStyle(
+            color: context.palette.ink700,
             fontSize: 15,
             fontWeight: FontWeight.w600,
           ),
         ),
         const SizedBox(width: 16),
-        const Icon(Icons.route_outlined, size: 16, color: AppColores.ink500),
+        Icon(Icons.route_outlined, size: 16, color: context.palette.ink500),
         const SizedBox(width: 4),
         Text(
           distanceText,
-          style: const TextStyle(
-            color: AppColores.ink700,
+          style: TextStyle(
+            color: context.palette.ink700,
             fontSize: 15,
             fontWeight: FontWeight.w600,
           ),

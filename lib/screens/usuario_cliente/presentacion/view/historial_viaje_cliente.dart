@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/historial_cliente_viewmodel.dart';
 import 'package:taxi_app/widgets/historial/historial_widgets.dart';
 
@@ -36,7 +37,7 @@ class HistorialClienteState extends State<HistorialCliente> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColores.background,
+      backgroundColor: context.palette.background,
       appBar: AppBar(
         title: const Text(
           'Historial de Viajes',
@@ -107,7 +108,9 @@ class HistorialClienteState extends State<HistorialCliente> {
                     valor: pesosFrom(_vm.extraerPrecio(data)),
                     calificacion: _vm.extraerCalificacion(data).toDouble(),
                     onTap: () => _mostrarDetalle(context, data),
-                    isMoto: (data['tipoVehiculo'] ?? '').toString().toLowerCase() == 'moto',
+                    isMoto:
+                        (data['tipoVehiculo'] ?? '').toString().toLowerCase() ==
+                        'moto',
                   );
                 },
               ),
@@ -142,9 +145,9 @@ class _HistorialViajeCardSkeleton extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: AppColores.borderSubtle),
+        side: BorderSide(color: context.palette.borderSubtle),
       ),
-      color: AppColores.surface,
+      color: context.palette.surface,
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Row(
@@ -152,8 +155,8 @@ class _HistorialViajeCardSkeleton extends StatelessWidget {
             Container(
               width: 46,
               height: 46,
-              decoration: const BoxDecoration(
-                color: AppColores.grey200,
+              decoration: BoxDecoration(
+                color: context.palette.grey200,
                 shape: BoxShape.circle,
               ),
             ),
@@ -166,7 +169,7 @@ class _HistorialViajeCardSkeleton extends StatelessWidget {
                     height: 15,
                     width: double.infinity,
                     decoration: BoxDecoration(
-                      color: AppColores.grey200,
+                      color: context.palette.grey200,
                       borderRadius: BorderRadius.circular(4),
                     ),
                   ),
@@ -175,7 +178,7 @@ class _HistorialViajeCardSkeleton extends StatelessWidget {
                     height: 12,
                     width: 120,
                     decoration: BoxDecoration(
-                      color: AppColores.grey200,
+                      color: context.palette.grey200,
                       borderRadius: BorderRadius.circular(4),
                     ),
                   ),
@@ -190,7 +193,7 @@ class _HistorialViajeCardSkeleton extends StatelessWidget {
                   height: 15,
                   width: 48,
                   decoration: BoxDecoration(
-                    color: AppColores.grey200,
+                    color: context.palette.grey200,
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
@@ -199,7 +202,7 @@ class _HistorialViajeCardSkeleton extends StatelessWidget {
                   height: 20,
                   width: 40,
                   decoration: BoxDecoration(
-                    color: AppColores.grey200,
+                    color: context.palette.grey200,
                     borderRadius: BorderRadius.circular(20),
                   ),
                 ),

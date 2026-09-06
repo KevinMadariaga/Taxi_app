@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/widgets/boton.dart';
 
 const List<int> _diasSugeridos = [7, 15, 30, 60, 90];
@@ -84,7 +85,7 @@ class _DialogoDiasMembresiaState extends State<_DialogoDiasMembresia> {
                 side: BorderSide(
                   color: _controller.text.trim() == '$dias'
                       ? AppColores.primary
-                      : AppColores.borderSubtle,
+                      : context.palette.borderSubtle,
                 ),
               );
             }).toList(),
@@ -98,7 +99,7 @@ class _DialogoDiasMembresiaState extends State<_DialogoDiasMembresia> {
             Expanded(
               child: CustomButton(
                 text: 'Cancelar',
-                color: Colors.white,
+                color: context.palette.surface,
                 textColor: AppColores.primary,
                 borderColor: AppColores.primary,
                 height: 44,

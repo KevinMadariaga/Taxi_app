@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/services/image_cropper_service.dart';
 import 'package:taxi_app/core/services/image_processing_service.dart';
 import 'package:taxi_app/core/services/image_upload_service.dart';
@@ -327,10 +328,10 @@ class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
         decoration: BoxDecoration(
           color: sel
               ? AppColores.primary.withValues(alpha: 0.12)
-              : AppColores.surface,
+              : context.palette.surface,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: sel ? AppColores.primary : AppColores.grey300,
+            color: sel ? AppColores.primary : context.palette.grey300,
             width: sel ? 2 : 1,
           ),
         ),
@@ -339,7 +340,7 @@ class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
             Icon(
               icon,
               size: 34,
-              color: sel ? const Color(0xFFB38F00) : AppColores.grey600,
+              color: sel ? const Color(0xFFB38F00) : context.palette.grey600,
             ),
             const SizedBox(height: 6),
             Text(
@@ -347,7 +348,7 @@ class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
               style: TextStyle(
                 fontWeight: sel ? FontWeight.w800 : FontWeight.w600,
                 fontSize: 15,
-                color: AppColores.textPrimary,
+                color: context.palette.textPrimary,
               ),
             ),
             const SizedBox(height: 4),
@@ -356,7 +357,7 @@ class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
             else if (tieneData)
               _Badge('Registrado', AppColores.success)
             else
-              _Badge('Sin datos', AppColores.grey400),
+              _Badge('Sin datos', context.palette.grey400),
           ],
         ),
       ),
@@ -370,7 +371,7 @@ class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
     final isBusy = _guardando || _activando;
 
     return Scaffold(
-      backgroundColor: AppColores.background,
+      backgroundColor: context.palette.background,
       appBar: AppBar(
         title: const Text('Mis vehículos'),
         backgroundColor: AppColores.primary,
@@ -395,11 +396,11 @@ class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    const Text(
+                    Text(
                       'Puedes registrar carro y moto de forma independiente.',
                       style: TextStyle(
                         fontSize: 12.5,
-                        color: AppColores.textSecondary,
+                        color: context.palette.textSecondary,
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -441,7 +442,7 @@ class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
                             child: Container(
                               height: 170,
                               width: double.infinity,
-                              color: AppColores.grey200,
+                              color: context.palette.grey200,
                               child: fotoNueva != null
                                   ? Image.file(
                                       File(fotoNueva.path),
@@ -498,9 +499,9 @@ class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
                                 color: AppColores.buttonPrimary,
                                 borderRadius: BorderRadius.circular(8),
                               ),
-                              child: const Icon(
+                              child: Icon(
                                 Icons.camera_alt,
-                                color: AppColores.textPrimary,
+                                color: context.palette.textPrimary,
                               ),
                             ),
                           ),
@@ -571,7 +572,7 @@ class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
                               side: BorderSide(
                                 color: _puedeGuardar && !isBusy
                                     ? AppColores.primary
-                                    : AppColores.grey300,
+                                    : context.palette.grey300,
                               ),
                               padding: const EdgeInsets.symmetric(vertical: 14),
                               shape: RoundedRectangleBorder(
@@ -593,7 +594,7 @@ class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
                                       fontWeight: FontWeight.w700,
                                       color: _puedeGuardar && !isBusy
                                           ? AppColores.primary
-                                          : AppColores.grey400,
+                                          : context.palette.grey400,
                                     ),
                                   ),
                           ),
@@ -638,9 +639,9 @@ class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
                             child: Text(
                               '"Guardar datos" registra la foto y placa sin cambiar tu vehículo activo. '
                               '"Usar ${_tipo.label}" lo guarda y lo activa para recibir servicios.',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 12,
-                                color: AppColores.textSecondary,
+                                color: context.palette.textSecondary,
                                 height: 1.4,
                               ),
                             ),

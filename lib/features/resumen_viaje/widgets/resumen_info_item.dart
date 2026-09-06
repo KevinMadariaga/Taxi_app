@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 
 class ResumenInfoItem extends StatelessWidget {
   const ResumenInfoItem({
@@ -32,8 +33,8 @@ class ResumenInfoItem extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: const TextStyle(
-                    color: AppColores.textSecondary,
+                  style: TextStyle(
+                    color: context.palette.textSecondary,
                     fontWeight: FontWeight.w600,
                     fontSize: 13,
                   ),
@@ -41,8 +42,8 @@ class ResumenInfoItem extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   value,
-                  style: const TextStyle(
-                    color: AppColores.textPrimary,
+                  style: TextStyle(
+                    color: context.palette.textPrimary,
                     fontWeight: FontWeight.w700,
                     fontSize: 16,
                   ),

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import 'package:taxi_app/caracteristicas/verificacion_recogida/dominio/casos_uso/validar_codigo_verificacion_usecase.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/widgets/boton.dart';
 
 /// Bottom sheet donde el conductor ingresa el código de 4 dígitos que el
@@ -103,8 +104,8 @@ class _CodigoVerificacionSheetState extends State<CodigoVerificacionSheet> {
       padding: EdgeInsets.only(bottom: insetTeclado),
       child: Container(
         padding: EdgeInsets.fromLTRB(20, 20, 20, 24 + insetSistema),
-        decoration: const BoxDecoration(
-          color: AppColores.cardBackground,
+        decoration: BoxDecoration(
+          color: context.palette.cardBackground,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: Column(
@@ -117,23 +118,26 @@ class _CodigoVerificacionSheetState extends State<CodigoVerificacionSheet> {
                 height: 4,
                 margin: const EdgeInsets.only(bottom: 16),
                 decoration: BoxDecoration(
-                  color: AppColores.grey300,
+                  color: context.palette.grey300,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
             ),
-            const Text(
+            Text(
               'Código de verificación',
               style: TextStyle(
                 fontWeight: FontWeight.w800,
                 fontSize: 18,
-                color: AppColores.textPrimary,
+                color: context.palette.textPrimary,
               ),
             ),
             const SizedBox(height: 6),
-            const Text(
+            Text(
               'Pídele al cliente el código de 4 dígitos que ve en su pantalla.',
-              style: TextStyle(fontSize: 13, color: AppColores.textSecondary),
+              style: TextStyle(
+                fontSize: 13,
+                color: context.palette.textSecondary,
+              ),
             ),
             const SizedBox(height: 18),
             TextField(
@@ -145,17 +149,17 @@ class _CodigoVerificacionSheetState extends State<CodigoVerificacionSheet> {
                 LengthLimitingTextInputFormatter(4),
               ],
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 28,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 12,
-                color: AppColores.textPrimary,
+                color: context.palette.textPrimary,
               ),
               decoration: InputDecoration(
                 counterText: '',
                 hintText: '0000',
                 filled: true,
-                fillColor: AppColores.grey100,
+                fillColor: context.palette.grey100,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
                   borderSide: BorderSide.none,

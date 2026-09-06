@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/soporte_chat_screen.dart';
 
 class SoporteConductorView extends StatelessWidget {
@@ -10,11 +11,11 @@ class SoporteConductorView extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Soporte'),
-        backgroundColor: AppColores.surface,
-        foregroundColor: AppColores.textPrimary,
+        backgroundColor: AppColores.primary,
+        foregroundColor: AppColores.textWhite,
         elevation: 0,
       ),
-      backgroundColor: AppColores.background,
+      backgroundColor: context.palette.background,
       body: ListView(
         children: [
           const SizedBox(height: 8),
@@ -35,12 +36,12 @@ class SoporteConductorView extends StatelessWidget {
             },
           ),
           const SizedBox(height: 8),
-          const Padding(
+          Padding(
             padding: EdgeInsets.symmetric(horizontal: 16),
             child: Text(
               'Nuestro equipo atiende de lunes a viernes de 8:00 a.m. a 6:00 p.m.',
               style: TextStyle(
-                color: AppColores.textSecondary,
+                color: context.palette.textSecondary,
                 fontSize: 13,
               ),
             ),

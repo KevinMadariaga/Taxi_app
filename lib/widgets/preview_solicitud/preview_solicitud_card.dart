@@ -3,6 +3,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodels/preview_solicitud.dart';
 
 import 'widgets/acciones_solicitud_buttons.dart';
@@ -157,7 +158,7 @@ class PreviewSolicitudCard extends StatelessWidget {
       // `body` de este `Scaffold` (mapa + info) porque `viewInsets` es
       // global a todo el árbol, no solo a la ruta que abrió el teclado.
       resizeToAvoidBottomInset: false,
-      backgroundColor: AppColores.background,
+      backgroundColor: context.palette.background,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -187,17 +188,17 @@ class PreviewSolicitudCard extends StatelessWidget {
                   top: statusBarHeight + 12,
                   left: 12,
                   child: Material(
-                    color: AppColores.surface,
+                    color: context.palette.surface,
                     shape: const CircleBorder(),
                     elevation: 3,
                     child: InkWell(
                       customBorder: const CircleBorder(),
                       onTap: onClose,
-                      child: const Padding(
+                      child: Padding(
                         padding: EdgeInsets.all(8),
                         child: Icon(
                           Icons.arrow_back,
-                          color: AppColores.textPrimary,
+                          color: context.palette.textPrimary,
                           size: 22,
                         ),
                       ),
@@ -210,7 +211,7 @@ class PreviewSolicitudCard extends StatelessWidget {
                   top: statusBarHeight + 12,
                   right: 12,
                   child: Material(
-                    color: AppColores.surface,
+                    color: context.palette.surface,
                     borderRadius: BorderRadius.circular(24),
                     elevation: 3,
                     child: InkWell(
@@ -228,7 +229,7 @@ class PreviewSolicitudCard extends StatelessWidget {
                               Icons.local_offer_outlined,
                               size: 16,
                               color: isAcceptLoading
-                                  ? AppColores.grey400
+                                  ? context.palette.grey400
                                   : AppColores.buttonPrimary,
                             ),
                             const SizedBox(width: 6),
@@ -238,7 +239,7 @@ class PreviewSolicitudCard extends StatelessWidget {
                                 fontWeight: FontWeight.w700,
                                 fontSize: 13,
                                 color: isAcceptLoading
-                                    ? AppColores.grey400
+                                    ? context.palette.grey400
                                     : AppColores.buttonPrimary,
                               ),
                             ),
@@ -286,9 +287,11 @@ class PreviewSolicitudCard extends StatelessWidget {
                         key: const Key('preview_solicitud_cliente_card'),
                         padding: EdgeInsets.all(isCompactPanel ? 8.w : 12.w),
                         decoration: BoxDecoration(
-                          color: AppColores.background,
+                          color: context.palette.background,
                           borderRadius: BorderRadius.circular(14.r),
-                          border: Border.all(color: AppColores.borderSubtle),
+                          border: Border.all(
+                            color: context.palette.borderSubtle,
+                          ),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -300,8 +303,8 @@ class PreviewSolicitudCard extends StatelessWidget {
                               compact: isCompactPanel,
                             ),
                             SizedBox(height: isCompactPanel ? 8.h : 12.h),
-                            const Divider(
-                              color: AppColores.borderSubtle,
+                            Divider(
+                              color: context.palette.borderSubtle,
                               height: 1,
                             ),
                             SizedBox(height: isCompactPanel ? 8.h : 12.h),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 
 /// Fila superior de la mitad de info: avatar del cliente + nombre + badge
 /// de cercanía (verde ≤1km, ámbar si está más lejos, gris si aún no se
@@ -37,8 +38,8 @@ class ClienteHeaderRow extends StatelessWidget {
       badgeTextColor = AppColores.warning;
     } else {
       cercania = 'Solicitud cercana';
-      badgeColor = AppColores.grey200;
-      badgeTextColor = AppColores.textSecondary;
+      badgeColor = context.palette.grey200;
+      badgeTextColor = context.palette.textSecondary;
     }
 
     final tienePhoto = photoUrl != null && photoUrl!.isNotEmpty;
@@ -47,7 +48,7 @@ class ClienteHeaderRow extends StatelessWidget {
       children: [
         CircleAvatar(
           radius: compact ? 20.r : 28.r,
-          backgroundColor: AppColores.grey400,
+          backgroundColor: context.palette.grey400,
           backgroundImage: tienePhoto ? NetworkImage(photoUrl!) : null,
           child: tienePhoto
               ? null
@@ -69,7 +70,7 @@ class ClienteHeaderRow extends StatelessWidget {
                 style: TextStyle(
                   fontWeight: FontWeight.w800,
                   fontSize: (compact ? 13 : 15).sp,
-                  color: AppColores.textPrimary,
+                  color: context.palette.textPrimary,
                 ),
               ),
               SizedBox(height: 4.h),

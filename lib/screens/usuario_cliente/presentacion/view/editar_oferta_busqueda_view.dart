@@ -4,6 +4,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart' hide DeviceType;
 
 import 'package:taxi_app/caracteristicas/confirmar_solicitud/dominio/casos_uso/calcular_tarifa_base_usecase.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/helpers/map_helper.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/vehicle_type.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/buscando_taxi_viewmodel.dart';
@@ -162,16 +163,17 @@ class _EditarOfertaBusquedaViewState extends State<EditarOfertaBusquedaView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColores.background,
+      backgroundColor: context.palette.background,
       appBar: AppBar(
-        backgroundColor: AppColores.surface,
+        backgroundColor: AppColores.primary,
+        foregroundColor: AppColores.textWhite,
         elevation: 0,
         centerTitle: true,
         leading: IconButton(
           icon: const Icon(
             Icons.arrow_back_ios_new_rounded,
             size: 20,
-            color: AppColores.textPrimary,
+            color: AppColores.textWhite,
           ),
           onPressed: () => Navigator.of(context).pop(false),
         ),
@@ -180,12 +182,8 @@ class _EditarOfertaBusquedaViewState extends State<EditarOfertaBusquedaView> {
           style: TextStyle(
             fontSize: 17.sp,
             fontWeight: FontWeight.w700,
-            color: AppColores.textPrimary,
+            color: AppColores.textWhite,
           ),
-        ),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(height: 1, color: AppColores.borderSubtle),
         ),
       ),
       body: SafeArea(
@@ -253,7 +251,7 @@ class _EditarOfertaBusquedaViewState extends State<EditarOfertaBusquedaView> {
                 'Elegí el vehículo con el que querés viajar',
                 style: TextStyle(
                   fontSize: 12.5.sp,
-                  color: AppColores.textSecondary,
+                  color: context.palette.textSecondary,
                 ),
               ),
               SizedBox(height: 14.h),
@@ -278,12 +276,12 @@ class _EditarOfertaBusquedaViewState extends State<EditarOfertaBusquedaView> {
                           decoration: BoxDecoration(
                             color: isSelected
                                 ? AppColores.primary.withValues(alpha: 0.14)
-                                : AppColores.surface,
+                                : context.palette.surface,
                             borderRadius: BorderRadius.circular(14.r),
                             border: Border.all(
                               color: isSelected
                                   ? AppColores.primary
-                                  : AppColores.borderSubtle,
+                                  : context.palette.borderSubtle,
                               width: isSelected ? 2 : 1,
                             ),
                           ),
@@ -301,7 +299,7 @@ class _EditarOfertaBusquedaViewState extends State<EditarOfertaBusquedaView> {
                                 style: TextStyle(
                                   fontWeight: FontWeight.w700,
                                   fontSize: 14.sp,
-                                  color: AppColores.textPrimary,
+                                  color: context.palette.textPrimary,
                                 ),
                               ),
                             ],

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 
 /// Contenido visual del aviso de "sin conexión a internet". Se monta como
 /// `OverlayEntry` directamente sobre el `Overlay` raíz (ver
@@ -59,7 +60,7 @@ class _Tarjeta extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.fromLTRB(24, 28, 24, 22),
           decoration: BoxDecoration(
-            color: AppColores.surface,
+            color: context.palette.surface,
             borderRadius: BorderRadius.circular(24),
             boxShadow: [
               BoxShadow(
@@ -88,18 +89,18 @@ class _Tarjeta extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 20),
-              const Text(
+              Text(
                 'Sin conexión a internet',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w900,
                   letterSpacing: -0.3,
-                  color: AppColores.textPrimary,
+                  color: context.palette.textPrimary,
                 ),
               ),
               const SizedBox(height: 10),
-              const Text(
+              Text(
                 'No pudimos conectar con internet. Conéctate a una red '
                 'y esta pantalla se cerrará sola, o reinicia la '
                 'aplicación si el problema sigue.',
@@ -108,7 +109,7 @@ class _Tarjeta extends StatelessWidget {
                   fontSize: 14.5,
                   height: 1.4,
                   fontWeight: FontWeight.w500,
-                  color: AppColores.textSecondary,
+                  color: context.palette.textSecondary,
                 ),
               ),
             ],

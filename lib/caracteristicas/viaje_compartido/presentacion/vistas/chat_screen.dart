@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/services/fcm_service.dart';
 
 import '../controladores/chat_controller.dart';
@@ -135,8 +136,8 @@ class _ChatScreenState extends State<ChatScreen> {
         appBar: AppBar(
           title: Text(widget.title),
           centerTitle: true,
-          backgroundColor: AppColores.background,
-          foregroundColor: AppColores.textPrimary,
+          backgroundColor: AppColores.primary,
+          foregroundColor: AppColores.textWhite,
         ),
         body: Column(
           children: [
@@ -169,7 +170,9 @@ class _ChatScreenState extends State<ChatScreen> {
                         vertical: 9,
                       ),
                       decoration: BoxDecoration(
-                        color: mine ? AppColores.primary : AppColores.grey200,
+                        color: mine
+                            ? AppColores.primary
+                            : context.palette.grey200,
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Column(
@@ -178,8 +181,8 @@ class _ChatScreenState extends State<ChatScreen> {
                         children: [
                           Text(
                             msg.texto,
-                            style: const TextStyle(
-                              color: AppColores.textPrimary,
+                            style: TextStyle(
+                              color: context.palette.textPrimary,
                             ),
                           ),
                           if (mine) ...[
@@ -189,7 +192,7 @@ class _ChatScreenState extends State<ChatScreen> {
                               size: 15,
                               color: leido
                                   ? AppColores.secondary
-                                  : AppColores.textSecondary,
+                                  : context.palette.textSecondary,
                             ),
                           ],
                         ],
@@ -213,11 +216,11 @@ class _ChatScreenState extends State<ChatScreen> {
                         onSubmitted: (_) => _send(),
                         decoration: InputDecoration(
                           hintText: 'Escribe un mensaje...',
-                          hintStyle: const TextStyle(
-                            color: AppColores.textSecondary,
+                          hintStyle: TextStyle(
+                            color: context.palette.textSecondary,
                           ),
                           filled: true,
-                          fillColor: AppColores.grey100,
+                          fillColor: context.palette.grey100,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide: BorderSide.none,

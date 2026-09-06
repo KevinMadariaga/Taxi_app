@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 
 /// Fila "Recoger en" (izquierda) | "Pagará con" (derecha) — separadas por
 /// un divisor vertical.
@@ -42,15 +43,15 @@ class InfoRecogidaPagoRow extends StatelessWidget {
                 direccionRecogida,
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 13,
-                  color: AppColores.textPrimary,
+                  color: context.palette.textPrimary,
                 ),
               ),
             ),
           ),
-          const VerticalDivider(
-            color: AppColores.borderSubtle,
+          VerticalDivider(
+            color: context.palette.borderSubtle,
             width: 24,
             thickness: 1,
           ),
@@ -73,9 +74,9 @@ class InfoRecogidaPagoRow extends StatelessWidget {
                       textAlign: TextAlign.right,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 13,
-                        color: AppColores.textPrimary,
+                        color: context.palette.textPrimary,
                       ),
                     ),
                   ),
@@ -110,9 +111,9 @@ class _InfoColumn extends StatelessWidget {
         Text(
           label,
           textAlign: alignEnd ? TextAlign.right : TextAlign.left,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 12,
-            color: AppColores.textSecondary,
+            color: context.palette.textSecondary,
             fontWeight: FontWeight.w600,
           ),
         ),

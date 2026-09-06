@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
+import 'package:taxi_app/core/theme/theme_controller.dart';
 import 'package:taxi_app/routes/app_routes.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/eliminar_cuenta_screen.dart';
 import 'package:taxi_app/core/services/services.dart';
@@ -36,6 +39,28 @@ class _ConfiguracionAplicacionViewState
     } catch (_) {
       // Ignore; keep placeholder
     }
+  }
+
+  String _etiquetaTema(ThemeMode mode) {
+    switch (mode) {
+      case ThemeMode.light:
+        return 'Claro';
+      case ThemeMode.dark:
+        return 'Oscuro';
+      case ThemeMode.system:
+        return 'Sistema';
+    }
+  }
+
+  Future<void> _seleccionarApariencia() async {
+    final controller = context.read<ThemeController>();
+    final seleccionado = await showDialog<ThemeMode>(
+      context: context,
+      builder: (ctx) =>
+          _SeleccionarAparienciaDialog(actual: controller.themeMode),
+    );
+    if (seleccionado == null) return;
+    await controller.setThemeMode(seleccionado);
   }
 
   Future<void> _abrirDocumentosLegales() async {
@@ -117,23 +142,25 @@ class _ConfiguracionAplicacionViewState
 
   @override
   Widget build(BuildContext context) {
+    final temaActual = context.watch<ThemeController>().themeMode;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Configuración de la aplicación'),
-        backgroundColor: AppColores.surface,
-        foregroundColor: AppColores.textPrimary,
+        backgroundColor: AppColores.primary,
+        foregroundColor: AppColores.textWhite,
         elevation: 0,
       ),
-      backgroundColor: AppColores.background,
+      backgroundColor: context.palette.background,
       body: ListView(
         children: [
-          // ListTile(
-          //   leading: const Icon(Icons.palette_outlined),
-          //   title: const Text('Apariencia'),
-          //   subtitle: Text('Actual: $_apariencia'),
-          //   trailing: const Icon(Icons.chevron_right),
-          //   onTap: _seleccionarApariencia,
-          // ),
+          ListTile(
+            leading: const Icon(Icons.palette_outlined),
+            title: const Text('Apariencia'),
+            subtitle: Text('Actual: ${_etiquetaTema(temaActual)}'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: _seleccionarApariencia,
+          ),
           ListTile(
             leading: const Icon(Icons.gavel_outlined),
             title: const Text('Documentos legales'),
@@ -150,14 +177,14 @@ class _ConfiguracionAplicacionViewState
             leading: Icon(
               Icons.logout,
               color: _isLoggingOut
-                  ? AppColores.textSecondary
+                  ? context.palette.textSecondary
                   : AppColores.error,
             ),
             title: Text(
               _isLoggingOut ? 'Cerrando sesión...' : 'Cerrar sesión',
               style: TextStyle(
                 color: _isLoggingOut
-                    ? AppColores.textSecondary
+                    ? context.palette.textSecondary
                     : AppColores.error,
                 fontWeight: FontWeight.w600,
               ),
@@ -169,7 +196,7 @@ class _ConfiguracionAplicacionViewState
             leading: Icon(
               Icons.delete_forever_outlined,
               color: _isDeletingAccount
-                  ? AppColores.textSecondary
+                  ? context.palette.textSecondary
                   : AppColores.error,
             ),
             title: Text(
@@ -178,7 +205,7 @@ class _ConfiguracionAplicacionViewState
                   : 'Eliminar cuenta',
               style: TextStyle(
                 color: _isDeletingAccount
-                    ? AppColores.textSecondary
+                    ? context.palette.textSecondary
                     : AppColores.error,
                 fontWeight: FontWeight.w600,
               ),
@@ -187,6 +214,64 @@ class _ConfiguracionAplicacionViewState
             onTap: _eliminarCuenta,
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Modal de selección de apariencia: Sistema/Claro/Oscuro con `RadioListTile`,
+/// devuelve el `ThemeMode` elegido (`null` si se cerró sin elegir).
+class _SeleccionarAparienciaDialog extends StatelessWidget {
+  const _SeleccionarAparienciaDialog({required this.actual});
+
+  final ThemeMode actual;
+
+  static const _opciones = [
+    (ThemeMode.system, 'Sistema', 'Sigue el ajuste del dispositivo'),
+    (ThemeMode.light, 'Claro', null),
+    (ThemeMode.dark, 'Oscuro', null),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: context.palette.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(8, 20, 8, 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                'Apariencia',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: context.palette.textPrimary,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            RadioGroup<ThemeMode>(
+              groupValue: actual,
+              onChanged: (value) => Navigator.of(context).pop(value),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (final (mode, etiqueta, subtitulo) in _opciones)
+                    RadioListTile<ThemeMode>(
+                      value: mode,
+                      activeColor: AppColores.buttonPrimary,
+                      title: Text(etiqueta),
+                      subtitle: subtitulo == null ? null : Text(subtitulo),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -202,7 +287,7 @@ class _ConfirmarCerrarSesionDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      backgroundColor: AppColores.surface,
+      backgroundColor: context.palette.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
@@ -223,20 +308,23 @@ class _ConfirmarCerrarSesionDialog extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'Cerrar sesión',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w800,
-                color: AppColores.textPrimary,
+                color: context.palette.textPrimary,
               ),
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               '¿Deseas cerrar sesión en esta cuenta?',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14, color: AppColores.textSecondary),
+              style: TextStyle(
+                fontSize: 14,
+                color: context.palette.textSecondary,
+              ),
             ),
             const SizedBox(height: 24),
             Row(
@@ -247,9 +335,9 @@ class _ConfirmarCerrarSesionDialog extends StatelessWidget {
                     child: OutlinedButton(
                       onPressed: () => Navigator.of(context).pop(false),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColores.textPrimary,
+                        foregroundColor: context.palette.textPrimary,
                         padding: const EdgeInsets.symmetric(horizontal: 4),
-                        side: const BorderSide(color: AppColores.divider),
+                        side: BorderSide(color: context.palette.divider),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -308,11 +396,11 @@ class _DocumentosLegalesView extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Documentos legales'),
-        backgroundColor: AppColores.surface,
-        foregroundColor: AppColores.textPrimary,
+        backgroundColor: AppColores.primary,
+        foregroundColor: AppColores.textWhite,
         elevation: 0,
       ),
-      backgroundColor: AppColores.background,
+      backgroundColor: context.palette.background,
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: const [
@@ -344,27 +432,27 @@ class _LegalCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColores.surface,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColores.borderSubtle),
+        border: Border.all(color: context.palette.borderSubtle),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w700,
-              color: AppColores.textPrimary,
+              color: context.palette.textPrimary,
             ),
           ),
           const SizedBox(height: 8),
           Text(
             content,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 14,
-              color: AppColores.textSecondary,
+              color: context.palette.textSecondary,
               height: 1.35,
             ),
           ),

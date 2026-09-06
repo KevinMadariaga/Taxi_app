@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 
 /// Los tres únicos estilos de botón válidos para pantallas de viaje
 /// (conductor/pasajero) — reemplaza estilos inline sueltos por pantalla.
@@ -30,6 +31,7 @@ class RidePrimaryButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final disabled = onPressed == null || isLoading;
+    final palette = context.palette;
     const contentColor = AppColores.textWhite;
     return SizedBox(
       width: double.infinity,
@@ -43,7 +45,7 @@ class RidePrimaryButton extends StatelessWidget {
           ),
           backgroundColor: WidgetStateProperty.resolveWith((states) {
             if (states.contains(WidgetState.disabled)) {
-              return AppColores.ink200;
+              return palette.ink200;
             }
             if (pastel) {
               return states.contains(WidgetState.pressed)
@@ -57,7 +59,7 @@ class RidePrimaryButton extends StatelessWidget {
           }),
           foregroundColor: WidgetStateProperty.resolveWith((states) {
             if (states.contains(WidgetState.disabled)) {
-              return AppColores.ink500;
+              return palette.ink500;
             }
             return contentColor;
           }),
@@ -112,6 +114,7 @@ class RideSecondaryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return SizedBox(
       height: 44,
       child: Material(
@@ -119,13 +122,13 @@ class RideSecondaryButton extends StatelessWidget {
         child: InkWell(
           onTap: onPressed,
           borderRadius: BorderRadius.circular(12),
-          highlightColor: AppColores.ink50,
+          highlightColor: palette.ink50,
           child: Container(
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: Colors.transparent,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColores.ink500, width: 1.2),
+              border: Border.all(color: palette.ink500, width: 1.2),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -135,7 +138,7 @@ class RideSecondaryButton extends StatelessWidget {
                   Stack(
                     clipBehavior: Clip.none,
                     children: [
-                      Icon(icon, size: 17, color: AppColores.ink700),
+                      Icon(icon, size: 17, color: palette.ink700),
                       if (badgeCount > 0)
                         Positioned(
                           top: -5,
@@ -168,10 +171,10 @@ class RideSecondaryButton extends StatelessWidget {
                 ],
                 Text(
                   text,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: 13,
-                    color: AppColores.ink700,
+                    color: palette.ink700,
                   ),
                 ),
               ],
@@ -184,13 +187,18 @@ class RideSecondaryButton extends StatelessWidget {
 }
 
 class RidePillButton extends StatelessWidget {
-  const RidePillButton({super.key, required this.text, required this.onPressed});
+  const RidePillButton({
+    super.key,
+    required this.text,
+    required this.onPressed,
+  });
 
   final String text;
   final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return SizedBox(
       height: 32,
       child: Material(
@@ -203,14 +211,14 @@ class RidePillButton extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 14),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: AppColores.ink200, width: 0.5),
+              border: Border.all(color: palette.ink200, width: 0.5),
             ),
             child: Text(
               text,
-              style: const TextStyle(
+              style: TextStyle(
                 fontWeight: FontWeight.w700,
                 fontSize: 12,
-                color: AppColores.ink700,
+                color: palette.ink700,
               ),
             ),
           ),

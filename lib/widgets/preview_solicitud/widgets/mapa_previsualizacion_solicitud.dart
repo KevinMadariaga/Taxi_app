@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
+import 'package:taxi_app/core/theme/map_style.dart';
 import 'package:taxi_app/core/services/app_remote_config_service.dart';
 import 'package:taxi_app/core/services/map_service_adapter.dart' as adapter;
 import 'package:taxi_app/core/utils/error_reporter.dart';
@@ -219,6 +221,7 @@ class MapaPrevisualizacionSolicitud extends StatelessWidget {
               width: lienzoAncho.round(),
               height: lienzoAlto.round(),
               apiKey: apiKey,
+              isDark: Theme.of(context).brightness == Brightness.dark,
               encodedPath: encodedPath,
             );
 
@@ -352,6 +355,7 @@ class MapaPrevisualizacionSolicitud extends StatelessWidget {
     required int width,
     required int height,
     required String apiKey,
+    required bool isDark,
     String? encodedPath,
   }) {
     final uri = Uri.https('maps.googleapis.com', '/maps/api/staticmap', {
@@ -361,6 +365,7 @@ class MapaPrevisualizacionSolicitud extends StatelessWidget {
       'scale': '2',
       'maptype': 'roadmap',
       'key': apiKey,
+      if (isDark) 'style': MapStyle.staticMapsQueryParams,
       // Static Maps espera RRGGBBAA (hex, sin '#', alpha al final) — se
       // arma desde `AppColores.primary` (naranja de marca) en vez de un
       // hex suelto para no volver a desincronizarse si el color cambia.
@@ -423,12 +428,12 @@ class _MapaPreviewPlaceholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: AppColores.grey300.withValues(alpha: 0.35),
+      color: context.palette.grey300.withValues(alpha: 0.35),
       alignment: Alignment.center,
       child: Icon(
         Icons.map_outlined,
         size: 40,
-        color: AppColores.textSecondary.withValues(alpha: 0.6),
+        color: context.palette.textSecondary.withValues(alpha: 0.6),
       ),
     );
   }
@@ -440,7 +445,7 @@ class _MapaPreviewCargando extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: AppColores.grey300.withValues(alpha: 0.35),
+      color: context.palette.grey300.withValues(alpha: 0.35),
       alignment: Alignment.center,
       child: const SizedBox(
         width: 28,

@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/widgets/visor_foto_pantalla_completa.dart';
 
 /// Izquierda: foto del conductor (grande) + calificación debajo, con el
@@ -91,11 +92,11 @@ class ConductorVehiculoInfo extends StatelessWidget {
                   nombre,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: 16,
                     height: 1.2,
-                    color: AppColores.ink900,
+                    color: context.palette.ink900,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -109,10 +110,10 @@ class ConductorVehiculoInfo extends StatelessWidget {
                     const SizedBox(width: 3),
                     Text(
                       calificacion.toStringAsFixed(2),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontWeight: FontWeight.w700,
                         fontSize: 13,
-                        color: AppColores.ink900,
+                        color: context.palette.ink900,
                       ),
                     ),
                   ],
@@ -135,21 +136,21 @@ class ConductorVehiculoInfo extends StatelessWidget {
                 child: Container(
                   width: vehiculoWidth,
                   height: vehiculoHeight,
-                  color: AppColores.grey100,
+                  color: context.palette.grey100,
                   child: tieneFotoVehiculo
                       ? CachedNetworkImage(
                           imageUrl: fotoVehiculoUrl!,
                           fit: BoxFit.cover,
-                          errorWidget: (context, _, error) => const Icon(
+                          errorWidget: (context, _, error) => Icon(
                             Icons.directions_car_outlined,
-                            color: AppColores.textSecondary,
+                            color: context.palette.textSecondary,
                           ),
                         )
                       : Icon(
                           isMoto
                               ? Icons.two_wheeler_outlined
                               : Icons.directions_car_outlined,
-                          color: AppColores.textSecondary,
+                          color: context.palette.textSecondary,
                         ),
                 ),
               ),
@@ -158,10 +159,10 @@ class ConductorVehiculoInfo extends StatelessWidget {
               const SizedBox(height: 4),
               Text(
                 placa!.toUpperCase(),
-                style: const TextStyle(
+                style: TextStyle(
                   fontWeight: FontWeight.w800,
                   fontSize: 15,
-                  color: AppColores.ink900,
+                  color: context.palette.ink900,
                 ),
               ),
             ],

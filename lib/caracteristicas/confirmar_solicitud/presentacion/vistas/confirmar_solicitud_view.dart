@@ -145,73 +145,68 @@ class _ConfirmarSolicitudViewState extends State<ConfirmarSolicitudView>
   Widget build(BuildContext context) {
     return ChangeNotifierProvider<ConfirmarSolicitudViewModel>.value(
       value: _vm,
-      child: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: const SystemUiOverlayStyle(
-          statusBarColor: Colors.transparent,
-          statusBarIconBrightness: Brightness.dark,
-          statusBarBrightness: Brightness.light,
+      child: Scaffold(
+        resizeToAvoidBottomInset: false,
+        extendBodyBehindAppBar: false,
+        appBar: AppBar(
+          backgroundColor: AppColores.primary,
+          foregroundColor: AppColores.textWhite,
+          elevation: 0,
+          centerTitle: true,
+          title: const Text(
+            'Detalle de la solicitud',
+            style: TextStyle(
+              color: AppColores.textWhite,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: AppColores.textWhite),
+            onPressed: _handleBackNavigation,
+          ),
+          systemOverlayStyle: const SystemUiOverlayStyle(
+            statusBarColor: AppColores.primary,
+            statusBarIconBrightness: Brightness.dark,
+            statusBarBrightness: Brightness.light,
+          ),
         ),
-        child: Scaffold(
-          resizeToAvoidBottomInset: false,
-          extendBodyBehindAppBar: false,
-          appBar: AppBar(
-            backgroundColor: AppColores.surface.withValues(alpha: 0.95),
-            elevation: 0,
-            centerTitle: true,
-            title: const Text(
-              'Detalle de la solicitud',
-              style: TextStyle(
-                color: Colors.black87,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.black87),
-              onPressed: _handleBackNavigation,
-            ),
-            systemOverlayStyle: const SystemUiOverlayStyle(
-              statusBarColor: Colors.transparent,
-              statusBarIconBrightness: Brightness.dark,
-            ),
-          ),
-          body: LayoutBuilder(
-            builder: (context, constraints) {
-              final resp = ResponsiveHelper.getResponsiveData(context);
-              // Bajado desde 45/33/27: el selector de vehículo (que ocupaba
-              // esta tarjeta) se movió a la modal de "Buscar conductor", así
-              // que la tarjeta de abajo necesita menos alto — el que sobra
-              // se lo queda el mapa.
-              double bottomPct;
-              if (resp.deviceType == DeviceType.mobile) {
-                bottomPct = 38.0;
-              } else if (resp.deviceType == DeviceType.tablet) {
-                bottomPct = 28.0;
-              } else {
-                bottomPct = 23.0;
-              }
+        body: LayoutBuilder(
+          builder: (context, constraints) {
+            final resp = ResponsiveHelper.getResponsiveData(context);
+            // Bajado desde 45/33/27: el selector de vehículo (que ocupaba
+            // esta tarjeta) se movió a la modal de "Buscar conductor", así
+            // que la tarjeta de abajo necesita menos alto — el que sobra
+            // se lo queda el mapa.
+            double bottomPct;
+            if (resp.deviceType == DeviceType.mobile) {
+              bottomPct = 38.0;
+            } else if (resp.deviceType == DeviceType.tablet) {
+              bottomPct = 28.0;
+            } else {
+              bottomPct = 23.0;
+            }
 
-              final double bottomHeight = ResponsiveHelper.hp(
-                context,
-                bottomPct,
-              ).clamp(140.0, constraints.maxHeight * 0.65).toDouble();
+            final double bottomHeight = ResponsiveHelper.hp(
+              context,
+              bottomPct,
+            ).clamp(140.0, constraints.maxHeight * 0.65).toDouble();
 
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  SizedBox(height: 8.h),
-                  const Expanded(child: _MapaSection()),
-                  SizedBox(
-                    height: bottomHeight,
-                    child: _BottomContent(
-                      onAjustarOrigen: _ajustarOrigen,
-                      onAjustarDestino: _ajustarDestino,
-                      onSolicitudCreada: _onSolicitudCreada,
-                    ),
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(height: 8.h),
+                const Expanded(child: _MapaSection()),
+                SizedBox(
+                  height: bottomHeight,
+                  child: _BottomContent(
+                    onAjustarOrigen: _ajustarOrigen,
+                    onAjustarDestino: _ajustarDestino,
+                    onSolicitudCreada: _onSolicitudCreada,
                   ),
-                ],
-              );
-            },
-          ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );

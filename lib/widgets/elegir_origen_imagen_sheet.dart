@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
-import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 
 /// Sheet "Tomar foto / Elegir de galería" — deja al usuario elegir el
 /// origen antes de abrir el picker. Devuelve el [ImageSource] elegido, o
@@ -15,7 +15,7 @@ Future<ImageSource?> mostrarElegirOrigenImagen(BuildContext context) {
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
           child: Material(
-            color: AppColores.surface,
+            color: context.palette.surface,
             borderRadius: BorderRadius.circular(20),
             clipBehavior: Clip.antiAlias,
             child: Column(
@@ -27,7 +27,7 @@ Future<ImageSource?> mostrarElegirOrigenImagen(BuildContext context) {
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: AppColores.borderSubtle,
+                      color: context.palette.borderSubtle,
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/services/soporte_chat_service.dart';
 
 class SoporteChatDetalleAdminScreen extends StatefulWidget {
@@ -34,7 +35,8 @@ class _SoporteChatDetalleAdminScreenState
 
   bool get _usuarioInactivo {
     if (_ultimoMensajeUsuario == null) return false;
-    return DateTime.now().difference(_ultimoMensajeUsuario!) >= _tiempoExpiracion;
+    return DateTime.now().difference(_ultimoMensajeUsuario!) >=
+        _tiempoExpiracion;
   }
 
   @override
@@ -87,11 +89,11 @@ class _SoporteChatDetalleAdminScreenState
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.userName),
-        backgroundColor: AppColores.background,
-        foregroundColor: AppColores.textPrimary,
+        backgroundColor: AppColores.primary,
+        foregroundColor: AppColores.textWhite,
         elevation: 0,
       ),
-      backgroundColor: AppColores.background,
+      backgroundColor: context.palette.background,
       body: Column(
         children: [
           Expanded(
@@ -122,10 +124,10 @@ class _SoporteChatDetalleAdminScreenState
                 }
 
                 if (docs.isEmpty) {
-                  return const Center(
+                  return Center(
                     child: Text(
                       'Sin mensajes aún.',
-                      style: TextStyle(color: AppColores.textSecondary),
+                      style: TextStyle(color: context.palette.textSecondary),
                     ),
                   );
                 }
@@ -155,7 +157,7 @@ class _SoporteChatDetalleAdminScreenState
                         : CrossAxisAlignment.start;
                     final bg = esAdmin
                         ? AppColores.primary.withValues(alpha: 0.22)
-                        : AppColores.grey200;
+                        : context.palette.grey200;
 
                     return Column(
                       crossAxisAlignment: align,
@@ -167,8 +169,7 @@ class _SoporteChatDetalleAdminScreenState
                             vertical: 10,
                           ),
                           constraints: BoxConstraints(
-                            maxWidth:
-                                MediaQuery.of(context).size.width * 0.75,
+                            maxWidth: MediaQuery.of(context).size.width * 0.75,
                           ),
                           decoration: BoxDecoration(
                             color: bg,
@@ -182,18 +183,18 @@ class _SoporteChatDetalleAdminScreenState
                               if (!esAdmin)
                                 Text(
                                   widget.userName,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 11,
                                     fontWeight: FontWeight.w700,
-                                    color: AppColores.textSecondary,
+                                    color: context.palette.textSecondary,
                                   ),
                                 ),
                               Text(texto),
                               Text(
                                 hora,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 10,
-                                  color: AppColores.textSecondary,
+                                  color: context.palette.textSecondary,
                                 ),
                               ),
                             ],
@@ -213,15 +214,18 @@ class _SoporteChatDetalleAdminScreenState
               color: AppColores.warning.withValues(alpha: 0.15),
               child: Row(
                 children: [
-                  const Icon(Icons.access_time,
-                      size: 16, color: AppColores.warning),
+                  const Icon(
+                    Icons.access_time,
+                    size: 16,
+                    color: AppColores.warning,
+                  ),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
                       '${widget.userName} no ha respondido en más de 6 minutos.',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
-                        color: AppColores.textSecondary,
+                        color: context.palette.textSecondary,
                       ),
                     ),
                   ),
@@ -243,7 +247,7 @@ class _SoporteChatDetalleAdminScreenState
                       decoration: InputDecoration(
                         hintText: 'Responder a ${widget.userName}...',
                         filled: true,
-                        fillColor: AppColores.grey100,
+                        fillColor: context.palette.grey100,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                           borderSide: BorderSide.none,
@@ -261,7 +265,7 @@ class _SoporteChatDetalleAdminScreenState
                     onPressed: _send,
                     style: IconButton.styleFrom(
                       backgroundColor: AppColores.buttonPrimary,
-                      foregroundColor: AppColores.textPrimary,
+                      foregroundColor: context.palette.textPrimary,
                     ),
                     icon: const Icon(Icons.send),
                   ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 
 class ResumenHeader extends StatelessWidget {
   const ResumenHeader({
@@ -27,23 +28,23 @@ class ResumenHeader extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        const Text(
+        Text(
           '¡Viaje completado!',
           textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: 26,
             fontWeight: FontWeight.w800,
-            color: AppColores.textPrimary,
+            color: context.palette.textPrimary,
           ),
         ),
         const SizedBox(height: 4),
         Text(
           subtitle,
           textAlign: TextAlign.center,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w500,
-            color: AppColores.textSecondary,
+            color: context.palette.textSecondary,
           ),
         ),
       ],

@@ -3,6 +3,7 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/utils/transicion_pagina.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/modelos/auth_flow_result.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/repositorios/client_auth_repository.dart';
@@ -187,7 +188,7 @@ class _HomeViewState extends State<HomeView> {
           final String? effectiveError = _error ?? authVm.errorMessage;
 
           return Scaffold(
-            backgroundColor: AppColores.background,
+            backgroundColor: context.palette.background,
             body: SafeArea(
               child: LayoutBuilder(
                 builder: (context, constraints) {
@@ -268,7 +269,7 @@ class _HomeViewState extends State<HomeView> {
                             style: TextStyle(
                               fontSize: 11.5,
                               height: 1.4,
-                              color: AppColores.textSecondary.withValues(
+                              color: context.palette.textSecondary.withValues(
                                 alpha: 0.8,
                               ),
                             ),
@@ -318,7 +319,7 @@ class _Hero extends StatelessWidget {
           style: TextStyle(
             fontSize: 15,
             fontWeight: FontWeight.w500,
-            color: AppColores.textSecondary,
+            color: context.palette.textSecondary,
           ),
         ),
       ],
@@ -349,8 +350,8 @@ class _SocialButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color bg = filled ? Colors.black : AppColores.surface;
-    final Color fg = filled ? Colors.white : AppColores.textPrimary;
+    final Color bg = filled ? Colors.black : context.palette.surface;
+    final Color fg = filled ? Colors.white : context.palette.textPrimary;
 
     return SizedBox(
       height: 54,
@@ -366,7 +367,7 @@ class _SocialButton extends StatelessWidget {
               borderRadius: BorderRadius.circular(14),
               border: filled
                   ? null
-                  : Border.all(color: AppColores.grey300, width: 1.4),
+                  : Border.all(color: context.palette.grey300, width: 1.4),
             ),
             child: Center(
               child: loading
@@ -433,11 +434,11 @@ class _ErrorBanner extends StatelessWidget {
           Expanded(
             child: Text(
               message,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
                 height: 1.35,
                 fontWeight: FontWeight.w500,
-                color: AppColores.textPrimary,
+                color: context.palette.textPrimary,
               ),
             ),
           ),

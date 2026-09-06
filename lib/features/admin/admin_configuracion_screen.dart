@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/services/auth_service.dart';
 import 'package:taxi_app/routes/app_routes.dart';
 
@@ -28,10 +29,11 @@ class _AdminConfiguracionScreenState extends State<AdminConfiguracionScreen> {
 
   Future<_AdminInfo> _cargar() async {
     final fs = FirebaseFirestore.instance;
-    final adminSnap =
-        await fs.collection('administradores').doc(widget.adminId).get();
-    final userSnap =
-        await fs.collection('usuarios').doc(widget.adminId).get();
+    final adminSnap = await fs
+        .collection('administradores')
+        .doc(widget.adminId)
+        .get();
+    final userSnap = await fs.collection('usuarios').doc(widget.adminId).get();
     final a = adminSnap.data() ?? const <String, dynamic>{};
     final u = userSnap.data() ?? const <String, dynamic>{};
 
@@ -98,7 +100,7 @@ class _AdminConfiguracionScreenState extends State<AdminConfiguracionScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColores.background,
+      backgroundColor: context.palette.background,
       appBar: AppBar(
         title: const Text('Configuración'),
         backgroundColor: AppColores.primary,
@@ -114,7 +116,8 @@ class _AdminConfiguracionScreenState extends State<AdminConfiguracionScreen> {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
-                final info = snapshot.data ??
+                final info =
+                    snapshot.data ??
                     const _AdminInfo(
                       nombre: 'Administrador',
                       foto: '',
@@ -212,9 +215,10 @@ class _PerfilCard extends StatelessWidget {
           children: [
             CircleAvatar(
               radius: 56,
-              backgroundColor: AppColores.grey200,
-              backgroundImage:
-                  info.foto.isNotEmpty ? NetworkImage(info.foto) : null,
+              backgroundColor: context.palette.grey200,
+              backgroundImage: info.foto.isNotEmpty
+                  ? NetworkImage(info.foto)
+                  : null,
               child: info.foto.isEmpty
                   ? const Icon(Icons.admin_panel_settings, size: 52)
                   : null,
@@ -223,10 +227,10 @@ class _PerfilCard extends StatelessWidget {
             Text(
               info.nombre,
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
-                color: AppColores.textPrimary,
+                color: context.palette.textPrimary,
               ),
             ),
             const SizedBox(height: 6),
@@ -236,11 +240,11 @@ class _PerfilCard extends StatelessWidget {
                 color: AppColores.primary.withValues(alpha: 0.20),
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: const Text(
+              child: Text(
                 'Administrador',
                 style: TextStyle(
                   fontWeight: FontWeight.w700,
-                  color: AppColores.textPrimary,
+                  color: context.palette.textPrimary,
                 ),
               ),
             ),
@@ -269,9 +273,10 @@ class _InfoTile extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ListTile(
         leading: Icon(icon, color: AppColores.primary),
-        title: Text(titulo,
-            style: const TextStyle(
-                fontWeight: FontWeight.w600, fontSize: 14)),
+        title: Text(
+          titulo,
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+        ),
         subtitle: Text(valor, style: const TextStyle(fontSize: 14)),
       ),
     );

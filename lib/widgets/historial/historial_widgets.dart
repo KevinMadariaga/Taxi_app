@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 
 const Color kHistorialAmberDark = Color(0xFFB38F00);
 
@@ -54,9 +55,9 @@ class HistorialViajeCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: AppColores.borderSubtle),
+        side: BorderSide(color: context.palette.borderSubtle),
       ),
-      color: AppColores.surface,
+      color: context.palette.surface,
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: onTap,
@@ -72,7 +73,9 @@ class HistorialViajeCard extends StatelessWidget {
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
-                  isMoto ? Icons.two_wheeler_rounded : Icons.directions_car_rounded,
+                  isMoto
+                      ? Icons.two_wheeler_rounded
+                      : Icons.directions_car_rounded,
                   color: Colors.white,
                 ),
               ),
@@ -92,10 +95,10 @@ class HistorialViajeCard extends StatelessWidget {
                           text,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontWeight: FontWeight.w800,
                             fontSize: 15,
-                            color: AppColores.textPrimary,
+                            color: context.palette.textPrimary,
                           ),
                         );
                       },
@@ -103,10 +106,10 @@ class HistorialViajeCard extends StatelessWidget {
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.event_rounded,
                           size: 14,
-                          color: AppColores.textSecondary,
+                          color: context.palette.textSecondary,
                         ),
                         const SizedBox(width: 4),
                         Expanded(
@@ -114,9 +117,9 @@ class HistorialViajeCard extends StatelessWidget {
                             fecha ?? 'Fecha no disponible',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 12.5,
-                              color: AppColores.textSecondary,
+                              color: context.palette.textSecondary,
                             ),
                           ),
                         ),
@@ -161,7 +164,7 @@ class _MiniRating extends StatelessWidget {
       decoration: BoxDecoration(
         color: tiene
             ? AppColores.primary.withValues(alpha: 0.15)
-            : AppColores.grey200,
+            : context.palette.grey200,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
@@ -170,7 +173,7 @@ class _MiniRating extends StatelessWidget {
           Icon(
             Icons.star_rounded,
             size: 14,
-            color: tiene ? AppColores.primary : AppColores.grey400,
+            color: tiene ? AppColores.primary : context.palette.grey400,
           ),
           const SizedBox(width: 3),
           Text(
@@ -178,7 +181,9 @@ class _MiniRating extends StatelessWidget {
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w700,
-              color: tiene ? AppColores.textPrimary : AppColores.textSecondary,
+              color: tiene
+                  ? context.palette.textPrimary
+                  : context.palette.textSecondary,
             ),
           ),
         ],
@@ -210,28 +215,28 @@ class HistorialEstadoMensaje extends StatelessWidget {
             Container(
               width: 84,
               height: 84,
-              decoration: const BoxDecoration(
-                color: AppColores.grey200,
+              decoration: BoxDecoration(
+                color: context.palette.grey200,
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, size: 42, color: AppColores.grey400),
+              child: Icon(icon, size: 42, color: context.palette.grey400),
             ),
             const SizedBox(height: 16),
             Text(
               titulo,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w800,
-                color: AppColores.textPrimary,
+                color: context.palette.textPrimary,
               ),
             ),
             const SizedBox(height: 6),
             Text(
               subtitulo,
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 14,
-                color: AppColores.textSecondary,
+                color: context.palette.textSecondary,
               ),
             ),
           ],
@@ -303,8 +308,11 @@ class DetalleViajeDialog extends StatelessWidget {
                         borderRadius: BorderRadius.circular(20),
                         child: const Padding(
                           padding: EdgeInsets.all(6),
-                          child: Icon(Icons.close,
-                              color: Colors.white, size: 22),
+                          child: Icon(
+                            Icons.close,
+                            color: Colors.white,
+                            size: 22,
+                          ),
                         ),
                       ),
                     ),
@@ -333,10 +341,10 @@ class DetalleViajeDialog extends StatelessWidget {
                         Expanded(
                           child: Text(
                             destino,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontWeight: FontWeight.w700,
                               fontSize: 15,
-                              color: AppColores.textPrimary,
+                              color: context.palette.textPrimary,
                             ),
                           ),
                         ),
@@ -357,17 +365,17 @@ class DetalleViajeDialog extends StatelessWidget {
                     const SizedBox(height: 8),
                     Text(
                       persona,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
-                        color: AppColores.textPrimary,
+                        color: context.palette.textPrimary,
                       ),
                     ),
                     Text(
                       tituloPersona,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12.5,
-                        color: AppColores.textSecondary,
+                        color: context.palette.textSecondary,
                       ),
                     ),
                     const SizedBox(height: 18),
@@ -385,7 +393,7 @@ class DetalleViajeDialog extends StatelessWidget {
                           size: 30,
                           color: (star || half)
                               ? AppColores.primary
-                              : AppColores.grey300,
+                              : context.palette.grey300,
                         );
                       }),
                     ),
@@ -394,19 +402,19 @@ class DetalleViajeDialog extends StatelessWidget {
                       score > 0
                           ? '${score.toStringAsFixed(1)} / 5'
                           : 'Sin calificación',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: AppColores.textSecondary,
+                        color: context.palette.textSecondary,
                       ),
                     ),
                     const SizedBox(height: 18),
                     Container(
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color: AppColores.background,
+                        color: context.palette.background,
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: AppColores.borderSubtle),
+                        border: Border.all(color: context.palette.borderSubtle),
                       ),
                       child: Row(
                         children: [
@@ -414,12 +422,12 @@ class DetalleViajeDialog extends StatelessWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text(
+                                Text(
                                   'Valor del servicio',
                                   style: TextStyle(
                                     fontSize: 12.5,
                                     fontWeight: FontWeight.w600,
-                                    color: AppColores.textSecondary,
+                                    color: context.palette.textSecondary,
                                   ),
                                 ),
                                 const SizedBox(height: 2),
@@ -476,9 +484,9 @@ class _MetodoPagoChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: AppColores.surface,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColores.borderSubtle),
+        border: Border.all(color: context.palette.borderSubtle),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -498,10 +506,10 @@ class _MetodoPagoChip extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 11.5,
               fontWeight: FontWeight.w700,
-              color: AppColores.textPrimary,
+              color: context.palette.textPrimary,
             ),
           ),
         ],

@@ -7,6 +7,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
 
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
 import 'package:taxi_app/core/utils/marker_icon_helper.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/location_model.dart';
@@ -178,7 +179,7 @@ class _MapaRutaCardState extends State<MapaRutaCard> {
 
         return Container(
           decoration: BoxDecoration(
-            border: Border.all(color: AppColores.textPrimary, width: 1.5),
+            border: Border.all(color: context.palette.textPrimary, width: 1.5),
             borderRadius: BorderRadius.circular(14.r),
             boxShadow: const [
               BoxShadow(
@@ -284,8 +285,8 @@ class _MapaRutaCardState extends State<MapaRutaCard> {
                       return FloatingActionButton(
                         heroTag: 'brujulaMapaRuta',
                         mini: true,
-                        backgroundColor: AppColores.surface,
-                        foregroundColor: AppColores.textPrimary,
+                        backgroundColor: context.palette.surface,
+                        foregroundColor: context.palette.textPrimary,
                         onPressed: _restablecerOrientacion,
                         child: Transform.rotate(
                           // Igual que en `viaje_cliente_screen.dart`: la

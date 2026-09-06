@@ -3,6 +3,7 @@ import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/features/trip_tracking_cliente/services/trip_tracking_firestore_service.dart';
 import 'package:taxi_app/widgets/MapaGoogle.dart';
 
@@ -62,7 +63,7 @@ class _CambiarDestinoViewState extends State<CambiarDestinoView> {
 
   Future<void> _centrarEnUbicacionActual() async {
     if (_cargandoUbicacion || _mapaController == null) return;
-    
+
     setState(() => _cargandoUbicacion = true);
     try {
       final pos = await Geolocator.getCurrentPosition(
@@ -71,14 +72,14 @@ class _CambiarDestinoViewState extends State<CambiarDestinoView> {
           distanceFilter: 0,
         ),
       );
-      
+
       final ubicacion = LatLng(pos.latitude, pos.longitude);
       await _mapaController?.animateCamera(
         CameraUpdate.newCameraPosition(
           CameraPosition(target: ubicacion, zoom: 15.5),
         ),
       );
-      
+
       if (!mounted) return;
       setState(() => _cargandoUbicacion = false);
     } catch (e) {
@@ -97,10 +98,7 @@ class _CambiarDestinoViewState extends State<CambiarDestinoView> {
       _direccion = '';
     });
     try {
-      final marks = await placemarkFromCoordinates(
-        pos.latitude,
-        pos.longitude,
-      );
+      final marks = await placemarkFromCoordinates(pos.latitude, pos.longitude);
       if (!mounted) return;
       final dir = marks.isNotEmpty ? _formatPlacemark(marks.first) : '';
       setState(() {
@@ -136,16 +134,16 @@ class _CambiarDestinoViewState extends State<CambiarDestinoView> {
         direccion: _direccion,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Destino actualizado')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Destino actualizado')));
       Navigator.of(context).pop(true);
     } catch (e) {
       if (!mounted) return;
       setState(() => _guardando = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('No se pudo actualizar: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('No se pudo actualizar: $e')));
     }
   }
 
@@ -164,10 +162,10 @@ class _CambiarDestinoViewState extends State<CambiarDestinoView> {
     };
 
     return Scaffold(
-      backgroundColor: AppColores.background,
+      backgroundColor: context.palette.background,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        foregroundColor: AppColores.textPrimary,
+        backgroundColor: AppColores.primary,
+        foregroundColor: AppColores.textWhite,
         elevation: 0,
         title: const Text(
           'Cambiar dirección destino',
@@ -194,7 +192,7 @@ class _CambiarDestinoViewState extends State<CambiarDestinoView> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: context.palette.surface,
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
@@ -204,7 +202,7 @@ class _CambiarDestinoViewState extends State<CambiarDestinoView> {
                   ),
                 ],
               ),
-              child: const Row(
+              child: Row(
                 children: [
                   Icon(Icons.touch_app_rounded, color: AppColores.primary),
                   SizedBox(width: 10),
@@ -214,7 +212,7 @@ class _CambiarDestinoViewState extends State<CambiarDestinoView> {
                       style: TextStyle(
                         fontSize: 13.5,
                         fontWeight: FontWeight.w600,
-                        color: AppColores.textPrimary,
+                        color: context.palette.textPrimary,
                       ),
                     ),
                   ),
@@ -227,7 +225,7 @@ class _CambiarDestinoViewState extends State<CambiarDestinoView> {
             right: 16,
             child: FloatingActionButton(
               mini: true,
-              backgroundColor: Colors.white,
+              backgroundColor: context.palette.surface,
               foregroundColor: AppColores.primary,
               onPressed: _cargandoUbicacion ? null : _centrarEnUbicacionActual,
               child: _cargandoUbicacion
@@ -278,11 +276,15 @@ class _PanelConfirmacion extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        boxShadow: [
-          BoxShadow(color: Color(0x1A000000), blurRadius: 12, offset: Offset(0, -4)),
+      decoration: BoxDecoration(
+        color: context.palette.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x1A000000),
+            blurRadius: 12,
+            offset: Offset(0, -4),
+          ),
         ],
       ),
       child: SafeArea(
@@ -291,26 +293,30 @@ class _PanelConfirmacion extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'Nuevo destino',
               style: TextStyle(
                 fontSize: 12.5,
                 fontWeight: FontWeight.w600,
-                color: AppColores.textSecondary,
+                color: context.palette.textSecondary,
               ),
             ),
             const SizedBox(height: 4),
             Row(
               children: [
-                const Icon(Icons.location_on, color: AppColores.error, size: 20),
+                const Icon(
+                  Icons.location_on,
+                  color: AppColores.error,
+                  size: 20,
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: geocodificando
-                      ? const Text(
+                      ? Text(
                           'Obteniendo dirección...',
                           style: TextStyle(
                             fontSize: 15,
-                            color: AppColores.textSecondary,
+                            color: context.palette.textSecondary,
                           ),
                         )
                       : Text(
@@ -321,10 +327,10 @@ class _PanelConfirmacion extends StatelessWidget {
                                     : 'Sin destino seleccionado'),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w700,
-                            color: AppColores.textPrimary,
+                            color: context.palette.textPrimary,
                           ),
                         ),
                 ),

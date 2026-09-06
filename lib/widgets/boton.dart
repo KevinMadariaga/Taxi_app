@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 
 class CustomButton extends StatelessWidget {
   final String text;
@@ -45,9 +46,9 @@ class CustomButton extends StatelessWidget {
         onPressed: isDisabled ? null : onPressed,
         style: ElevatedButton.styleFrom(
           backgroundColor: isDisabled
-              ? AppColores.grey400
+              ? context.palette.grey400
               : (color ?? AppColores.buttonPrimary),
-          disabledBackgroundColor: AppColores.grey400,
+          disabledBackgroundColor: context.palette.grey400,
           side: borderColor != null ? BorderSide(color: borderColor!) : null,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(15),

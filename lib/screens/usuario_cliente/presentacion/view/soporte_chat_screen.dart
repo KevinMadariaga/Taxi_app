@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/services/soporte_chat_service.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
 import 'package:taxi_app/caracteristicas/confirmar_solicitud/datos/repositorios/cliente_repository_impl.dart';
@@ -40,7 +41,8 @@ class _SoporteChatScreenState extends State<SoporteChatScreen> {
 
   bool get _expirado {
     if (_ultimoMensajeUsuario == null) return false;
-    return DateTime.now().difference(_ultimoMensajeUsuario!) >= _tiempoExpiracion;
+    return DateTime.now().difference(_ultimoMensajeUsuario!) >=
+        _tiempoExpiracion;
   }
 
   @override
@@ -124,11 +126,11 @@ class _SoporteChatScreenState extends State<SoporteChatScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Chat de soporte'),
-        backgroundColor: AppColores.surface,
-        foregroundColor: AppColores.textPrimary,
+        backgroundColor: AppColores.primary,
+        foregroundColor: AppColores.textWhite,
         elevation: 0,
       ),
-      backgroundColor: AppColores.background,
+      backgroundColor: context.palette.background,
       body: Column(
         children: [
           Expanded(
@@ -160,13 +162,13 @@ class _SoporteChatScreenState extends State<SoporteChatScreen> {
                 }
 
                 if (docs.isEmpty) {
-                  return const Center(
+                  return Center(
                     child: Padding(
                       padding: EdgeInsets.all(24),
                       child: Text(
                         'Bienvenido al soporte.\nEscríbenos y te atenderemos pronto.',
                         textAlign: TextAlign.center,
-                        style: TextStyle(color: AppColores.textSecondary),
+                        style: TextStyle(color: context.palette.textSecondary),
                       ),
                     ),
                   );
@@ -195,7 +197,7 @@ class _SoporteChatScreenState extends State<SoporteChatScreen> {
                         ? CrossAxisAlignment.start
                         : CrossAxisAlignment.end;
                     final bg = esAdmin
-                        ? AppColores.grey200
+                        ? context.palette.grey200
                         : AppColores.buttonPrimary.withValues(alpha: 0.22);
 
                     return Column(
@@ -220,20 +222,20 @@ class _SoporteChatScreenState extends State<SoporteChatScreen> {
                                 : CrossAxisAlignment.end,
                             children: [
                               if (esAdmin)
-                                const Text(
+                                Text(
                                   'Soporte',
                                   style: TextStyle(
                                     fontSize: 11,
                                     fontWeight: FontWeight.w700,
-                                    color: AppColores.textSecondary,
+                                    color: context.palette.textSecondary,
                                   ),
                                 ),
                               Text(texto),
                               Text(
                                 hora,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 10,
-                                  color: AppColores.textSecondary,
+                                  color: context.palette.textSecondary,
                                 ),
                               ),
                             ],
@@ -255,10 +257,10 @@ class _SoporteChatScreenState extends State<SoporteChatScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
                 decoration: BoxDecoration(
-                  color: AppColores.grey200,
+                  color: context.palette.grey200,
                   border: Border(
                     top: BorderSide(
-                      color: AppColores.borderSubtle,
+                      color: context.palette.borderSubtle,
                       width: 1,
                     ),
                   ),
@@ -266,11 +268,11 @@ class _SoporteChatScreenState extends State<SoporteChatScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text(
+                    Text(
                       'Sesión finalizada por inactividad.',
                       style: TextStyle(
                         fontSize: 13,
-                        color: AppColores.textSecondary,
+                        color: context.palette.textSecondary,
                       ),
                       textAlign: TextAlign.center,
                     ),
@@ -280,7 +282,7 @@ class _SoporteChatScreenState extends State<SoporteChatScreen> {
                       child: ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColores.buttonPrimary,
-                          foregroundColor: AppColores.textPrimary,
+                          foregroundColor: context.palette.textPrimary,
                           minimumSize: const Size.fromHeight(46),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -316,7 +318,7 @@ class _SoporteChatScreenState extends State<SoporteChatScreen> {
                         decoration: InputDecoration(
                           hintText: 'Escribe tu mensaje...',
                           filled: true,
-                          fillColor: AppColores.grey100,
+                          fillColor: context.palette.grey100,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide: BorderSide.none,
@@ -334,7 +336,7 @@ class _SoporteChatScreenState extends State<SoporteChatScreen> {
                       onPressed: _send,
                       style: IconButton.styleFrom(
                         backgroundColor: AppColores.buttonPrimary,
-                        foregroundColor: AppColores.textPrimary,
+                        foregroundColor: context.palette.textPrimary,
                       ),
                       icon: const Icon(Icons.send),
                     ),

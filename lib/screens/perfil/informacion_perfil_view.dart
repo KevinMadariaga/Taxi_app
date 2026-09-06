@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/features/phone_auth/services/user_data_service.dart';
 
 /// Pantalla de solo lectura con la información del perfil: foto, nombre,
@@ -44,7 +45,7 @@ class _InformacionPerfilViewState extends State<InformacionPerfilView> {
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
           return Scaffold(
-            backgroundColor: AppColores.background,
+            backgroundColor: context.palette.background,
             appBar: AppBar(
               title: const Text('Información del perfil'),
               backgroundColor: AppColores.primary,
@@ -134,7 +135,7 @@ class _InformacionPerfilContent extends StatelessWidget {
     final vehiculos = esConductor ? _vehiculos() : const <_Vehiculo>[];
 
     return Scaffold(
-      backgroundColor: AppColores.background,
+      backgroundColor: context.palette.background,
       appBar: AppBar(
         title: const Text('Información del perfil'),
         backgroundColor: AppColores.primary,
@@ -179,7 +180,7 @@ class _InformacionPerfilContent extends StatelessWidget {
                       style: TextStyle(
                         fontSize: nameFontSize,
                         fontWeight: FontWeight.w800,
-                        color: AppColores.textPrimary,
+                        color: context.palette.textPrimary,
                       ),
                     ),
                   ),
@@ -211,15 +212,15 @@ class _InformacionPerfilContent extends StatelessWidget {
                       style: TextStyle(
                         fontSize: sectionFontSize,
                         fontWeight: FontWeight.w800,
-                        color: AppColores.textPrimary,
+                        color: context.palette.textPrimary,
                       ),
                     ),
                     SizedBox(height: screenHeight * 0.012),
                     ...vehiculos.map((v) => _VehiculoCard(vehiculo: v)),
                     if (vehiculos.isEmpty)
-                      const Text(
+                      Text(
                         'Sin vehículos registrados.',
-                        style: TextStyle(color: AppColores.textSecondary),
+                        style: TextStyle(color: context.palette.textSecondary),
                       ),
                   ],
                   if (onEditar != null) ...[
@@ -277,8 +278,7 @@ class _Vehiculo {
     return tipo.isEmpty ? 'Vehículo' : tipo;
   }
 
-  IconData get icon =>
-      tipo.toLowerCase() == 'moto'
+  IconData get icon => tipo.toLowerCase() == 'moto'
       ? Icons.two_wheeler_rounded
       : Icons.directions_car_filled_rounded;
 }
@@ -299,9 +299,9 @@ class _InfoTile extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       decoration: BoxDecoration(
-        color: AppColores.surface,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColores.borderSubtle),
+        border: Border.all(color: context.palette.borderSubtle),
       ),
       child: Row(
         children: [
@@ -311,7 +311,7 @@ class _InfoTile extends StatelessWidget {
               color: AppColores.primary.withValues(alpha: 0.14),
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, size: 20, color: AppColores.primaryDark),
+            child: Icon(icon, size: 20, color: AppColores.primary),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -320,19 +320,19 @@ class _InfoTile extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w600,
-                    color: AppColores.textSecondary,
+                    color: context.palette.textSecondary,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   value,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
-                    color: AppColores.textPrimary,
+                    color: context.palette.textPrimary,
                   ),
                 ),
               ],
@@ -353,9 +353,9 @@ class _VehiculoCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: AppColores.surface,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColores.borderSubtle),
+        border: Border.all(color: context.palette.borderSubtle),
       ),
       clipBehavior: Clip.hardEdge,
       child: Column(
@@ -369,7 +369,7 @@ class _VehiculoCard extends StatelessWidget {
                     fit: BoxFit.cover,
                     fadeInDuration: const Duration(milliseconds: 150),
                     placeholder: (_, _) => Container(
-                      color: AppColores.grey200,
+                      color: context.palette.grey200,
                       child: const Center(
                         child: SizedBox(
                           width: 22,
@@ -384,20 +384,20 @@ class _VehiculoCard extends StatelessWidget {
                       ),
                     ),
                     errorWidget: (_, _, _) => Container(
-                      color: AppColores.grey200,
+                      color: context.palette.grey200,
                       child: Icon(
                         vehiculo.icon,
                         size: 48,
-                        color: AppColores.grey400,
+                        color: context.palette.grey400,
                       ),
                     ),
                   )
                 : Container(
-                    color: AppColores.grey200,
+                    color: context.palette.grey200,
                     child: Icon(
                       vehiculo.icon,
                       size: 48,
-                      color: AppColores.grey400,
+                      color: context.palette.grey400,
                     ),
                   ),
           ),
@@ -409,10 +409,10 @@ class _VehiculoCard extends StatelessWidget {
                 const SizedBox(width: 10),
                 Text(
                   vehiculo.tipoLabel,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w800,
                     fontSize: 15,
-                    color: AppColores.textPrimary,
+                    color: context.palette.textPrimary,
                   ),
                 ),
                 const Spacer(),
@@ -422,13 +422,14 @@ class _VehiculoCard extends StatelessWidget {
                     vertical: 5,
                   ),
                   decoration: BoxDecoration(
-                    color: AppColores.textPrimary,
+                    // Fondo oscuro fijo (como una placa real): con
+                    // `context.palette.textPrimary` el fondo se volvía casi
+                    // blanco en modo oscuro y el texto blanco desaparecía.
+                    color: AppColores.ink900,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    vehiculo.placa.isEmpty
-                        ? '—'
-                        : vehiculo.placa.toUpperCase(),
+                    vehiculo.placa.isEmpty ? '—' : vehiculo.placa.toUpperCase(),
                     style: const TextStyle(
                       color: AppColores.textWhite,
                       fontWeight: FontWeight.w800,

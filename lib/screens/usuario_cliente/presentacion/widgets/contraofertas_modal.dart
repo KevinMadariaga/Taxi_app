@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/buscando_taxi_viewmodel.dart'
     show BuscandoTaxiViewModel, ContraofertaItem;
 
@@ -49,7 +50,7 @@ class ContraofertasModalContent extends StatelessWidget {
         }
         return Dialog(
           insetPadding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 40.h),
-          backgroundColor: AppColores.surface,
+          backgroundColor: context.palette.surface,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20.r),
           ),
@@ -77,7 +78,7 @@ class ContraofertasModalContent extends StatelessWidget {
                           style: TextStyle(
                             fontWeight: FontWeight.w800,
                             fontSize: isTablet ? 18 : 16,
-                            color: AppColores.textPrimary,
+                            color: context.palette.textPrimary,
                           ),
                         ),
                       ),
@@ -90,7 +91,7 @@ class ContraofertasModalContent extends StatelessWidget {
                     'Elige la oferta que prefieras según valor y calificación.',
                     style: TextStyle(
                       fontSize: 12.5.sp,
-                      color: AppColores.textSecondary,
+                      color: context.palette.textSecondary,
                     ),
                   ),
                 ),
@@ -146,7 +147,7 @@ class _ContraofertaCard extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: AppColores.cardBackground,
+        color: context.palette.cardBackground,
         borderRadius: BorderRadius.circular(14.r),
         border: Border.all(color: AppColores.buttonPrimary, width: 1.5),
         boxShadow: const [
@@ -162,7 +163,7 @@ class _ContraofertaCard extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: isTablet ? 26 : 22,
-                  backgroundColor: AppColores.grey200,
+                  backgroundColor: context.palette.grey200,
                   backgroundImage: hasPhoto
                       ? NetworkImage(o.conductorFoto!)
                       : null,
@@ -170,7 +171,7 @@ class _ContraofertaCard extends StatelessWidget {
                       ? Icon(
                           Icons.person,
                           size: isTablet ? 28 : 24,
-                          color: AppColores.textSecondary,
+                          color: context.palette.textSecondary,
                         )
                       : null,
                 ),
@@ -185,7 +186,7 @@ class _ContraofertaCard extends StatelessWidget {
                         style: TextStyle(
                           fontWeight: FontWeight.w700,
                           fontSize: isTablet ? 15 : 13,
-                          color: AppColores.textPrimary,
+                          color: context.palette.textPrimary,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -195,11 +196,15 @@ class _ContraofertaCard extends StatelessWidget {
                           o.placa!,
                           style: TextStyle(
                             fontSize: isTablet ? 13 : 11,
-                            color: AppColores.textSecondary,
+                            color: context.palette.textSecondary,
                           ),
                         ),
                       SizedBox(height: 4.h),
-                      _buildEstrellas(o.calificacion, o.totalCalificaciones),
+                      _buildEstrellas(
+                        context,
+                        o.calificacion,
+                        o.totalCalificaciones,
+                      ),
                     ],
                   ),
                 ),
@@ -221,8 +226,8 @@ class _ContraofertaCard extends StatelessWidget {
                 Expanded(
                   child: _OfertaButton(
                     label: 'Rechazar',
-                    color: AppColores.grey200,
-                    textColor: AppColores.textSecondary,
+                    color: context.palette.grey200,
+                    textColor: context.palette.textSecondary,
                     isLoading: isResponding,
                     onTap: onRechazar,
                   ),
@@ -247,11 +252,11 @@ class _ContraofertaCard extends StatelessWidget {
 }
 
 /// Estrellas de calificación del conductor (promedio 0-5).
-Widget _buildEstrellas(double calif, int total) {
+Widget _buildEstrellas(BuildContext context, double calif, int total) {
   if (total <= 0 && calif <= 0) {
     return Text(
       'Conductor nuevo',
-      style: TextStyle(fontSize: 11.5.sp, color: AppColores.textSecondary),
+      style: TextStyle(fontSize: 11.5.sp, color: context.palette.textSecondary),
     );
   }
   return Row(
@@ -274,7 +279,7 @@ Widget _buildEstrellas(double calif, int total) {
         style: TextStyle(
           fontSize: 11.5.sp,
           fontWeight: FontWeight.w600,
-          color: AppColores.textSecondary,
+          color: context.palette.textSecondary,
         ),
       ),
     ],

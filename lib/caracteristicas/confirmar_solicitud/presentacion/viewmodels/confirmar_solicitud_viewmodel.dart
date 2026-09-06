@@ -265,31 +265,40 @@ class ConfirmarSolicitudViewModel extends ChangeNotifier {
   /// Mínimo aceptable: la tarifa base del vehículo (sin el variable por km).
   /// Por debajo de eso ningún conductor tomaría el viaje, y ofertas de $1
   /// solo sirven para spamear a todos los conductores del radio.
-  int get valorMinimoPermitido {
+  ///
+  /// Acepta [tipo] explícito (default: [tipoVehiculo]) para poder validar el
+  /// valor editado en el selector de vehículo *antes* de confirmar la
+  /// elección — en ese momento `tipoVehiculo` todavía puede ser el anterior.
+  int valorMinimoPermitido({VehicleType? tipo}) {
+    final vehiculo = tipo ?? tipoVehiculo;
     final hora = DateTime.now().hour;
     final esNoche = hora >= 18 || hora < 6;
-    return esNoche ? tipoVehiculo.basePriceNoche : tipoVehiculo.basePriceDia;
+    return esNoche ? vehiculo.basePriceNoche : vehiculo.basePriceDia;
   }
 
   /// Techo anti fat-finger: 20× el valor sugerido. No busca acotar la
   /// negociación, solo evitar que un cero de más quede escrito en Firestore.
-  int get valorMaximoPermitido {
-    final sugerido = int.tryParse(previsualizarValor(tipoVehiculo)) ?? 10000;
+  int valorMaximoPermitido({VehicleType? tipo}) {
+    final vehiculo = tipo ?? tipoVehiculo;
+    final sugerido = int.tryParse(previsualizarValor(vehiculo)) ?? 10000;
     return sugerido * 20;
   }
 
   /// `null` si [digits] es un valor aceptable; si no, el motivo para mostrar
   /// en la UI. Antes no había ningún límite en toda la cadena: `1` y
   /// `999999999999` se escribían igual en el documento.
-  String? validarValorServicio(String digits) {
+  String? validarValorServicio(String digits, {VehicleType? tipo}) {
+    final vehiculo = tipo ?? tipoVehiculo;
+    final minimo = valorMinimoPermitido(tipo: vehiculo);
+    final maximo = valorMaximoPermitido(tipo: vehiculo);
     final valor = int.tryParse(digits.replaceAll(RegExp(r'[^0-9]'), ''));
     if (valor == null || valor <= 0) return 'Ingresa un valor válido.';
-    if (valor < valorMinimoPermitido) {
-      return 'El valor mínimo para ${tipoVehiculo.label.toLowerCase()} es '
-          '\$${_formatMiles(valorMinimoPermitido)}.';
+    if (valor < minimo) {
+      return 'El valor mínimo para ${vehiculo.label.toLowerCase()} es '
+          '\$${_formatMiles(minimo)}.';
     }
-    if (valor > valorMaximoPermitido) {
-      return 'El valor máximo es \$${_formatMiles(valorMaximoPermitido)}.';
+    if (valor > maximo) {
+      return 'El valor máximo es \$${_formatMiles(maximo)}.';
     }
     return null;
   }

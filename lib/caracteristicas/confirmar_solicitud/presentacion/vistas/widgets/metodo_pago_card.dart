@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/helpers/responsive_helper.dart';
 
 import '../../viewmodels/confirmar_solicitud_viewmodel.dart';
@@ -19,7 +19,7 @@ class MetodoPagoCard extends StatelessWidget {
 
     final radius = BorderRadius.circular(ResponsiveHelper.wp(context, 4));
     return Material(
-      color: AppColores.surface,
+      color: context.palette.surface,
       borderRadius: radius,
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -32,14 +32,20 @@ class MetodoPagoCard extends StatelessWidget {
           ),
           decoration: BoxDecoration(
             borderRadius: radius,
-            border: Border.all(color: AppColores.borderSubtle),
+            border: Border.all(color: context.palette.borderSubtle),
           ),
           child: Row(
             children: [
               Container(
                 padding: EdgeInsets.all(ResponsiveHelper.wp(context, 1.6)),
                 decoration: BoxDecoration(
-                  color: Colors.green.withValues(alpha: 0.12),
+                  // El logo de Nequi lleva navy sólido en el centro: sobre
+                  // el tinte verde (pensado para el ícono de efectivo) se
+                  // perdía en modo oscuro. Fondo blanco fijo para ese caso,
+                  // como cualquier chip de logo de marca.
+                  color: esNequi
+                      ? Colors.white
+                      : Colors.green.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(
                     ResponsiveHelper.wp(context, 3),
                   ),
@@ -60,11 +66,11 @@ class MetodoPagoCard extends StatelessWidget {
                   style: TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: ResponsiveHelper.sp(context, 14),
-                    color: AppColores.textPrimary,
+                    color: context.palette.textPrimary,
                   ),
                 ),
               ),
-              Icon(Icons.chevron_right, color: AppColores.textSecondary),
+              Icon(Icons.chevron_right, color: context.palette.textSecondary),
             ],
           ),
         ),
