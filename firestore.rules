@@ -307,7 +307,17 @@ service cloud.firestore {
       // conductor). Antes solo el admin podía borrar `usuarios/{uid}`, así
       // que ese flujo fallaba con permission-denied para todo el mundo — la
       // UI ya existía pero no tenía forma real de completarse.
-      allow delete: if isAdminRole() || (isSignedIn() && request.auth.uid == uid);
+      //
+      // EXCEPTO si está deshabilitado: el `update` de arriba le impide
+      // limpiarse el flag, pero borrar y volver a crear el doc saltaba esa
+      // guarda entera — el doc nuevo nace sin `deshabilitado` y la cuenta
+      // queda activa otra vez (verificado contra el emulador; el token de
+      // Auth sigue vivo porque nada llama `admin.auth().disableUser()`).
+      // Un usuario legítimo que quiere borrar su cuenta no está
+      // deshabilitado, así que `EliminarCuentaScreen` no se ve afectada.
+      allow delete: if isAdminRole() ||
+        (isSignedIn() && request.auth.uid == uid &&
+          resource.data.get('deshabilitado', false) == false);
 
       // Direcciones favoritas del propio usuario.
       match /favoritos/{favoritoId} {

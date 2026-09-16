@@ -209,6 +209,34 @@ describe('usuarios', () => {
     );
   });
 
+  // El `update` de arriba impide limpiarse el flag, pero borrar y recrear el
+  // doc saltaba esa guarda entera: el doc nuevo nace sin `deshabilitado` y la
+  // cuenta vuelve a estar activa, sin siquiera tener que registrarse de nuevo
+  // (la cuenta de Auth sigue viva porque nada llama `disableUser()`).
+  test('un usuario deshabilitado NO puede borrar su doc para recrearlo limpio', async () => {
+    await sembrar(env, `usuarios/${CLIENTE}`, {
+      rol: 'cliente', deshabilitado: true,
+    });
+    await assertFails(como(env, CLIENTE).doc(`usuarios/${CLIENTE}`).delete());
+  });
+
+  // El baneo no rompe el borrado de cuenta legítimo: quien no está
+  // deshabilitado sigue pudiendo cerrar su cuenta desde `EliminarCuentaScreen`.
+  test('un usuario habilitado sigue pudiendo borrar su cuenta', async () => {
+    await sembrar(env, `usuarios/${CLIENTE}`, {
+      rol: 'cliente', deshabilitado: false,
+    });
+    await assertSucceeds(como(env, CLIENTE).doc(`usuarios/${CLIENTE}`).delete());
+  });
+
+  // Y el admin sí puede borrar a un usuario deshabilitado (alta/baja real).
+  test('el admin sí puede borrar a un usuario deshabilitado', async () => {
+    await sembrar(env, `usuarios/${CLIENTE}`, {
+      rol: 'cliente', deshabilitado: true,
+    });
+    await assertSucceeds(como(env, ADMIN).doc(`usuarios/${CLIENTE}`).delete());
+  });
+
   test('el admin sí deshabilita y rehabilita un usuario', async () => {
     await sembrar(env, `usuarios/${CLIENTE}`, { rol: 'cliente' });
     const db = como(env, ADMIN);
