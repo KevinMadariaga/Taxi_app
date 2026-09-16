@@ -71,6 +71,10 @@ class _MapaInteractivoPrevisualizacionSolicitudState
   // cualquier gesto del conductor.
   bool _fitIncluyoConductor = false;
 
+  /// Generación del último encuadre disparado — descarta reintentos viejos
+  /// que resolverían después de uno más nuevo (ver `_fitToPoints`).
+  int _fitGen = 0;
+
   @override
   void initState() {
     super.initState();
@@ -134,50 +138,54 @@ class _MapaInteractivoPrevisualizacionSolicitudState
   ];
 
   Future<void> _fitToPoints() async {
-    final controller = _controller;
-    if (controller == null || !mounted) return;
-    final puntos = _puntos;
-    if (puntos.isEmpty) return;
-
-    final incluyeConductor = widget.driverLocation != null;
-    final update = puntos.length < 2
-        ? _mapService.cameraToPosition(puntos.first, zoom: _zoomUnPunto)
-        : _mapService.cameraToBoundsFromPoints(puntos, padding: _paddingCamara);
-    if (update == null) return;
+    final generacion = ++_fitGen;
 
     // `newLatLngBounds` puede fallar si el mapa todavía no tiene su tamaño
     // final layouteado justo tras `onMapCreated` — un reintento tras un
     // frame alcanza. Mismo patrón que `mapa_ruta_card.dart` y
     // `viaje_cliente_screen.dart`, que ya tropezaron con esto.
-    if (await _intentarAnimar(controller, update)) {
-      _fitIncluyoConductor = incluyeConductor;
-      return;
-    }
+    if (await _intentarEncuadrar(generacion)) return;
     await Future.delayed(const Duration(milliseconds: 300));
-    // El controller pudo quedar obsoleto durante el delay (mapa remontado):
-    // usarlo igual lanza "GoogleMapController ... was used after the
-    // associated GoogleMap widget had already been disposed".
-    if (!mounted || !identical(_controller, controller)) return;
-    if (await _intentarAnimar(controller, update)) {
-      _fitIncluyoConductor = incluyeConductor;
-    }
+    // `generacion` descarta este reintento si mientras dormía se disparó
+    // otro encuadre (llegó el GPS, o el conductor tocó el botón de centrar):
+    // sin esto, un intento viejo volvía a mover la cámara a un encuadre ya
+    // superado —sin el conductor, p. ej.— y encima reseteaba
+    // `_fitIncluyoConductor`, dejando el mapa mal para toda la preview.
+    if (generacion != _fitGen) return;
+    await _intentarEncuadrar(generacion);
     // Si vuelve a fallar NO se marca `_fitIncluyoConductor`: así el
     // re-encuadre automático de `didUpdateWidget` (cuando llegue el GPS)
     // sigue disponible en vez de quedar deshabilitado por un intento fallido.
   }
 
-  Future<bool> _intentarAnimar(
-    GoogleMapController controller,
-    CameraUpdate update,
-  ) async {
+  /// Un intento de encuadre. Recalcula los puntos en el momento (no los
+  /// captura antes del delay) para que el reintento use el estado vigente.
+  Future<bool> _intentarEncuadrar(int generacion) async {
+    final controller = _controller;
+    if (controller == null || !mounted) return false;
+    final puntos = _puntos;
+    if (puntos.isEmpty) return false;
+
+    final incluyeConductor = widget.driverLocation != null;
+    final update = puntos.length < 2
+        ? _mapService.cameraToPosition(puntos.first, zoom: _zoomUnPunto)
+        : _mapService.cameraToBoundsFromPoints(puntos, padding: _paddingCamara);
+    if (update == null) return false;
+
     try {
       await controller.animateCamera(update);
-      return true;
     } catch (_) {
       // Best-effort: si falla del todo, el conductor encuadra a mano con
       // gestos o con el botón de centrar.
       return false;
     }
+    // El controller pudo quedar obsoleto durante la animación (mapa
+    // remontado), o pudo arrancar un encuadre más nuevo: en esos casos no
+    // se toca el flag, que es de la última cámara aplicada.
+    if (generacion == _fitGen && identical(_controller, controller)) {
+      _fitIncluyoConductor = incluyeConductor;
+    }
+    return true;
   }
 
   @override

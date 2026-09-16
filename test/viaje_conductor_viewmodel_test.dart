@@ -508,11 +508,40 @@ void main() {
   group('puedeTerminarViaje', () {
     // Gate de 80m para "Terminar viaje" — sin esto el botón quedaba tocable
     // apenas arrancaba el tramo al destino, mucho antes de llegar de verdad.
-    // Fail-open cuando no hay cómo medir: bloquear ahí dejaría el viaje
-    // imposible de cerrar (el conductor no tiene botón de cancelar).
+    // Fail-open SOLO sin destino: esa falla es permanente y dejaría el viaje
+    // imposible de cerrar. Sin ubicación del conductor el gate se mantiene,
+    // porque esa falla se resuelve sola con el próximo ping de GPS.
     test('true sin viaje cargado', () {
       final f = _Fixture();
       expect(f.vm.puedeTerminarViaje, isTrue);
+    });
+
+    test('false si falta la ubicación del conductor pero hay destino', () {
+      final f = _Fixture();
+      const sinUbicacion = ParticipanteViajeEntity(
+        id: 'x',
+        nombre: 'Ana',
+        fotoUrl: '',
+        fotoVehiculoUrl: '',
+        placaVehiculo: '',
+        calificacion: 5,
+        totalCalificaciones: 1,
+        direccion: 'Calle 1',
+        ubicacion: null,
+      );
+      f.vm.viaje = ViajeEntity(
+        id: 'v1',
+        estado: SolicitudEstado.enRuta,
+        cliente: _participante,
+        conductor: sinUbicacion,
+        destino: const DestinoViajeEntity(
+          direccion: 'Destino',
+          ubicacion: LatLng(4.65, -74.05),
+        ),
+        updatedAt: DateTime(2026, 1, 1),
+      );
+
+      expect(f.vm.puedeTerminarViaje, isFalse);
     });
 
     test('true si el destino no trae coordenadas', () {

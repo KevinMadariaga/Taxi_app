@@ -191,16 +191,23 @@ class ViajeConductorViewModel extends ChangeNotifier {
   bool get puedeTerminarViaje {
     final driver = driverLatLng;
     final objetivo = objetivoActual;
-    // Fail-open a propósito (al revés que `puedeReportarLlegada`): si falta
-    // una de las dos coordenadas no se puede medir la distancia, y bloquear
-    // ahí dejaría el viaje IMPOSIBLE de cerrar — el conductor no tiene botón
-    // de cancelar (lo cancela el cliente, ver `DriverTripCard`). Pasa de
-    // verdad: `destino.ubicacion` queda en `null` cuando Firestore guardó
-    // `destino` como `GeoPoint` o sin `lat`/`lng`
-    // (`viaje_model._destinoFromMap`), y `driverLatLng` cuando el GPS
-    // todavía no escribió su posición en el doc del viaje. El gate existe
-    // para frenar un cierre prematuro, no para trabar el viaje.
-    if (driver == null || objetivo == null) return true;
+
+    // Sin destino la falla es PERMANENTE y trabaría el viaje: `destino
+    // .ubicacion` queda en `null` cuando Firestore guardó `destino` como
+    // `GeoPoint` o sin `lat`/`lng` (`viaje_model._destinoFromMap`), y el
+    // conductor no tiene botón de cancelar (lo cancela el cliente, ver
+    // `DriverTripCard`). Ahí se abre el botón: el gate existe para frenar un
+    // cierre prematuro, no para dejar un viaje imposible de cerrar.
+    if (objetivo == null) return true;
+
+    // Sin ubicación del conductor, en cambio, la falla es TRANSITORIA: la
+    // app siempre escribe `conductor.ubicacion` como `{lat, lng}`
+    // (`FirebaseService.actualizarUbicacionConductorEnSolicitud`) y el
+    // stream reenvía cada 15 m / 10 s, así que se resuelve sola. Abrir el
+    // botón acá volvería el gate un no-op justo en el camino que mueve
+    // plata: un toque cerraría (y cobraría) un viaje recién empezado.
+    if (driver == null) return false;
+
     return _mathService.haversineMeters(driver, objetivo) <=
         _radioTerminarViajeMetros;
   }

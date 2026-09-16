@@ -106,6 +106,11 @@ class PreviewRouteController {
   void clearPreviewAndRoutes() {
     selectedPreview = null;
     isMapExpanded = false;
+    // Cerrada la preview, un fetch en vuelo ya no le importa a nadie — y su
+    // `finally` no va a apagar este flag, porque solo lo apaga la solicitud
+    // vigente. Sin esto el overlay "Cargando ruta..." quedaba pegado sobre
+    // el mapa del home.
+    isLoadingPreviewRoute = false;
     routePoints.clear();
     routeDestinoPoints.clear();
     routePolylines.removeWhere((p) => p.polylineId.value.startsWith('route_'));
@@ -241,8 +246,13 @@ class PreviewRouteController {
             'InicioConductorViewModel: fallo fetchRouteOSRM (preview sin ruta)',
       );
     } finally {
-      isLoadingPreviewRoute = false;
-      onChanged?.call();
+      // Solo la solicitud vigente apaga el spinner: si el conductor cerró
+      // esta preview y abrió otra, el fetch viejo al resolver apagaba el
+      // loader de la NUEVA (que sigue cargando) y ya no se volvía a mostrar.
+      if (selectedPreview?.solicitud.id == id) {
+        isLoadingPreviewRoute = false;
+        onChanged?.call();
+      }
     }
   }
 
