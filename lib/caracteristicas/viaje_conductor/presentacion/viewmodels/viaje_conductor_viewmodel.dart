@@ -191,7 +191,16 @@ class ViajeConductorViewModel extends ChangeNotifier {
   bool get puedeTerminarViaje {
     final driver = driverLatLng;
     final objetivo = objetivoActual;
-    if (driver == null || objetivo == null) return false;
+    // Fail-open a propósito (al revés que `puedeReportarLlegada`): si falta
+    // una de las dos coordenadas no se puede medir la distancia, y bloquear
+    // ahí dejaría el viaje IMPOSIBLE de cerrar — el conductor no tiene botón
+    // de cancelar (lo cancela el cliente, ver `DriverTripCard`). Pasa de
+    // verdad: `destino.ubicacion` queda en `null` cuando Firestore guardó
+    // `destino` como `GeoPoint` o sin `lat`/`lng`
+    // (`viaje_model._destinoFromMap`), y `driverLatLng` cuando el GPS
+    // todavía no escribió su posición en el doc del viaje. El gate existe
+    // para frenar un cierre prematuro, no para trabar el viaje.
+    if (driver == null || objetivo == null) return true;
     return _mathService.haversineMeters(driver, objetivo) <=
         _radioTerminarViajeMetros;
   }

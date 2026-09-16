@@ -12,29 +12,20 @@ import 'package:taxi_app/core/services/map_service_adapter.dart' as adapter;
 import 'package:taxi_app/core/utils/error_reporter.dart';
 import 'package:taxi_app/core/utils/proyeccion_mercator.dart';
 
-/// Mitad superior de la tarjeta de previsualización: imagen estática de
-/// Google Static Maps con la perspectiva "del conductor hacia el cliente" —
-/// encuadra los puntos disponibles (no rota/inclina la cámara: Static Maps
-/// siempre es norte-arriba, la "perspectiva" acá es el encuadre que conecta
-/// los puntos, igual criterio que usa `_BuscandoTaxiStaticMap` del lado
-/// cliente) y overlayea los íconos propios de la app sobre la imagen:
-/// vehículo del conductor (carro/moto), un badge con ícono de persona sobre
-/// la ubicación del cliente y, si se conoce el destino del viaje, un badge
-/// de bandera sobre ese punto — Static Maps no puede referenciar un
-/// asset local en su parámetro `markers=`, así que los íconos se dibujan
-/// encima calculando su offset en píxeles vía [ProyeccionMercator].
+/// Mapa estático (Google Static Maps) del viaje EN CURSO del conductor —
+/// encuadra al conductor y su objetivo actual (no rota/inclina la cámara:
+/// Static Maps siempre es norte-arriba, la "perspectiva" acá es el encuadre
+/// que conecta los puntos, igual criterio que usa `_BuscandoTaxiStaticMap`
+/// del lado cliente) y overlayea los íconos propios de la app sobre la
+/// imagen: vehículo del conductor (carro/moto) y un badge sobre el objetivo
+/// — Static Maps no puede referenciar un asset local en su parámetro
+/// `markers=`, así que los íconos se dibujan encima calculando su offset en
+/// píxeles vía [ProyeccionMercator].
 ///
-/// Con [destinoLocation], además del tramo conductor→cliente (naranja de
-/// marca, `AppColores.primary`) se traza el tramo cliente→destino en el
-/// mismo naranja pero más claro (`AppColores.brand200`) — misma familia de
-/// color para que se lea como "un solo viaje", diferenciable por
-/// intensidad en vez de un color ajeno (antes azul informativo) — para que
-/// el conductor vea el viaje completo antes de aceptar: no solo a dónde
-/// recoger, también a dónde va a dejar al cliente. El encuadre pasa a
-/// cubrir TODOS los puntos (recogida + viaje),
-/// vía [ProyeccionMercator.centroRotado] en vez de la heurística de
-/// [_fraccionCentro]/[_fraccionCentroOrientado] (pensada para dos puntos
-/// simétricos, no para un recorrido completo).
+/// La preview PREVIA a aceptar ya no usa este widget: usa
+/// `MapaInteractivoPrevisualizacionSolicitud` (`GoogleMap` real, con
+/// gestos). Acá se mantiene el mapa estático a propósito, para no sostener
+/// un `GoogleMapController` en vivo durante todo el viaje.
 class MapaPrevisualizacionSolicitud extends StatelessWidget {
   const MapaPrevisualizacionSolicitud({
     super.key,
@@ -45,8 +36,7 @@ class MapaPrevisualizacionSolicitud extends StatelessWidget {
     this.isLoadingRoute = false,
     this.heading,
     this.orientarHaciaCliente = false,
-    this.destinoLocation,
-    this.routeDestinoPoints = const [],
+    this.objetivoEsDestino = false,
   });
 
   final LatLng? driverLocation;
@@ -84,16 +74,13 @@ class MapaPrevisualizacionSolicitud extends StatelessWidget {
   /// rumbo que trazar, el mapa queda norte-arriba centrado en el cliente).
   final bool orientarHaciaCliente;
 
-  /// Destino final del viaje (a dónde el conductor debe dejar al cliente
-  /// después de recogerlo) — `null` en los casos que no lo conocen o no lo
-  /// necesitan (viaje ya en curso, cuando este mismo widget se reutiliza
-  /// solo para la traza conductor→objetivo actual).
-  final LatLng? destinoLocation;
-
-  /// Ruta real (OSRM) cliente→destino, si ya se resolvió — mismo criterio
-  /// que [routePoints] pero para el segundo tramo del viaje. Vacía mientras
-  /// se calcula, si falló, o si `destinoLocation` es `null`.
-  final List<LatLng> routeDestinoPoints;
+  /// Qué representa [clientLocation] en este momento del viaje: el punto de
+  /// recogida (`false`, badge de persona) o el destino final (`true`, badge
+  /// de bandera). El objetivo del conductor cambia de uno al otro al pasar
+  /// a `en ruta` (ver `ViajeConductorViewModel.objetivoActual`), y el badge
+  /// tiene que seguirlo — con el de persona fijo, el punto de bajada se
+  /// dibujaba como si fuera el pasajero esperando.
+  final bool objetivoEsDestino;
 
   static const adapter.MapService _mapService = adapter.MapService();
 
@@ -103,7 +90,6 @@ class MapaPrevisualizacionSolicitud extends StatelessWidget {
 
   static const double _vehicleIconSize = 40;
   static const double _clienteIconSize = 40;
-  static const double _destinoIconSize = 32;
   static const double _zoomSinConductor = 16;
 
   // Fracción del segmento conductor→cliente donde cae el centro del
@@ -168,20 +154,7 @@ class MapaPrevisualizacionSolicitud extends StatelessWidget {
         final double fraccion = rotar
             ? _fraccionCentroOrientado
             : _fraccionCentro;
-        final LatLng? destino = destinoLocation;
-        // Con destino conocido el encuadre deja de ser el segmento
-        // conductor→cliente para cubrir el viaje completo — el centro del
-        // bbox de todos los puntos es el único que encuadra todo al mayor
-        // zoom posible (ver docstring de [ProyeccionMercator.centroRotado]).
-        final LatLng center = destino != null
-            ? ProyeccionMercator.centroRotado([
-                if (hasDriver) driver,
-                ...routePoints,
-                clientLocation,
-                ...routeDestinoPoints,
-                destino,
-              ], rotacionRad)
-            : hasDriver
+        final LatLng center = hasDriver
             ? LatLng(
                 driver.latitude +
                     (clientLocation.latitude - driver.latitude) * fraccion,
@@ -200,16 +173,9 @@ class MapaPrevisualizacionSolicitud extends StatelessWidget {
             (rotar
                     // Rotado se mide sobre la ruta completa, no solo sobre los
                     // dos extremos: la traza se curva y con el encuadre de dos
-                    // puntos se salía del recuadro por el costado. Con
-                    // destino, también entra el tramo cliente→destino.
+                    // puntos se salía del recuadro por el costado.
                     ? ProyeccionMercator.boundsZoomRotado(
-                        [
-                          driver,
-                          ...routePoints,
-                          clientLocation,
-                          ...routeDestinoPoints,
-                          ?destino,
-                        ],
+                        [driver, ...routePoints, clientLocation],
                         center: center,
                         rotacionRad: rotacionRad,
                         // Divididos por `factorEscala` porque estas cuentas
@@ -226,19 +192,6 @@ class MapaPrevisualizacionSolicitud extends StatelessWidget {
                         clientLocation,
                         width,
                         height,
-                        margenHorizontal: _margenHorizontal,
-                        margenVertical: _margenVertical,
-                      )
-                    : destino != null
-                    // Sin conductor todavía (GPS sin fix) pero con destino
-                    // conocido: encuadra cliente + destino en vez del zoom
-                    // fijo, que dejaría el destino fuera del cuadro.
-                    ? ProyeccionMercator.boundsZoomRotado(
-                        [clientLocation, ...routeDestinoPoints, destino],
-                        center: center,
-                        rotacionRad: 0,
-                        widthPx: width,
-                        heightPx: height,
                         margenHorizontal: _margenHorizontal,
                         margenVertical: _margenVertical,
                       )
@@ -270,18 +223,6 @@ class MapaPrevisualizacionSolicitud extends StatelessWidget {
                   ])
                 : null;
 
-            // Mismo criterio para el tramo del viaje: la coordenada exacta
-            // del cliente y del destino se anteponen/agregan para que la
-            // traza salga/llegue justo desde/hacia ellos.
-            final String? encodedPathDestino =
-                destino != null && routeDestinoPoints.length >= 2
-                ? _mapService.encodePolyline([
-                    clientLocation,
-                    ...routeDestinoPoints,
-                    destino,
-                  ])
-                : null;
-
             // Rotado el lienzo es el cuadrado de la diagonal; sin rotar, el
             // recuadro tal cual.
             final double lienzoAncho = rotar ? ladoPedido : width;
@@ -295,7 +236,6 @@ class MapaPrevisualizacionSolicitud extends StatelessWidget {
               apiKey: apiKey,
               isDark: Theme.of(context).brightness == Brightness.dark,
               encodedPath: encodedPath,
-              encodedPathDestino: encodedPathDestino,
             );
 
             final mapa = Stack(
@@ -341,16 +281,23 @@ class MapaPrevisualizacionSolicitud extends StatelessWidget {
                   iconSize: _clienteIconSize,
                   child: Transform.rotate(
                     angle: -rotacionRad,
+                    // Persona mientras el objetivo es la recogida; bandera
+                    // cuando ya es el destino (mismo lenguaje visual que la
+                    // preview interactiva).
                     child: Container(
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: AppColores.primary,
+                        color: objetivoEsDestino
+                            ? AppColores.brand200
+                            : AppColores.primary,
                         border: Border.all(color: Colors.white, width: 2),
                       ),
                       alignment: Alignment.center,
-                      child: const Icon(
-                        Icons.person,
-                        color: Colors.white,
+                      child: Icon(
+                        objetivoEsDestino ? Icons.flag : Icons.person,
+                        color: objetivoEsDestino
+                            ? AppColores.primaryDark
+                            : Colors.white,
                         size: 20,
                       ),
                     ),
@@ -380,33 +327,6 @@ class MapaPrevisualizacionSolicitud extends StatelessWidget {
                             : 'assets/img/icono_carro.png',
                         width: _vehicleIconSize,
                         height: _vehicleIconSize,
-                      ),
-                    ),
-                  ),
-                if (destino != null)
-                  _MapaPinOverlay(
-                    offset: ProyeccionMercator.pixelOffset(
-                      center: center,
-                      point: destino,
-                      zoom: zoom,
-                    ),
-                    boxWidth: lienzoAncho,
-                    boxHeight: lienzoAlto,
-                    iconSize: _destinoIconSize,
-                    child: Transform.rotate(
-                      angle: -rotacionRad,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: AppColores.brand200,
-                          border: Border.all(color: Colors.white, width: 2),
-                        ),
-                        alignment: Alignment.center,
-                        child: const Icon(
-                          Icons.flag,
-                          color: AppColores.primaryDark,
-                          size: 16,
-                        ),
                       ),
                     ),
                   ),
@@ -449,17 +369,7 @@ class MapaPrevisualizacionSolicitud extends StatelessWidget {
     required String apiKey,
     required bool isDark,
     String? encodedPath,
-    String? encodedPathDestino,
   }) {
-    // Static Maps admite varios `path=` en la misma URL (uno por tramo) —
-    // `Uri.https` acepta una lista como valor de un query param y repite la
-    // clave por cada elemento.
-    final paths = [
-      if (encodedPath != null)
-        'color:0x${_routePathHex(AppColores.primary)}|weight:5|enc:$encodedPath',
-      if (encodedPathDestino != null)
-        'color:0x${_routePathHex(AppColores.brand200)}|weight:5|enc:$encodedPathDestino',
-    ];
     final uri = Uri.https('maps.googleapis.com', '/maps/api/staticmap', {
       'center': '${center.latitude},${center.longitude}',
       'zoom': zoom.floor().toString(),
@@ -468,16 +378,19 @@ class MapaPrevisualizacionSolicitud extends StatelessWidget {
       'maptype': 'roadmap',
       'key': apiKey,
       if (isDark) 'style': MapStyle.staticMapsQueryParams,
-      if (paths.isNotEmpty) 'path': paths,
+      // Static Maps espera RRGGBBAA (hex, sin '#', alpha al final) — se
+      // arma desde `AppColores.primary` (naranja de marca) en vez de un
+      // hex suelto para no volver a desincronizarse si el color cambia.
+      if (encodedPath != null)
+        'path': 'color:0x${_routePathHex()}|weight:5|enc:$encodedPath',
     });
     return uri.toString();
   }
 
-  /// `RRGGBBAA` (Static Maps) desde un `Color` de Flutter con ~80% opacidad
-  /// — se arma desde la constante de la app en vez de un hex suelto para no
-  /// volver a desincronizarse si el color cambia.
-  String _routePathHex(Color color) {
-    final rgb = (color.toARGB32() & 0xFFFFFF)
+  /// `RRGGBBAA` (Static Maps) desde `AppColores.primary` con ~80% opacidad
+  /// — el `Color` de Flutter guarda alpha primero (`AARRGGBB`).
+  String _routePathHex() {
+    final rgb = (AppColores.primary.toARGB32() & 0xFFFFFF)
         .toRadixString(16)
         .padLeft(6, '0');
     return '${rgb}CC';

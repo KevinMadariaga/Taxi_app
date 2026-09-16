@@ -135,26 +135,48 @@ class _MapaInteractivoPrevisualizacionSolicitudState
 
   Future<void> _fitToPoints() async {
     final controller = _controller;
-    if (controller == null) return;
+    if (controller == null || !mounted) return;
     final puntos = _puntos;
     if (puntos.isEmpty) return;
 
-    _fitIncluyoConductor = widget.driverLocation != null;
+    final incluyeConductor = widget.driverLocation != null;
+    final update = puntos.length < 2
+        ? _mapService.cameraToPosition(puntos.first, zoom: _zoomUnPunto)
+        : _mapService.cameraToBoundsFromPoints(puntos, padding: _paddingCamara);
+    if (update == null) return;
+
+    // `newLatLngBounds` puede fallar si el mapa todavía no tiene su tamaño
+    // final layouteado justo tras `onMapCreated` — un reintento tras un
+    // frame alcanza. Mismo patrón que `mapa_ruta_card.dart` y
+    // `viaje_cliente_screen.dart`, que ya tropezaron con esto.
+    if (await _intentarAnimar(controller, update)) {
+      _fitIncluyoConductor = incluyeConductor;
+      return;
+    }
+    await Future.delayed(const Duration(milliseconds: 300));
+    // El controller pudo quedar obsoleto durante el delay (mapa remontado):
+    // usarlo igual lanza "GoogleMapController ... was used after the
+    // associated GoogleMap widget had already been disposed".
+    if (!mounted || !identical(_controller, controller)) return;
+    if (await _intentarAnimar(controller, update)) {
+      _fitIncluyoConductor = incluyeConductor;
+    }
+    // Si vuelve a fallar NO se marca `_fitIncluyoConductor`: así el
+    // re-encuadre automático de `didUpdateWidget` (cuando llegue el GPS)
+    // sigue disponible en vez de quedar deshabilitado por un intento fallido.
+  }
+
+  Future<bool> _intentarAnimar(
+    GoogleMapController controller,
+    CameraUpdate update,
+  ) async {
     try {
-      if (puntos.length < 2) {
-        await controller.animateCamera(
-          _mapService.cameraToPosition(puntos.first, zoom: _zoomUnPunto),
-        );
-        return;
-      }
-      final update = _mapService.cameraToBoundsFromPoints(
-        puntos,
-        padding: _paddingCamara,
-      );
-      if (update != null) await controller.animateCamera(update);
+      await controller.animateCamera(update);
+      return true;
     } catch (_) {
-      // Best-effort: si falla (bounds degenerados, mapa sin layout aún) el
-      // conductor igual puede encuadrar a mano con gestos.
+      // Best-effort: si falla del todo, el conductor encuadra a mano con
+      // gestos o con el botón de centrar.
+      return false;
     }
   }
 
@@ -240,7 +262,11 @@ class _MapaInteractivoPrevisualizacionSolicitudState
           polylines: polylines,
           onMapCreated: (controller) {
             _controller = controller;
-            _fitToPoints();
+            // Post-frame: `onMapCreated` dispara antes de que el mapa tenga
+            // su tamaño final, y `newLatLngBounds` falla sin layout.
+            WidgetsBinding.instance.addPostFrameCallback(
+              (_) => _fitToPoints(),
+            );
           },
         ),
         Positioned(

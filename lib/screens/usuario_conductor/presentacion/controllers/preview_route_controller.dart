@@ -196,13 +196,15 @@ class PreviewRouteController {
       }
 
       final mapService = const MapService();
-      // Los dos tramos se piden en paralelo y bajo el mismo
-      // `isLoadingPreviewRoute`: ese flag bloquea a propósito el pedido de
-      // la imagen estática hasta tener las trazas (ver comentario en
-      // `MapaPrevisualizacionSolicitud.isLoadingRoute`) — resolverlos juntos
-      // mantiene un solo request a Static Maps en vez de dos y un
-      // crossfade. Que falle el tramo del viaje no debe perder el de
-      // recogida, así que va con su propio catch.
+      // Los dos tramos en paralelo: el conductor decide contra reloj, así
+      // que la traza tiene que aparecer cuanto antes. No se serializan para
+      // "cuidar" el memo de `MapService` (una instancia estática con UN solo
+      // slot, 8 s): el último en escribir es el tramo del viaje en cualquiera
+      // de los dos órdenes, así que la entrada conductor→cliente se desaloja
+      // igual y serializar solo agregaría latencia.
+      //
+      // Que falle el tramo del viaje no debe perder el de recogida, de ahí
+      // su propio catch.
       final results = await Future.wait([
         mapService.getRoutePolyline(effectiveOrigin, dest),
         if (destinoFinal != null)
@@ -212,17 +214,19 @@ class PreviewRouteController {
       ]);
 
       final points = results[0];
+      final pointsDestino = results.length > 1 ? results[1] : const <LatLng>[];
+
+      // La preview pudo cerrarse (o el conductor abrir otra) mientras las
+      // rutas estaban en vuelo: `clearPreviewAndRoutes` ya vació los mapas,
+      // y escribir acá dejaría trazas viejas colgadas para toda la sesión.
+      if (selectedPreview?.solicitud.id != id) return;
+
       if (points.isNotEmpty) {
         setRoute(id, points);
       }
-      if (destinoFinal != null) {
-        final pointsDestino = results.length > 1
-            ? results[1]
-            : const <LatLng>[];
-        if (pointsDestino.isNotEmpty) {
-          routeDestinoPoints[id] = pointsDestino;
-          onChanged?.call();
-        }
+      if (pointsDestino.isNotEmpty) {
+        routeDestinoPoints[id] = pointsDestino;
+        onChanged?.call();
       }
     } catch (e, st) {
       developer.log(

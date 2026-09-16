@@ -47,55 +47,6 @@ class ProyeccionMercator {
     );
   }
 
-  /// Inversa de [project]: de píxeles de mundo (zoom 0) a lat/lng.
-  static LatLng unproject(Offset px) {
-    final double lng = (px.dx - 128.0) * (360.0 / 256.0);
-    final double t = (128.0 - px.dy) * (math.pi / 64.0);
-    final double lat = math.asin(_tanh(t / 2.0)) * 180 / math.pi;
-    return LatLng(lat, lng);
-  }
-
-  static double _tanh(double x) {
-    final double e2x = math.exp(2 * x);
-    return (e2x - 1) / (e2x + 1);
-  }
-
-  /// Centro geográfico del bounding box de [puntos] **medido en el marco de
-  /// pantalla** rotado [rotacionRad] (ver [rotacionParaRumboArriba]).
-  ///
-  /// [boundsZoomRotado] asume que el encuadre es simétrico alrededor del
-  /// centro que se le pasa — con varios puntos (p. ej. recogida + destino,
-  /// no solo conductor↔cliente) un centro heurístico fijo queda descentrado
-  /// y el zoom se desploma para compensar. Este centro es el que de verdad
-  /// encuadra todo al mayor zoom posible.
-  static LatLng centroRotado(List<LatLng> puntos, double rotacionRad) {
-    if (puntos.isEmpty) return const LatLng(0, 0);
-
-    final double cos = math.cos(rotacionRad);
-    final double sin = math.sin(rotacionRad);
-
-    double minX = double.infinity, maxX = -double.infinity;
-    double minY = double.infinity, maxY = -double.infinity;
-    for (final punto in puntos) {
-      final Offset p = project(punto);
-      final double x = p.dx * cos - p.dy * sin;
-      final double y = p.dx * sin + p.dy * cos;
-      minX = math.min(minX, x);
-      maxX = math.max(maxX, x);
-      minY = math.min(minY, y);
-      maxY = math.max(maxY, y);
-    }
-
-    final double cx = (minX + maxX) / 2;
-    final double cy = (minY + maxY) / 2;
-
-    // Des-rotar de vuelta al marco de mundo (rotación inversa).
-    final double worldX = cx * cos + cy * sin;
-    final double worldY = -cx * sin + cy * cos;
-
-    return unproject(Offset(worldX, worldY));
-  }
-
   /// Rumbo en grados (0 = norte, sentido horario) de [from] hacia [to].
   static double bearingDegrees(LatLng from, LatLng to) {
     final lat1 = from.latitude * math.pi / 180;

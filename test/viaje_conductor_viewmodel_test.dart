@@ -508,9 +508,27 @@ void main() {
   group('puedeTerminarViaje', () {
     // Gate de 80m para "Terminar viaje" — sin esto el botón quedaba tocable
     // apenas arrancaba el tramo al destino, mucho antes de llegar de verdad.
-    test('false sin viaje cargado', () {
+    // Fail-open cuando no hay cómo medir: bloquear ahí dejaría el viaje
+    // imposible de cerrar (el conductor no tiene botón de cancelar).
+    test('true sin viaje cargado', () {
       final f = _Fixture();
-      expect(f.vm.puedeTerminarViaje, isFalse);
+      expect(f.vm.puedeTerminarViaje, isTrue);
+    });
+
+    test('true si el destino no trae coordenadas', () {
+      final f = _Fixture();
+      f.vm.viaje = ViajeEntity(
+        id: 'v1',
+        estado: SolicitudEstado.enRuta,
+        cliente: _participante,
+        conductor: _participante,
+        // `destino` guardado como GeoPoint o sin lat/lng en Firestore
+        // (`viaje_model._destinoFromMap` lo deja en null).
+        destino: DestinoViajeEntity.vacio,
+        updatedAt: DateTime(2026, 1, 1),
+      );
+
+      expect(f.vm.puedeTerminarViaje, isTrue);
     });
 
     test('false a >80m del destino', () {

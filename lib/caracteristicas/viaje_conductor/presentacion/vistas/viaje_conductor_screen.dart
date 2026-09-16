@@ -513,6 +513,13 @@ class _ViajeConductorScreenState extends State<ViajeConductorScreen>
                                   // objetivo arriba, para que la traza se lea
                                   // como "voy hacia allá" y no norte-arriba.
                                   orientarHaciaCliente: true,
+                                  // En el tramo al destino, `objetivo` ya NO
+                                  // es el cliente sino el punto de bajada:
+                                  // el badge tiene que ser bandera, no
+                                  // persona.
+                                  objetivoEsDestino:
+                                      _vm.tramoActual ==
+                                      TramoViajeConductor.destino,
                                 )
                               : Container(color: context.palette.grey300),
                         ),
