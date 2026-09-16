@@ -6,7 +6,9 @@ import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/presentacion/vistas/home_screen.dart';
+import 'package:taxi_app/core/app_navigator.dart';
 import 'package:taxi_app/core/services/services.dart';
+import 'package:taxi_app/core/utils/error_reporter.dart';
 
 class EliminarCuentaScreen extends StatefulWidget {
   const EliminarCuentaScreen({Key? key}) : super(key: key);
@@ -48,6 +50,23 @@ class _EliminarCuentaScreenState extends State<EliminarCuentaScreen> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  /// Aviso para después de que esta pantalla se desmontó: el flujo de borrado
+  /// navega fuera ANTES de tocar Auth, así que `context` ya no sirve. Se usa
+  /// el navigator global, el mismo que ya usan `FcmService` y `main.dart`.
+  void _avisarBorradoIncompleto() {
+    final ctx = appNavigatorKey.currentContext;
+    if (ctx == null) return;
+    ScaffoldMessenger.of(ctx).showSnackBar(
+      const SnackBar(
+        duration: Duration(seconds: 8),
+        content: Text(
+          'Tus datos se eliminaron, pero la cuenta sigue activa: vuelve a '
+          'iniciar sesión y elimínala de nuevo para cerrarla del todo.',
+        ),
+      ),
+    );
   }
 
   /// Modal no descartable con el progreso del borrado — reemplaza el texto
@@ -109,12 +128,50 @@ class _EliminarCuentaScreenState extends State<EliminarCuentaScreen> {
       // Sin `context` de acá en adelante: este State ya fue desmontado.
       try {
         await user.delete();
-      } on FirebaseAuthException {
-        // Si Firebase exige reautenticación reciente, no bloqueamos el flujo
-        // para completar la salida inmediata solicitada por el usuario.
+      } on FirebaseAuthException catch (e, st) {
+        // Firebase exige login reciente para borrar la cuenta
+        // (`requires-recent-login`), y acá ya no se puede bloquear el flujo:
+        // el doc de Firestore YA se borró y la pantalla ya se desmontó.
+        //
+        // Antes esto se tragaba en silencio y dejaba una cuenta zombi: perfil
+        // borrado pero cuenta de Auth viva, así que en el próximo login
+        // `FcmService._persistToken` recreaba `usuarios/{uid}` con un
+        // `set(merge:true)` y el usuario volvía a existir, vacío. Ahora al
+        // menos queda reportado y el usuario se entera de que tiene que
+        // reintentar.
+        //
+        // El arreglo de fondo es mover el borrado a una Cloud Function con
+        // Admin SDK (`deleteUser` no necesita login reciente) y anonimizar en
+        // vez de borrar, para no dejar los viajes apuntando a un usuario
+        // inexistente.
+        ErrorReporter.report(
+          e,
+          st,
+          reason:
+              'EliminarCuentaScreen: perfil borrado pero la cuenta de Auth '
+              'sigue viva (${e.code})',
+        );
+        _avisarBorradoIncompleto();
       }
 
       await AuthService().logout();
+    } on FirebaseException catch (e) {
+      _cerrarDialogoEliminando();
+      // `permission-denied` acá es la cuenta deshabilitada por un admin:
+      // `firestore.rules` le niega el borrado de su propio doc a propósito,
+      // para que no pueda limpiarse el bloqueo borrando y recreando el
+      // perfil. Reintentar no va a servir nunca, así que el mensaje no puede
+      // decir "intenta de nuevo".
+      if (e.code == 'permission-denied') {
+        _showMessage(
+          'Tu cuenta está suspendida y no puede eliminarse desde la app. '
+          'Escríbenos por Ayuda para resolverlo.',
+        );
+      } else {
+        _showMessage(
+          'Ocurrió un error al eliminar la cuenta. Intenta de nuevo.',
+        );
+      }
     } catch (_) {
       _cerrarDialogoEliminando();
       _showMessage('Ocurrió un error al eliminar la cuenta. Intenta de nuevo.');
