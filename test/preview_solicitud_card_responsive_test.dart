@@ -15,7 +15,7 @@ import 'package:taxi_app/data/models/solicitud_item.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodels/preview_solicitud.dart';
 import 'package:taxi_app/widgets/preview_solicitud/preview_solicitud_card.dart';
 import 'package:taxi_app/widgets/preview_solicitud/widgets/acciones_solicitud_buttons.dart';
-import 'package:taxi_app/widgets/preview_solicitud/widgets/mapa_previsualizacion_solicitud.dart';
+import 'package:taxi_app/widgets/preview_solicitud/widgets/mapa_interactivo_previsualizacion_solicitud.dart';
 
 import 'test_helpers/firebase_test_setup.dart';
 
@@ -56,6 +56,7 @@ void main() {
     required double paddingBottom,
     bool comentario = true,
     bool contraoferta = false,
+    bool destino = false,
   }) async {
     addTearDown(tester.view.reset);
     tester.view.physicalSize = size;
@@ -83,6 +84,7 @@ void main() {
               contraoferta: contraoferta,
             ),
             driverLocation: const LatLng(10.51, -66.91),
+            destinoLocation: destino ? const LatLng(10.55, -66.95) : null,
             onClose: () {},
             onAccept: () {},
             onCounterOffer: () {},
@@ -215,7 +217,7 @@ void main() {
           // que ese hueco debería ser solo el padding superior del panel
           // (12.h ScreenUtil ≈ 12-18px reales según el tamaño de pantalla).
           final mapaBottom = tester
-              .getRect(find.byType(MapaPrevisualizacionSolicitud))
+              .getRect(find.byType(MapaInteractivoPrevisualizacionSolicitud))
               .bottom;
           final cardTop = tester
               .getRect(find.byKey(const Key('preview_solicitud_cliente_card')))
@@ -232,4 +234,39 @@ void main() {
       }
     }
   }
+
+  testWidgets(
+    'con destinoLocation, el split mapa/panel no cambia de alto',
+    (tester) async {
+      const size = Size(390, 844);
+      const viewPaddingBottom = 34.0;
+      const statusBarTop = 47.0;
+
+      await pumpCard(
+        tester,
+        size: size,
+        viewPaddingBottom: viewPaddingBottom,
+        statusBarTop: statusBarTop,
+        paddingBottom: 0,
+      );
+      final alturaSinDestino = tester
+          .getRect(find.byType(MapaInteractivoPrevisualizacionSolicitud))
+          .height;
+
+      await pumpCard(
+        tester,
+        size: size,
+        viewPaddingBottom: viewPaddingBottom,
+        statusBarTop: statusBarTop,
+        paddingBottom: 0,
+        destino: true,
+      );
+      expect(tester.takeException(), isNull);
+      final alturaConDestino = tester
+          .getRect(find.byType(MapaInteractivoPrevisualizacionSolicitud))
+          .height;
+
+      expect(alturaConDestino, alturaSinDestino);
+    },
+  );
 }

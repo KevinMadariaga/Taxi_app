@@ -10,16 +10,16 @@ import 'widgets/acciones_solicitud_buttons.dart';
 import 'widgets/cliente_header_row.dart';
 import 'widgets/comentario_cliente_box.dart';
 import 'widgets/info_recogida_pago_row.dart';
-import 'widgets/mapa_previsualizacion_solicitud.dart';
+import 'widgets/mapa_interactivo_previsualizacion_solicitud.dart';
 import 'widgets/precio_oferta_box.dart';
 
 /// Tarjeta de previsualización de una solicitud, para que el conductor
 /// decida aceptarla o contraofertar sin salir del mapa principal.
 ///
-/// Mitad superior: mapa estático (Google Static Maps) con la perspectiva
-/// del conductor hacia el cliente — encuadra ambos puntos y marca el
-/// vehículo del conductor + el pin de marca (`map_pin_red.png`) sobre la
-/// ubicación del cliente (ver [MapaPrevisualizacionSolicitud]).
+/// Mitad superior: `GoogleMap` interactivo (gestos de pan/zoom + botón para
+/// recentrar) con el vehículo del conductor, un badge de persona sobre la
+/// ubicación del cliente y, si se conoce, la bandera del destino (ver
+/// [MapaInteractivoPrevisualizacionSolicitud]).
 ///
 /// Mitad inferior: datos del cliente (foto, nombre, distancia), punto de
 /// recogida, método de pago, valor ofrecido/contraofertado, comentario y
@@ -38,7 +38,8 @@ class PreviewSolicitudCard extends StatelessWidget {
     this.clientPhotoUrl,
     this.isMoto = false,
     this.routePoints = const [],
-    this.isLoadingRoute = false,
+    this.destinoLocation,
+    this.routeDestinoPoints = const [],
     this.isAcceptLoading = false,
     required this.onClose,
     required this.onAccept,
@@ -57,11 +58,15 @@ class PreviewSolicitudCard extends StatelessWidget {
   /// calcula o si no hay ubicación del conductor todavía.
   final List<LatLng> routePoints;
 
-  /// `true` mientras se resuelve la ruta OSRM conductor→cliente — el mapa
-  /// se mantiene en placeholder hasta que se resuelve (con o sin ruta) para
-  /// no pedir la imagen estática dos veces (una sin traza, otra con traza
-  /// apenas llega) — ver [MapaPrevisualizacionSolicitud].
-  final bool isLoadingRoute;
+  /// Destino final del viaje (a dónde el conductor debe dejar al cliente) —
+  /// `null` si la solicitud no lo trae. Con valor, el mapa dibuja también el
+  /// tramo cliente→destino para que el conductor vea el viaje completo
+  /// antes de aceptar.
+  final LatLng? destinoLocation;
+
+  /// Ruta real (OSRM) cliente→destino ya resuelta — mismo criterio que
+  /// [routePoints] para el segundo tramo del viaje.
+  final List<LatLng> routeDestinoPoints;
 
   /// Determina qué ícono de vehículo se dibuja en el mapa (carro/moto) —
   /// viene del perfil del conductor, no de la solicitud.
@@ -166,19 +171,13 @@ class PreviewSolicitudCard extends StatelessWidget {
             child: Stack(
               children: [
                 Positioned.fill(
-                  child: MapaPrevisualizacionSolicitud(
+                  child: MapaInteractivoPrevisualizacionSolicitud(
                     driverLocation: driverLocation,
                     clientLocation: clientLocation,
                     isMoto: isMoto,
                     routePoints: routePoints,
-                    isLoadingRoute: isLoadingRoute,
-                    // Mismo criterio que el mapa del viaje ya en curso: la
-                    // imagen rota para que el rumbo conductor→cliente quede
-                    // arriba (brújula), en vez de norte-arriba fijo — sin
-                    // `heading` propio (la preview no tiene rumbo de ruta
-                    // real todavía), cae al rumbo en línea recta
-                    // conductor→cliente.
-                    orientarHaciaCliente: true,
+                    destinoLocation: destinoLocation,
+                    routeDestinoPoints: routeDestinoPoints,
                   ),
                 ),
                 // Flecha de volver flotando — reemplaza al `AppBar` fijo,

@@ -504,4 +504,51 @@ void main() {
       expect(f.vm.errorText, isNull);
     });
   });
+
+  group('puedeTerminarViaje', () {
+    // Gate de 80m para "Terminar viaje" — sin esto el botón quedaba tocable
+    // apenas arrancaba el tramo al destino, mucho antes de llegar de verdad.
+    test('false sin viaje cargado', () {
+      final f = _Fixture();
+      expect(f.vm.puedeTerminarViaje, isFalse);
+    });
+
+    test('false a >80m del destino', () {
+      final f = _Fixture();
+      // `_participante` (conductor incluido) está en LatLng(4.60, -74.08),
+      // a varios km del destino LatLng(4.65, -74.05) de `_viaje`.
+      f.vm.viaje = _viaje(SolicitudEstado.enRuta);
+
+      expect(f.vm.puedeTerminarViaje, isFalse);
+    });
+
+    test('true a pocos metros del destino', () {
+      final f = _Fixture();
+      final conductorCerca = ParticipanteViajeEntity(
+        id: _participante.id,
+        nombre: _participante.nombre,
+        fotoUrl: _participante.fotoUrl,
+        fotoVehiculoUrl: _participante.fotoVehiculoUrl,
+        placaVehiculo: _participante.placaVehiculo,
+        calificacion: _participante.calificacion,
+        totalCalificaciones: _participante.totalCalificaciones,
+        direccion: _participante.direccion,
+        // ~7-8m del destino LatLng(4.65, -74.05) — dentro del radio de 80m.
+        ubicacion: const LatLng(4.65005, -74.05005),
+      );
+      f.vm.viaje = ViajeEntity(
+        id: 'v1',
+        estado: SolicitudEstado.enRuta,
+        cliente: _participante,
+        conductor: conductorCerca,
+        destino: const DestinoViajeEntity(
+          direccion: 'Destino',
+          ubicacion: LatLng(4.65, -74.05),
+        ),
+        updatedAt: DateTime(2026, 1, 1),
+      );
+
+      expect(f.vm.puedeTerminarViaje, isTrue);
+    });
+  });
 }

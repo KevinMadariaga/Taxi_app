@@ -443,7 +443,13 @@ class _ViajeConductorScreenState extends State<ViajeConductorScreen>
     return PopScope(
       canPop: false,
       child: Scaffold(
-        backgroundColor: context.palette.background,
+        // `cardBackground`, no `background`: lo único que se ve de este
+        // color es la franja bajo la barra de estado (el `SafeArea` de más
+        // abajo la reserva, y el mapa se queda con todo el resto). Con
+        // `background` esa franja quedaba de un color distinto al de
+        // `DriverTripCard`, que arranca justo debajo — se leía como una
+        // banda suelta arriba de la tarjeta.
+        backgroundColor: context.palette.cardBackground,
         body: AnimatedBuilder(
           animation: _vm,
           builder: (context, _) {

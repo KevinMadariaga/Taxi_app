@@ -282,20 +282,18 @@ class _VehiculoChip extends StatelessWidget {
         ),
         if (placa.isNotEmpty) ...[
           const SizedBox(height: 4),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            decoration: BoxDecoration(
-              color: context.palette.textPrimary,
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Text(
-              placa.toUpperCase(),
-              style: const TextStyle(
-                color: AppColores.textWhite,
-                fontWeight: FontWeight.w800,
-                fontSize: 12,
-                letterSpacing: 1,
-              ),
+          // Sin recuadro: mismo tratamiento que la placa de la card
+          // principal del viaje (`conductor_vehiculo_info.dart`) — texto
+          // plano sobre `ink900`, que ya invierte solo con el tema
+          // (near-negro en claro, near-blanco en oscuro). La versión con
+          // caja necesitaba fijar dos colores a mano y en oscuro se leía
+          // mal contra el fondo del sheet.
+          Text(
+            placa.toUpperCase(),
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 15,
+              color: context.palette.ink900,
             ),
           ),
         ],

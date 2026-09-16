@@ -336,17 +336,21 @@ class _SeleccionDestinoScreenState extends State<SeleccionDestinoScreen> {
                                       crossAxisAlignment:
                                           CrossAxisAlignment.stretch,
                                       children: [
-                                        if (vm.historial.isNotEmpty) ...[
-                                          _HistorialSection(
-                                            historial: vm.historial,
-                                            onTap: _tapHistorial,
-                                          ),
-                                          SizedBox(height: 8.h),
-                                        ],
+                                        // Favoritos/pegar ubicación primero,
+                                        // debajo de "Tu Destino"; el
+                                        // historial va después de esos
+                                        // botones, no antes.
                                         _AccionesSection(
                                           onFavoritos: _tapFavoritos,
                                           onPegarUbicacion: _tapPegarUbicacion,
                                         ),
+                                        if (vm.historial.isNotEmpty) ...[
+                                          SizedBox(height: 8.h),
+                                          _HistorialSection(
+                                            historial: vm.historial,
+                                            onTap: _tapHistorial,
+                                          ),
+                                        ],
                                       ],
                                     ),
                                   ),

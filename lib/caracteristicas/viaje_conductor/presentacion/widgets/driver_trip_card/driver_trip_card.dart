@@ -102,10 +102,15 @@ class _DriverTripCardState extends State<DriverTripCard>
       );
     }
     if (estado == SolicitudEstado.enRuta) {
+      // Gate por distancia (80m, ver `puedeTerminarViaje`): sin esto el
+      // conductor podía tocar "Terminar viaje" apenas arrancaba la ruta,
+      // mucho antes de llegar de verdad, cerrando la solicitud recién
+      // empezada.
+      final dentroDeRango = vm.puedeTerminarViaje;
       return (
-        label: 'Terminar viaje',
+        label: dentroDeRango ? 'Terminar viaje' : 'Acércate para terminar el viaje',
         icon: Icons.flag_rounded,
-        onTap: widget.onTerminarViaje,
+        onTap: dentroDeRango ? widget.onTerminarViaje : null,
         pastel: false,
       );
     }

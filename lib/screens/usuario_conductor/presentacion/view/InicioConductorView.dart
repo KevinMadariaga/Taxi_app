@@ -962,10 +962,22 @@ class _InicioConductorState extends State<InicioConductor>
                                                                       preview,
                                                                     ),
                                                                   );
+                                                                  final destino =
+                                                                      s.ubicacionDestino;
                                                                   vm.fetchRouteOSRM(
                                                                     s.id,
                                                                     driver,
                                                                     client,
+                                                                    destinoFinal:
+                                                                        destino !=
+                                                                            null
+                                                                        ? LatLng(
+                                                                            destino
+                                                                                .latitude,
+                                                                            destino
+                                                                                .longitude,
+                                                                          )
+                                                                        : null,
                                                                   );
                                                                 } else {
                                                                   unawaited(
@@ -1129,14 +1141,33 @@ class _InicioConductorState extends State<InicioConductor>
                                         return PreviewSolicitudCard(
                                           preview: preview,
                                           driverLocation: driverLocation,
-                                          isLoadingRoute:
-                                              vm.isLoadingPreviewRoute,
                                           isMoto:
                                               vm.tipoVehiculoConductor
                                                   ?.toLowerCase() ==
                                               'moto',
                                           routePoints:
                                               vm.routePoints[preview
+                                                  .solicitud
+                                                  .id] ??
+                                              const [],
+                                          destinoLocation:
+                                              preview
+                                                      .solicitud
+                                                      .ubicacionDestino !=
+                                                  null
+                                              ? LatLng(
+                                                  preview
+                                                      .solicitud
+                                                      .ubicacionDestino!
+                                                      .latitude,
+                                                  preview
+                                                      .solicitud
+                                                      .ubicacionDestino!
+                                                      .longitude,
+                                                )
+                                              : null,
+                                          routeDestinoPoints:
+                                              vm.routeDestinoPoints[preview
                                                   .solicitud
                                                   .id] ??
                                               const [],

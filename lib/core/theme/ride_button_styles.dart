@@ -80,12 +80,22 @@ class RidePrimaryButton extends StatelessWidget {
                     Icon(icon, size: 18, color: contentColor),
                     const SizedBox(width: 8),
                   ],
-                  Text(
-                    text,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: contentColor,
+                  // `Flexible` (no `Expanded`): un label corto se queda a su
+                  // ancho natural y centrado junto al ícono; uno largo (esta
+                  // acción cambia de texto según la fase — "Ya llegué",
+                  // "Acércate para terminar el viaje"...) se achica en vez
+                  // de desbordar el botón en pantallas angostas.
+                  Flexible(
+                    child: Text(
+                      text,
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: contentColor,
+                      ),
                     ),
                   ),
                 ],

@@ -663,7 +663,11 @@ class _InicioClienteViewState extends State<InicioClienteView>
       child: Scaffold(
         extendBodyBehindAppBar: true,
         key: _scaffoldKey,
-        backgroundColor: context.palette.background,
+        // Mismo color que la franja de la barra de estado (el `Container` de
+        // `padding.top` de más abajo y `_applyOverlayStyle`, ambos en
+        // `surface`): con `background` se veía una costura entre la barra de
+        // notificaciones y el contenido justo debajo.
+        backgroundColor: context.palette.surface,
         body: Stack(
           children: [
             Container(

@@ -21,12 +21,13 @@ class InfoRecogidaPagoRow extends StatelessWidget {
     return '${lower[0].toUpperCase()}${lower.substring(1)}';
   }
 
+  static bool _esNequi(String? metodo) =>
+      (metodo ?? '').toLowerCase().contains('nequi');
+
   static IconData _iconoMetodo(String? metodo) {
     final lower = (metodo ?? '').toLowerCase();
     if (lower.contains('efectivo')) return Icons.attach_money;
-    if (lower.contains('transfer') || lower.contains('nequi')) {
-      return Icons.credit_card;
-    }
+    if (lower.contains('transfer')) return Icons.credit_card;
     return Icons.payment;
   }
 
@@ -62,11 +63,26 @@ class InfoRecogidaPagoRow extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  Icon(
-                    _iconoMetodo(metodoPago),
-                    color: AppColores.primary,
-                    size: 15,
-                  ),
+                  _esNequi(metodoPago)
+                      ? Container(
+                          width: 16,
+                          height: 16,
+                          padding: const EdgeInsets.all(1.5),
+                          decoration: const BoxDecoration(
+                            // El logo de Nequi lleva navy sólido en el
+                            // centro: sobre un fondo oscuro se pierde, así
+                            // que el chip lleva blanco fijo — mismo criterio
+                            // que `metodo_pago_card.dart`.
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Image.asset('assets/img/nequi.png'),
+                        )
+                      : Icon(
+                          _iconoMetodo(metodoPago),
+                          color: AppColores.primary,
+                          size: 15,
+                        ),
                   const SizedBox(width: 4),
                   Flexible(
                     child: Text(

@@ -230,6 +230,8 @@ class InicioConductorViewmodel extends ChangeNotifier {
   PreviewSolicitud? get selectedPreview => _previewController.selectedPreview;
   bool get isMapExpanded => _previewController.isMapExpanded;
   Map<String, List<LatLng>> get routePoints => _previewController.routePoints;
+  Map<String, List<LatLng>> get routeDestinoPoints =>
+      _previewController.routeDestinoPoints;
   Set<Polyline> get routePolylines => _previewController.routePolylines;
   Set<Marker> get extraMarkers => _previewController.extraMarkers;
   bool get isLoadingPreviewRoute => _previewController.isLoadingPreviewRoute;
@@ -253,8 +255,17 @@ class InicioConductorViewmodel extends ChangeNotifier {
   void setRoute(String id, List<LatLng> points) =>
       _previewController.setRoute(id, points);
 
-  Future<void> fetchRouteOSRM(String id, LatLng origin, LatLng dest) =>
-      _previewController.fetchRouteOSRM(id, origin, dest);
+  Future<void> fetchRouteOSRM(
+    String id,
+    LatLng origin,
+    LatLng dest, {
+    LatLng? destinoFinal,
+  }) => _previewController.fetchRouteOSRM(
+    id,
+    origin,
+    dest,
+    destinoFinal: destinoFinal,
+  );
 
   CameraPosition? getCameraPerspectiveForPreview() =>
       _previewController.getCameraPerspectiveForPreview();

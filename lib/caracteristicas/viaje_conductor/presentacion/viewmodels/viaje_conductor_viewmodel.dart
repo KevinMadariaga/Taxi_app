@@ -182,6 +182,20 @@ class ViajeConductorViewModel extends ChangeNotifier {
     return _mathService.haversineMeters(driver, objetivo) <= _radioLlegadaMetros;
   }
 
+  /// Radio dentro del cual el conductor puede terminar el viaje en el
+  /// destino — evita que el botón quede tocable apenas arranca el tramo,
+  /// mucho antes de llegar de verdad (cerraba la solicitud recién
+  /// empezada).
+  static const double _radioTerminarViajeMetros = 80;
+
+  bool get puedeTerminarViaje {
+    final driver = driverLatLng;
+    final objetivo = objetivoActual;
+    if (driver == null || objetivo == null) return false;
+    return _mathService.haversineMeters(driver, objetivo) <=
+        _radioTerminarViajeMetros;
+  }
+
   String get distanceText =>
       distanceMeters == null ? '--' : _ruta.formatearDistancia(distanceMeters!);
   String get etaText => eta == null ? '--' : _ruta.formatearEta(eta!);

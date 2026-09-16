@@ -28,6 +28,12 @@ class PreviewRouteController {
   PreviewSolicitud? selectedPreview;
   bool isMapExpanded = false;
   final Map<String, List<LatLng>> routePoints = {};
+
+  /// Ruta real (OSRM) cliente→destino, por solicitud — segundo tramo del
+  /// viaje que se muestra junto al de recogida en la preview (ver
+  /// `MapaPrevisualizacionSolicitud`). Vacía mientras se calcula, si falló,
+  /// o si la solicitud no trae destino.
+  final Map<String, List<LatLng>> routeDestinoPoints = {};
   final Set<Polyline> routePolylines = {};
   final Set<Marker> extraMarkers = {};
   bool isLoadingPreviewRoute = false;
@@ -101,6 +107,7 @@ class PreviewRouteController {
     selectedPreview = null;
     isMapExpanded = false;
     routePoints.clear();
+    routeDestinoPoints.clear();
     routePolylines.removeWhere((p) => p.polylineId.value.startsWith('route_'));
     extraMarkers.removeWhere((m) => m.markerId.value == 'driver');
     onChanged?.call();
@@ -159,7 +166,12 @@ class PreviewRouteController {
     onChanged?.call();
   }
 
-  Future<void> fetchRouteOSRM(String id, LatLng origin, LatLng dest) async {
+  Future<void> fetchRouteOSRM(
+    String id,
+    LatLng origin,
+    LatLng dest, {
+    LatLng? destinoFinal,
+  }) async {
     isLoadingPreviewRoute = true;
     onChanged?.call();
     try {
@@ -184,9 +196,33 @@ class PreviewRouteController {
       }
 
       final mapService = const MapService();
-      final points = await mapService.getRoutePolyline(effectiveOrigin, dest);
+      // Los dos tramos se piden en paralelo y bajo el mismo
+      // `isLoadingPreviewRoute`: ese flag bloquea a propósito el pedido de
+      // la imagen estática hasta tener las trazas (ver comentario en
+      // `MapaPrevisualizacionSolicitud.isLoadingRoute`) — resolverlos juntos
+      // mantiene un solo request a Static Maps en vez de dos y un
+      // crossfade. Que falle el tramo del viaje no debe perder el de
+      // recogida, así que va con su propio catch.
+      final results = await Future.wait([
+        mapService.getRoutePolyline(effectiveOrigin, dest),
+        if (destinoFinal != null)
+          mapService
+              .getRoutePolyline(dest, destinoFinal)
+              .catchError((_) => const <LatLng>[]),
+      ]);
+
+      final points = results[0];
       if (points.isNotEmpty) {
         setRoute(id, points);
+      }
+      if (destinoFinal != null) {
+        final pointsDestino = results.length > 1
+            ? results[1]
+            : const <LatLng>[];
+        if (pointsDestino.isNotEmpty) {
+          routeDestinoPoints[id] = pointsDestino;
+          onChanged?.call();
+        }
       }
     } catch (e, st) {
       developer.log(
