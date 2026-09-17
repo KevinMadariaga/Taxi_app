@@ -12,6 +12,26 @@ import 'package:taxi_app/core/constants/estado_contraoferta.dart';
 import 'package:taxi_app/core/constants/solicitud_estado.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
 
+/// Un conductor conectado, tal como lo ve el cliente en el mapa de búsqueda.
+///
+/// Trae el tipo de vehículo porque el cliente NO puede resolverlo de
+/// `usuarios/{uid}`: las reglas solo lo dejan leer su propio documento. Lo
+/// escribe el conductor en su propio doc de `conductores_conectados`.
+class ConductorConectado {
+  const ConductorConectado({
+    required this.ubicacion,
+    required this.isMoto,
+    required this.visto,
+  });
+
+  final LatLng ubicacion;
+  final bool isMoto;
+
+  /// `updatedAt` del documento: última señal de vida. Se usa para decidir si
+  /// el conductor sigue contando como activo.
+  final DateTime visto;
+}
+
 /// Contraoferta individual de un conductor.
 class ContraofertaItem {
   final String conductorId;
@@ -86,7 +106,29 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
   // (avisar 5min, cancelar tras 6min en background/2s tras detached) fuera de
   // MVVM. Acá el vm posee la suscripción y el timer completos.
   Map<String, LatLng> conductoresPositions = {};
-  Map<String, LatLng> conectadosPositions = {};
+
+  /// Último snapshot de `conductores_conectados`, sin filtrar por frescura.
+  /// Para dibujar en el mapa usar [conductoresActivos], no esto.
+  Map<String, ConductorConectado> conectados = {};
+
+  /// Cuánto vale una señal de vida. El conductor conectado late cada 2 min
+  /// (`InicioConductorViewmodel._intervaloRefrescoUbicacion`), así que 5
+  /// tolera un latido perdido sin mostrar a alguien que ya se fue.
+  static const Duration ventanaConductorActivo = Duration(minutes: 5);
+
+  /// Los que siguen contando como activos AHORA.
+  ///
+  /// Se filtra al leer y no al recibir el snapshot a propósito: los
+  /// snapshots solo llegan cuando alguien escribe, así que si se filtrara
+  /// ahí, el último conductor en desconectarse quedaría dibujado para
+  /// siempre. La vista se reconstruye cada segundo con el timer de búsqueda,
+  /// y en cada reconstrucción esto se vuelve a evaluar.
+  List<ConductorConectado> get conductoresActivos {
+    final ahora = DateTime.now();
+    return conectados.values
+        .where((c) => ahora.difference(c.visto) <= ventanaConductorActivo)
+        .toList(growable: false);
+  }
   int searchSeconds = 0;
   bool flujoTerminado = false;
 
@@ -114,7 +156,8 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
   bool debeCancelarPorNoResponder = false;
 
   StreamSubscription<Map<String, LatLng>>? _conductoresSub;
-  StreamSubscription<Map<String, LatLng>>? _conductoresConectadosSub;
+  StreamSubscription<Map<String, ConductorConectado>>?
+  _conductoresConectadosSub;
   Timer? _searchTimer;
   Timer? _bgCancelTimer;
   Timer? _detachedCancelTimer;
@@ -879,7 +922,7 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
     _conductoresConectadosSub = streamConductoresConectados().listen((
       positions,
     ) {
-      conectadosPositions = Map<String, LatLng>.from(positions);
+      conectados = Map<String, ConductorConectado>.from(positions);
       _safeNotify();
     }, onError: (Object e, StackTrace st) {
       ErrorReporter.report(e, st, reason: 'buscando_taxi_viewmodel');
@@ -1105,36 +1148,49 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
         });
   }
 
-  Stream<Map<String, LatLng>> streamConductoresConectados() {
+  Stream<Map<String, ConductorConectado>> streamConductoresConectados() {
     // La colección nunca borra el doc de un conductor al desconectarse, solo
     // se sobrescribe su updatedAt/ubicacion. Sin este filtro server-side el
     // listener descarga TODOS los conductores que alguna vez se conectaron
-    // (crece sin límite). Se acota a "hoy" igual que ya hacía _isFromToday,
-    // pero antes de bajar la data en vez de después.
-    final inicioHoy = DateTime.now();
+    // (crece sin límite). Se acota a "hoy" antes de bajar la data.
+    //
+    // El filtro FINO (5 min) NO va acá: este `desde` se calcula una sola vez,
+    // al crear el stream, así que envejecería junto con la pantalla — a la
+    // media hora de búsqueda estaría dejando pasar conductores de hace 35
+    // minutos. La frescura real se evalúa al leer, en [conductoresActivos].
+    final ahora = DateTime.now();
     final desde = Timestamp.fromDate(
-      DateTime(inicioHoy.year, inicioHoy.month, inicioHoy.day),
+      DateTime(ahora.year, ahora.month, ahora.day),
     );
     return _firestore
         .collection('conductores_conectados')
         .where('updatedAt', isGreaterThanOrEqualTo: desde)
         .snapshots()
         .map((snap) {
-          final positions = <String, LatLng>{};
+          final conectados = <String, ConductorConectado>{};
           for (final doc in snap.docs) {
             final data = doc.data();
-            if (!_isFromToday(data['updatedAt'] as Timestamp?)) continue;
+            final updatedAt = data['updatedAt'] as Timestamp?;
+            if (updatedAt == null || !_isFromToday(updatedAt)) continue;
             final ubicacion = data['ubicacion'];
             if (ubicacion is! Map) continue;
             final lat = ubicacion['lat'] ?? ubicacion['latitude'];
             final lng = ubicacion['lng'] ?? ubicacion['longitude'];
             if (lat == null || lng == null) continue;
-            positions[doc.id] = LatLng(
-              (lat as num).toDouble(),
-              (lng as num).toDouble(),
+            conectados[doc.id] = ConductorConectado(
+              ubicacion: LatLng(
+                (lat as num).toDouble(),
+                (lng as num).toDouble(),
+              ),
+              // Los docs escritos antes de que se guardara el tipo no lo
+              // traen: caen a carro, que es el caso mayoritario.
+              isMoto:
+                  (data['tipoVehiculo']?.toString() ?? '').toLowerCase() ==
+                  'moto',
+              visto: updatedAt.toDate(),
             );
           }
-          return positions;
+          return conectados;
         });
   }
 }

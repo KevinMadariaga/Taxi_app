@@ -865,12 +865,27 @@ class InicioConductorViewmodel extends ChangeNotifier {
   }
 
   /// Guarda la ubicación del conductor en conductores_conectados.
-  Future<void> guardarUbicacionConectado(LatLng location) async {
+  ///
+  /// Con [soloLatido] escribe únicamente `updatedAt` (y el tipo de vehículo),
+  /// sin tocar `ubicacion`: es el caso del conductor conectado pero quieto,
+  /// que no movió lo suficiente como para republicar su posición pero SÍ
+  /// sigue disponible. El cliente filtra esta colección por frescura, así que
+  /// sin ese latido el conductor parado —el más disponible de todos— se caía
+  /// del mapa.
+  ///
+  /// `tipoVehiculo` va en el documento porque el cliente no puede leerlo de
+  /// `usuarios/{uid}`: las reglas solo le permiten leer su propio doc.
+  Future<void> guardarUbicacionConectado(
+    LatLng location, {
+    bool soloLatido = false,
+  }) async {
     final uid = _auth.currentUser?.uid;
     if (uid == null) return;
     try {
       await _firestore.collection('conductores_conectados').doc(uid).set({
-        'ubicacion': {'lat': location.latitude, 'lng': location.longitude},
+        if (!soloLatido)
+          'ubicacion': {'lat': location.latitude, 'lng': location.longitude},
+        'tipoVehiculo': tipoVehiculoConductor ?? '',
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     } catch (e, st) {
@@ -922,14 +937,17 @@ class InicioConductorViewmodel extends ChangeNotifier {
       final actual = LatLng(pos.latitude, pos.longitude);
 
       final previa = _ultimaUbicacionPublicada;
-      if (previa != null &&
-          MapHelper.distanceMeters(previa, actual) < _minMetrosParaRepublicar) {
-        return;
-      }
+      final seMovio =
+          previa == null ||
+          MapHelper.distanceMeters(previa, actual) >= _minMetrosParaRepublicar;
 
       currentLocation = actual;
-      await guardarUbicacionConectado(actual);
-      _ultimaUbicacionPublicada = actual;
+      // Quieto igual escribe, pero solo el latido: el umbral de 100 m existe
+      // para no republicar la POSICIÓN todo el tiempo, no para dejar de dar
+      // señales de vida. Antes se salía sin escribir nada y `updatedAt`
+      // envejecía hasta que el conductor volvía a moverse.
+      await guardarUbicacionConectado(actual, soloLatido: !seMovio);
+      if (seMovio) _ultimaUbicacionPublicada = actual;
     } catch (e, st) {
       ErrorReporter.report(e, st, reason: 'InicioConductorViewModel');
     }

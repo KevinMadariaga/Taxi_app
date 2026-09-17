@@ -39,13 +39,13 @@ import 'test_helpers/firebase_test_setup.dart';
 class _FakeBuscandoTaxiViewModel extends BuscandoTaxiViewModel {
   _FakeBuscandoTaxiViewModel({
     required Stream<Map<String, LatLng>> conductoresStream,
-    required Stream<Map<String, LatLng>> conectadosStream,
+    required Stream<Map<String, ConductorConectado>> conectadosStream,
     super.firestore,
   }) : _conductoresStream = conductoresStream,
        _conectadosStream = conectadosStream;
 
   final Stream<Map<String, LatLng>> _conductoresStream;
-  final Stream<Map<String, LatLng>> _conectadosStream;
+  final Stream<Map<String, ConductorConectado>> _conectadosStream;
   int marcarCanceladaCount = 0;
 
   @override
@@ -53,7 +53,7 @@ class _FakeBuscandoTaxiViewModel extends BuscandoTaxiViewModel {
       _conductoresStream;
 
   @override
-  Stream<Map<String, LatLng>> streamConductoresConectados() =>
+  Stream<Map<String, ConductorConectado>> streamConductoresConectados() =>
       _conectadosStream;
 
   @override
@@ -77,12 +77,13 @@ void main() {
   });
 
   late StreamController<Map<String, LatLng>> conductoresController;
-  late StreamController<Map<String, LatLng>> conectadosController;
+  late StreamController<Map<String, ConductorConectado>> conectadosController;
   late _FakeBuscandoTaxiViewModel vm;
 
   setUp(() {
     conductoresController = StreamController<Map<String, LatLng>>.broadcast();
-    conectadosController = StreamController<Map<String, LatLng>>.broadcast();
+    conectadosController =
+        StreamController<Map<String, ConductorConectado>>.broadcast();
     vm = _FakeBuscandoTaxiViewModel(
       conductoresStream: conductoresController.stream,
       conectadosStream: conectadosController.stream,
@@ -125,6 +126,54 @@ void main() {
         async.elapse(const Duration(seconds: 5));
         expect(vm.searchSeconds, 5);
       });
+    });
+  });
+
+  // Los íconos del mapa salen de acá: solo los conductores con señal de vida
+  // reciente cuentan como activos.
+  group('conductoresActivos', () {
+    ConductorConectado conectado({
+      required Duration hace,
+      bool isMoto = false,
+    }) => ConductorConectado(
+      ubicacion: const LatLng(8.24, -73.35),
+      isMoto: isMoto,
+      visto: DateTime.now().subtract(hace),
+    );
+
+    test('incluye a los vistos dentro de la ventana', () async {
+      vm.subscribeConductoresConectados();
+      conectadosController.add({
+        'reciente': conectado(hace: const Duration(minutes: 2)),
+      });
+      await Future<void>.delayed(Duration.zero);
+
+      expect(vm.conductoresActivos, hasLength(1));
+    });
+
+    test('excluye a los que pasaron la ventana', () async {
+      vm.subscribeConductoresConectados();
+      conectadosController.add({
+        'viejo': conectado(hace: const Duration(minutes: 6)),
+      });
+      await Future<void>.delayed(Duration.zero);
+
+      expect(vm.conductoresActivos, isEmpty);
+      // El snapshot sigue crudo: el filtro es de lectura, no de recepción.
+      expect(vm.conectados, hasLength(1));
+    });
+
+    test('conserva el tipo de vehículo de cada conductor', () async {
+      vm.subscribeConductoresConectados();
+      conectadosController.add({
+        'moto': conectado(hace: const Duration(minutes: 1), isMoto: true),
+        'carro': conectado(hace: const Duration(minutes: 1)),
+      });
+      await Future<void>.delayed(Duration.zero);
+
+      final activos = vm.conductoresActivos;
+      expect(activos.where((c) => c.isMoto), hasLength(1));
+      expect(activos.where((c) => !c.isMoto), hasLength(1));
     });
   });
 
@@ -341,9 +390,15 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       expect(vm.conductoresPositions, {'c1': const LatLng(10.0, 10.0)});
 
-      conectadosController.add({'c2': const LatLng(11.0, 11.0)});
+      conectadosController.add({
+        'c2': ConductorConectado(
+          ubicacion: const LatLng(11.0, 11.0),
+          isMoto: false,
+          visto: DateTime.now(),
+        ),
+      });
       await Future<void>.delayed(Duration.zero);
-      expect(vm.conectadosPositions, {'c2': const LatLng(11.0, 11.0)});
+      expect(vm.conectados.keys, ['c2']);
 
       expect(notifyCount, greaterThanOrEqualTo(2));
     });
@@ -366,9 +421,15 @@ void main() {
         async.elapse(const Duration(seconds: 5));
         expect(vm.searchSeconds, secondsAfterStop, reason: 'search timer debe estar detenido');
 
-        conectadosController.add({'c2': const LatLng(11.0, 11.0)});
+        conectadosController.add({
+          'c2': ConductorConectado(
+            ubicacion: const LatLng(11.0, 11.0),
+            isMoto: false,
+            visto: DateTime.now(),
+          ),
+        });
         async.flushMicrotasks();
-        expect(vm.conectadosPositions, isEmpty, reason: 'conectadosSub debe estar cancelada');
+        expect(vm.conectados, isEmpty, reason: 'conectadosSub debe estar cancelada');
 
         conductoresController.add({'c1': const LatLng(10.0, 10.0)});
         async.flushMicrotasks();
@@ -391,7 +452,7 @@ void main() {
       final ownConductoresController =
           StreamController<Map<String, LatLng>>.broadcast();
       final ownConectadosController =
-          StreamController<Map<String, LatLng>>.broadcast();
+          StreamController<Map<String, ConductorConectado>>.broadcast();
       final ownVm = _FakeBuscandoTaxiViewModel(
         conductoresStream: ownConductoresController.stream,
         conectadosStream: ownConectadosController.stream,
@@ -424,7 +485,7 @@ void main() {
     late FakeFirebaseFirestore firestore;
     late _FakeBuscandoTaxiViewModel terminalVm;
     late StreamController<Map<String, LatLng>> c1;
-    late StreamController<Map<String, LatLng>> c2;
+    late StreamController<Map<String, ConductorConectado>> c2;
 
     const solicitudId = 'sol-1';
 
@@ -434,7 +495,7 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       firestore = FakeFirebaseFirestore();
       c1 = StreamController<Map<String, LatLng>>.broadcast();
-      c2 = StreamController<Map<String, LatLng>>.broadcast();
+      c2 = StreamController<Map<String, ConductorConectado>>.broadcast();
       terminalVm = _FakeBuscandoTaxiViewModel(
         conductoresStream: c1.stream,
         conectadosStream: c2.stream,

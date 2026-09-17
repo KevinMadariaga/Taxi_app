@@ -19,7 +19,7 @@ import 'package:taxi_app/caracteristicas/viaje_cliente/presentacion/vistas/viaje
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/editar_oferta_busqueda_view.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/home_cliente_view.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/buscando_taxi_viewmodel.dart'
-    show BuscandoTaxiViewModel;
+    show BuscandoTaxiViewModel, ConductorConectado;
 import 'package:taxi_app/screens/usuario_cliente/presentacion/widgets/contraofertas_modal.dart';
 import 'package:taxi_app/widgets/intermediate_transition_view.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
@@ -497,12 +497,12 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
                     destinoLocation: _vm.destinoLocation,
                     routePoints: _vm.routePoints,
                     isMoto: _vm.isMotoSolicitud,
-                    // `conectadosPositions` (colección
-                    // `conductores_conectados`), NO `conductoresPositions`:
-                    // ese otro lee `usuarios.ubicacion`, un campo que no
-                    // escribe nadie, así que llega siempre vacío.
-                    conductoresConectados: _vm.conectadosPositions.values
-                        .toList(growable: false),
+                    // `conductoresActivos` (colección
+                    // `conductores_conectados`, filtrada a los últimos 5
+                    // min), NO `conductoresPositions`: ese otro lee
+                    // `usuarios.ubicacion`, un campo que no escribe nadie,
+                    // así que llega siempre vacío.
+                    conductoresConectados: _vm.conductoresActivos,
                   ),
                 ),
               ),
@@ -820,10 +820,10 @@ class _BuscandoTaxiStaticMap extends StatelessWidget {
   final List<LatLng> routePoints;
   final bool isMoto;
 
-  /// Posiciones de los conductores conectados, solo para mostrar actividad
-  /// en la zona. No cambian el encuadre: el mapa se sigue encuadrando por
-  /// cliente + destino, y los que caen fuera del recuadro no se dibujan.
-  final List<LatLng> conductoresConectados;
+  /// Conductores activos (últimos 5 min), solo para mostrar actividad en la
+  /// zona. No cambian el encuadre: el mapa se sigue encuadrando por cliente
+  /// + destino, y los que caen fuera del recuadro no se dibujan.
+  final List<ConductorConectado> conductoresConectados;
 
   static const adapter.MapService _mapService = adapter.MapService();
 
@@ -882,9 +882,13 @@ class _BuscandoTaxiStaticMap extends StatelessWidget {
     final limiteX = width / 2 + _conductorIconSize;
     final limiteY = height / 2 + _conductorIconSize;
 
-    for (final posicion in conductoresConectados) {
+    for (final conductor in conductoresConectados) {
       if (visibles.length >= _maxConductoresDibujados) break;
-      final offset = _pixelOffset(center: center, point: posicion, zoom: zoom);
+      final offset = _pixelOffset(
+        center: center,
+        point: conductor.ubicacion,
+        zoom: zoom,
+      );
       if (offset.dx.abs() > limiteX || offset.dy.abs() > limiteY) continue;
 
       visibles.add(
@@ -898,10 +902,12 @@ class _BuscandoTaxiStaticMap extends StatelessWidget {
           anchorBottom: false,
           child: Opacity(
             opacity: _conductorIconOpacity,
-            // Siempre carro: `conductores_conectados` solo guarda ubicación
-            // y `updatedAt`, no el tipo de vehículo de cada conductor.
+            // Carro o moto según lo que publicó cada conductor en su propio
+            // doc de presencia.
             child: Image.asset(
-              'assets/img/icono_carro.png',
+              conductor.isMoto
+                  ? 'assets/img/icono_moto.png'
+                  : 'assets/img/icono_carro.png',
               width: _conductorIconSize,
               height: _conductorIconSize,
             ),

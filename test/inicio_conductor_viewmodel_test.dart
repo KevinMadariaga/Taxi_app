@@ -404,6 +404,25 @@ void main() {
       expect(data!['ubicacion']['lat'], closeTo(8.24, 1e-9));
     });
 
+    // El cliente filtra `conductores_conectados` por frescura (5 min), así
+    // que el conductor quieto igual tiene que dar señal de vida: si no, el
+    // más disponible de todos se cae del mapa justamente por no moverse.
+    test('movimiento menor al umbral igual deja el doc escrito', () async {
+      vm.isConnected = true;
+      tracking.position = fakePosition(8.24, -73.35);
+      await vm.publicarUbicacionSiCambio();
+
+      tracking.position = fakePosition(8.2401, -73.35); // ~11 m
+      await vm.publicarUbicacionSiCambio();
+
+      final data = await leerDoc();
+      // La posición NO se movió (ese es el punto del umbral)...
+      expect(data!['ubicacion']['lat'], closeTo(8.24, 1e-9));
+      // ...pero el documento sigue teniendo su marca de tiempo y el tipo.
+      expect(data['updatedAt'], isNotNull);
+      expect(data.containsKey('tipoVehiculo'), isTrue);
+    });
+
     test('movimiento mayor al umbral sí reescribe', () async {
       vm.isConnected = true;
       tracking.position = fakePosition(8.24, -73.35);
