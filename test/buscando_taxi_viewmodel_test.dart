@@ -149,6 +149,26 @@ void main() {
       });
     });
 
+    // La vista NO lee el campo: reacciona a `notifyListeners`. Si la bandera
+    // se levanta después de notificar, en ese tick nadie se entera — que es
+    // exactamente el bug que tenía (la modal no salía). Leer el campo tras
+    // `elapse` no lo detecta, hay que mirar qué veía el listener.
+    test('la bandera ya está arriba cuando se notifica', () {
+      fakeAsync((async) {
+        var vistaEncendida = false;
+        vm.addListener(() {
+          if (vm.ofertaPromptVisible) vistaEncendida = true;
+        });
+
+        vm.startSearchTimer();
+        // Justo el tick de los 5 min, ni uno más: si hiciera falta el
+        // siguiente para enterarse, esto queda en false.
+        async.elapse(const Duration(minutes: 5));
+
+        expect(vistaEncendida, isTrue);
+      });
+    });
+
     test('no vuelve a aparecer una vez cerrada', () {
       fakeAsync((async) {
         vm.startSearchTimer();

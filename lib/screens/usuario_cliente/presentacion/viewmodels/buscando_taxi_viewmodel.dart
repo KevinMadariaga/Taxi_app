@@ -894,7 +894,6 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
     _proximaConfirmacion = _segundosEntreConfirmaciones;
     _searchTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       searchSeconds++;
-      _safeNotify();
       if (!_notif5minEnviada && searchSeconds >= segundosAviso5min) {
         _notif5minEnviada = true;
         _avisar5Minutos();
@@ -906,8 +905,15 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
         ofertaPromptVisible = true;
       }
       if (!confirmarSeguirVisible && searchSeconds >= _proximaConfirmacion) {
+        // Ya notifica por su cuenta, pero se vuelve a notificar abajo igual:
+        // `notifyListeners` de más es barato, perderse una bandera no.
         _abrirConfirmarSeguir();
       }
+      // UNA notificación, al final y con TODO el estado del tick ya escrito.
+      // Estaba arriba del todo, así que el tick en el que se levantaban
+      // `ofertaPromptVisible`/`confirmarSeguirVisible` no avisaba de esas
+      // banderas: la vista recién las veía en el tick siguiente.
+      _safeNotify();
     });
   }
 
