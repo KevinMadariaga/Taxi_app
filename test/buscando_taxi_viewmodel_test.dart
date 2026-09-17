@@ -128,6 +128,79 @@ void main() {
     });
   });
 
+  // Una solicitud olvidada en `buscando` le aparece a los conductores como un
+  // viaje disponible que nadie va a tomar. A los 10 min se pregunta, y sin
+  // respuesta en 3 min se cancela sola.
+  group('confirmar "¿sigues esperando?"', () {
+    test('no aparece antes de los 10 minutos', () {
+      fakeAsync((async) {
+        vm.startSearchTimer();
+        async.elapse(const Duration(minutes: 9, seconds: 59));
+
+        expect(vm.confirmarSeguirVisible, isFalse);
+      });
+    });
+
+    test('a los 10 minutos aparece con 3 minutos de cuenta regresiva', () {
+      fakeAsync((async) {
+        vm.startSearchTimer();
+        async.elapse(const Duration(minutes: 10));
+
+        expect(vm.confirmarSeguirVisible, isTrue);
+        expect(vm.segundosRestantesConfirmar, 180);
+        expect(vm.debeCancelarPorNoResponder, isFalse);
+      });
+    });
+
+    test('sin respuesta, a los 3 minutos pide cancelar', () {
+      fakeAsync((async) {
+        vm.startSearchTimer();
+        async.elapse(const Duration(minutes: 10));
+
+        async.elapse(const Duration(minutes: 2, seconds: 59));
+        expect(vm.debeCancelarPorNoResponder, isFalse);
+
+        async.elapse(const Duration(seconds: 1));
+        expect(vm.debeCancelarPorNoResponder, isTrue);
+        expect(vm.confirmarSeguirVisible, isFalse);
+      });
+    });
+
+    test('seguir esperando cierra la modal y vuelve a preguntar en 10 min', () {
+      fakeAsync((async) {
+        vm.startSearchTimer();
+        async.elapse(const Duration(minutes: 10));
+        vm.confirmarSeguirBuscando();
+
+        expect(vm.confirmarSeguirVisible, isFalse);
+
+        // La cuenta regresiva quedó desactivada: pasan los 3 min y no cancela.
+        async.elapse(const Duration(minutes: 3));
+        expect(vm.debeCancelarPorNoResponder, isFalse);
+        expect(vm.confirmarSeguirVisible, isFalse);
+
+        // Y a los 10 min de haber confirmado, vuelve a preguntar.
+        async.elapse(const Duration(minutes: 7));
+        expect(vm.confirmarSeguirVisible, isTrue);
+      });
+    });
+
+    test('marcarFlujoTerminado corta la cuenta regresiva en curso', () {
+      fakeAsync((async) {
+        vm.startSearchTimer();
+        async.elapse(const Duration(minutes: 10));
+        expect(vm.confirmarSeguirVisible, isTrue);
+
+        // El cliente aceptó una oferta mientras la modal estaba abierta.
+        vm.marcarFlujoTerminado();
+        async.elapse(const Duration(minutes: 5));
+
+        expect(vm.debeCancelarPorNoResponder, isFalse);
+        expect(vm.confirmarSeguirVisible, isFalse);
+      });
+    });
+  });
+
   group('handleAppLifecycleState — background (6 min)', () {
     test('cancela por inactividad tras 6 min en paused', () {
       fakeAsync((async) {

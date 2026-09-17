@@ -90,12 +90,40 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
   int searchSeconds = 0;
   bool flujoTerminado = false;
 
+  /// `true` mientras la modal "¿seguís esperando?" debe estar a la vista.
+  /// La vista la observa desde su listener y abre/cierra en consecuencia.
+  bool confirmarSeguirVisible = false;
+
+  /// Cuenta regresiva de la modal. Si llega a 0 sin respuesta, la búsqueda
+  /// se cancela sola (ver [debeCancelarPorNoResponder]).
+  int segundosRestantesConfirmar = _segundosParaAutoCancelar;
+
+  /// Se levanta cuando la cuenta regresiva se agotó: la vista lo lee para
+  /// cerrar la modal y ejecutar la cancelación (el write a Firestore y la
+  /// navegación viven allá, no acá).
+  bool debeCancelarPorNoResponder = false;
+
   StreamSubscription<Map<String, LatLng>>? _conductoresSub;
   StreamSubscription<Map<String, LatLng>>? _conductoresConectadosSub;
   Timer? _searchTimer;
   Timer? _bgCancelTimer;
   Timer? _detachedCancelTimer;
+  Timer? _confirmarTimer;
   bool _notif5minEnviada = false;
+
+  /// Segundo de búsqueda en el que toca volver a preguntar. Avanza de a
+  /// [_segundosEntreConfirmaciones] cada vez que el cliente elige seguir.
+  int _proximaConfirmacion = _segundosEntreConfirmaciones;
+
+  /// Cada cuánto se le pregunta al cliente si sigue esperando. Una solicitud
+  /// olvidada en `buscando` ocupa a los conductores con un viaje que nadie
+  /// va a tomar.
+  static const int _segundosEntreConfirmaciones = 600; // 10 min
+
+  /// Lo que espera la modal antes de cancelar sola. Suficiente para que el
+  /// cliente vuelva al teléfono, corto para no dejar la solicitud viva si se
+  /// olvidó del todo.
+  static const int _segundosParaAutoCancelar = 180; // 3 min
 
   // 6 min en segundo plano sin volver → cancelar solicitud.
   static const Duration _umbralBackgroundCancel = Duration(minutes: 6);
@@ -853,6 +881,7 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
   void startSearchTimer() {
     _searchTimer?.cancel();
     searchSeconds = 0;
+    _proximaConfirmacion = _segundosEntreConfirmaciones;
     _searchTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       searchSeconds++;
       _safeNotify();
@@ -860,7 +889,53 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
         _notif5minEnviada = true;
         _avisar5Minutos();
       }
+      if (!confirmarSeguirVisible && searchSeconds >= _proximaConfirmacion) {
+        _abrirConfirmarSeguir();
+      }
     });
+  }
+
+  // ── "¿Seguís esperando?" ─────────────────────────────────────────────────
+
+  void _abrirConfirmarSeguir() {
+    if (flujoTerminado) return;
+    confirmarSeguirVisible = true;
+    segundosRestantesConfirmar = _segundosParaAutoCancelar;
+    _confirmarTimer?.cancel();
+    _confirmarTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      segundosRestantesConfirmar--;
+      if (segundosRestantesConfirmar <= 0) {
+        _confirmarTimer?.cancel();
+        _confirmarTimer = null;
+        segundosRestantesConfirmar = 0;
+        confirmarSeguirVisible = false;
+        // Nadie respondió: la vista cancela de verdad (Firestore + salida).
+        debeCancelarPorNoResponder = true;
+      }
+      _safeNotify();
+    });
+    _safeNotify();
+  }
+
+  /// El cliente eligió seguir esperando: se cierra la modal y se reprograma
+  /// la próxima pregunta otros 10 minutos más adelante.
+  void confirmarSeguirBuscando() {
+    _confirmarTimer?.cancel();
+    _confirmarTimer = null;
+    confirmarSeguirVisible = false;
+    segundosRestantesConfirmar = _segundosParaAutoCancelar;
+    _proximaConfirmacion = searchSeconds + _segundosEntreConfirmaciones;
+    _safeNotify();
+  }
+
+  /// Cierra la modal sin reprogramar — para cuando la vista ya está
+  /// cancelando por elección explícita del cliente o por el vencimiento.
+  void cerrarConfirmarSeguir() {
+    _confirmarTimer?.cancel();
+    _confirmarTimer = null;
+    confirmarSeguirVisible = false;
+    debeCancelarPorNoResponder = false;
+    _safeNotify();
   }
 
   Future<void> _avisar5Minutos() async {
@@ -916,6 +991,13 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
     flujoTerminado = true;
     _bgCancelTimer?.cancel();
     _detachedCancelTimer?.cancel();
+    // La cuenta regresiva de "¿seguís esperando?" también: si el flujo ya
+    // terminó (el cliente aceptó una oferta, o canceló), dejarla viva podía
+    // levantar `debeCancelarPorNoResponder` sobre una solicitud que ya no
+    // está buscando.
+    _confirmarTimer?.cancel();
+    _confirmarTimer = null;
+    confirmarSeguirVisible = false;
   }
 
   /// Segunda fase de limpieza al terminar el flujo.
@@ -943,6 +1025,7 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
     _bgCancelTimer?.cancel();
     _detachedCancelTimer?.cancel();
     _searchTimer?.cancel();
+    _confirmarTimer?.cancel();
     _conductoresSub?.cancel();
     _conductoresConectadosSub?.cancel();
     super.dispose();

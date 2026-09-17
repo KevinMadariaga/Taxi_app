@@ -63,6 +63,8 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
   bool _viajeNavegado = false;
   // Bottom sheet "Actualizar valor" abierto.
   bool _modalEditarAbierto = false;
+  // Diálogo "¿seguís esperando?" abierto (cada 10 min de búsqueda).
+  bool _modalSeguirAbierto = false;
 
   // Estado UI-only: qué conductores están siendo respondidos
   final Map<String, bool> _respondingOffer = {};
@@ -126,7 +128,56 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
     if (!mounted) return;
     setState(() {});
     _maybeMostrarModalContraofertas();
+    _maybeMostrarConfirmarSeguir();
     _maybeCalcularRuta();
+  }
+
+  /// Abre (y cierra) la modal de "¿seguís esperando?" siguiendo el estado del
+  /// viewmodel, que es quien tiene los tiempos.
+  void _maybeMostrarConfirmarSeguir() {
+    // Se agotó la cuenta regresiva sin respuesta: cerrar y cancelar de
+    // verdad. El write a Firestore y la salida viven acá, no en el vm.
+    if (_vm.debeCancelarPorNoResponder) {
+      _vm.cerrarConfirmarSeguir();
+      if (_modalSeguirAbierto && Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
+      _modalSeguirAbierto = false;
+      _cancelSolicitud();
+      return;
+    }
+
+    if (!_vm.confirmarSeguirVisible || _modalSeguirAbierto) return;
+    // No encimar la modal sobre las otras dos ni sobre una salida en curso.
+    if (_modalContraofertasAbierto ||
+        _modalEditarAbierto ||
+        _vm.flujoTerminado ||
+        _navegandoAViaje) {
+      return;
+    }
+
+    _modalSeguirAbierto = true;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => PopScope(
+        canPop: false,
+        child: _SeguirBuscandoDialog(
+          vm: _vm,
+          onSeguir: () {
+            Navigator.of(context).pop();
+            _modalSeguirAbierto = false;
+            _vm.confirmarSeguirBuscando();
+          },
+          onCancelar: () {
+            Navigator.of(context).pop();
+            _modalSeguirAbierto = false;
+            _vm.cerrarConfirmarSeguir();
+            _cancelSolicitud();
+          },
+        ),
+      ),
+    ).then((_) => _modalSeguirAbierto = false);
   }
 
   // ── Ubicación ─────────────────────────────────────────────────────────────
@@ -1128,6 +1179,104 @@ class _MapPinOverlay extends StatelessWidget {
 /// Fondo mostrado si falla la imagen (sin red / sin key configurada) o si la
 /// key de Remote Config está vacía. Evita el ícono de imagen rota y deja la
 /// pantalla usable sin mapa.
+/// "¿Seguís esperando?" — aparece cada 10 minutos de búsqueda sin conductor.
+///
+/// Una solicitud olvidada en `buscando` le aparece a los conductores como un
+/// viaje disponible que nadie va a tomar, así que si el cliente no contesta
+/// en 3 minutos la búsqueda se cancela sola. La cuenta regresiva la lleva el
+/// viewmodel (`segundosRestantesConfirmar`); acá solo se muestra.
+class _SeguirBuscandoDialog extends StatelessWidget {
+  const _SeguirBuscandoDialog({
+    required this.vm,
+    required this.onSeguir,
+    required this.onCancelar,
+  });
+
+  final BuscandoTaxiViewModel vm;
+  final VoidCallback onSeguir;
+  final VoidCallback onCancelar;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: vm,
+      builder: (context, _) {
+        final restantes = vm.segundosRestantesConfirmar;
+        final minutos = restantes ~/ 60;
+        final segundos = (restantes % 60).toString().padLeft(2, '0');
+
+        return AlertDialog(
+          backgroundColor: context.palette.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20.r),
+          ),
+          title: Text(
+            '¿Sigues esperando?',
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 18.sp,
+              color: context.palette.textPrimary,
+            ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Todavía no encontramos un conductor. Si no respondes, '
+                'cancelaremos la búsqueda automáticamente.',
+                style: TextStyle(
+                  fontSize: 14.sp,
+                  height: 1.35,
+                  color: context.palette.textSecondary,
+                ),
+              ),
+              SizedBox(height: 16.h),
+              Center(
+                child: Text(
+                  '$minutos:$segundos',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 30.sp,
+                    color: AppColores.primary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actionsAlignment: MainAxisAlignment.spaceBetween,
+          actions: [
+            TextButton(
+              onPressed: onCancelar,
+              child: Text(
+                'Cancelar búsqueda',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: AppColores.error,
+                ),
+              ),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColores.primary,
+                foregroundColor: AppColores.textWhite,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12.r),
+                ),
+              ),
+              onPressed: onSeguir,
+              child: const Text(
+                'Seguir esperando',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
 class _MapaBusquedaPlaceholder extends StatelessWidget {
   const _MapaBusquedaPlaceholder();
 
