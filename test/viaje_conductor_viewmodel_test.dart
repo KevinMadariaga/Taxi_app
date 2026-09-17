@@ -578,14 +578,15 @@ void main() {
       expect(f.vm.puedeTerminarViaje, isFalse);
     });
 
-    // El conductor ya está maniobrando para dejar al pasajero: se habilita por
-    // TIEMPO aunque falten más de 60 m en línea recta.
-    test('true con ETA <= 5 min aunque siga lejos en distancia', () {
+    // El ETA del tramo de recogida vale casi cero (el conductor acababa de
+    // llegar al cliente). Sin progreso medible NO puede habilitar solo: si
+    // no, el botón quedaba tocable al instante en todos los viajes.
+    test('false con ETA corto heredado pero sin avance medible', () {
       final f = _Fixture();
       f.vm.viaje = _viaje(SolicitudEstado.enRuta);
-      f.vm.eta = const Duration(minutes: 5);
+      f.vm.eta = const Duration(minutes: 1);
 
-      expect(f.vm.puedeTerminarViaje, isTrue);
+      expect(f.vm.puedeTerminarViaje, isFalse);
     });
 
     test('true a pocos metros del destino', () {
@@ -615,6 +616,84 @@ void main() {
       );
 
       expect(f.vm.puedeTerminarViaje, isTrue);
+    });
+  });
+
+  // La política sola, sin viewmodel: es la parte con reglas de negocio y la
+  // única forma de cubrir el caso "progreso medible", que en el fixture nunca
+  // se da porque `RutaDatasource` es real y la ruta no resuelve sin red.
+  group('evaluarCierreDeTramo', () {
+    bool evaluar({
+      required double metros,
+      Duration? eta,
+      double progreso = 0,
+      bool medible = false,
+    }) => ViajeConductorViewModel.evaluarCierreDeTramo(
+      distanciaMetros: metros,
+      eta: eta,
+      progreso: progreso,
+      progresoMedible: medible,
+    );
+
+    test('lejos y sin ETA: bloqueado', () {
+      expect(evaluar(metros: 4000), isFalse);
+    });
+
+    test('lejos con ETA largo: bloqueado', () {
+      expect(
+        evaluar(metros: 4000, eta: const Duration(minutes: 12)),
+        isFalse,
+      );
+    });
+
+    // El agujero que cierra el progreso: viaje corto (o ETA heredado del
+    // tramo de recogida) habilitaría el botón sin haberse movido.
+    test('ETA corto sin avance: bloqueado aunque sea medible', () {
+      expect(
+        evaluar(
+          metros: 4000,
+          eta: const Duration(minutes: 3),
+          progreso: 0.05,
+          medible: true,
+        ),
+        isFalse,
+      );
+    });
+
+    test('ETA corto con el tramo ya recorrido: habilitado', () {
+      expect(
+        evaluar(
+          metros: 900,
+          eta: const Duration(minutes: 3),
+          progreso: 0.82,
+          medible: true,
+        ),
+        isTrue,
+      );
+    });
+
+    test('dentro del radio con el tramo recorrido: habilitado', () {
+      expect(evaluar(metros: 45, progreso: 0.95, medible: true), isTrue);
+    });
+
+    // Viaje corto: a 45 m del destino todavía falta el 40% del camino, así
+    // que el porcentaje manda sobre el radio fijo.
+    test('dentro del radio pero a mitad de un viaje corto: bloqueado', () {
+      expect(evaluar(metros: 45, progreso: 0.4, medible: true), isFalse);
+    });
+
+    // Sin ruta resuelta no se puede exigir avance: decide la cercanía sola,
+    // para no dejar el viaje imposible de cerrar.
+    test('progreso no medible: decide el radio', () {
+      expect(evaluar(metros: 45), isTrue);
+      expect(evaluar(metros: 4000), isFalse);
+    });
+
+    test('progreso no medible: el ETA no alcanza por sí solo', () {
+      expect(
+        evaluar(metros: 4000, eta: const Duration(minutes: 1)),
+        isFalse,
+      );
     });
   });
 }

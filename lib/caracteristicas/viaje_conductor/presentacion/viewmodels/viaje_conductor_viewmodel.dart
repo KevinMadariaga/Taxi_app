@@ -194,6 +194,22 @@ class ViajeConductorViewModel extends ChangeNotifier {
   /// el botón.
   static const Duration _etaTerminarViaje = Duration(minutes: 5);
 
+  /// Fracción del tramo que hay que haber recorrido para poder cerrarlo.
+  ///
+  /// Es lo que convierte "estoy cerca" en "el viaje pasó": el ETA y la
+  /// distancia son fotos del instante, y las dos se cumplen solas en un
+  /// viaje corto sin que el auto se haya movido. `progresoTramo` es relativo
+  /// a la distancia que tenía ESTE tramo al empezar, así que escala solo: en
+  /// un viaje de 5 km se cumple bastante antes de los 60 m, y en uno de
+  /// 300 m exige acercarse de verdad.
+  static const double _progresoMinimoTerminarViaje = 0.6;
+
+  /// `false` cuando la ruta del tramo nunca resolvió (sin red, API caída):
+  /// ahí `progresoTramo` vale 0 por falta de datos, no porque el conductor
+  /// no se haya movido, y exigirlo dejaría el viaje sin forma de cerrarse.
+  bool get _progresoEsMedible =>
+      _distanciaInicialTramo != null && _distanciaInicialTramo! > 0;
+
   bool get puedeTerminarViaje {
     final objetivo = objetivoActual;
 
@@ -205,12 +221,6 @@ class ViajeConductorViewModel extends ChangeNotifier {
     // cierre prematuro, no para dejar un viaje imposible de cerrar.
     if (objetivo == null) return true;
 
-    // Cerca por TIEMPO: `eta` sale de la ruta real hacia `objetivoActual`
-    // (`_refreshRouteIfNeeded`), no de la línea recta, así que respeta el
-    // tráfico y las vueltas de la calle.
-    final etaActual = eta;
-    if (etaActual != null && etaActual <= _etaTerminarViaje) return true;
-
     // Sin ubicación del conductor la falla es TRANSITORIA: la app siempre
     // escribe `conductor.ubicacion` como `{lat, lng}`
     // (`FirebaseService.actualizarUbicacionConductorEnSolicitud`) y el
@@ -220,11 +230,38 @@ class ViajeConductorViewModel extends ChangeNotifier {
     final driver = driverLatLng;
     if (driver == null) return false;
 
-    // Cerca por DISTANCIA: respaldo para cuando el ETA todavía no se
-    // resolvió (la ruta se recalcula recién tras moverse >20 m) o quedó
-    // viejo, pero el conductor ya está encima del punto.
-    return _mathService.haversineMeters(driver, objetivo) <=
-        _radioTerminarViajeMetros;
+    return evaluarCierreDeTramo(
+      distanciaMetros: _mathService.haversineMeters(driver, objetivo),
+      eta: eta,
+      progreso: progresoTramo,
+      progresoMedible: _progresoEsMedible,
+    );
+  }
+
+  /// La política de "ya puede cerrar", sin estado: cercanía Y avance real.
+  ///
+  /// Pura a propósito — es la parte con reglas de negocio y la que hay que
+  /// poder probar en toda su matriz sin levantar el viewmodel entero.
+  static bool evaluarCierreDeTramo({
+    required double distanciaMetros,
+    required Duration? eta,
+    required double progreso,
+    required bool progresoMedible,
+  }) {
+    final enRadio = distanciaMetros <= _radioTerminarViajeMetros;
+
+    // Cerca por TIEMPO: `eta` sale de la ruta real hacia el objetivo
+    // (`_refreshRouteIfNeeded`), no de la línea recta, así que respeta el
+    // tráfico y las vueltas de la calle. Por distancia es el respaldo para
+    // cuando el ETA todavía no se resolvió o quedó viejo.
+    final cerca = enRadio || (eta != null && eta <= _etaTerminarViaje);
+    if (!cerca) return false;
+
+    // Sin forma de medir el avance, la cercanía absoluta decide sola — nunca
+    // el ETA, que es justo el que puede venir heredado del tramo anterior.
+    if (!progresoMedible) return enRadio;
+
+    return progreso >= _progresoMinimoTerminarViaje;
   }
 
   String get distanceText =>
@@ -731,6 +768,14 @@ class ViajeConductorViewModel extends ChangeNotifier {
       _lastFrom = null;
       _lastTo = null;
       _distanciaInicialTramo = null;
+      // `eta`/`distanceMeters` también son del tramo VIEJO: el conductor
+      // acababa de llegar al cliente, así que valen casi cero. Dejarlos
+      // puestos mostraba "1 min / 30 m" para un destino que está a
+      // kilómetros, hasta que `_refreshRouteIfNeeded` recalculara — y
+      // `puedeTerminarViaje` los leía como "ya llegó".
+      eta = null;
+      distanceMeters = null;
+      progresoTramo = 0;
       _safeNotify();
       return;
     }
