@@ -163,6 +163,23 @@ ViajeEntity _viaje(
   metodoPago: metodoPago,
 );
 
+/// `RutaDatasource` que devuelve la polilínea que le pongan, sin red. Es lo
+/// único que permite ejercitar el baseline del tramo: con el datasource real
+/// la ruta nunca resuelve en test, `_distanciaInicialTramo` queda en `null`
+/// y el piso de `_progresoEsMedible` no se toca nunca.
+///
+/// `distanciaRuta`/`etaDesdeDistancia` se heredan tal cual: son matemática
+/// pura sobre la polilínea, no pegan a ningún servicio.
+class _FakeRutaDatasource extends RutaDatasource {
+  List<LatLng> ruta = const [];
+
+  @override
+  Future<List<LatLng>> obtenerRuta({
+    required LatLng origen,
+    required LatLng destino,
+  }) async => ruta;
+}
+
 class _Fixture {
   factory _Fixture({DateTime Function()? now}) {
     final bitacora = _Bitacora();
@@ -170,11 +187,18 @@ class _Fixture {
       bitacora,
       _FakeViajeRepository(bitacora),
       _FakeCodigoRepository(bitacora),
+      _FakeRutaDatasource(),
       now,
     );
   }
 
-  _Fixture._(this.bitacora, this.viajeRepo, this.codigoRepo, DateTime Function()? now) {
+  _Fixture._(
+    this.bitacora,
+    this.viajeRepo,
+    this.codigoRepo,
+    this.rutaFake,
+    DateTime Function()? now,
+  ) {
     final actualizar = ActualizarEstadoViajeUseCase(viajeRepo);
     vm = ViajeConductorViewModel(
       viajeId: 'v1',
@@ -199,7 +223,7 @@ class _Fixture {
         firestore: FakeFirebaseFirestore(),
       ),
       ubicacionDatasource: DriverUbicacionDatasource(),
-      rutaDatasource: RutaDatasource(),
+      rutaDatasource: rutaFake,
       navegacionDatasource: NavegacionExternaDatasource(),
       chatController: ChatController(
         viajeId: 'v1',
@@ -215,6 +239,7 @@ class _Fixture {
   final _Bitacora bitacora;
   final _FakeViajeRepository viajeRepo;
   final _FakeCodigoRepository codigoRepo;
+  final _FakeRutaDatasource rutaFake;
   late final ViajeConductorViewModel vm;
 }
 
@@ -705,31 +730,81 @@ void main() {
     });
   });
 
-  group('_progresoEsMedible (vía el piso de baseline)', () {
-    // El piso vive en el viewmodel, así que se ejercita por su efecto: con un
-    // tramo real (km) el progreso manda; con uno corto, no.
-    test('un tramo largo sí exige avance', () {
-      expect(
-        ViajeConductorViewModel.evaluarCierreDeTramo(
-          distanciaMetros: 50,
-          eta: null,
-          progreso: 0.2,
-          progresoMedible: true,
-        ),
-        isFalse,
+  // El piso de baseline vive en el viewmodel y solo se alcanza recorriendo el
+  // camino real: emitir un snapshot `en ruta` con una ruta que sí resuelve,
+  // para que `_refreshRouteIfNeeded` fije `_distanciaInicialTramo`. Sin esto
+  // el piso no lo tocaba ningún test — bajarlo a 0 dejaba la suite en verde.
+  group('piso del baseline del tramo', () {
+    /// Viaje con el conductor a [metrosDelDestino] del destino, ya en ruta.
+    ViajeEntity viajeEnRuta({required double gradosDeSeparacion}) {
+      final conductor = ParticipanteViajeEntity(
+        id: _participante.id,
+        nombre: _participante.nombre,
+        fotoUrl: _participante.fotoUrl,
+        fotoVehiculoUrl: _participante.fotoVehiculoUrl,
+        placaVehiculo: _participante.placaVehiculo,
+        calificacion: _participante.calificacion,
+        totalCalificaciones: _participante.totalCalificaciones,
+        direccion: _participante.direccion,
+        ubicacion: LatLng(4.65 + gradosDeSeparacion, -74.05),
       );
+      return ViajeEntity(
+        id: 'v1',
+        estado: SolicitudEstado.enRuta,
+        cliente: _participante,
+        conductor: conductor,
+        destino: const DestinoViajeEntity(
+          direccion: 'Destino',
+          ubicacion: LatLng(4.65, -74.05),
+        ),
+        updatedAt: DateTime(2026, 1, 1),
+      );
+    }
+
+    /// Emite el viaje y deja que el listener resuelva la ruta.
+    Future<void> correr(_Fixture f, ViajeEntity viaje) async {
+      f.rutaFake.ruta = [
+        viaje.conductor.ubicacion!,
+        viaje.destino.ubicacion!,
+      ];
+      await f.vm.init();
+      f.viajeRepo.emitir(viaje);
+      await pumpEventQueue();
+    }
+
+    // ~33 m de separación: el baseline queda MUY por debajo del piso de
+    // 200 m. Es el caso de reabrir la app parado al lado del destino — el
+    // progreso arranca en 0 sin que nadie se haya movido, y exigirlo dejaría
+    // el viaje imposible de cerrar.
+    test('baseline corto: manda la cercanía, el viaje se puede cerrar', () async {
+      final f = _Fixture();
+      await correr(f, viajeEnRuta(gradosDeSeparacion: 0.0003));
+
+      expect(f.vm.progresoTramo, 0);
+      expect(f.vm.puedeTerminarViaje, isTrue);
     });
 
-    test('un tramo corto se resuelve por cercanía', () {
-      expect(
-        ViajeConductorViewModel.evaluarCierreDeTramo(
-          distanciaMetros: 50,
-          eta: null,
-          progreso: 0.2,
-          progresoMedible: false,
-        ),
-        isTrue,
-      );
+    // ~1.1 km: baseline por encima del piso, así que el progreso sí manda y
+    // el conductor recién llegado al arranque del tramo no puede cerrar.
+    test('baseline largo: se exige avance real', () async {
+      final f = _Fixture();
+      await correr(f, viajeEnRuta(gradosDeSeparacion: 0.01));
+
+      expect(f.vm.progresoTramo, 0);
+      expect(f.vm.puedeTerminarViaje, isFalse);
+    });
+
+    // Con la ruta resuelta, distancia y ETA salen los dos de la polilínea:
+    // mostrarlos con métricas distintas dejaba una distancia que no explicaba
+    // ese tiempo.
+    test('distancia y ETA quedan ambos definidos por la ruta', () async {
+      final f = _Fixture();
+      await correr(f, viajeEnRuta(gradosDeSeparacion: 0.01));
+
+      expect(f.vm.distanceMeters, isNotNull);
+      expect(f.vm.eta, isNotNull);
+      expect(f.vm.distanceText, isNot('--'));
+      expect(f.vm.etaText, isNot('--'));
     });
   });
 }

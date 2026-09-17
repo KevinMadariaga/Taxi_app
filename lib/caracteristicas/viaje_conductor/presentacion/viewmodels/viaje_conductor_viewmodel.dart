@@ -790,6 +790,13 @@ class ViajeConductorViewModel extends ChangeNotifier {
       eta = null;
       distanceMeters = null;
       progresoTramo = 0;
+      // La polilínea también es del tramo viejo: si no se limpia, el mapa
+      // sigue dibujando la ruta hacia el cliente mientras el destino está a
+      // kilómetros. No se corrige solo rápido — el resultado en vuelo se
+      // descarta por el guarda de objetivo, y el siguiente intento espera al
+      // próximo snapshot, que con el pasajero subiendo y el auto detenido
+      // (`distanceFilter` de 15 m) puede tardar.
+      routePoints = const [];
       _safeNotify();
       return;
     }
@@ -864,16 +871,28 @@ class ViajeConductorViewModel extends ChangeNotifier {
       final dist = _ruta.distanciaRuta(polyline);
 
       routePoints = polyline;
+      // Distancia y ETA, los dos por RUTA: la tarjeta los muestra juntos
+      // ("1.4 km · 6 min"), así que medirlos distinto deja al conductor
+      // viendo una distancia que no explica ese tiempo.
+      distanceMeters = dist;
       eta = _ruta.etaDesdeDistancia(dist);
-      // Baseline en LÍNEA RECTA, la misma unidad con la que
-      // `_actualizarProgresoLiviano` mide lo que falta en cada ping. Con el
-      // baseline en metros de ruta y el restante en línea recta, el progreso
-      // nacía inflado por lo sinuoso del camino (un desvío 2.5x daba ~0.78
-      // sin que el auto se moviera).
-      _distanciaInicialTramo ??= _mathService.haversineMeters(from, to);
-      // Una sola fuente para `distanceMeters`/`progresoTramo`, así no quedan
-      // dos métricas conviviendo.
-      _actualizarProgresoLiviano();
+
+      // El baseline del progreso, en cambio, va en LÍNEA RECTA: es la misma
+      // unidad con la que `_actualizarProgresoLiviano` mide lo que falta en
+      // cada ping. Con el baseline en metros de ruta y el restante en línea
+      // recta, el progreso nacía inflado por lo sinuoso del camino (un
+      // desvío 2.5x daba ~0.78 sin que el auto se moviera).
+      //
+      // `> 0` para no fijar un baseline nulo: con `??=` quedaría clavado
+      // para todo el tramo y `_calcularProgreso` alternaría entre 0 y 1 en
+      // cada ping. Pasa si el conductor ya está sobre el punto cuando
+      // resuelve la primera ruta; sin asignar, el próximo intento reintenta.
+      final baseRecta = _mathService.haversineMeters(from, to);
+      if (baseRecta > 0) _distanciaInicialTramo ??= baseRecta;
+
+      progresoTramo = _calcularProgreso(
+        _mathService.haversineMeters(from, to),
+      );
 
       try {
         if (routePoints.length >= 2) {
@@ -907,20 +926,25 @@ class ViajeConductorViewModel extends ChangeNotifier {
     return avance.clamp(0.0, 1.0);
   }
 
-  /// Actualiza `distanceMeters`/`progresoTramo` en cada GPS ping usando
-  /// distancia en línea recta (barata, sin llamar a la API de rutas) —
-  /// `_refreshRouteIfNeeded` sigue siendo la única fuente de la polilínea y
-  /// del ETA, y solo recalcula pasados >20m para no golpear esa API en cada
-  /// ping. Sin esto la barra de progreso solo avanzaba a saltos, cada vez
-  /// que ese umbral se cruzaba, en vez de fluida con cada actualización de
-  /// ubicación.
+  /// Actualiza `progresoTramo` en cada GPS ping usando distancia en línea
+  /// recta (barata, sin llamar a la API de rutas) — `_refreshRouteIfNeeded`
+  /// sigue siendo la única fuente de la polilínea, del ETA y de
+  /// `distanceMeters`, y solo recalcula pasados >20m para no golpear esa API
+  /// en cada ping. Sin esto la barra de progreso solo avanzaba a saltos,
+  /// cada vez que ese umbral se cruzaba, en vez de fluida con cada
+  /// actualización de ubicación.
+  ///
+  /// NO toca `distanceMeters`: ese va por ruta, junto al ETA con el que se
+  /// muestra (ver `_refreshRouteIfNeeded`). Acá la línea recta solo sirve
+  /// para el porcentaje, que se compara contra un baseline de la misma
+  /// unidad.
   void _actualizarProgresoLiviano() {
     final driver = driverLatLng;
     final objetivo = objetivoActual;
     if (driver == null || objetivo == null) return;
-    final restante = _mathService.haversineMeters(driver, objetivo);
-    distanceMeters = restante;
-    progresoTramo = _calcularProgreso(restante);
+    progresoTramo = _calcularProgreso(
+      _mathService.haversineMeters(driver, objetivo),
+    );
   }
 
   /// El conductor abre el sheet del PIN: la modal de espera se retira y no
