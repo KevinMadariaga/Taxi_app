@@ -128,6 +128,54 @@ void main() {
     });
   });
 
+  // A los 5 min se propone subir la oferta (una sola vez); a los 10 entra la
+  // de "¿sigues esperando?", que es la que puede cancelar.
+  group('propuesta de cambiar la oferta', () {
+    test('no aparece antes de los 5 minutos', () {
+      fakeAsync((async) {
+        vm.startSearchTimer();
+        async.elapse(const Duration(minutes: 4, seconds: 59));
+
+        expect(vm.ofertaPromptVisible, isFalse);
+      });
+    });
+
+    test('aparece a los 5 minutos', () {
+      fakeAsync((async) {
+        vm.startSearchTimer();
+        async.elapse(const Duration(minutes: 5));
+
+        expect(vm.ofertaPromptVisible, isTrue);
+      });
+    });
+
+    test('no vuelve a aparecer una vez cerrada', () {
+      fakeAsync((async) {
+        vm.startSearchTimer();
+        async.elapse(const Duration(minutes: 5));
+        vm.cerrarOfertaPrompt();
+        expect(vm.ofertaPromptVisible, isFalse);
+
+        // Ni siquiera pasada la marca de los 10 min, donde ya toma la posta
+        // la modal de "¿sigues esperando?".
+        async.elapse(const Duration(minutes: 6));
+        expect(vm.ofertaPromptVisible, isFalse);
+      });
+    });
+
+    test('no se pisa con la de seguir esperando: son banderas distintas', () {
+      fakeAsync((async) {
+        vm.startSearchTimer();
+        async.elapse(const Duration(minutes: 5));
+        vm.cerrarOfertaPrompt();
+
+        async.elapse(const Duration(minutes: 5));
+        expect(vm.confirmarSeguirVisible, isTrue);
+        expect(vm.ofertaPromptVisible, isFalse);
+      });
+    });
+  });
+
   // Una solicitud olvidada en `buscando` le aparece a los conductores como un
   // viaje disponible que nadie va a tomar. A los 10 min se pregunta, y sin
   // respuesta en 3 min se cancela sola.

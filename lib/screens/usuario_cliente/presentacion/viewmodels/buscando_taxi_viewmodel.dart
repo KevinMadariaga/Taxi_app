@@ -90,6 +90,16 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
   int searchSeconds = 0;
   bool flujoTerminado = false;
 
+  /// `true` cuando toca ofrecerle al cliente subir la oferta — a los 5
+  /// minutos de búsqueda, una sola vez. A esa altura ya es probable que el
+  /// precio, y no la falta de conductores, sea lo que frena el viaje.
+  ///
+  /// Es distinto de [confirmarSeguirVisible]: este propone una acción
+  /// (cambiar el valor), aquel pregunta si la búsqueda sigue viva y la
+  /// cancela sola si nadie responde.
+  bool ofertaPromptVisible = false;
+  bool _ofertaPromptMostrado = false;
+
   /// `true` mientras la modal "¿seguís esperando?" debe estar a la vista.
   /// La vista la observa desde su listener y abre/cierra en consecuencia.
   bool confirmarSeguirVisible = false;
@@ -889,10 +899,24 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
         _notif5minEnviada = true;
         _avisar5Minutos();
       }
+      // La notificación de arriba solo la ve quien tiene la app en segundo
+      // plano; esta modal es para el que está mirando la pantalla.
+      if (!_ofertaPromptMostrado && searchSeconds >= segundosAviso5min) {
+        _ofertaPromptMostrado = true;
+        ofertaPromptVisible = true;
+      }
       if (!confirmarSeguirVisible && searchSeconds >= _proximaConfirmacion) {
         _abrirConfirmarSeguir();
       }
     });
+  }
+
+  /// Cierra la propuesta de subir la oferta. No se vuelve a mostrar: a los
+  /// 10 min ya entra la de "¿seguís esperando?", y encimar recordatorios de
+  /// precio cada pocos minutos molesta más de lo que ayuda.
+  void cerrarOfertaPrompt() {
+    ofertaPromptVisible = false;
+    _safeNotify();
   }
 
   // ── "¿Seguís esperando?" ─────────────────────────────────────────────────

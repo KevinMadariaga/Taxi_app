@@ -65,6 +65,8 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
   bool _modalEditarAbierto = false;
   // Diálogo "¿seguís esperando?" abierto (cada 10 min de búsqueda).
   bool _modalSeguirAbierto = false;
+  // Diálogo "seguir buscando / cambiar oferta" abierto (a los 5 min).
+  bool _modalOfertaAbierto = false;
 
   // Estado UI-only: qué conductores están siendo respondidos
   final Map<String, bool> _respondingOffer = {};
@@ -128,8 +130,40 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
     if (!mounted) return;
     setState(() {});
     _maybeMostrarModalContraofertas();
+    _maybeMostrarOfertaPrompt();
     _maybeMostrarConfirmarSeguir();
     _maybeCalcularRuta();
+  }
+
+  /// A los 5 minutos: proponerle al cliente subir la oferta o seguir como
+  /// está. Una sola vez — a los 10 min toma la posta la modal de "¿sigues
+  /// esperando?", que además puede cancelar.
+  void _maybeMostrarOfertaPrompt() {
+    if (!_vm.ofertaPromptVisible || _modalOfertaAbierto) return;
+    if (_modalContraofertasAbierto ||
+        _modalEditarAbierto ||
+        _modalSeguirAbierto ||
+        _vm.flujoTerminado ||
+        _navegandoAViaje) {
+      return;
+    }
+
+    _modalOfertaAbierto = true;
+    _vm.cerrarOfertaPrompt();
+    showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogCtx) => _OfertaPromptDialog(
+        onSeguir: () => Navigator.of(dialogCtx).pop(false),
+        onCambiarOferta: () => Navigator.of(dialogCtx).pop(true),
+      ),
+    ).then((cambiar) {
+      _modalOfertaAbierto = false;
+      // El sheet de valor se abre DESPUÉS de que esta modal terminó de
+      // cerrarse: encimar dos rutas deja el teclado del sheet peleando con
+      // la animación de salida del diálogo.
+      if (cambiar == true && mounted) _abrirEditarOferta();
+    });
   }
 
   /// Abre (y cierra) la modal de "¿seguís esperando?" siguiendo el estado del
@@ -148,9 +182,13 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
     }
 
     if (!_vm.confirmarSeguirVisible || _modalSeguirAbierto) return;
-    // No encimar la modal sobre las otras dos ni sobre una salida en curso.
+    // No encimar la modal sobre las otras ni sobre una salida en curso. Si
+    // está abierta la de oferta (5 min) se deja para el próximo tick: el vm
+    // mantiene `confirmarSeguirVisible` en alto y la cuenta regresiva sigue
+    // corriendo, así que no se pierde el vencimiento.
     if (_modalContraofertasAbierto ||
         _modalEditarAbierto ||
+        _modalOfertaAbierto ||
         _vm.flujoTerminado ||
         _navegandoAViaje) {
       return;
@@ -1179,6 +1217,73 @@ class _MapPinOverlay extends StatelessWidget {
 /// Fondo mostrado si falla la imagen (sin red / sin key configurada) o si la
 /// key de Remote Config está vacía. Evita el ícono de imagen rota y deja la
 /// pantalla usable sin mapa.
+/// "Seguir buscando o cambiar oferta" — a los 5 minutos sin conductor.
+///
+/// A esa altura lo más probable es que el precio, y no la falta de
+/// conductores, sea lo que frena el viaje. Se muestra una sola vez: a los 10
+/// min entra la de "¿sigues esperando?", que además puede cancelar.
+class _OfertaPromptDialog extends StatelessWidget {
+  const _OfertaPromptDialog({
+    required this.onSeguir,
+    required this.onCambiarOferta,
+  });
+
+  final VoidCallback onSeguir;
+  final VoidCallback onCambiarOferta;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: context.palette.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.r)),
+      title: Text(
+        'Llevas 5 minutos buscando',
+        style: TextStyle(
+          fontWeight: FontWeight.w800,
+          fontSize: 18.sp,
+          color: context.palette.textPrimary,
+        ),
+      ),
+      content: Text(
+        'Todavía no hay conductor disponible. Puedes subir tu oferta para '
+        'conseguir uno más rápido, o seguir buscando con el valor actual.',
+        style: TextStyle(
+          fontSize: 14.sp,
+          height: 1.35,
+          color: context.palette.textSecondary,
+        ),
+      ),
+      actionsAlignment: MainAxisAlignment.spaceBetween,
+      actions: [
+        TextButton(
+          onPressed: onSeguir,
+          child: Text(
+            'Seguir buscando',
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              color: context.palette.textSecondary,
+            ),
+          ),
+        ),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColores.primary,
+            foregroundColor: AppColores.textWhite,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12.r),
+            ),
+          ),
+          onPressed: onCambiarOferta,
+          child: const Text(
+            'Cambiar oferta',
+            style: TextStyle(fontWeight: FontWeight.w700),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 /// "¿Seguís esperando?" — aparece cada 10 minutos de búsqueda sin conductor.
 ///
 /// Una solicitud olvidada en `buscando` le aparece a los conductores como un
