@@ -182,14 +182,19 @@ class ViajeConductorViewModel extends ChangeNotifier {
     return _mathService.haversineMeters(driver, objetivo) <= _radioLlegadaMetros;
   }
 
-  /// Radio dentro del cual el conductor puede terminar el viaje en el
-  /// destino — evita que el botón quede tocable apenas arranca el tramo,
-  /// mucho antes de llegar de verdad (cerraba la solicitud recién
-  /// empezada).
-  static const double _radioTerminarViajeMetros = 80;
+  /// Radio dentro del cual el conductor puede terminar el viaje — cubre el
+  /// caso de parar un poco antes del punto exacto (portería, esquina, el
+  /// otro lado de la calle) sin tener que acercarse más solo para que la app
+  /// lo deje cerrar.
+  static const double _radioTerminarViajeMetros = 60;
+
+  /// ETA por debajo del cual también se habilita, aunque todavía falten más
+  /// de [_radioTerminarViajeMetros]: en los últimos minutos el conductor ya
+  /// está maniobrando para dejar al pasajero y no tiene por qué pelear con
+  /// el botón.
+  static const Duration _etaTerminarViaje = Duration(minutes: 5);
 
   bool get puedeTerminarViaje {
-    final driver = driverLatLng;
     final objetivo = objetivoActual;
 
     // Sin destino la falla es PERMANENTE y trabaría el viaje: `destino
@@ -200,14 +205,24 @@ class ViajeConductorViewModel extends ChangeNotifier {
     // cierre prematuro, no para dejar un viaje imposible de cerrar.
     if (objetivo == null) return true;
 
-    // Sin ubicación del conductor, en cambio, la falla es TRANSITORIA: la
-    // app siempre escribe `conductor.ubicacion` como `{lat, lng}`
+    // Cerca por TIEMPO: `eta` sale de la ruta real hacia `objetivoActual`
+    // (`_refreshRouteIfNeeded`), no de la línea recta, así que respeta el
+    // tráfico y las vueltas de la calle.
+    final etaActual = eta;
+    if (etaActual != null && etaActual <= _etaTerminarViaje) return true;
+
+    // Sin ubicación del conductor la falla es TRANSITORIA: la app siempre
+    // escribe `conductor.ubicacion` como `{lat, lng}`
     // (`FirebaseService.actualizarUbicacionConductorEnSolicitud`) y el
     // stream reenvía cada 15 m / 10 s, así que se resuelve sola. Abrir el
     // botón acá volvería el gate un no-op justo en el camino que mueve
     // plata: un toque cerraría (y cobraría) un viaje recién empezado.
+    final driver = driverLatLng;
     if (driver == null) return false;
 
+    // Cerca por DISTANCIA: respaldo para cuando el ETA todavía no se
+    // resolvió (la ruta se recalcula recién tras moverse >20 m) o quedó
+    // viejo, pero el conductor ya está encima del punto.
     return _mathService.haversineMeters(driver, objetivo) <=
         _radioTerminarViajeMetros;
   }

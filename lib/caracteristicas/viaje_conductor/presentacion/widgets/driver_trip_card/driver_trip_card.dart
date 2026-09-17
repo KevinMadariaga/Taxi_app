@@ -102,9 +102,9 @@ class _DriverTripCardState extends State<DriverTripCard>
       );
     }
     if (estado == SolicitudEstado.enRuta) {
-      // Gate por distancia (80m, ver `puedeTerminarViaje`): sin esto el
-      // conductor podía tocar "Terminar viaje" apenas arrancaba la ruta,
-      // mucho antes de llegar de verdad, cerrando la solicitud recién
+      // Gate de cercanía (60 m o ETA ≤ 5 min, ver `puedeTerminarViaje`): sin
+      // esto el conductor podía tocar "Terminar viaje" apenas arrancaba la
+      // ruta, mucho antes de llegar de verdad, cerrando la solicitud recién
       // empezada.
       final dentroDeRango = vm.puedeTerminarViaje;
       return (

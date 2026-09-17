@@ -506,11 +506,12 @@ void main() {
   });
 
   group('puedeTerminarViaje', () {
-    // Gate de 80m para "Terminar viaje" — sin esto el botón quedaba tocable
-    // apenas arrancaba el tramo al destino, mucho antes de llegar de verdad.
-    // Fail-open SOLO sin destino: esa falla es permanente y dejaría el viaje
-    // imposible de cerrar. Sin ubicación del conductor el gate se mantiene,
-    // porque esa falla se resuelve sola con el próximo ping de GPS.
+    // Gate de cercanía para "Terminar viaje" (60 m O ETA <= 5 min) — sin esto
+    // el botón quedaba tocable apenas arrancaba el tramo al destino, mucho
+    // antes de llegar de verdad. Fail-open SOLO sin destino: esa falla es
+    // permanente y dejaría el viaje imposible de cerrar. Sin ubicación del
+    // conductor el gate se mantiene, porque esa falla se resuelve sola con el
+    // próximo ping de GPS.
     test('true sin viaje cargado', () {
       final f = _Fixture();
       expect(f.vm.puedeTerminarViaje, isTrue);
@@ -560,13 +561,31 @@ void main() {
       expect(f.vm.puedeTerminarViaje, isTrue);
     });
 
-    test('false a >80m del destino', () {
+    test('false lejos del destino y sin ETA resuelto', () {
       final f = _Fixture();
       // `_participante` (conductor incluido) está en LatLng(4.60, -74.08),
       // a varios km del destino LatLng(4.65, -74.05) de `_viaje`.
       f.vm.viaje = _viaje(SolicitudEstado.enRuta);
 
       expect(f.vm.puedeTerminarViaje, isFalse);
+    });
+
+    test('false lejos del destino y con ETA todavía largo', () {
+      final f = _Fixture();
+      f.vm.viaje = _viaje(SolicitudEstado.enRuta);
+      f.vm.eta = const Duration(minutes: 12);
+
+      expect(f.vm.puedeTerminarViaje, isFalse);
+    });
+
+    // El conductor ya está maniobrando para dejar al pasajero: se habilita por
+    // TIEMPO aunque falten más de 60 m en línea recta.
+    test('true con ETA <= 5 min aunque siga lejos en distancia', () {
+      final f = _Fixture();
+      f.vm.viaje = _viaje(SolicitudEstado.enRuta);
+      f.vm.eta = const Duration(minutes: 5);
+
+      expect(f.vm.puedeTerminarViaje, isTrue);
     });
 
     test('true a pocos metros del destino', () {
@@ -580,7 +599,7 @@ void main() {
         calificacion: _participante.calificacion,
         totalCalificaciones: _participante.totalCalificaciones,
         direccion: _participante.direccion,
-        // ~7-8m del destino LatLng(4.65, -74.05) — dentro del radio de 80m.
+        // ~7-8m del destino LatLng(4.65, -74.05) — dentro del radio de 60m.
         ubicacion: const LatLng(4.65005, -74.05005),
       );
       f.vm.viaje = ViajeEntity(
