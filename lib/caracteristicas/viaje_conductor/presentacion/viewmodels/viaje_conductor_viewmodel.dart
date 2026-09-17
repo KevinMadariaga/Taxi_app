@@ -204,11 +204,25 @@ class ViajeConductorViewModel extends ChangeNotifier {
   /// 300 m exige acercarse de verdad.
   static const double _progresoMinimoTerminarViaje = 0.6;
 
-  /// `false` cuando la ruta del tramo nunca resolvió (sin red, API caída):
-  /// ahí `progresoTramo` vale 0 por falta de datos, no porque el conductor
-  /// no se haya movido, y exigirlo dejaría el viaje sin forma de cerrarse.
+  /// Baseline mínimo para que el porcentaje signifique algo.
+  ///
+  /// `_distanciaInicialTramo` se mide cuando resuelve la primera ruta del
+  /// tramo, y hay casos donde eso pasa con el conductor YA cerca del
+  /// destino: la app se reinició a mitad del viaje (viewmodel nuevo, primer
+  /// snapshot ya en `en ruta`), o el conductor volvió a entrar a la
+  /// pantalla. Ahí el baseline queda en decenas de metros y exigir el 60%
+  /// de eso es pedir precisión que el GPS no tiene — el viaje quedaría
+  /// imposible de cerrar, que es justo lo que este gate NO debe causar.
+  /// Por debajo de este piso manda la cercanía absoluta.
+  static const double _baseMinimaProgresoMetros = 200;
+
+  /// `false` cuando la ruta del tramo nunca resolvió (sin red, API caída) o
+  /// cuando el baseline quedó demasiado corto para ser representativo: ahí
+  /// `progresoTramo` no dice nada sobre si el conductor se movió, y exigirlo
+  /// dejaría el viaje sin forma de cerrarse.
   bool get _progresoEsMedible =>
-      _distanciaInicialTramo != null && _distanciaInicialTramo! > 0;
+      _distanciaInicialTramo != null &&
+      _distanciaInicialTramo! > _baseMinimaProgresoMetros;
 
   bool get puedeTerminarViaje {
     final objetivo = objetivoActual;
@@ -839,13 +853,27 @@ class ViajeConductorViewModel extends ChangeNotifier {
         return;
       }
 
+      // El objetivo pudo cambiar mientras la petición estaba en vuelo: el
+      // viaje pasa a `en ruta` y este resultado es todavía del tramo de
+      // recogida. Aplicarlo pisaba `eta`/`distanceMeters` con valores de
+      // metros (el conductor acababa de llegar al cliente) y, peor, fijaba
+      // `_distanciaInicialTramo` del tramo nuevo en esa cifra — y como es
+      // `??=`, no se corregía nunca más.
+      if (objetivoActual != to) return;
+
       final dist = _ruta.distanciaRuta(polyline);
 
       routePoints = polyline;
-      distanceMeters = dist;
       eta = _ruta.etaDesdeDistancia(dist);
-      _distanciaInicialTramo ??= dist == 0 ? null : dist;
-      progresoTramo = _calcularProgreso(dist);
+      // Baseline en LÍNEA RECTA, la misma unidad con la que
+      // `_actualizarProgresoLiviano` mide lo que falta en cada ping. Con el
+      // baseline en metros de ruta y el restante en línea recta, el progreso
+      // nacía inflado por lo sinuoso del camino (un desvío 2.5x daba ~0.78
+      // sin que el auto se moviera).
+      _distanciaInicialTramo ??= _mathService.haversineMeters(from, to);
+      // Una sola fuente para `distanceMeters`/`progresoTramo`, así no quedan
+      // dos métricas conviviendo.
+      _actualizarProgresoLiviano();
 
       try {
         if (routePoints.length >= 2) {

@@ -229,6 +229,15 @@ describe('usuarios', () => {
     await assertSucceeds(como(env, CLIENTE).doc(`usuarios/${CLIENTE}`).delete());
   });
 
+  // Reintento de un borrado a medias: el doc ya no está (se borró en el
+  // primer intento) pero la cuenta de Auth sobrevivió, así que el usuario
+  // vuelve y reintenta. Sin el caso `resource == null` la regla denegaba y
+  // `EliminarCuentaScreen` lo mostraba como "cuenta suspendida".
+  test('borrar un doc que ya no existe no se deniega', async () => {
+    await assertSucceeds(como(env, CLIENTE).doc(`usuarios/${CLIENTE}`).delete());
+    await assertSucceeds(como(env, CLIENTE).doc(`usuarios/${CLIENTE}`).delete());
+  });
+
   // Y el admin sí puede borrar a un usuario deshabilitado (alta/baja real).
   test('el admin sí puede borrar a un usuario deshabilitado', async () => {
     await sembrar(env, `usuarios/${CLIENTE}`, {

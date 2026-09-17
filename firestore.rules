@@ -315,9 +315,16 @@ service cloud.firestore {
       // Auth sigue vivo porque nada llama `admin.auth().disableUser()`).
       // Un usuario legítimo que quiere borrar su cuenta no está
       // deshabilitado, así que `EliminarCuentaScreen` no se ve afectada.
+      // `resource == null` es el doc que YA no existe: borrarlo de nuevo es
+      // un no-op, pero sin este caso la regla evaluaba `resource.data` sobre
+      // null y denegaba. Pasa de verdad tras un borrado a medias (el doc se
+      // fue, `user.delete()` falló por login viejo): al reintentar, la app
+      // recibía `permission-denied` y `EliminarCuentaScreen` lo traducía a
+      // "tu cuenta está suspendida" — un callejón sin salida y encima falso.
       allow delete: if isAdminRole() ||
         (isSignedIn() && request.auth.uid == uid &&
-          resource.data.get('deshabilitado', false) == false);
+          (resource == null ||
+            resource.data.get('deshabilitado', false) == false));
 
       // Direcciones favoritas del propio usuario.
       match /favoritos/{favoritoId} {

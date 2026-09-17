@@ -695,5 +695,41 @@ void main() {
         isFalse,
       );
     });
+
+    // Reabrir la app parado al lado del destino rebaselinea el tramo desde
+    // ahí: el progreso queda en ~0 sin que nadie se haya movido. Si el
+    // baseline corto contara como medible, el viaje quedaría imposible de
+    // cerrar — el conductor no tiene botón de cancelar.
+    test('baseline corto no se exige: a 30 m con progreso 0, habilitado', () {
+      expect(evaluar(metros: 30, progreso: 0, medible: false), isTrue);
+    });
+  });
+
+  group('_progresoEsMedible (vía el piso de baseline)', () {
+    // El piso vive en el viewmodel, así que se ejercita por su efecto: con un
+    // tramo real (km) el progreso manda; con uno corto, no.
+    test('un tramo largo sí exige avance', () {
+      expect(
+        ViajeConductorViewModel.evaluarCierreDeTramo(
+          distanciaMetros: 50,
+          eta: null,
+          progreso: 0.2,
+          progresoMedible: true,
+        ),
+        isFalse,
+      );
+    });
+
+    test('un tramo corto se resuelve por cercanía', () {
+      expect(
+        ViajeConductorViewModel.evaluarCierreDeTramo(
+          distanciaMetros: 50,
+          eta: null,
+          progreso: 0.2,
+          progresoMedible: false,
+        ),
+        isTrue,
+      );
+    });
   });
 }

@@ -38,6 +38,10 @@ class PreviewRouteController {
   final Set<Marker> extraMarkers = {};
   bool isLoadingPreviewRoute = false;
 
+  /// Generación de la última petición de rutas disparada — descarta las
+  /// viejas que resuelven después (ver `fetchRouteOSRM`).
+  int _fetchGen = 0;
+
 
   /// Se dispara con cada cambio de estado — el vm host lo usa para su propio
   /// notifyListeners.
@@ -177,6 +181,11 @@ class PreviewRouteController {
     LatLng dest, {
     LatLng? destinoFinal,
   }) async {
+    // Token por petición, no por solicitud: si el conductor cierra la
+    // preview y vuelve a abrir LA MISMA, comparar solo el id daba match y el
+    // fetch viejo apagaba el spinner de la carga nueva, que se quedaba sin
+    // indicador para siempre.
+    final peticion = ++_fetchGen;
     isLoadingPreviewRoute = true;
     onChanged?.call();
     try {
@@ -221,10 +230,11 @@ class PreviewRouteController {
       final points = results[0];
       final pointsDestino = results.length > 1 ? results[1] : const <LatLng>[];
 
-      // La preview pudo cerrarse (o el conductor abrir otra) mientras las
-      // rutas estaban en vuelo: `clearPreviewAndRoutes` ya vació los mapas,
-      // y escribir acá dejaría trazas viejas colgadas para toda la sesión.
-      if (selectedPreview?.solicitud.id != id) return;
+      // La preview pudo cerrarse (o el conductor abrir otra, incluso la
+      // misma) mientras las rutas estaban en vuelo: `clearPreviewAndRoutes`
+      // ya vació los mapas, y escribir acá dejaría trazas viejas colgadas
+      // para toda la sesión.
+      if (peticion != _fetchGen || selectedPreview?.solicitud.id != id) return;
 
       if (points.isNotEmpty) {
         setRoute(id, points);
@@ -246,10 +256,10 @@ class PreviewRouteController {
             'InicioConductorViewModel: fallo fetchRouteOSRM (preview sin ruta)',
       );
     } finally {
-      // Solo la solicitud vigente apaga el spinner: si el conductor cerró
+      // Solo la petición vigente apaga el spinner: si el conductor cerró
       // esta preview y abrió otra, el fetch viejo al resolver apagaba el
       // loader de la NUEVA (que sigue cargando) y ya no se volvía a mostrar.
-      if (selectedPreview?.solicitud.id == id) {
+      if (peticion == _fetchGen) {
         isLoadingPreviewRoute = false;
         onChanged?.call();
       }
