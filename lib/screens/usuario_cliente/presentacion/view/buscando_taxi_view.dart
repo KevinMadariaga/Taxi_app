@@ -408,6 +408,12 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
                     destinoLocation: _vm.destinoLocation,
                     routePoints: _vm.routePoints,
                     isMoto: _vm.isMotoSolicitud,
+                    // `conectadosPositions` (colección
+                    // `conductores_conectados`), NO `conductoresPositions`:
+                    // ese otro lee `usuarios.ubicacion`, un campo que no
+                    // escribe nadie, así que llega siempre vacío.
+                    conductoresConectados: _vm.conectadosPositions.values
+                        .toList(growable: false),
                   ),
                 ),
               ),
@@ -705,23 +711,30 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
 ///   codificando `routePoints` (ya resuelto por calles en el ViewModel) con
 ///   el algoritmo estándar de Google Polyline (`MapService.encodePolyline`,
 ///   inverso de `decodePolyline`).
-/// - **Conductores cercanos/conectados**: a propósito NO se dibujan en este
-///   mapa — el pedido explícito fue solo los dos marcadores (cliente +
-///   destino). Las suscripciones de Firestore que alimentan esos datos en
-///   el ViewModel (`subscribeConductores`/`subscribeConductoresConectados`)
-///   siguen intactas; solo se dejó de visualizarlos acá.
+/// - **Conductores conectados**: se dibujan detrás de los dos marcadores
+///   principales, con el ícono de carro más chico y traslúcido, para que el
+///   cliente vea de un vistazo que hay conductores activos por la zona
+///   mientras espera. Vienen de `conductores_conectados` (presencia real,
+///   ver [BuscandoTaxiViewModel.conectadosPositions]) — NO de
+///   `usuarios.ubicacion`, que no lo escribe nadie.
 class _BuscandoTaxiStaticMap extends StatelessWidget {
   const _BuscandoTaxiStaticMap({
     required this.clientLocation,
     required this.destinoLocation,
     required this.routePoints,
     required this.isMoto,
+    this.conductoresConectados = const [],
   });
 
   final LatLng? clientLocation;
   final LatLng? destinoLocation;
   final List<LatLng> routePoints;
   final bool isMoto;
+
+  /// Posiciones de los conductores conectados, solo para mostrar actividad
+  /// en la zona. No cambian el encuadre: el mapa se sigue encuadrando por
+  /// cliente + destino, y los que caen fuera del recuadro no se dibujan.
+  final List<LatLng> conductoresConectados;
 
   static const adapter.MapService _mapService = adapter.MapService();
 
@@ -733,6 +746,17 @@ class _BuscandoTaxiStaticMap extends StatelessWidget {
 
   static const double _vehicleIconSize = 40;
   static const double _destinoIconSize = 44;
+
+  /// Más chico y traslúcido que el marcador del propio cliente: son contexto
+  /// ("hay movimiento por acá"), no puntos del viaje. Sin esta diferencia se
+  /// confunden con el marcador principal, que usa el mismo asset.
+  static const double _conductorIconSize = 26;
+  static const double _conductorIconOpacity = 0.85;
+
+  /// Tope de íconos dibujados. En una zona densa la lista puede traer
+  /// decenas y el valor informativo se satura mucho antes: son widgets
+  /// posicionados, no píxeles de la imagen.
+  static const int _maxConductoresDibujados = 12;
 
   // ── Proyección Web Mercator (mismas fórmulas que usa Google Maps/Static
   // Maps internamente para pasar de lat/lng a píxeles) ───────────────────
@@ -747,6 +771,56 @@ class _BuscandoTaxiStaticMap extends StatelessWidget {
         128.0 -
         (math.log((1.0 + sinLat) / (1.0 - sinLat)) / (4.0 * math.pi)) * 256.0;
     return Offset(x, y);
+  }
+
+  /// Íconos de los conductores conectados que de verdad caen dentro del
+  /// recuadro.
+  ///
+  /// El encuadre lo siguen mandando cliente + destino, así que un conductor
+  /// a 10 km queda fuera de la imagen: sin este filtro se construiría un
+  /// `Positioned` igual, que el `Stack` recorta pero que ya costó el widget.
+  List<Widget> _conductoresVisibles({
+    required LatLng center,
+    required double zoom,
+    required double width,
+    required double height,
+  }) {
+    if (conductoresConectados.isEmpty) return const [];
+
+    final visibles = <Widget>[];
+    // Media caja más el ícono: así uno justo en el borde entra a medias en
+    // vez de desaparecer de golpe.
+    final limiteX = width / 2 + _conductorIconSize;
+    final limiteY = height / 2 + _conductorIconSize;
+
+    for (final posicion in conductoresConectados) {
+      if (visibles.length >= _maxConductoresDibujados) break;
+      final offset = _pixelOffset(center: center, point: posicion, zoom: zoom);
+      if (offset.dx.abs() > limiteX || offset.dy.abs() > limiteY) continue;
+
+      visibles.add(
+        _MapPinOverlay(
+          offset: offset,
+          boxWidth: width,
+          boxHeight: height,
+          iconSize: _conductorIconSize,
+          // Vista cenital, igual que el marcador del cliente: se ancla por
+          // el centro, no por una punta.
+          anchorBottom: false,
+          child: Opacity(
+            opacity: _conductorIconOpacity,
+            // Siempre carro: `conductores_conectados` solo guarda ubicación
+            // y `updatedAt`, no el tipo de vehículo de cada conductor.
+            child: Image.asset(
+              'assets/img/icono_carro.png',
+              width: _conductorIconSize,
+              height: _conductorIconSize,
+            ),
+          ),
+        ),
+      );
+    }
+    return visibles;
   }
 
   /// Offset en píxeles (respecto a [center]) de [point], al [zoom] dado.
@@ -956,6 +1030,14 @@ class _BuscandoTaxiStaticMap extends StatelessWidget {
                       );
                       return const _MapaBusquedaPlaceholder();
                     },
+                  ),
+                  // Antes que los marcadores del viaje: son fondo, no deben
+                  // taparlos.
+                  ..._conductoresVisibles(
+                    center: center,
+                    zoom: zoom,
+                    width: width,
+                    height: height,
                   ),
                   if (hasDestino)
                     _MapPinOverlay(
