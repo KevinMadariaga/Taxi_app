@@ -575,9 +575,10 @@ class InicioConductorViewmodel extends ChangeNotifier {
       final estado = SolicitudEstado.normalize(
         (data['estado'] ?? data['status'] ?? '').toString(),
       );
-      if (estado == SolicitudEstado.asignado ||
-          estado == SolicitudEstado.cancelado) {
-        throw StateError('La solicitud ya no permite contraoferta.');
+      // Solo en `buscando`: con la lista negra anterior (asignado/cancelado)
+      // una contraoferta sobre un viaje ya en camino lo devolvía a buscando.
+      if (estado != SolicitudEstado.buscando) {
+        throw StateError('Esta solicitud ya fue tomada por otro conductor.');
       }
 
       final ofertaEntry = {

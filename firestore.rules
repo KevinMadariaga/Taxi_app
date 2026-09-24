@@ -151,6 +151,19 @@ service cloud.firestore {
         return c.get('membresia', '').lower() == 'activa' && !vencida;
       }
 
+      // Una vez asignada, la solicitud no vuelve a abrirse ni cambia de
+      // conductor. Es la garantía de servidor de "un viaje, un conductor":
+      // un `set` del cliente (cambiar oferta, rechazar contraoferta) que
+      // llegaba justo después de la aceptación reabría el viaje a
+      // `buscando` con el conductor ya puesto, y un segundo conductor podía
+      // tomarlo encima.
+      function sinReasignar() {
+        return isOpenForConductores() ||
+          (!(request.resource.data.get('estado', '') in ['buscando', 'pending', 'pendiente']) &&
+            request.resource.data.get('conductor', {}).get('id', null) ==
+              resource.data.get('conductor', {}).get('id', null));
+      }
+
       allow read: if isOwner() || isAssignedConductor() ||
         (isConductorRole() && isOpenForConductores());
 
@@ -167,6 +180,7 @@ service cloud.firestore {
           (!esEstadoTerminal(resource.data.estado) &&
             (isOwner() || isAssignedConductor() ||
               (isConductorRole() && isOpenForConductores())) &&
+            sinReasignar() &&
             (!esNuevaAsignacion() ||
               membresiaVigente(request.resource.data.conductor.id)))
         );

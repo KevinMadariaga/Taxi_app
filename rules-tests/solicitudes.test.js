@@ -392,3 +392,51 @@ describe('solicitudes/{id}/mensajes — chat del viaje', () => {
     });
   });
 });
+
+// Un viaje, un conductor: una vez asignada, la solicitud no se reabre ni
+// cambia de conductor (carrera cliente-cambia-oferta vs conductor-acepta).
+describe('solicitudes — asignación única', () => {
+  test('un segundo conductor NO puede tomar una solicitud ya asignada', async () => {
+    await sembrar(env, 'solicitudes/s1', solicitud({ estado: 'asignado', conductorId: OTRO_CONDUCTOR }));
+    await assertFails(
+      como(env, CONDUCTOR).doc('solicitudes/s1').update({
+        estado: 'asignado',
+        conductor: { id: CONDUCTOR },
+      }),
+    );
+  });
+
+  test('el cliente NO puede reabrir a buscando un viaje ya asignado', async () => {
+    await sembrar(env, 'solicitudes/s1', solicitud({ estado: 'asignado', conductorId: CONDUCTOR }));
+    await assertFails(
+      como(env, CLIENTE).doc('solicitudes/s1').set(
+        { estado: 'buscando', tarifa: { total: 15000 } },
+        { merge: true },
+      ),
+    );
+  });
+
+  test('el cliente NO puede cambiar el conductor de un viaje asignado', async () => {
+    await sembrar(env, 'solicitudes/s1', solicitud({ estado: 'asignado', conductorId: CONDUCTOR }));
+    await assertFails(
+      como(env, CLIENTE).doc('solicitudes/s1').update({ conductor: { id: OTRO_CONDUCTOR } }),
+    );
+  });
+
+  test('el cliente SÍ puede cancelar un viaje asignado', async () => {
+    await sembrar(env, 'solicitudes/s1', solicitud({ estado: 'asignado', conductorId: CONDUCTOR }));
+    await assertSucceeds(
+      como(env, CLIENTE).doc('solicitudes/s1').update({ estado: 'cancelado' }),
+    );
+  });
+
+  test('el cliente SÍ puede cambiar la oferta mientras sigue buscando', async () => {
+    await sembrar(env, 'solicitudes/s1', solicitud());
+    await assertSucceeds(
+      como(env, CLIENTE).doc('solicitudes/s1').set(
+        { estado: 'buscando', tarifa: { total: 15000 } },
+        { merge: true },
+      ),
+    );
+  });
+});
