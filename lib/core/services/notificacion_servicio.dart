@@ -21,11 +21,12 @@ class NotificacionesServicio {
       FlutterLocalNotificationsPlugin();
   bool _initialized = false;
 
-  // IDs de notificaciones por tipo
-  static const int _chatNotificationId = 1;
-  static const int _tripNotificationId = 2;
-  static const int _systemNotificationId = 3;
-  static const int _progresoViajeNotificationId = 4;
+  // IDs de notificaciones por tipo. Públicos porque quien muestra un aviso
+  // es también quien tiene que poder cancelarlo (ver `cancel`).
+  static const int chatNotificationId = 1;
+  static const int tripNotificationId = 2;
+  static const int systemNotificationId = 3;
+  static const int progresoViajeNotificationId = 4;
 
   // Canales de notificación
   static const String _chatChannelId = 'taxi_chat_channel';
@@ -152,6 +153,20 @@ class NotificacionesServicio {
       ),
     );
 
+    // Era el único canal que no se declaraba acá: se materializaba implícito
+    // en el primer `show`, con los valores por defecto de Android en vez de
+    // los de la app.
+    await androidPlugin?.createNotificationChannel(
+      const AndroidNotificationChannel(
+        _systemChannelId,
+        _systemChannelName,
+        description: 'Avisos generales de la aplicación',
+        importance: Importance.high,
+        playSound: true,
+        enableVibration: true,
+      ),
+    );
+
     _initialized = true;
   }
 
@@ -190,7 +205,7 @@ class NotificacionesServicio {
     );
 
     await _plugin.show(
-      id ?? _systemNotificationId,
+      id ?? systemNotificationId,
       title,
       body,
       notificationDetails,
@@ -233,7 +248,7 @@ class NotificacionesServicio {
     );
 
     await _plugin.show(
-      _chatNotificationId,
+      chatNotificationId,
       senderName,
       message,
       notificationDetails,
@@ -242,11 +257,15 @@ class NotificacionesServicio {
   }
 
   /// Notificación relacionada con viajes (asignación, inicio, finalización, etc.)
+  /// [id] permite que un aviso reemplace al anterior del mismo evento en vez
+  /// de apilarse; por defecto sigue siendo el id único del canal de viajes.
   Future<void> showTripNotification({
     required String title,
     required String body,
     bool playSound = true,
     bool vibrate = true,
+    int? id,
+    String? payload,
   }) async {
     await _ensureInitialized();
 
@@ -276,32 +295,12 @@ class NotificacionesServicio {
       iOS: iosDetails,
     );
 
-    await _plugin.show(_tripNotificationId, title, body, notificationDetails);
-  }
-
-  /// Notificación de cancelación de solicitud
-  Future<void> showCancellationNotification({
-    required String title,
-    required String body,
-  }) async {
-    await showTripNotification(
-      title: title,
-      body: body,
-      playSound: true,
-      vibrate: true,
-    );
-  }
-
-  /// Notificación de asignación de conductor/cliente
-  Future<void> showAssignmentNotification({
-    required String title,
-    required String body,
-  }) async {
-    await showTripNotification(
-      title: title,
-      body: body,
-      playSound: true,
-      vibrate: true,
+    await _plugin.show(
+      id ?? tripNotificationId,
+      title,
+      body,
+      notificationDetails,
+      payload: payload,
     );
   }
 
@@ -359,7 +358,7 @@ class NotificacionesServicio {
     );
 
     await _plugin.show(
-      _progresoViajeNotificationId,
+      progresoViajeNotificationId,
       title,
       body,
       notificationDetails,
@@ -371,9 +370,14 @@ class NotificacionesServicio {
     await _plugin.cancelAll();
   }
 
-  /// Cancela una notificación específica por ID
-  Future<void> cancel(int id) async {
-    await _plugin.cancel(id);
+  /// Cancela una notificación específica.
+  ///
+  /// [tag] es imprescindible para las que dibujó el SISTEMA desde un push de
+  /// FCM: esas se publican con `id 0` y el `tag` del `collapseKey`, así que un
+  /// `cancel` por id no las toca. La clave viaja en `data.notifClave`.
+  Future<void> cancel(int id, {String? tag}) async {
+    await _ensureInitialized();
+    await _plugin.cancel(id, tag: tag);
   }
 
   /// Asegura que el servicio esté inicializado antes de usarlo

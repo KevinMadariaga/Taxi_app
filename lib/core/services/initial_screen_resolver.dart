@@ -18,6 +18,7 @@ import 'package:taxi_app/caracteristicas/viaje_conductor/presentacion/vistas/via
 import 'package:taxi_app/core/services/services.dart';
 import 'package:taxi_app/core/constants/solicitud_estado.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
+import 'package:taxi_app/core/utils/notificacion_clave.dart';
 import 'package:taxi_app/core/utils/network_error_helper.dart';
 import 'package:taxi_app/core/services/conectividad_service.dart';
 
@@ -743,7 +744,10 @@ class InitialScreenResolver {
     try {
       await NotificacionesServicio.instance.init();
       await NotificacionesServicio.instance.showNotification(
-        id: DateTime.now().millisecondsSinceEpoch % 100000,
+        // Id fijo: con uno derivado del reloj, cada arranque de la app con
+        // una solicitud activa dejaba UNA notificación más en la bandeja (el
+        // guard de arriba es de instancia y se reinicia con el proceso).
+        id: idNotificacionDe('solicitud_activa'),
         title: 'Solicitud activa',
         body: 'Tienes una solicitud activa en curso.',
       );

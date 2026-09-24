@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -19,10 +20,12 @@ import 'package:taxi_app/caracteristicas/viaje_cliente/presentacion/vistas/viaje
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/editar_oferta_busqueda_view.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/home_cliente_view.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/buscando_taxi_viewmodel.dart'
-    show BuscandoTaxiViewModel, ConductorConectado;
+    show BuscandoTaxiViewModel, ConductorConectado, EventoBusqueda;
+import 'package:taxi_app/screens/usuario_cliente/presentacion/widgets/cambiar_oferta_dialog.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/widgets/contraofertas_modal.dart';
 import 'package:taxi_app/widgets/intermediate_transition_view.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
+import 'package:taxi_app/core/utils/moneda_format.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // BuscandoTaxiView
@@ -59,13 +62,19 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
   bool _dismissingModal = false;
   // Flujo de aceptación en curso: evita que la modal de ofertas se reabra.
   bool _navegandoAViaje = false;
-  // Navegación al viaje ya realizada: evita duplicarla (manual + listener).
-  bool _viajeNavegado = false;
+
+  /// Alguien ya reclamó la salida de esta pantalla.
+  ///
+  /// Síncrona y sin vuelta atrás. Es lo único que garantiza que dos
+  /// disparadores simultáneos —el reloj local de inactividad y el barrido
+  /// server-side, que caen en el mismo minuto— no ejecuten DOS veces una
+  /// navegación con `clearStackOnNext: true`. Dos de esas seguidas dejaban el
+  /// Navigator con una sola ruta (o vacío) y Flutter cerraba la app.
+  bool _saliendo = false;
   // Bottom sheet "Actualizar valor" abierto.
   bool _modalEditarAbierto = false;
-  // Diálogo "¿seguís esperando?" abierto (cada 10 min de búsqueda).
-  bool _modalSeguirAbierto = false;
-  // Diálogo "seguir buscando / cambiar oferta" abierto (a los 5 min).
+  // Diálogo "¿Sigues buscando?" abierto (evita duplicarlo, y evita que el
+  // back de Android cancele la búsqueda por debajo).
   bool _modalOfertaAbierto = false;
 
   // Estado UI-only: qué conductores están siendo respondidos
@@ -129,93 +138,9 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
   void _onVmChanged() {
     if (!mounted) return;
     setState(() {});
+    _maybeAtenderEvento();
     _maybeMostrarModalContraofertas();
-    _maybeMostrarOfertaPrompt();
-    _maybeMostrarConfirmarSeguir();
     _maybeCalcularRuta();
-  }
-
-  /// A los 5 minutos: proponerle al cliente subir la oferta o seguir como
-  /// está. Una sola vez — a los 10 min toma la posta la modal de "¿sigues
-  /// esperando?", que además puede cancelar.
-  void _maybeMostrarOfertaPrompt() {
-    if (!_vm.ofertaPromptVisible || _modalOfertaAbierto) return;
-    if (_modalContraofertasAbierto ||
-        _modalEditarAbierto ||
-        _modalSeguirAbierto ||
-        _vm.flujoTerminado ||
-        _navegandoAViaje) {
-      return;
-    }
-
-    _modalOfertaAbierto = true;
-    _vm.cerrarOfertaPrompt();
-    showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogCtx) => _OfertaPromptDialog(
-        onSeguir: () => Navigator.of(dialogCtx).pop(false),
-        onCambiarOferta: () => Navigator.of(dialogCtx).pop(true),
-      ),
-    ).then((cambiar) {
-      _modalOfertaAbierto = false;
-      // El sheet de valor se abre DESPUÉS de que esta modal terminó de
-      // cerrarse: encimar dos rutas deja el teclado del sheet peleando con
-      // la animación de salida del diálogo.
-      if (cambiar == true && mounted) _abrirEditarOferta();
-    });
-  }
-
-  /// Abre (y cierra) la modal de "¿seguís esperando?" siguiendo el estado del
-  /// viewmodel, que es quien tiene los tiempos.
-  void _maybeMostrarConfirmarSeguir() {
-    // Se agotó la cuenta regresiva sin respuesta: cerrar y cancelar de
-    // verdad. El write a Firestore y la salida viven acá, no en el vm.
-    if (_vm.debeCancelarPorNoResponder) {
-      _vm.cerrarConfirmarSeguir();
-      if (_modalSeguirAbierto && Navigator.of(context).canPop()) {
-        Navigator.of(context).pop();
-      }
-      _modalSeguirAbierto = false;
-      _cancelSolicitud();
-      return;
-    }
-
-    if (!_vm.confirmarSeguirVisible || _modalSeguirAbierto) return;
-    // No encimar la modal sobre las otras ni sobre una salida en curso. Si
-    // está abierta la de oferta (5 min) se deja para el próximo tick: el vm
-    // mantiene `confirmarSeguirVisible` en alto y la cuenta regresiva sigue
-    // corriendo, así que no se pierde el vencimiento.
-    if (_modalContraofertasAbierto ||
-        _modalEditarAbierto ||
-        _modalOfertaAbierto ||
-        _vm.flujoTerminado ||
-        _navegandoAViaje) {
-      return;
-    }
-
-    _modalSeguirAbierto = true;
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => PopScope(
-        canPop: false,
-        child: _SeguirBuscandoDialog(
-          vm: _vm,
-          onSeguir: () {
-            Navigator.of(context).pop();
-            _modalSeguirAbierto = false;
-            _vm.confirmarSeguirBuscando();
-          },
-          onCancelar: () {
-            Navigator.of(context).pop();
-            _modalSeguirAbierto = false;
-            _vm.cerrarConfirmarSeguir();
-            _cancelSolicitud();
-          },
-        ),
-      ),
-    ).then((_) => _modalSeguirAbierto = false);
   }
 
   // ── Ubicación ─────────────────────────────────────────────────────────────
@@ -276,22 +201,59 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
 
   // ── Acciones ──────────────────────────────────────────────────────────────
 
-  Future<void> _onSolicitudAsignada(String solicitudId) async {
-    if (!mounted || _viajeNavegado) return;
-    _viajeNavegado = true;
-    _navegandoAViaje = true;
+  /// Reclama la salida de la pantalla. `false` si otro ya la reclamó.
+  ///
+  /// Todos los caminos que sacan al usuario de acá pasan por esto ANTES de su
+  /// primer `await`, así que dos disparos simultáneos se resuelven sin
+  /// depender de en qué orden lleguen.
+  bool _reclamarSalida() {
+    if (_saliendo || !mounted) return false;
+    _saliendo = true;
     _vm.marcarFlujoTerminado();
+    return true;
+  }
+
+  /// Cierra lo que haya encima de esta pantalla antes de navegar.
+  ///
+  /// Cubre los TRES modales que pueden estar arriba —"¿Sigues buscando?", la
+  /// de contraofertas y `EditarOfertaBusquedaView`—, no solo el primero: con
+  /// cualquiera de ellos encima, el `pushReplacement` de
+  /// `navigateWithIntermediateLoader` reemplaza ESA ruta y `BuscandoTaxiView`
+  /// queda viva debajo de la pantalla siguiente.
+  Future<void> _cerrarModalesAbiertas() async {
+    if (!mounted) return;
+    final habiaModal =
+        _modalOfertaAbierto ||
+        _modalContraofertasAbierto ||
+        _modalEditarAbierto;
+    _modalOfertaAbierto = false;
+    _modalContraofertasAbierto = false;
+    _modalEditarAbierto = false;
+    cerrarRutasSobre(context);
+    if (!habiaModal) return;
+    // Esperar la animación de salida antes de navegar, para que la
+    // transición se vea limpia (mismo criterio que ya usaba `_aceptarOferta`).
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+  }
+
+  Future<void> _onSolicitudAsignada(String solicitudId) async {
+    if (!_reclamarSalida()) return;
+    _navegandoAViaje = true;
+    await _cerrarModalesAbiertas();
+    if (!mounted) return;
     await _vm.detenerEscucha();
     if (!mounted) return;
     _vm.finalizarTrackingConductores();
-    await navigateWithIntermediateLoader(
-      context: context,
-      nextBuilder: (_) => ViajeClienteScreen(
-        viajeId: solicitudId,
-        currentUserId: FirebaseAuth.instance.currentUser?.uid ?? '',
+    unawaited(
+      navigateWithIntermediateLoader(
+        context: context,
+        nextBuilder: (_) => ViajeClienteScreen(
+          viajeId: solicitudId,
+          currentUserId: FirebaseAuth.instance.currentUser?.uid ?? '',
+        ),
+        title: 'Conductor encontrado',
+        subtitle: 'Preparando tu ruta y detalles del viaje...',
       ),
-      title: 'Conductor encontrado',
-      subtitle: 'Preparando tu ruta y detalles del viaje...',
     );
   }
 
@@ -302,35 +264,41 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
   /// siempre. No se llama a `cancelarSolicitud()`: la solicitud ya está
   /// terminada en Firestore, solo hay que sacar al usuario de acá.
   Future<void> _onSolicitudTerminada(String estadoNormalizado) async {
-    if (!mounted || _viajeNavegado || _navegandoAViaje) return;
-    _viajeNavegado = true;
-    _vm.marcarFlujoTerminado();
+    if (_navegandoAViaje || !_reclamarSalida()) return;
+    await _cerrarModalesAbiertas();
+    if (!mounted) return;
     await _vm.detenerEscucha();
     if (!mounted) return;
     _vm.finalizarTrackingConductores();
 
     final esSinRespuesta = estadoNormalizado == SolicitudEstado.sinRespuesta;
-    await navigateWithIntermediateLoader(
-      context: context,
-      nextBuilder: (_) => const HomeClienteView(),
-      title: esSinRespuesta
-          ? 'Sin conductores disponibles'
-          : 'Búsqueda finalizada',
-      subtitle: esSinRespuesta
-          ? 'Ningún conductor respondió a tu solicitud. Intenta de nuevo.'
-          : 'Tu solicitud ya no está activa. Puedes pedir otro viaje.',
-      icon: Icons.info_outline_rounded,
-      accentColor: AppColores.warning,
-      drawCheck: false,
-      delay: const Duration(milliseconds: 1600),
-      clearStackOnNext: true,
+    unawaited(
+      navigateWithIntermediateLoader(
+        context: context,
+        nextBuilder: (_) => const HomeClienteView(),
+        title: esSinRespuesta
+            ? 'Sin conductores disponibles'
+            : 'Búsqueda finalizada',
+        subtitle: esSinRespuesta
+            ? 'Ningún conductor respondió a tu solicitud. Intenta de nuevo.'
+            : 'Tu solicitud ya no está activa. Puedes pedir otro viaje.',
+        icon: Icons.info_outline_rounded,
+        accentColor: AppColores.warning,
+        drawCheck: false,
+        delay: const Duration(milliseconds: 1600),
+        clearStackOnNext: true,
+      ),
     );
   }
 
   Future<void> _cancelSolicitud() async {
-    if (_vm.isCancelling) return;
-    _viajeNavegado = true;
-    _vm.marcarFlujoTerminado();
+    // Sin `_reclamarSalida()` este era el único camino de salida sin guard:
+    // su `isCancelling` no lo levanta el autocancelado por inactividad, así
+    // que el botón rojo seguía activo mientras ese corría y un tap disparaba
+    // la secuencia de salida entera por segunda vez.
+    if (!_reclamarSalida()) return;
+    await _cerrarModalesAbiertas();
+    if (!mounted) return;
     // Para el listener de Firestore antes de escribir 'cancelado': si no,
     // detecta su propia escritura y dispara `_onSolicitudTerminada` en
     // paralelo, empujando una segunda pantalla intermedia (burbuja naranja
@@ -340,16 +308,18 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
     await _vm.cancelarSolicitud();
     if (!mounted) return;
     _vm.finalizarTrackingConductores();
-    await navigateWithIntermediateLoader(
-      context: context,
-      nextBuilder: (_) => const HomeClienteView(),
-      title: 'Viaje cancelado',
-      subtitle: 'Has cancelado la búsqueda.',
-      icon: Icons.close_rounded,
-      accentColor: AppColores.error,
-      drawCheck: false,
-      delay: const Duration(milliseconds: 1600),
-      clearStackOnNext: true,
+    unawaited(
+      navigateWithIntermediateLoader(
+        context: context,
+        nextBuilder: (_) => const HomeClienteView(),
+        title: 'Viaje cancelado',
+        subtitle: 'Has cancelado la búsqueda.',
+        icon: Icons.close_rounded,
+        accentColor: AppColores.error,
+        drawCheck: false,
+        delay: const Duration(milliseconds: 1600),
+        clearStackOnNext: true,
+      ),
     );
   }
 
@@ -361,11 +331,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
 
     // 1) Cerrar primero la modal de ofertas y esperar a que termine su
     //    animación de cierre, para que la navegación se vea limpia.
-    if (_modalContraofertasAbierto && Navigator.of(context).canPop()) {
-      Navigator.of(context).pop();
-      _modalContraofertasAbierto = false;
-      await Future<void>.delayed(const Duration(milliseconds: 280));
-    }
+    await _cerrarModalesAbiertas();
     if (!mounted) return;
 
     // 2) Aceptar en el backend.
@@ -407,19 +373,6 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
   }
 
   // ── Modal editar valor ────────────────────────────────────────────────────
-
-  String _formatCurrency(num value) {
-    final asInt = value.round().toString();
-    final buf = StringBuffer();
-    for (int i = 0; i < asInt.length; i++) {
-      final reverseIndex = asInt.length - i;
-      buf.write(asInt[i]);
-      if (reverseIndex > 1 && reverseIndex % 3 == 1) {
-        buf.write('.');
-      }
-    }
-    return buf.toString();
-  }
 
   /// Abre `EditarOfertaBusquedaView` como pantalla propia (no modal): pasa
   /// el mismo `_vm` en vivo, así que guardar ahí ya actualiza esta pantalla
@@ -465,9 +418,13 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
         // Si hay una modal/diálogo abierto, Android cierra primero esa ruta y
         // este callback NO se invoca. Aquí solo llega el back de la pantalla:
         // cancelar la búsqueda de forma limpia (sin dejar solicitud huérfana).
-        if (_vm.flujoTerminado || _vm.isCancelling) return;
+        if (_saliendo || _vm.flujoTerminado || _vm.isCancelling) return;
         // Si hay alguna modal abierta, no cancelar: dejar que se cierre sola.
-        if (_modalEditarAbierto || _modalContraofertasAbierto) return;
+        if (_modalEditarAbierto ||
+            _modalContraofertasAbierto ||
+            _modalOfertaAbierto) {
+          return;
+        }
         _cancelSolicitud();
       },
       child: Scaffold(
@@ -553,7 +510,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
             SizedBox(width: 6.w),
             Expanded(
               child: Text(
-                '\$${_formatCurrency(_vm.valorServicioActual)}',
+                '\$${formatCurrency(_vm.valorServicioActual)}',
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontSize: isTablet ? 16 : 14.5,
@@ -593,11 +550,141 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
     );
   }
 
+  // ── Hitos del contador de búsqueda ────────────────────────────────────────
+
+  /// Atiende el hito que el ViewModel dejó pendiente. El evento se consume
+  /// ANTES del `addPostFrameCallback`: si se consumiera después, cualquier
+  /// rebuild intermedio volvería a entrar acá y dispararía el mismo hito dos
+  /// veces.
+  void _maybeAtenderEvento() {
+    final evento = _vm.eventoPendiente;
+    if (evento == null) return;
+    _vm.consumirEvento();
+    if (_vm.flujoTerminado || _navegandoAViaje || _saliendo) return;
+
+    // La cancelación reclama la salida ACÁ, no dentro del post-frame: entre
+    // el chequeo de arriba y el callback pasa un frame entero, y en esa
+    // ventana el estado "ya estoy saliendo" quedaba sin dueño — justo el
+    // frame en el que también puede llegar el snapshot terminal del barrido
+    // server-side.
+    if (evento == EventoBusqueda.canceladaPorInactividad &&
+        !_reclamarSalida()) {
+      return;
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      switch (evento) {
+        case EventoBusqueda.proponerCambioOferta:
+          _mostrarCambiarOferta();
+        case EventoBusqueda.canceladaPorInactividad:
+          _cancelarPorInactividad();
+      }
+    });
+  }
+
+  Future<void> _mostrarCambiarOferta() async {
+    // Si hay otro modal/pantalla encima no se muestra nada, y el VM se
+    // reagenda solo: no arranca ningún plazo de silencio mientras el evento
+    // no se haya convertido en un diálogo visible.
+    if (_modalOfertaAbierto ||
+        _modalContraofertasAbierto ||
+        _modalEditarAbierto) {
+      return;
+    }
+    _modalOfertaAbierto = true;
+    final futuro = mostrarCambiarOfertaDialog(
+      context,
+      valorActual: _vm.valorServicioActual,
+      validar: _vm.validarNuevoValor,
+    );
+    // Recién con el diálogo en pantalla arranca el plazo para responder.
+    _vm.registrarPropuestaMostrada();
+
+    final nuevoValor = await futuro;
+    _modalOfertaAbierto = false;
+    if (!mounted) return;
+    // `nuevoValor == null` también llega cuando el diálogo lo cerró el hito
+    // de inactividad; ahí `flujoTerminado` ya está puesto y no hay respuesta
+    // que registrar: el cliente justamente no contestó.
+    if (_vm.flujoTerminado || _saliendo) return;
+    // Contestar es lo único que evita la cancelación y reagenda la próxima.
+    _vm.registrarRespuestaOferta();
+    if (nuevoValor == null) return;
+    final ok = await _vm.actualizarValorServicio(nuevoValor);
+    if (!mounted || ok) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('No se pudo actualizar. Intenta de nuevo.')),
+    );
+  }
+
+  /// Misma secuencia que [_cancelSolicitud] — el orden importa: parar el
+  /// listener ANTES de escribir 'cancelado', o detecta su propia escritura y
+  /// `_onSolicitudTerminada` empuja una segunda pantalla intermedia con el
+  /// texto genérico "Búsqueda finalizada".
+  Future<void> _cancelarPorInactividad() async {
+    // La salida ya la reclamó `_maybeAtenderEvento` antes del post-frame.
+    if (!mounted || !_saliendo) return;
+    // El cliente dejó la propuesta sin contestar: cerrar el diálogo antes de
+    // sacarlo de la pantalla, o queda flotando sobre la transición.
+    await _cerrarModalesAbiertas();
+    if (!mounted) return;
+    await _vm.detenerEscucha();
+    if (!mounted) return;
+    final estadoReal = await _vm.marcarCanceladaPorInactividad();
+    if (!mounted) return;
+    _vm.finalizarTrackingConductores();
+
+    // No canceló: la solicitud ya no estaba en `buscando`. Si un conductor
+    // aceptó en la ventana entre que este flujo reclamó la salida y la
+    // transacción llegó al servidor, mandar al cliente al inicio con
+    // "Búsqueda cancelada" lo deja afuera de un viaje que SÍ existe — y el
+    // listener ya se detuvo, así que nada lo devolvería.
+    if (estadoReal == SolicitudEstado.asignado) {
+      final solicitudId = widget.solicitudId;
+      if (solicitudId != null && solicitudId.isNotEmpty) {
+        unawaited(
+          navigateWithIntermediateLoader(
+            context: context,
+            nextBuilder: (_) => ViajeClienteScreen(
+              viajeId: solicitudId,
+              currentUserId: FirebaseAuth.instance.currentUser?.uid ?? '',
+            ),
+            title: 'Conductor encontrado',
+            subtitle: 'Preparando tu ruta y detalles del viaje...',
+          ),
+        );
+        return;
+      }
+    }
+
+    final canceloDeVerdad = estadoReal == null;
+    unawaited(
+      navigateWithIntermediateLoader(
+        context: context,
+        nextBuilder: (_) => const HomeClienteView(),
+        title: canceloDeVerdad ? 'Búsqueda cancelada' : 'Búsqueda finalizada',
+        subtitle: canceloDeVerdad
+            ? 'Se canceló tu solicitud automáticamente por inactividad.'
+            : 'Tu solicitud ya no está activa. Puedes pedir otro viaje.',
+        icon: Icons.timer_off_rounded,
+        accentColor: AppColores.warning,
+        drawCheck: false,
+        delay: const Duration(milliseconds: 1600),
+        clearStackOnNext: true,
+      ),
+    );
+  }
+
   // ── Modal central de contraofertas ─────────────────────────────────────────
 
   void _maybeMostrarModalContraofertas() {
-    if (_modalContraofertasAbierto || _vm.flujoTerminado || _navegandoAViaje)
+    if (_modalContraofertasAbierto ||
+        _modalOfertaAbierto ||
+        _vm.flujoTerminado ||
+        _navegandoAViaje) {
       return;
+    }
     if (_vm.contraofertas.isEmpty) return;
     _modalContraofertasAbierto = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -710,7 +797,11 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
       width: double.infinity,
       height: 48.h,
       child: ElevatedButton(
-        onPressed: _vm.isCancelling ? null : _cancelSolicitud,
+        // `_saliendo` además de `isCancelling`: el autocancelado por
+        // inactividad no levanta esa bandera, así que durante su transacción
+        // de Firestore el botón seguía activo y un tap ejecutaba la salida
+        // por segunda vez.
+        onPressed: _saliendo || _vm.isCancelling ? null : _cancelSolicitud,
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColores.error,
           foregroundColor: AppColores.textWhite,
@@ -723,7 +814,7 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
             fontWeight: FontWeight.w600,
           ),
         ),
-        child: _vm.isCancelling
+        child: _saliendo || _vm.isCancelling
             ? SizedBox(
                 width: 18.w,
                 height: 18.h,
@@ -1223,171 +1314,6 @@ class _MapPinOverlay extends StatelessWidget {
 /// Fondo mostrado si falla la imagen (sin red / sin key configurada) o si la
 /// key de Remote Config está vacía. Evita el ícono de imagen rota y deja la
 /// pantalla usable sin mapa.
-/// "Seguir buscando o cambiar oferta" — a los 5 minutos sin conductor.
-///
-/// A esa altura lo más probable es que el precio, y no la falta de
-/// conductores, sea lo que frena el viaje. Se muestra una sola vez: a los 10
-/// min entra la de "¿sigues esperando?", que además puede cancelar.
-class _OfertaPromptDialog extends StatelessWidget {
-  const _OfertaPromptDialog({
-    required this.onSeguir,
-    required this.onCambiarOferta,
-  });
-
-  final VoidCallback onSeguir;
-  final VoidCallback onCambiarOferta;
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      backgroundColor: context.palette.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.r)),
-      title: Text(
-        'Llevas 5 minutos buscando',
-        style: TextStyle(
-          fontWeight: FontWeight.w800,
-          fontSize: 18.sp,
-          color: context.palette.textPrimary,
-        ),
-      ),
-      content: Text(
-        'Todavía no hay conductor disponible. Puedes subir tu oferta para '
-        'conseguir uno más rápido, o seguir buscando con el valor actual.',
-        style: TextStyle(
-          fontSize: 14.sp,
-          height: 1.35,
-          color: context.palette.textSecondary,
-        ),
-      ),
-      actionsAlignment: MainAxisAlignment.spaceBetween,
-      actions: [
-        TextButton(
-          onPressed: onSeguir,
-          child: Text(
-            'Seguir buscando',
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
-              color: context.palette.textSecondary,
-            ),
-          ),
-        ),
-        ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColores.primary,
-            foregroundColor: AppColores.textWhite,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12.r),
-            ),
-          ),
-          onPressed: onCambiarOferta,
-          child: const Text(
-            'Cambiar oferta',
-            style: TextStyle(fontWeight: FontWeight.w700),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// "¿Seguís esperando?" — aparece cada 10 minutos de búsqueda sin conductor.
-///
-/// Una solicitud olvidada en `buscando` le aparece a los conductores como un
-/// viaje disponible que nadie va a tomar, así que si el cliente no contesta
-/// en 3 minutos la búsqueda se cancela sola. La cuenta regresiva la lleva el
-/// viewmodel (`segundosRestantesConfirmar`); acá solo se muestra.
-class _SeguirBuscandoDialog extends StatelessWidget {
-  const _SeguirBuscandoDialog({
-    required this.vm,
-    required this.onSeguir,
-    required this.onCancelar,
-  });
-
-  final BuscandoTaxiViewModel vm;
-  final VoidCallback onSeguir;
-  final VoidCallback onCancelar;
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: vm,
-      builder: (context, _) {
-        final restantes = vm.segundosRestantesConfirmar;
-        final minutos = restantes ~/ 60;
-        final segundos = (restantes % 60).toString().padLeft(2, '0');
-
-        return AlertDialog(
-          backgroundColor: context.palette.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20.r),
-          ),
-          title: Text(
-            '¿Sigues esperando?',
-            style: TextStyle(
-              fontWeight: FontWeight.w800,
-              fontSize: 18.sp,
-              color: context.palette.textPrimary,
-            ),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Todavía no encontramos un conductor. Si no respondes, '
-                'cancelaremos la búsqueda automáticamente.',
-                style: TextStyle(
-                  fontSize: 14.sp,
-                  height: 1.35,
-                  color: context.palette.textSecondary,
-                ),
-              ),
-              SizedBox(height: 16.h),
-              Center(
-                child: Text(
-                  '$minutos:$segundos',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 30.sp,
-                    color: AppColores.primary,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          actionsAlignment: MainAxisAlignment.spaceBetween,
-          actions: [
-            TextButton(
-              onPressed: onCancelar,
-              child: Text(
-                'Cancelar búsqueda',
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  color: AppColores.error,
-                ),
-              ),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColores.primary,
-                foregroundColor: AppColores.textWhite,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12.r),
-                ),
-              ),
-              onPressed: onSeguir,
-              child: const Text(
-                'Seguir esperando',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-
 class _MapaBusquedaPlaceholder extends StatelessWidget {
   const _MapaBusquedaPlaceholder();
 

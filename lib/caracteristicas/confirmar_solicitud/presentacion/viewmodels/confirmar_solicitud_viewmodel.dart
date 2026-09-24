@@ -19,6 +19,7 @@ import '../../dominio/casos_uso/crear_solicitud_usecase.dart';
 import '../../dominio/casos_uso/trazar_ruta_usecase.dart';
 import '../../dominio/entidades/solicitud_borrador.dart';
 import '../../dominio/modelos/crear_solicitud_resultado.dart';
+import '../../dominio/validar_valor_servicio.dart' as dominio;
 
 /// Estado y orquestación de "Confirmar solicitud" (mapa con origen+destino,
 /// tarifa, método de pago, comentario) — sin `BuildContext`. Mismo patrón de
@@ -262,57 +263,29 @@ class ConfirmarSolicitudViewModel extends ChangeNotifier {
     _safeNotify();
   }
 
-  /// Mínimo aceptable: la tarifa base del vehículo (sin el variable por km).
-  /// Por debajo de eso ningún conductor tomaría el viaje, y ofertas de $1
-  /// solo sirven para spamear a todos los conductores del radio.
+  /// Mínimo aceptable para el tipo de vehículo, según la hora.
   ///
   /// Acepta [tipo] explícito (default: [tipoVehiculo]) para poder validar el
   /// valor editado en el selector de vehículo *antes* de confirmar la
   /// elección — en ese momento `tipoVehiculo` todavía puede ser el anterior.
-  int valorMinimoPermitido({VehicleType? tipo}) {
-    final vehiculo = tipo ?? tipoVehiculo;
-    final hora = DateTime.now().hour;
-    final esNoche = hora >= 18 || hora < 6;
-    return esNoche ? vehiculo.basePriceNoche : vehiculo.basePriceDia;
-  }
+  int valorMinimoPermitido({VehicleType? tipo}) =>
+      dominio.valorMinimoPermitido(tipo ?? tipoVehiculo);
 
-  /// Techo anti fat-finger: 20× el valor sugerido. No busca acotar la
-  /// negociación, solo evitar que un cero de más quede escrito en Firestore.
-  int valorMaximoPermitido({VehicleType? tipo}) {
-    final vehiculo = tipo ?? tipoVehiculo;
-    final sugerido = int.tryParse(previsualizarValor(vehiculo)) ?? 10000;
-    return sugerido * 20;
-  }
+  /// Techo anti fat-finger: 20× el valor sugerido para la ruta actual.
+  int valorMaximoPermitido({VehicleType? tipo}) => dominio.valorMaximoPermitido(
+    tipo ?? tipoVehiculo,
+    distanciaKm: routeDistanceKm,
+  );
 
   /// `null` si [digits] es un valor aceptable; si no, el motivo para mostrar
-  /// en la UI. Antes no había ningún límite en toda la cadena: `1` y
-  /// `999999999999` se escribían igual en el documento.
-  String? validarValorServicio(String digits, {VehicleType? tipo}) {
-    final vehiculo = tipo ?? tipoVehiculo;
-    final minimo = valorMinimoPermitido(tipo: vehiculo);
-    final maximo = valorMaximoPermitido(tipo: vehiculo);
-    final valor = int.tryParse(digits.replaceAll(RegExp(r'[^0-9]'), ''));
-    if (valor == null || valor <= 0) return 'Ingresa un valor válido.';
-    if (valor < minimo) {
-      return 'El valor mínimo para ${vehiculo.label.toLowerCase()} es '
-          '\$${_formatMiles(minimo)}.';
-    }
-    if (valor > maximo) {
-      return 'El valor máximo es \$${_formatMiles(maximo)}.';
-    }
-    return null;
-  }
-
-  static String _formatMiles(int v) {
-    final s = v.toString();
-    final buf = StringBuffer();
-    for (var i = 0; i < s.length; i++) {
-      final rev = s.length - i;
-      buf.write(s[i]);
-      if (rev > 1 && rev % 3 == 1) buf.write('.');
-    }
-    return buf.toString();
-  }
+  /// en la UI. La regla vive en `dominio/validar_valor_servicio.dart` — es la
+  /// misma que aplica el cambio de oferta con la búsqueda ya en curso.
+  String? validarValorServicio(String digits, {VehicleType? tipo}) =>
+      dominio.validarValorServicio(
+        digits,
+        tipo: tipo ?? tipoVehiculo,
+        distanciaKm: routeDistanceKm,
+      );
 
   void setValorServicio(String value) {
     final digits = value.replaceAll(RegExp(r'[^0-9]'), '');

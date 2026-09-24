@@ -38,6 +38,7 @@ class _EditarOfertaBusquedaViewState extends State<EditarOfertaBusquedaView> {
   late final double? _distanciaKm;
   bool _isFormatting = false;
   bool _guardando = false;
+  String? _error;
 
   @override
   void initState() {
@@ -113,6 +114,7 @@ class _EditarOfertaBusquedaViewState extends State<EditarOfertaBusquedaView> {
     final sugerido = _calcularTarifaBase(tipo, distanciaKm: _distanciaKm);
     final formatted = _formatInput(sugerido);
     setState(() {
+      _error = null;
       _tipoSeleccionado = tipo;
       _controller.value = TextEditingValue(
         text: formatted,
@@ -124,11 +126,20 @@ class _EditarOfertaBusquedaViewState extends State<EditarOfertaBusquedaView> {
   Future<void> _guardar() async {
     if (_guardando) return;
     final digits = _controller.text.replaceAll(RegExp(r'[^0-9]'), '');
-    if (digits.isEmpty) return;
-    final nuevoValor = double.tryParse(digits);
-    if (nuevoValor == null || nuevoValor <= 0) return;
+    // Misma regla de monto que el diálogo "¿Sigues buscando?" y que el sheet
+    // de antes de crear la solicitud. Antes acá solo se exigía `> 0`, así
+    // que por este camino un $1 entraba a Firestore igual.
+    final error = widget.vm.validarNuevoValor(digits, tipo: _tipoSeleccionado);
+    if (error != null) {
+      setState(() => _error = error);
+      return;
+    }
+    final nuevoValor = double.parse(digits);
 
-    setState(() => _guardando = true);
+    setState(() {
+      _error = null;
+      _guardando = true;
+    });
 
     final cambioVehiculo =
         _tipoSeleccionado.firestoreKey != widget.vm.tipoVehiculo;
@@ -213,11 +224,13 @@ class _EditarOfertaBusquedaViewState extends State<EditarOfertaBusquedaView> {
                   _isFormatting = true;
                   _aplicarValor(formatted);
                   _isFormatting = false;
+                  if (_error != null) setState(() => _error = null);
                 },
                 onSubmitted: (_) => _guardar(),
                 decoration: InputDecoration(
                   prefixText: '\$ ',
                   hintText: 'Ej: 11.000',
+                  errorText: _error,
                   border: const OutlineInputBorder(),
                   focusedBorder: OutlineInputBorder(
                     borderSide: BorderSide(

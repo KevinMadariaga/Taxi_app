@@ -4,6 +4,34 @@ import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
 
+/// Cierra todo lo que esté por ENCIMA de la ruta de [context]: diálogos,
+/// bottom sheets y páginas pusheadas.
+///
+/// Existe porque `navigateWithIntermediateLoader` sale con `pushReplacement`,
+/// que reemplaza la ruta TOPE del Navigator: con cualquier cosa encima, lo que
+/// se reemplaza es esa cosa y la pantalla de abajo queda viva debajo de la
+/// siguiente.
+///
+/// El predicado es `r == propia || r.isFirst` y no un `pop()` con guard
+/// `canPop()`: ese guard solo significa "hay ≥2 rutas", nunca "lo que quiero
+/// cerrar está arriba", así que se llevaba puesta la ruta que hubiera encima.
+/// El `|| r.isFirst` es la red de seguridad para cuando la ruta propia ya no
+/// está en la pila — sin él, `popUntil` la vaciaría y Flutter cerraría la app.
+void cerrarRutasSobre(BuildContext context) {
+  final propia = ModalRoute.of(context);
+  Navigator.of(
+    context,
+    rootNavigator: true,
+  ).popUntil((route) => route == propia || route.isFirst);
+}
+
+/// Muestra la pantalla de transición y, tras [delay], navega a [nextBuilder].
+///
+/// El future que devuelve es el de `pushReplacement`, o sea el `popped` de la
+/// pantalla de transición: completa cuando esa ruta sale de la pila, lo que
+/// pasa solo al terminar el [delay] y navegar. Hacerle `await` mantiene al
+/// llamador vivo esos ~1,6 s; `unawaited` si no hay nada más que hacer
+/// después.
 Future<void> navigateWithIntermediateLoader({
   required BuildContext context,
   required WidgetBuilder nextBuilder,
@@ -212,7 +240,7 @@ class _IntermediateTransitionViewState extends State<IntermediateTransitionView>
     final isTablet = MediaQuery.of(context).size.width >= 1000;
     final accent = widget.accentColor;
 
-    return Scaffold(
+    final contenido = Scaffold(
       backgroundColor: context.palette.background,
       body: SafeArea(
         child: Center(
@@ -317,6 +345,19 @@ class _IntermediateTransitionViewState extends State<IntermediateTransitionView>
           ),
         ),
       ),
+    );
+
+    return PopScope(
+      // Son ~1600 ms de una pantalla sin nada que tocar, y el back acá no
+      // tiene a dónde volver: la ruta anterior ya fue reemplazada.
+      //
+      // Sobre todo, era la ÚNICA pantalla del flujo del cliente sin
+      // `PopScope`, y justo la que queda arriba después de un
+      // `clearStackOnNext`. Con una sola ruta y sin esto, `maybePop()`
+      // devuelve false y Flutter llama a `SystemNavigator.pop()`: la app se
+      // iba al escritorio en vez de volver al inicio.
+      canPop: false,
+      child: contenido,
     );
   }
 }

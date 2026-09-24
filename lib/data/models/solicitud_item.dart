@@ -63,11 +63,18 @@ class SolicitudItem {
       contraoferta = _asMap(map['contraoferta']);
     }
 
+    // Misma lista de fallbacks que `extractClienteId` en
+    // `functions/index.js`: de ese id sale la clave con la que se retira la
+    // notificación "Solicitud entrante", así que si las dos listas se
+    // desalinean el backend arma una clave que la app nunca reconstruye.
     String? clienteId = _firstText([
       cliente?['id'],
       cliente?['uid'],
       cliente?['clienteId'],
       map['clienteId'],
+      map['userId'],
+      map['cliente_id'],
+      map['id_cliente'],
     ]);
 
     String? nombreCliente = _firstText([

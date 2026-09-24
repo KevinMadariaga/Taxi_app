@@ -17,6 +17,21 @@ const { getFirestore, Timestamp, FieldValue } = require("firebase-admin/firestor
 const { getMessaging } = require("firebase-admin/messaging");
 const { onRequest, onCall, HttpsError } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
+const {
+  buildFcmMessage,
+  buildRetiroMessage,
+} = require("./notificaciones");
+
+/**
+ * Destinatarios del aviso "Solicitud entrante" de cada solicitud.
+ *
+ * Colección aparte y NO legible por nadie desde el cliente (ver
+ * `firestore.rules`): solo la escribe y la lee el Admin SDK.
+ */
+const COLECCION_NOTIFICADOS = "solicitudes_notificados";
+
+/** Estados en los que una solicitud le aparece a los conductores. */
+const ESTADOS_BUSCANDO = ["buscando", "pending", "pendiente"];
 const { defineSecret } = require("firebase-functions/params");
 
 // Key de Google Directions: vive solo en Secret Manager, nunca se compila en
@@ -286,37 +301,17 @@ exports.onSolicitudEstadoChangeConductor = onDocumentUpdated(
       return null;
     }
 
-    const message = {
+    const message = buildFcmMessage({
       token: fcmToken,
-      notification: { title: mensaje.title, body: mensaje.body },
-      data: {
+      title: mensaje.title,
+      body: mensaje.body,
+      type: "trip_status_change",
+      entidad: event.params.solicitudId,
+      extraData: {
         solicitudId: event.params.solicitudId,
         estado: estadoNuevo,
-        type: "trip_status_change",
-        title: mensaje.title,
-        body: mensaje.body,
       },
-      apns: {
-        payload: {
-          aps: {
-            alert: { title: mensaje.title, body: mensaje.body },
-            badge: 0,
-            sound: "default",
-            contentAvailable: true,
-            mutableContent: true,
-          },
-        },
-        headers: { "apns-priority": "10" },
-      },
-      android: {
-        priority: "high",
-        notification: {
-          channelId: "taxi_trip_channel",
-          sound: "default",
-          priority: "high",
-        },
-      },
-    };
+    });
 
     try {
       const response = await getMessaging().send(message);
@@ -385,6 +380,7 @@ exports.onMetodoPagoCambiado = onDocumentUpdated(
       title: "💳 Cambió el método de pago",
       body: `El cliente actualizó su forma de pago a "${metodoAhora}".`,
       type: "payment_method_change",
+      entidad: event.params.solicitudId,
       extraData: { solicitudId: event.params.solicitudId, metodoPago: metodoAhora },
     });
 
@@ -485,45 +481,17 @@ exports.onSolicitudEstadoChange = onDocumentUpdated(
 
     // Enviar notificación push vía FCM
     // Configuración específica para iOS (APNs)
-    const fcmMessage = {
+    const fcmMessage = buildFcmMessage({
       token: fcmToken,
-      notification: {
-        title: mensaje.title,
-        body: mensaje.body,
-      },
-      data: {
+      title: mensaje.title,
+      body: mensaje.body,
+      type: "trip_status_change",
+      entidad: event.params.solicitudId,
+      extraData: {
         solicitudId: event.params.solicitudId,
         estado: estadoNuevo,
-        type: "trip_status_change",
-        title: mensaje.title,
-        body: mensaje.body,
       },
-      apns: {
-        payload: {
-          aps: {
-            alert: {
-              title: mensaje.title,
-              body: mensaje.body,
-            },
-            badge: 0,
-            sound: "default",
-            contentAvailable: true,
-            mutableContent: true,
-          },
-        },
-        headers: {
-          "apns-priority": "10",
-        },
-      },
-      android: {
-        priority: "high",
-        notification: {
-          channelId: "taxi_trip_channel",
-          sound: "default",
-          priority: "high",
-        },
-      },
-    };
+    });
 
     try {
       const response = await getMessaging().send(fcmMessage);
@@ -604,7 +572,7 @@ exports.onNuevaSolicitudCreada = onDocumentCreated(
     if (!data) return null;
 
     const estado = (data.estado || data.status || "").toString().toLowerCase().trim();
-    if (!["buscando", "pending", "pendiente"].includes(estado)) {
+    if (!ESTADOS_BUSCANDO.includes(estado)) {
       return null;
     }
 
@@ -690,51 +658,202 @@ exports.onNuevaSolicitudCreada = onDocumentCreated(
     }
 
     cercanos.sort((a, b) => a.distancia - b.distancia);
-    const tokens = cercanos.slice(0, 20).map((c) => c.token);
+    const destinatarios = cercanos.slice(0, 20);
+    const tokens = destinatarios.map((c) => c.token);
 
     const title = "Solicitud entrante";
     const body = "Un cliente cerca de ti necesita servicio";
 
-    const message = {
+    // La clave de deduplicación es el CLIENTE, no la solicitud: si el mismo
+    // cliente cancela y vuelve a pedir, el aviso nuevo REEMPLAZA al viejo en
+    // la bandeja del conductor en vez de apilarse.
+    //
+    // `soloData: true` deja el push sin `notification{}` de nivel superior,
+    // así en Android lo dibuja la app con `notifId` y se puede BORRAR cuando
+    // la solicitud muere (ver `onSolicitudDejaDeBuscar`). En iOS se sigue
+    // viendo, porque el texto viaja en `apns.payload.aps.alert`.
+    const clienteIdSolicitud = extractClienteId(data);
+    const message = buildFcmMessage({
       tokens,
-      notification: { title, body },
-      data: {
-        type: "nueva_solicitud",
+      title,
+      body,
+      type: "nueva_solicitud",
+      entidad: clienteIdSolicitud || event.params.solicitudId,
+      // `clienteId` viaja también en `data` porque es la clave con la que la
+      // app recuerda qué avisos tiene mostrados (`AvisosSolicitudStore`) para
+      // poder limpiarlos aunque el push de retirada nunca llegue.
+      extraData: {
         solicitudId: event.params.solicitudId,
-        title,
-        body,
+        clienteId: clienteIdSolicitud || event.params.solicitudId,
       },
-      apns: {
-        payload: {
-          aps: {
-            alert: { title, body },
-            badge: 0,
-            sound: "default",
-            contentAvailable: true,
-            mutableContent: true,
-          },
-        },
-        headers: { "apns-priority": "10" },
-      },
-      android: {
-        priority: "high",
-        notification: {
-          channelId: "taxi_trip_channel",
-          sound: "default",
-          priority: "high",
-        },
-      },
-    };
+      soloData: true,
+    });
+
+    // A quiénes hay que avisarles cuando la solicitud muera. Se escribe ANTES
+    // de enviar y no después: si la solicitud se cancela entre el envío y la
+    // escritura, `onSolicitudDejaDeBuscar` corre con la lista todavía vacía y
+    // nadie retira nunca nada.
+    //
+    // Va en su propia colección y no en la solicitud por dos razones: las
+    // reglas dejan a CUALQUIER conductor leer una solicitud en `buscando`, y
+    // ahí la lista expondría los uids de hasta 20 conductores conectados; y
+    // un `set(merge)` sobre la solicitud podía RESUCITAR el documento si el
+    // cliente ya lo había borrado (el flujo de cancelación lo borra).
+    await db
+      .collection(COLECCION_NOTIFICADOS)
+      .doc(event.params.solicitudId)
+      .set({
+        uids: destinatarios.map((c) => c.uid),
+        notifClave: message.data.notifClave,
+        clienteId: clienteIdSolicitud || event.params.solicitudId,
+        createdAt: FieldValue.serverTimestamp(),
+      })
+      .catch((err) =>
+        console.error(`No se pudo guardar destinatarios: ${err.message}`)
+      );
 
     try {
       const resp = await getMessaging().sendEachForMulticast(message);
       console.log(
         `✅ Notif. nueva solicitud: ${resp.successCount}/${tokens.length} conductores notificados.`
       );
+
+      // Antes ningún `sendEachForMulticast` miraba los errores por token, así
+      // que los tokens muertos se acumulaban para siempre y cada envío
+      // arrastraba destinatarios inexistentes.
+      const tokensMuertos = [];
+      resp.responses.forEach((r, i) => {
+        if (r.success) return;
+        const code = r.error && r.error.code;
+        if (
+          code === "messaging/registration-token-not-registered" ||
+          code === "messaging/invalid-registration-token"
+        ) {
+          tokensMuertos.push(destinatarios[i].uid);
+        }
+      });
+
+      await Promise.all(
+        tokensMuertos.map((uid) =>
+          db
+            .collection("usuarios")
+            .doc(uid)
+            .update({ fcmToken: FieldValue.delete() })
+            .catch(() => null)
+        )
+      );
     } catch (err) {
       console.error(`❌ Error enviando notif. de nueva solicitud: ${err.message}`);
     }
 
+    return null;
+  }
+);
+
+/**
+ * Cloud Function: retira de la bandeja de los conductores la notificación
+ * "Solicitud entrante" cuando esa solicitud deja de estar disponible.
+ *
+ * `onNuevaSolicitudCreada` le avisa a hasta 20 conductores en 3 km, pero hasta
+ * ahora a esos 19 que no la tomaron NUNCA les llegaba nada cuando la solicitud
+ * se cancelaba o la aceptaba otro: el único aviso de cancelación al conductor
+ * (`onSolicitudEstadoChangeConductor`) exige un `conductorId` asignado, que en
+ * una solicitud en `buscando` es `null`. La notificación se quedaba en la
+ * bandeja invitando a un viaje que ya no existe.
+ *
+ * Cubre los cuatro caminos de salida, porque mira la transición de estado y no
+ * quién la provocó: cancelación del cliente, autocancelado por inactividad, el
+ * barrido `cancelarSolicitudesBuscandoInactivas`, y la asignación a otro.
+ *
+ * El mensaje es un push silencioso (`buildRetiroMessage`). Android NO entrega
+ * data-only si el usuario forzó el cierre de la app; para ese caso la red de
+ * seguridad vive del lado de la app, en `PendingSolicitudesController`, que
+ * cancela la notificación cuando la solicitud desaparece de su lista.
+ */
+exports.onSolicitudDejaDeBuscar = onDocumentUpdated(
+  {
+    document: "solicitudes/{solicitudId}",
+    region: "us-central1",
+  },
+  async (event) => {
+    const before = event.data.before.data();
+    const after = event.data.after.data();
+    if (!before || !after) return null;
+
+    const norm = (d) => (d.estado || d.status || "").toString().toLowerCase().trim();
+    const estabaBuscando = ESTADOS_BUSCANDO.includes(norm(before));
+    const sigueBuscando = ESTADOS_BUSCANDO.includes(norm(after));
+    if (!estabaBuscando || sigueBuscando) return null;
+
+    const db = getFirestore();
+    const refNotificados = db
+      .collection(COLECCION_NOTIFICADOS)
+      .doc(event.params.solicitudId);
+
+    let registro = null;
+    try {
+      const snap = await refNotificados.get();
+      registro = snap.exists ? snap.data() : null;
+    } catch (err) {
+      console.error(`Error leyendo destinatarios: ${err.message}`);
+      return null;
+    }
+    if (!registro) return null;
+
+    const notificados = Array.isArray(registro.uids) ? registro.uids : [];
+    if (notificados.length === 0) return null;
+
+    // El conductor asignado sí quiere saber del viaje: su aviso se lo manda
+    // `onSolicitudEstadoChangeConductor`, no hay que borrarle nada.
+    const asignado = extractConductorId(after);
+    const aRetirar = notificados.filter((uid) => uid && uid !== asignado);
+
+    // La clave guardada, no una recalculada: recomponerla acá con otros datos
+    // daría un id distinto al que se usó para mostrarla y el retiro no
+    // borraría nada.
+    const clave = registro.notifClave;
+    if (!clave || aRetirar.length === 0) {
+      await refNotificados.delete().catch(() => null);
+      return null;
+    }
+
+    let tokens = [];
+    try {
+      const docs = await db.getAll(
+        ...aRetirar.map((uid) => db.collection("usuarios").doc(uid))
+      );
+      tokens = docs
+        .map((d) => (d.exists ? d.data().fcmToken : null))
+        .filter((t) => typeof t === "string" && t.length > 0);
+    } catch (err) {
+      console.error(`Error leyendo tokens para retiro: ${err.message}`);
+      return null;
+    }
+
+    if (tokens.length === 0) {
+      await refNotificados.delete().catch(() => null);
+      return null;
+    }
+
+    try {
+      const resp = await getMessaging().sendEachForMulticast(
+        buildRetiroMessage({
+          tokens,
+          clave,
+          extraData: {
+            solicitudId: event.params.solicitudId,
+            clienteId: registro.clienteId || "",
+          },
+        })
+      );
+      console.log(
+        `🧹 Retiro de "Solicitud entrante": ${resp.successCount}/${tokens.length} conductores.`
+      );
+    } catch (err) {
+      console.error(`❌ Error enviando retiro de notificación: ${err.message}`);
+    }
+
+    await refNotificados.delete().catch(() => null);
     return null;
   }
 );
@@ -836,36 +955,14 @@ exports.onConductorProximidadCliente = onDocumentUpdated(
     const title = "🚗 Tu conductor está cerca";
     const body = "El conductor está por llegar. ¡Prepárate para abordar!";
 
-    const message = {
+    const message = buildFcmMessage({
       token: fcmToken,
-      notification: { title, body },
-      data: {
-        type: "conductor_cerca",
-        solicitudId: event.params.solicitudId,
-        title,
-        body,
-      },
-      apns: {
-        payload: {
-          aps: {
-            alert: { title, body },
-            badge: 0,
-            sound: "default",
-            contentAvailable: true,
-            mutableContent: true,
-          },
-        },
-        headers: { "apns-priority": "10" },
-      },
-      android: {
-        priority: "high",
-        notification: {
-          channelId: "taxi_trip_channel",
-          sound: "default",
-          priority: "high",
-        },
-      },
-    };
+      title,
+      body,
+      type: "conductor_cerca",
+      entidad: event.params.solicitudId,
+      extraData: { solicitudId: event.params.solicitudId },
+    });
 
     try {
       await getMessaging().send(message);
@@ -977,6 +1074,7 @@ exports.onContraofertaCreada = onDocumentUpdated(
       title,
       body,
       type: "contraoferta",
+      entidad: event.params.solicitudId,
       extraData: { solicitudId: event.params.solicitudId },
     });
 
@@ -990,39 +1088,6 @@ exports.onContraofertaCreada = onDocumentUpdated(
     return null;
   }
 );
-
-/**
- * Arma un mensaje FCM con la config estándar de la app (APNs + canal Android
- * de alta prioridad). `token` puede ser un solo token (mensaje single-send)
- * o un array (usar con sendEachForMulticast).
- */
-function buildFcmMessage({ token, tokens, title, body, type, extraData = {} }) {
-  const base = {
-    notification: { title, body },
-    data: { type, title, body, ...extraData },
-    apns: {
-      payload: {
-        aps: {
-          alert: { title, body },
-          badge: 0,
-          sound: "default",
-          contentAvailable: true,
-          mutableContent: true,
-        },
-      },
-      headers: { "apns-priority": "10" },
-    },
-    android: {
-      priority: "high",
-      notification: {
-        channelId: "taxi_trip_channel",
-        sound: "default",
-        priority: "high",
-      },
-    },
-  };
-  return tokens ? { ...base, tokens } : { ...base, token };
-}
 
 /**
  * Cloud Function: Notifica por push al destinatario de un mensaje de chat de
@@ -1087,6 +1152,8 @@ exports.onTripChatMessageCreated = onDocumentCreated(
       title: `💬 ${senderName}`,
       body: texto,
       type: "trip_chat_message",
+      // Por conversación: varios mensajes seguidos dejan UN aviso, no N.
+      entidad: event.params.solicitudId,
       extraData: { solicitudId: event.params.solicitudId },
     });
 
@@ -1139,6 +1206,7 @@ exports.onSoporteChatMensajeCreado = onDocumentCreated(
       // el sentido admin→usuario; un cliente/conductor no debe abrir esa
       // pantalla de admin al tocar la notificación.
       type: "soporte_chat_respuesta",
+      entidad: userId,
       extraData: { userId },
     });
 
@@ -1180,10 +1248,13 @@ exports.onEmergenciaCreada = onDocumentCreated(
       title: "🚨 EMERGENCIA — cliente en peligro",
       body,
       type: "emergencia",
+      // Por documento: dos emergencias distintas deben convivir en la bandeja.
+      entidad: event.params.emergenciaId,
       extraData: { emergenciaId: event.params.emergenciaId },
+      channelId: "taxi_emergencia_channel",
     });
-    // Canal/urgencia máxima: una emergencia no debe sonar como una notificación normal.
-    message.android.notification.channelId = "taxi_emergencia_channel";
+    // Urgencia máxima: una emergencia no debe sonar como una notificación
+    // normal (el canal ya lo fija `buildFcmMessage`).
     message.apns.headers["apns-priority"] = "10";
 
     try {
@@ -1240,6 +1311,7 @@ exports.onSoporteChatMensajeUsuarioCreado = onDocumentCreated(
       title: `Soporte — ${userName}`,
       body: texto,
       type: "soporte_chat",
+      entidad: event.params.userId,
       extraData: { userId: event.params.userId },
     });
 
@@ -1290,6 +1362,7 @@ exports.onSolicitudActivacionConductor = onDocumentWritten(
       title: "Nuevo conductor registrado",
       body: `${nombre} quiere activar el servicio, revisa.`,
       type: "solicitud_conductor",
+      entidad: event.params.uid,
       extraData: { uid: event.params.uid },
     });
 
@@ -1342,6 +1415,7 @@ exports.onNuevoClienteRegistrado = onDocumentCreated(
       title: "Nuevo cliente registrado",
       body: `${nombre} se registró en la app.`,
       type: "nuevo_cliente",
+      entidad: event.params.uid,
       extraData: { uid: event.params.uid },
     });
 
@@ -1393,6 +1467,7 @@ exports.onMembresiaActivada = onDocumentWritten(
       title: "¡Membresía activada!",
       body,
       type: "membresia_activada",
+      entidad: event.params.uid,
     });
 
     try {
@@ -1515,6 +1590,7 @@ exports.onReporteCreado = onDocumentCreated(
       title: `⚠️ Nuevo reporte — ${conductor}`,
       body,
       type: "reporte",
+      entidad: event.params.reporteId,
       extraData: { reporteId: event.params.reporteId },
     });
 
@@ -1525,6 +1601,48 @@ exports.onReporteCreado = onDocumentCreated(
       );
     } catch (err) {
       console.error(`❌ Error enviando notif. de reporte: ${err.message}`);
+    }
+
+    return null;
+  }
+);
+
+/**
+ * Cloud Function: Notifica por push a TODOS los administradores cuando un
+ * cliente o conductor envía una sugerencia.
+ */
+exports.onSugerenciaCreada = onDocumentCreated(
+  {
+    document: "sugerencias/{sugerenciaId}",
+    region: "us-central1",
+  },
+  async (event) => {
+    const data = event.data.data();
+    if (!data) return null;
+
+    const db = getFirestore();
+    const tokens = await getAdminTokens(db);
+    if (tokens.length === 0) return null;
+
+    const tipo = (data.tipo || "usuario").toString();
+    const mensaje = (data.mensaje || "").toString().trim();
+
+    const message = buildFcmMessage({
+      tokens,
+      title: `💡 Nueva sugerencia — ${tipo}`,
+      body: mensaje || "Un usuario envió una sugerencia.",
+      type: "sugerencia",
+      entidad: event.params.sugerenciaId,
+      extraData: { sugerenciaId: event.params.sugerenciaId },
+    });
+
+    try {
+      const resp = await getMessaging().sendEachForMulticast(message);
+      console.log(
+        `✅ Notif. sugerencia: ${resp.successCount}/${tokens.length} admins notificados.`
+      );
+    } catch (err) {
+      console.error(`❌ Error enviando notif. de sugerencia: ${err.message}`);
     }
 
     return null;
@@ -1550,7 +1668,23 @@ exports.onReporteCreado = onDocumentCreated(
  * app (y auth_service.dart la cancele al detectarla). Este barrido corre
  * server-side sin depender en absoluto de que la app vuelva a abrirse.
  */
-const SOLICITUD_BUSCANDO_TIMEOUT_MS = 3 * 60 * 1000; // 3 min sin conductor
+// 15 min desde `createdAt` sin conductor. Antes eran 3, y con ese valor este
+// barrido dejaba de ser la red de seguridad que describe el comentario de
+// arriba para pasar a ser QUIEN decidía el final de toda búsqueda: ninguna
+// solicitud llegaba viva ni a los 5 minutos, con el cliente mirando la
+// pantalla.
+//
+// Con el cliente presente decide la app: `BuscandoTaxiViewModel` le propone
+// cambiar la oferta cada 5 min y cancela sola si deja una propuesta sin
+// responder 5 min — o sea que una búsqueda abandonada muere a los 10 min,
+// bastante antes que este barrido.
+//
+// LÍMITE CONOCIDO: la query filtra por `createdAt`, no por actividad, así que
+// un cliente que conteste cada 5 min igual pierde la búsqueda a los 15. Para
+// que responder la mantenga viva de verdad habría que filtrar por `updatedAt`
+// (y tocarlo en cada respuesta del cliente), lo que pide un índice compuesto
+// nuevo `estado + updatedAt`.
+const SOLICITUD_BUSCANDO_TIMEOUT_MS = 15 * 60 * 1000;
 // Retención de las solicitudes canceladas antes de borrarlas. La base guarda
 // solo activas y terminadas; las canceladas se purgan, pero no al instante:
 // 24 h dejan ventana para una disputa de soporte ("yo no cancelé") y para

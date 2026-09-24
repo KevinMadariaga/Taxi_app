@@ -8,7 +8,9 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_navigator.dart';
 import 'package:taxi_app/core/helpers/session_helper.dart';
+import 'package:taxi_app/core/services/avisos_solicitud_store.dart';
 import 'package:taxi_app/core/services/notificacion_servicio.dart';
+import 'package:taxi_app/core/utils/notificacion_clave.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
 import 'package:taxi_app/features/phone_auth/screens/admin_hub_screen.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioConductorView.dart';
@@ -22,33 +24,99 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   debugPrint('[FCM Background] Mensaje recibido: ${message.messageId}');
 
   final data = message.data;
-  final notification = message.notification;
+
+  // Push silencioso de retirada: la solicitud dejó de estar disponible y hay
+  // que sacar su aviso de la bandeja. No muestra nada.
+  if (await _atenderRetiro(data)) return;
 
   // Si el mensaje trae bloque 'notification', el OS (Android/iOS) YA la
   // muestra automáticamente en background/terminated — mostrarla también
   // aquí duplicaba el aviso (dos notificaciones para el mismo evento).
   // Solo mostramos manualmente los mensajes puramente data-only.
-  if (notification != null) return;
+  if (message.notification != null) return;
 
   if (data.containsKey('title') || data.containsKey('body')) {
     final String title = data['title'] ?? 'Ride';
     final String body = data['body'] ?? 'Actualización de servicio';
 
-    // Id determinístico por solicitud (no por messageId): si FCM reenvía el
-    // mismo mensaje, el SO reemplaza la notificación en vez de apilarla.
-    final solicitudId = data['solicitudId'] as String?;
-    final id = (solicitudId != null && solicitudId.isNotEmpty)
-        ? solicitudId.hashCode
-        : message.messageId.hashCode;
-
     // Importante: No llamar a init() aquí si no es necesario,
     // showNotification ya lo hace con _ensureInitialized().
     await NotificacionesServicio.instance.showNotification(
-      id: id,
+      id: idNotificacionDeMensaje(data),
       title: title,
       body: body,
+      // Sin esto caía en el canal genérico del sistema, que el usuario puede
+      // tener silenciado — justo para el aviso más importante del conductor.
+      channelId: data['channelId'] as String?,
+      payload: payloadDeMensaje(data),
     );
+    await _recordarAvisoMostrado(data);
   }
+}
+
+/// Deja registrado que el aviso de "Solicitud entrante" de este cliente está
+/// en la bandeja, para poder limpiarlo aunque el push de retirada no llegue
+/// (Android no entrega data-only si se forzó el cierre de la app).
+Future<void> _recordarAvisoMostrado(Map<String, dynamic> data) async {
+  if (data['type'] != 'nueva_solicitud') return;
+  final clienteId = '${data['clienteId'] ?? ''}';
+  if (clienteId.isEmpty) return;
+  await AvisosSolicitudStore.registrar(clienteId);
+}
+
+/// Payload con el que `_manejarTapNotificacion` (main.dart) sabe adónde ir.
+///
+/// Con `nueva_solicitud` en data-only la notificación la dibuja la app, así
+/// que el tap NO pasa por `onMessageOpenedApp` sino por
+/// `NotificacionesServicio.onNotificationTap`: sin un payload con formato
+/// reconocible, tocarla no hacía nada.
+String? payloadDeMensaje(Map<String, dynamic> data) {
+  final tipo = '${data['type'] ?? ''}';
+  final solicitudId = '${data['solicitudId'] ?? ''}';
+  if (tipo == 'nueva_solicitud') return 'nueva_solicitud:$solicitudId';
+  return solicitudId.isEmpty ? null : solicitudId;
+}
+
+/// Si [data] es un push de retirada, cancela la notificación y devuelve true.
+Future<bool> _atenderRetiro(Map<String, dynamic> data) async {
+  if (data['type'] != 'retirar_notificacion') return false;
+  final clave = '${data['notifClave'] ?? ''}';
+  await NotificacionesServicio.instance.cancel(
+    idNotificacionDeMensaje(data),
+    // El `tag` es lo que borra las que dibujó el SISTEMA desde un push (id 0
+    // + tag del collapseKey); el id solo alcanza para las que dibujó la app.
+    tag: clave.isEmpty ? null : clave,
+  );
+  final clienteId = '${data['clienteId'] ?? ''}';
+  if (clienteId.isNotEmpty) {
+    await AvisosSolicitudStore.olvidar([clienteId]);
+  }
+  return true;
+}
+
+/// Id con el que se muestra (y se cancela) la notificación de un push.
+///
+/// Lo calcula el backend y viaja en `data.notifId` — ver
+/// `functions/notificaciones.js`. Que las dos puntas coincidan es lo único
+/// que hace cancelable la notificación, así que el valor lo fija un solo
+/// lado y acá solo se lee.
+///
+/// Los fallbacks cubren un backend viejo (todavía sin `notifId`) o un push
+/// sin `solicitudId`: peor caso, la notificación se apila como antes en vez
+/// de reemplazarse — nunca se pierde el aviso.
+int idNotificacionDeMensaje(Map<String, dynamic> data) {
+  final enviado = int.tryParse('${data['notifId'] ?? ''}');
+  if (enviado != null) return enviado;
+
+  final clave = '${data['notifClave'] ?? ''}';
+  if (clave.isNotEmpty) return idNotificacion(clave);
+
+  final tipo = '${data['type'] ?? ''}';
+  final solicitudId = '${data['solicitudId'] ?? ''}';
+  if (tipo.isNotEmpty && solicitudId.isNotEmpty) {
+    return idNotificacionDe(tipo, solicitudId);
+  }
+  return NotificacionesServicio.tripNotificationId;
 }
 
 /// Servicio centralizado para Firebase Cloud Messaging.
@@ -99,11 +167,12 @@ class FcmService {
     // El reparto queda: primer plano → la app (`_onForegroundMessage` o el
     // aviso del listener, exactamente uno de los dos); segundo plano o app
     // cerrada → el sistema, con el bloque `notification` de la push.
-    await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
-      alert: false,
-      badge: false,
-      sound: false,
-    );
+    await FirebaseMessaging.instance
+        .setForegroundNotificationPresentationOptions(
+          alert: false,
+          badge: false,
+          sound: false,
+        );
 
     // 2) Solicitar permisos push (en iOS muestra el diálogo nativo)
     final settings = await _messaging.requestPermission(
@@ -188,7 +257,9 @@ class FcmService {
     // 9) Verificar si la app se abrió desde una notificación (app terminada)
     final initialMessage = await _messaging.getInitialMessage();
     if (initialMessage != null) {
-      debugPrint('[FCM] App abierta desde notificación: ${initialMessage.messageId}');
+      debugPrint(
+        '[FCM] App abierta desde notificación: ${initialMessage.messageId}',
+      );
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _navigateFromMessage(initialMessage);
       });
@@ -264,7 +335,6 @@ class FcmService {
       );
     }
 
-
     // Guardar en `administradores` si el documento existe (para push a admins)
     try {
       final doc = await firestore.collection('administradores').doc(uid).get();
@@ -331,12 +401,14 @@ class FcmService {
       }
 
       try {
-        final doc = await firestore.collection('administradores').doc(uid).get();
+        final doc = await firestore
+            .collection('administradores')
+            .doc(uid)
+            .get();
         if (doc.exists) {
-          await firestore
-              .collection('administradores')
-              .doc(uid)
-              .update({'fcmToken': FieldValue.delete()});
+          await firestore.collection('administradores').doc(uid).update({
+            'fcmToken': FieldValue.delete(),
+          });
         }
       } catch (e, st) {
         ErrorReporter.report(
@@ -412,8 +484,22 @@ class FcmService {
   void limpiarPantallaDeViaje(String solicitudId) =>
       _liberar(_pantallasDeViaje, solicitudId);
 
-  void registrarChatAbierto(String solicitudId) =>
-      _registrar(_chatsAbiertos, solicitudId);
+  /// Abrir el chat es lo que marca sus mensajes como vistos: se cancela su
+  /// notificación acá en vez de barrer la bandeja entera al volver a
+  /// foreground, que se llevaba puestos avisos que el usuario no había leído.
+  void registrarChatAbierto(String solicitudId) {
+    _registrar(_chatsAbiertos, solicitudId);
+    unawaited(
+      NotificacionesServicio.instance.cancel(
+        idNotificacionDe('trip_chat_message', solicitudId),
+      ),
+    );
+    unawaited(
+      NotificacionesServicio.instance.cancel(
+        NotificacionesServicio.chatNotificationId,
+      ),
+    );
+  }
 
   void limpiarChatAbierto(String solicitudId) =>
       _liberar(_chatsAbiertos, solicitudId);
@@ -431,6 +517,7 @@ class FcmService {
     'reporte', // iniciarEscuchaReportes
     'emergencia', // iniciarEscuchaEmergencias
     'soporte_chat', // iniciarEscuchaAdmin
+    'sugerencia', // iniciarEscuchaSugerencias
     'soporte_chat_respuesta', // iniciarEscuchaUsuario
   };
 
@@ -452,6 +539,12 @@ class FcmService {
     final type = message.data['type'] as String? ?? '';
     final solicitudId = message.data['solicitudId'] as String? ?? '';
 
+    // Push silencioso de retirada: borra el aviso y no muestra nada.
+    if (type == 'retirar_notificacion') {
+      unawaited(_atenderRetiro(message.data));
+      return;
+    }
+
     if (_tiposConAvisoPropioEnForeground.contains(type)) {
       return;
     }
@@ -472,10 +565,17 @@ class FcmService {
     final body = notification?.body ?? message.data['body'] as String? ?? '';
     if (title.isEmpty && body.isEmpty) return;
 
+    // Mismo id que en background: antes acá todo pisaba el id fijo 2 del
+    // canal de viajes mientras que en background cada push era una entrada
+    // nueva, así que la misma notificación era irreconocible entre un estado
+    // y el otro — y ninguna se podía cancelar por evento.
     NotificacionesServicio.instance.showTripNotification(
+      id: idNotificacionDeMensaje(message.data),
       title: title,
       body: body,
+      payload: payloadDeMensaje(message.data),
     );
+    unawaited(_recordarAvisoMostrado(message.data));
   }
 
   /// Cuando el usuario toca la notificación con la app en background.
@@ -489,9 +589,14 @@ class FcmService {
   /// `popUntil(isFirst)` es destructivo: como la pantalla de viaje se apila
   /// con `push` sobre el home, aplicarlo durante un viaje activo expulsaría al
   /// conductor de él.
-  Future<void> _irAInicioConductorSiNoHayViajeActivo(
-    NavigatorState nav,
-  ) async {
+  /// Atajo a la lista de solicitudes del conductor, sin sacarlo de un viaje
+  /// en curso. Público porque el tap de "Solicitud entrante" ya no entra por
+  /// `onMessageOpenedApp` (es data-only, la dibuja la app) sino por
+  /// `NotificacionesServicio.onNotificationTap`, en `main.dart`.
+  Future<void> irAInicioConductorSiNoHayViajeActivo(NavigatorState nav) =>
+      _irAInicioConductorSiNoHayViajeActivo(nav);
+
+  Future<void> _irAInicioConductorSiNoHayViajeActivo(NavigatorState nav) async {
     try {
       final solicitudActiva = await SessionHelper.getActiveSolicitud();
       if (solicitudActiva != null && solicitudActiva.isNotEmpty) return;
@@ -561,17 +666,22 @@ class FcmService {
       return;
     }
 
+    // Las activaciones no tienen pestaña en `AdminHubScreen`: se resuelven en
+    // la lista de conductores de `AdminHomeScreen` (la raíz del admin).
+    if (type == 'solicitud_activacion') {
+      nav.popUntil((route) => route.isFirst);
+      return;
+    }
+
+    // Pestañas de `AdminHubScreen`: 0 Reportes, 1 Mensajes, 2 Sugerencias.
     int? tab;
-    if (type == 'solicitud_activacion') tab = 0;
-    if (type == 'reporte') tab = 1;
-    if (type == 'soporte_chat') tab = 2;
-    if (type == 'emergencia') tab = 3;
+    if (type == 'reporte' || type == 'emergencia') tab = 0;
+    if (type == 'soporte_chat') tab = 1;
+    if (type == 'sugerencia') tab = 2;
 
     if (tab != null) {
       nav.push(
-        MaterialPageRoute(
-          builder: (_) => AdminHubScreen(initialTab: tab!),
-        ),
+        MaterialPageRoute(builder: (_) => AdminHubScreen(initialTab: tab!)),
       );
     }
   }

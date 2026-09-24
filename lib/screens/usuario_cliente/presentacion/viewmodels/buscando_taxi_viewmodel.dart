@@ -11,6 +11,25 @@ import 'package:taxi_app/core/helpers/session_helper.dart';
 import 'package:taxi_app/core/constants/estado_contraoferta.dart';
 import 'package:taxi_app/core/constants/solicitud_estado.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
+import 'package:taxi_app/core/utils/notificacion_clave.dart';
+import 'package:taxi_app/core/helpers/map_helper.dart';
+import 'package:taxi_app/caracteristicas/confirmar_solicitud/dominio/validar_valor_servicio.dart'
+    as dominio;
+import 'package:taxi_app/screens/usuario_cliente/presentacion/model/vehicle_type.dart';
+
+/// Hitos del contador de búsqueda que la vista tiene que atender.
+///
+/// Es un evento de UN SOLO USO (la vista lo consume con [consumirEvento]) y
+/// no un `bool` por modal: con banderas sueltas, dos hitos cercanos se pisan
+/// entre sí y quedan colgadas cuando la vista no alcanza a reaccionar.
+/// Agregar un hito futuro es un valor más de este enum, no otra bandera.
+enum EventoBusqueda {
+  /// Toca proponerle al cliente cambiar el valor de la oferta.
+  proponerCambioOferta,
+
+  /// El cliente dejó la propuesta sin responder: la búsqueda se cancela sola.
+  canceladaPorInactividad,
+}
 
 /// Un conductor conectado, tal como lo ve el cliente en el mapa de búsqueda.
 ///
@@ -129,31 +148,9 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
         .where((c) => ahora.difference(c.visto) <= ventanaConductorActivo)
         .toList(growable: false);
   }
+
   int searchSeconds = 0;
   bool flujoTerminado = false;
-
-  /// `true` cuando toca ofrecerle al cliente subir la oferta — a los 5
-  /// minutos de búsqueda, una sola vez. A esa altura ya es probable que el
-  /// precio, y no la falta de conductores, sea lo que frena el viaje.
-  ///
-  /// Es distinto de [confirmarSeguirVisible]: este propone una acción
-  /// (cambiar el valor), aquel pregunta si la búsqueda sigue viva y la
-  /// cancela sola si nadie responde.
-  bool ofertaPromptVisible = false;
-  bool _ofertaPromptMostrado = false;
-
-  /// `true` mientras la modal "¿seguís esperando?" debe estar a la vista.
-  /// La vista la observa desde su listener y abre/cierra en consecuencia.
-  bool confirmarSeguirVisible = false;
-
-  /// Cuenta regresiva de la modal. Si llega a 0 sin respuesta, la búsqueda
-  /// se cancela sola (ver [debeCancelarPorNoResponder]).
-  int segundosRestantesConfirmar = _segundosParaAutoCancelar;
-
-  /// Se levanta cuando la cuenta regresiva se agotó: la vista lo lee para
-  /// cerrar la modal y ejecutar la cancelación (el write a Firestore y la
-  /// navegación viven allá, no acá).
-  bool debeCancelarPorNoResponder = false;
 
   StreamSubscription<Map<String, LatLng>>? _conductoresSub;
   StreamSubscription<Map<String, ConductorConectado>>?
@@ -161,28 +158,35 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
   Timer? _searchTimer;
   Timer? _bgCancelTimer;
   Timer? _detachedCancelTimer;
-  Timer? _confirmarTimer;
-  bool _notif5minEnviada = false;
 
-  /// Segundo de búsqueda en el que toca volver a preguntar. Avanza de a
-  /// [_segundosEntreConfirmaciones] cada vez que el cliente elige seguir.
-  int _proximaConfirmacion = _segundosEntreConfirmaciones;
+  /// Segundo del contador en el que toca volver a proponer el cambio de
+  /// oferta. `null` mientras hay una propuesta sin responder.
+  int? _segundosProximoModal;
 
-  /// Cada cuánto se le pregunta al cliente si sigue esperando. Una solicitud
-  /// olvidada en `buscando` ocupa a los conductores con un viaje que nadie
-  /// va a tomar.
-  static const int _segundosEntreConfirmaciones = 600; // 10 min
-
-  /// Lo que espera la modal antes de cancelar sola. Suficiente para que el
-  /// cliente vuelva al teléfono, corto para no dejar la solicitud viva si se
-  /// olvidó del todo.
-  static const int _segundosParaAutoCancelar = 180; // 3 min
+  /// Segundo del contador en el que se levantó la propuesta que sigue sin
+  /// responder. `null` si no hay ninguna en el aire.
+  int? _esperandoRespuestaDesde;
+  EventoBusqueda? _eventoPendiente;
 
   // 6 min en segundo plano sin volver → cancelar solicitud.
   static const Duration _umbralBackgroundCancel = Duration(minutes: 6);
   // 2 s tras destrucción del motor → cancelar solicitud.
   static const Duration _umbralDetachedCancel = Duration(seconds: 2);
-  static const int segundosAviso5min = 300;
+
+  /// Cada cuánto se le propone al cliente cambiar el valor de la oferta: a
+  /// los 5 min de búsqueda, y otra vez 5 min después de cada respuesta suya.
+  static const int segundosProponerOferta = 300;
+
+  /// Cuánto se espera una respuesta a esa propuesta antes de cancelar la
+  /// solicitud. Lo que cancela es el SILENCIO, no el reloj: mientras el
+  /// cliente conteste, la búsqueda sigue viva. Una búsqueda que nadie
+  /// atiende, en cambio, le aparece a los conductores como un viaje
+  /// disponible que nadie va a tomar.
+  static const int segundosSinRespuestaParaCancelar = 300;
+
+  /// Hito del contador pendiente de atender por la vista, o `null`. La vista
+  /// lo consume con [consumirEvento] apenas lo lee.
+  EventoBusqueda? get eventoPendiente => _eventoPendiente;
 
   bool get isCancelling => _isCancelling;
   bool get isUpdatingValor => _isUpdatingValor;
@@ -227,64 +231,76 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
         .collection('solicitudes')
         .doc(solicitudId)
         .snapshots()
-        .listen((snap) async {
-          // Documento borrado: para el cliente equivale a una cancelación.
-          if (!snap.exists) {
-            await _notificarTerminada(SolicitudEstado.cancelado, onTerminada);
-            return;
-          }
-          final data = snap.data();
-          if (data == null) return;
-
-          _hydratarEstadoDesdeSolicitud(data);
-          _safeNotify();
-
-          final estado = SolicitudEstado.normalize(
-            (data['estado'] ?? data['status'] ?? '').toString(),
-          );
-
-          if (SolicitudEstado.isTerminal(estado)) {
-            await _notificarTerminada(estado, onTerminada);
-            return;
-          }
-
-          if (_asignadaHandled) return;
-
-          if (estado == SolicitudEstado.asignado) {
-            await mostrarNotificacionSolicitudEntrante();
-            _asignadaHandled = true;
-            try {
-              await onAsignada(solicitudId);
-            } catch (_) {
-              _asignadaHandled = false;
+        .listen(
+          (snap) async {
+            // Documento borrado: para el cliente equivale a una cancelación.
+            if (!snap.exists) {
+              _notificarTerminada(SolicitudEstado.cancelado, onTerminada);
+              return;
             }
-          }
-        }, onError: (Object e, StackTrace st) {
-          // Sin esto, un `permission-denied` o un índice faltante mataba el
-          // listener en silencio: ni `onAsignada` ni `onTerminada` volvían a
-          // dispararse y el cliente se quedaba girando en "Buscando
-          // conductor" para siempre, sin ningún rastro del motivo
-          // (auditoría de bugs — mismo patrón ya corregido en
-          // `InicioConductorViewModel._subscribeAssignedToMe`).
-          ErrorReporter.report(e, st, reason: 'buscando_taxi_viewmodel');
-        });
+            final data = snap.data();
+            if (data == null) return;
+
+            _hydratarEstadoDesdeSolicitud(data);
+            _safeNotify();
+
+            final estado = SolicitudEstado.normalize(
+              (data['estado'] ?? data['status'] ?? '').toString(),
+            );
+
+            if (SolicitudEstado.isTerminal(estado)) {
+              _notificarTerminada(estado, onTerminada);
+              return;
+            }
+
+            if (_asignadaHandled) return;
+
+            if (estado == SolicitudEstado.asignado) {
+              await mostrarNotificacionSolicitudEntrante();
+              _asignadaHandled = true;
+              try {
+                await onAsignada(solicitudId);
+              } catch (_) {
+                _asignadaHandled = false;
+              }
+            }
+          },
+          onError: (Object e, StackTrace st) {
+            // Sin esto, un `permission-denied` o un índice faltante mataba el
+            // listener en silencio: ni `onAsignada` ni `onTerminada` volvían a
+            // dispararse y el cliente se quedaba girando en "Buscando
+            // conductor" para siempre, sin ningún rastro del motivo
+            // (auditoría de bugs — mismo patrón ya corregido en
+            // `InicioConductorViewModel._subscribeAssignedToMe`).
+            ErrorReporter.report(e, st, reason: 'buscando_taxi_viewmodel');
+          },
+        );
   }
 
   /// One-shot: si el cliente ya fue enviado al viaje (`_asignadaHandled`) no
   /// tiene sentido sacarlo por un estado terminal posterior (p.ej. el viaje
   /// se completa) — de eso se encarga ya la pantalla de viaje.
-  Future<void> _notificarTerminada(
+  void _notificarTerminada(
     String estadoNormalizado,
     Future<void> Function(String estadoNormalizado)? onTerminada,
-  ) async {
+  ) {
     if (_terminadaHandled || _asignadaHandled) return;
     _terminadaHandled = true;
     if (onTerminada == null) return;
-    try {
-      await onTerminada(estadoNormalizado);
-    } catch (_) {
-      _terminadaHandled = false;
-    }
+    // One-shot de verdad: el `_terminadaHandled = false` que había en el
+    // `catch` re-armaba el handler, así que si la salida fallaba (p.ej. un
+    // `Navigator` sobre un context ya desactivado) el próximo snapshot
+    // terminal volvía a entrar y disparaba una SEGUNDA navegación con
+    // `clearStackOnNext`. Dos de esas dejaban el Navigator con una sola ruta
+    // y Flutter cerraba la app.
+    //
+    // Sin `await` porque no hay nada que hacer después: la View se encarga
+    // del resto y este callback es del listener de Firestore.
+    unawaited(
+      onTerminada(estadoNormalizado).catchError((Object e, StackTrace st) {
+        ErrorReporter.report(e, st, reason: 'buscando_taxi_viewmodel');
+      }),
+    );
   }
 
   void _hydratarEstadoDesdeSolicitud(Map<String, dynamic> data) {
@@ -381,14 +397,17 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
 
       _contraofertas = newList;
 
-      // Notificar por cada oferta única (conductorId:valor).
-      // El mismo conductor con precio distinto genera nueva notificación.
+      // UNA notificación por tanda, no una por oferta. Todas comparten el
+      // id 1002, así que en pantalla siempre se vio una sola — pero el bucle
+      // disparaba un `show` por oferta nueva y el teléfono sonaba y vibraba
+      // N veces seguidas por lo mismo.
+      final valoresNuevos = <double>[];
       for (final item in newList) {
         final key = '${item.conductorId}:${item.valor.toStringAsFixed(0)}';
-        if (!_notifiedContraIds.contains(key)) {
-          _notifiedContraIds.add(key);
-          unawaited(_mostrarNotificacionContraoferta(item.valor));
-        }
+        if (_notifiedContraIds.add(key)) valoresNuevos.add(item.valor);
+      }
+      if (valoresNuevos.isNotEmpty) {
+        unawaited(_mostrarNotificacionContraofertas(valoresNuevos));
       }
     } else {
       _contraofertas = [];
@@ -410,7 +429,7 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
         if (_counterOfferToken != _lastNotifiedCounterOfferToken) {
           _lastNotifiedCounterOfferToken = _counterOfferToken;
           unawaited(
-            _mostrarNotificacionContraoferta(_valorContraofertaPendiente!),
+            _mostrarNotificacionContraofertas([_valorContraofertaPendiente!]),
           );
         }
       }
@@ -455,13 +474,22 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
     }
   }
 
-  Future<void> _mostrarNotificacionContraoferta(double valor) async {
+  /// Un solo aviso para todas las contraofertas nuevas de una misma tanda.
+  Future<void> _mostrarNotificacionContraofertas(List<double> nuevas) async {
+    if (nuevas.isEmpty) return;
     try {
-      final valorTxt = _formatMiles(valor.round());
+      final menor = nuevas.reduce((a, b) => a < b ? a : b);
+      final valorTxt = _formatMiles(menor.round());
       await NotificacionesServicio.instance.showNotification(
-        id: 1002,
-        title: 'Contraoferta del conductor',
-        body: 'Te proponen un nuevo valor: \$$valorTxt',
+        // Misma clave que usa el backend para este evento, así el aviso local
+        // y el push no se duplican entre sí.
+        id: idNotificacionDe('contraoferta', _solicitudId),
+        title: nuevas.length == 1
+            ? 'Contraoferta del conductor'
+            : '${nuevas.length} contraofertas nuevas',
+        body: nuevas.length == 1
+            ? 'Te proponen un nuevo valor: \$$valorTxt'
+            : 'La más baja: \$$valorTxt',
       );
     } catch (e, st) {
       ErrorReporter.report(e, st, reason: 'buscando_taxi_viewmodel');
@@ -506,6 +534,50 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
     }
   }
 
+  /// `null` si [digits] es un monto aceptable; si no, el motivo para pintar
+  /// en la UI. Misma regla que el sheet de confirmar solicitud — vive en
+  /// `dominio/validar_valor_servicio.dart`, no duplicada acá.
+  ///
+  /// [tipo] explícito para validar contra el vehículo que el cliente está
+  /// por elegir en el editor de oferta, que todavía no es el de la solicitud.
+  String? validarNuevoValor(String digits, {VehicleType? tipo}) =>
+      dominio.validarValorServicio(
+        digits,
+        tipo: tipo ?? (isMotoSolicitud ? VehicleType.moto : VehicleType.carro),
+        distanciaKm: _routePoints.isEmpty
+            ? null
+            : MapHelper.routeDistanceMeters(_routePoints) / 1000,
+        // Sin ruta trazada el techo cae al base×20 (sin el componente por km) y
+        // rechazaría el valor que el propio sistema ya aceptó al crear la
+        // solicitud. El techo es anti fat-finger, no un recorte retroactivo.
+        techoMinimo: _valorServicioActual.round(),
+      );
+
+  /// Escribe [cambios] solo si la solicitud sigue en `buscando`.
+  ///
+  /// Cambiar la oferta o rechazar una contraoferta vuelven a poner
+  /// `estado: buscando`. Como `set` plano, si un conductor aceptaba en ese
+  /// mismo instante, la escritura del cliente llegaba después y reabría un
+  /// viaje ya asignado (con `conductor` puesto): otro conductor podía tomarlo
+  /// también y quedaban dos conductores en el mismo viaje.
+  Future<void> _setSiSigueBuscando(
+    String solicitudId,
+    Map<String, dynamic> cambios,
+  ) {
+    final ref = _firestore.collection('solicitudes').doc(solicitudId);
+    return _firestore.runTransaction((tx) async {
+      final snap = await tx.get(ref);
+      final data = snap.data() ?? <String, dynamic>{};
+      final estado = SolicitudEstado.normalize(
+        (data['estado'] ?? data['status'] ?? '').toString(),
+      );
+      if (!snap.exists || estado != SolicitudEstado.buscando) {
+        throw StateError('La solicitud ya no está disponible');
+      }
+      tx.set(ref, cambios, SetOptions(merge: true));
+    });
+  }
+
   Future<bool> actualizarValorServicio(double nuevoValor) async {
     final solicitudId = _solicitudId;
     if (solicitudId == null || solicitudId.isEmpty) return false;
@@ -514,7 +586,7 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
     _isUpdatingValor = true;
     _safeNotify();
     try {
-      await _firestore.collection('solicitudes').doc(solicitudId).set({
+      await _setSiSigueBuscando(solicitudId, {
         'valorServicioPropuesto': nuevoValor,
         'estado': SolicitudEstado.buscando,
         'estadoContraoferta': EstadoContraoferta.sinContraoferta,
@@ -530,7 +602,7 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
           'updatedAt': FieldValue.serverTimestamp(),
         },
         'contraofertas': FieldValue.delete(),
-      }, SetOptions(merge: true));
+      });
       _valorServicioActual = nuevoValor;
       _valorContraofertaPendiente = null;
       _estadoContraoferta = EstadoContraoferta.sinContraoferta;
@@ -720,6 +792,12 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
         if (!snap.exists) throw StateError('Solicitud no existe');
 
         final data = snap.data() ?? <String, dynamic>{};
+        final estadoSolicitud = SolicitudEstado.normalize(
+          (data['estado'] ?? data['status'] ?? '').toString(),
+        );
+        if (estadoSolicitud != SolicitudEstado.buscando) {
+          throw StateError('La solicitud ya no está disponible');
+        }
         final contraRaw = data['contraoferta'];
         if (contraRaw is! Map<String, dynamic>) {
           throw StateError('No hay contraoferta activa');
@@ -774,7 +852,7 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
     _safeNotify();
 
     try {
-      await _firestore.collection('solicitudes').doc(solicitudId).set({
+      await _setSiSigueBuscando(solicitudId, {
         'estado': SolicitudEstado.buscando,
         'estadoContraoferta': EstadoContraoferta.rechazadaCliente,
         'updatedAt': FieldValue.serverTimestamp(),
@@ -783,7 +861,7 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
           'respondedAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
         },
-      }, SetOptions(merge: true));
+      });
 
       _valorContraofertaPendiente = null;
       _estadoContraoferta = EstadoContraoferta.rechazadaCliente;
@@ -829,10 +907,17 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
   ///
   /// No borra el documento (ver [cancelarSolicitud]): las reglas lo prohíben
   /// y la limpieza real es server-side.
-  Future<void> marcarCanceladaPorInactividad() async {
+  /// Devuelve el estado que encontró en el servidor: `null` si canceló, o el
+  /// estado real si NO canceló porque la solicitud ya había salido de
+  /// `buscando`. El caller necesita distinguirlos: si un conductor aceptó un
+  /// instante antes, sacar al cliente a la pantalla de inicio con "Búsqueda
+  /// cancelada" lo deja fuera de un viaje que sí existe.
+  Future<String?> marcarCanceladaPorInactividad() async {
     final solicitudId = _solicitudId;
-    if (solicitudId == null || solicitudId.isEmpty) return;
+    if (solicitudId == null || solicitudId.isEmpty) return null;
     final docRef = _firestore.collection('solicitudes').doc(solicitudId);
+    var cancelo = false;
+    String? estadoEncontrado;
     try {
       // Releer el estado FRESCO del servidor dentro de una transacción y
       // cancelar solo si sigue en 'buscando' (mismo defecto de raíz que la
@@ -842,25 +927,47 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
       // snapshot con 'asignado' todavía no había llegado al teléfono del
       // cliente, este `update` sin condición cancelaba un viaje ya asignado
       // (auditoría de bugs). Si ya no está en 'buscando', no-op silencioso.
-      await _firestore.runTransaction((tx) async {
+      cancelo = await _firestore.runTransaction<bool>((tx) async {
         final snap = await tx.get(docRef);
-        if (!snap.exists) return;
+        if (!snap.exists) return false;
         final data = snap.data() ?? <String, dynamic>{};
         final estadoServidor = SolicitudEstado.normalize(
           (data['estado'] ?? data['status'] ?? '').toString(),
         );
-        if (estadoServidor != SolicitudEstado.buscando) return;
+        if (estadoServidor != SolicitudEstado.buscando) {
+          estadoEncontrado = estadoServidor;
+          return false;
+        }
         tx.set(docRef, {
           'estado': SolicitudEstado.cancelado,
           'cancelledAt': FieldValue.serverTimestamp(),
           'cancelReason': 'inactividad',
         }, SetOptions(merge: true));
+        return true;
       });
     } catch (e, st) {
       ErrorReporter.report(e, st, reason: 'buscando_taxi_viewmodel');
     }
     SessionHelper.clearActiveSolicitud().ignore();
     SessionHelper.clearActiveSolicitudScreen().ignore();
+    // Acá y no en la View: los tres caminos de inactividad (segundo plano,
+    // app cerrada, y la propuesta sin responder) pasan por este método, así
+    // que el aviso sale una sola vez y desde un solo lugar.
+    //
+    // Solo si la transacción canceló de verdad: es no-op cuando el conductor
+    // aceptó un instante antes, y ahí un push "Búsqueda cancelada" le llega
+    // al cliente con el viaje ya asignado.
+    if (!cancelo) return estadoEncontrado;
+    try {
+      await NotificacionesServicio.instance.showNotification(
+        id: 1004,
+        title: 'Búsqueda cancelada',
+        body: 'Cancelamos tu solicitud automáticamente por inactividad.',
+      );
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'buscando_taxi_viewmodel');
+    }
+    return null;
   }
 
   Future<void> cancelarSolicitud() async {
@@ -905,28 +1012,32 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
 
   void subscribeConductores() {
     _conductoresSub?.cancel();
-    _conductoresSub = streamConductoresDisponibles().listen((positions) {
-      conductoresPositions = Map<String, LatLng>.from(positions);
-      _safeNotify();
-    }, onError: (Object e, StackTrace st) {
-      // Vacío antes: si `streamConductoresDisponibles` revienta (p.ej. un
-      // `lat`/`lng` guardado como String en Firestore, ver el cast sin
-      // verificar más abajo), los marcadores de conductores desaparecían
-      // del mapa de búsqueda sin ningún rastro (auditoría de bugs).
-      ErrorReporter.report(e, st, reason: 'buscando_taxi_viewmodel');
-    });
+    _conductoresSub = streamConductoresDisponibles().listen(
+      (positions) {
+        conductoresPositions = Map<String, LatLng>.from(positions);
+        _safeNotify();
+      },
+      onError: (Object e, StackTrace st) {
+        // Vacío antes: si `streamConductoresDisponibles` revienta (p.ej. un
+        // `lat`/`lng` guardado como String en Firestore, ver el cast sin
+        // verificar más abajo), los marcadores de conductores desaparecían
+        // del mapa de búsqueda sin ningún rastro (auditoría de bugs).
+        ErrorReporter.report(e, st, reason: 'buscando_taxi_viewmodel');
+      },
+    );
   }
 
   void subscribeConductoresConectados() {
     _conductoresConectadosSub?.cancel();
-    _conductoresConectadosSub = streamConductoresConectados().listen((
-      positions,
-    ) {
-      conectados = Map<String, ConductorConectado>.from(positions);
-      _safeNotify();
-    }, onError: (Object e, StackTrace st) {
-      ErrorReporter.report(e, st, reason: 'buscando_taxi_viewmodel');
-    });
+    _conductoresConectadosSub = streamConductoresConectados().listen(
+      (positions) {
+        conectados = Map<String, ConductorConectado>.from(positions);
+        _safeNotify();
+      },
+      onError: (Object e, StackTrace st) {
+        ErrorReporter.report(e, st, reason: 'buscando_taxi_viewmodel');
+      },
+    );
   }
 
   // ── Timer de búsqueda ─────────────────────────────────────────────────────
@@ -934,91 +1045,97 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
   void startSearchTimer() {
     _searchTimer?.cancel();
     searchSeconds = 0;
-    _proximaConfirmacion = _segundosEntreConfirmaciones;
+    _segundosProximoModal = segundosProponerOferta;
+    _esperandoRespuestaDesde = null;
+    _eventoPendiente = null;
     _searchTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       searchSeconds++;
-      if (!_notif5minEnviada && searchSeconds >= segundosAviso5min) {
-        _notif5minEnviada = true;
-        _avisar5Minutos();
-      }
-      // La notificación de arriba solo la ve quien tiene la app en segundo
-      // plano; esta modal es para el que está mirando la pantalla.
-      if (!_ofertaPromptMostrado && searchSeconds >= segundosAviso5min) {
-        _ofertaPromptMostrado = true;
-        ofertaPromptVisible = true;
-      }
-      if (!confirmarSeguirVisible && searchSeconds >= _proximaConfirmacion) {
-        // Ya notifica por su cuenta, pero se vuelve a notificar abajo igual:
-        // `notifyListeners` de más es barato, perderse una bandera no.
-        _abrirConfirmarSeguir();
-      }
-      // UNA notificación, al final y con TODO el estado del tick ya escrito.
-      // Estaba arriba del todo, así que el tick en el que se levantaban
-      // `ofertaPromptVisible`/`confirmarSeguirVisible` no avisaba de esas
-      // banderas: la vista recién las veía en el tick siguiente.
+      _evaluarHitos();
+      // UNA sola vez y AL FINAL. Notificar antes de evaluar los hitos deja a
+      // la vista sin enterarse en el mismo tick que levanta el evento, y el
+      // modal no sale hasta el segundo siguiente — o nunca, si para ahí.
       _safeNotify();
     });
   }
 
-  /// Cierra la propuesta de subir la oferta. No se vuelve a mostrar: a los
-  /// 10 min ya entra la de "¿seguís esperando?", y encimar recordatorios de
-  /// precio cada pocos minutos molesta más de lo que ayuda.
-  void cerrarOfertaPrompt() {
-    ofertaPromptVisible = false;
-    _safeNotify();
-  }
-
-  // ── "¿Seguís esperando?" ─────────────────────────────────────────────────
-
-  void _abrirConfirmarSeguir() {
+  void _evaluarHitos() {
+    // El flujo ya terminó (viaje asignado, cancelación manual) pero el search
+    // timer sigue vivo hasta `finalizarTrackingConductores()`, que corre
+    // después de un `await`. Sin esto, en esa ventana se alcanza a mandar la
+    // notificación y a levantar un evento sobre una solicitud ya cerrada.
     if (flujoTerminado) return;
-    confirmarSeguirVisible = true;
-    segundosRestantesConfirmar = _segundosParaAutoCancelar;
-    _confirmarTimer?.cancel();
-    _confirmarTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      segundosRestantesConfirmar--;
-      if (segundosRestantesConfirmar <= 0) {
-        _confirmarTimer?.cancel();
-        _confirmarTimer = null;
-        segundosRestantesConfirmar = 0;
-        confirmarSeguirVisible = false;
-        // Nadie respondió: la vista cancela de verdad (Firestore + salida).
-        debeCancelarPorNoResponder = true;
+
+    final esperando = _esperandoRespuestaDesde;
+    if (esperando != null) {
+      if (searchSeconds - esperando >= segundosSinRespuestaParaCancelar) {
+        _esperandoRespuestaDesde = null;
+        _eventoPendiente = EventoBusqueda.canceladaPorInactividad;
       }
-      _safeNotify();
-    });
-    _safeNotify();
+      // Mientras haya una propuesta en el aire no se agenda otra.
+      return;
+    }
+
+    final proximo = _segundosProximoModal;
+    if (proximo == null) {
+      // Ni propuesta en el aire ni próxima agendada: la vista levantó el
+      // evento y no pudo mostrar el diálogo (había otro modal encima, la
+      // pantalla se estaba desmontando…). Se reagenda en vez de quedar
+      // inerte para siempre — y, sobre todo, sin un reloj de cancelación
+      // corriendo detrás de un diálogo que el cliente nunca vio.
+      _segundosProximoModal = searchSeconds + segundosProponerOferta;
+      return;
+    }
+
+    if (searchSeconds >= proximo) {
+      _segundosProximoModal = null;
+      avisarProponerOferta();
+      _eventoPendiente = EventoBusqueda.proponerCambioOferta;
+    }
   }
 
-  /// El cliente eligió seguir esperando: se cierra la modal y se reprograma
-  /// la próxima pregunta otros 10 minutos más adelante.
-  void confirmarSeguirBuscando() {
-    _confirmarTimer?.cancel();
-    _confirmarTimer = null;
-    confirmarSeguirVisible = false;
-    segundosRestantesConfirmar = _segundosParaAutoCancelar;
-    _proximaConfirmacion = searchSeconds + _segundosEntreConfirmaciones;
-    _safeNotify();
+  /// La vista confirma que el diálogo quedó EN PANTALLA. Recién ahí arranca
+  /// el plazo de silencio.
+  ///
+  /// Separado de levantar el evento a propósito: si el reloj arrancara al
+  /// proponerlo, un evento que la vista no alcanza a mostrar cancelaría la
+  /// solicitud sin que al cliente se le haya preguntado nada.
+  void registrarPropuestaMostrada() {
+    if (flujoTerminado) return;
+    _segundosProximoModal = null;
+    _esperandoRespuestaDesde = searchSeconds;
   }
 
-  /// Cierra la modal sin reprogramar — para cuando la vista ya está
-  /// cancelando por elección explícita del cliente o por el vencimiento.
-  void cerrarConfirmarSeguir() {
-    _confirmarTimer?.cancel();
-    _confirmarTimer = null;
-    confirmarSeguirVisible = false;
-    debeCancelarPorNoResponder = false;
-    _safeNotify();
+  /// La vista marca el evento como atendido apenas lo lee, para que un
+  /// rebuild posterior no lo dispare de nuevo.
+  void consumirEvento() {
+    _eventoPendiente = null;
   }
 
-  Future<void> _avisar5Minutos() async {
+  /// El cliente contestó la propuesta (cambió la oferta o eligió seguir
+  /// buscando): se apaga la cuenta de silencio y se agenda la siguiente a
+  /// [segundosProponerOferta] de ahora. Es lo único que evita la cancelación.
+  void registrarRespuestaOferta() {
+    if (flujoTerminado) return;
+    _esperandoRespuestaDesde = null;
+    _segundosProximoModal = searchSeconds + segundosProponerOferta;
+  }
+
+  /// Notificación local del hito de los 5 min — sirve con la app en segundo
+  /// plano, donde el modal no se ve.
+  ///
+  /// Protegido y visible para tests porque es la costura que el fake
+  /// sobreescribe: `NotificacionesServicio` no está mockeado en el entorno de
+  /// test y sin esto ningún test puede cruzar los 300 s.
+  @protected
+  @visibleForTesting
+  Future<void> avisarProponerOferta() async {
     try {
       await NotificacionesServicio.instance.showNotification(
         id: 1003,
-        title: 'Llevas 5 minutos buscando',
+        title: 'Seguimos buscando conductor',
         body:
-            'Aún no hay conductor. ¿Quieres aumentar tu oferta para '
-            'conseguir uno más rápido?',
+            'Aún no hay conductor disponible. ¿Quieres cambiar tu oferta '
+            'para conseguir uno más rápido?',
       );
     } catch (e, st) {
       ErrorReporter.report(e, st, reason: 'buscando_taxi_viewmodel');
@@ -1064,13 +1181,6 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
     flujoTerminado = true;
     _bgCancelTimer?.cancel();
     _detachedCancelTimer?.cancel();
-    // La cuenta regresiva de "¿seguís esperando?" también: si el flujo ya
-    // terminó (el cliente aceptó una oferta, o canceló), dejarla viva podía
-    // levantar `debeCancelarPorNoResponder` sobre una solicitud que ya no
-    // está buscando.
-    _confirmarTimer?.cancel();
-    _confirmarTimer = null;
-    confirmarSeguirVisible = false;
   }
 
   /// Segunda fase de limpieza al terminar el flujo.
@@ -1098,7 +1208,6 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
     _bgCancelTimer?.cancel();
     _detachedCancelTimer?.cancel();
     _searchTimer?.cancel();
-    _confirmarTimer?.cancel();
     _conductoresSub?.cancel();
     _conductoresConectadosSub?.cancel();
     super.dispose();

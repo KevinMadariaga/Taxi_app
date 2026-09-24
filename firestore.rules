@@ -221,6 +221,21 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------
+    // solicitudes_notificados: a qué conductores se les mandó el aviso
+    // "Solicitud entrante" de cada solicitud, para poder RETIRARLO cuando la
+    // solicitud deja de estar disponible (ver `onSolicitudDejaDeBuscar`).
+    //
+    // Cerrada por completo: solo la toca el Admin SDK desde las Cloud
+    // Functions, que saltea las reglas. Vive acá afuera y no dentro de la
+    // solicitud justamente por esto — las reglas dejan a CUALQUIER conductor
+    // leer una solicitud en `buscando`, así que ahí adentro la lista
+    // expondría los uids de hasta 20 conductores conectados.
+    // ---------------------------------------------------------------
+    match /solicitudes_notificados/{solicitudId} {
+      allow read, write: if false;
+    }
+
+    // ---------------------------------------------------------------
     // usuarios: doc id = uid de Auth, compartido entre cliente y conductor
     // (campo `rol`). Conductores tienen `adminId` = uid del admin dueño del
     // gremio, que puede gestionarlos.

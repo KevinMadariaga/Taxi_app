@@ -57,31 +57,43 @@ class ChatController {
         .map(
           (snap) => snap.docs.map(MensajeModel.fromDoc).toList(growable: false),
         )
-        .listen((incoming) async {
-          if (_bootstrapped) {
-            final previousIds = messages.map((m) => m.id).toSet();
-            final newIncoming = incoming.where(
-              (m) => !previousIds.contains(m.id) && m.senderId != currentUserId,
-            );
-            if (!notificacionesSilenciadas) {
-              for (final item in newIncoming) {
-                await _showMessageNotification(item.texto);
+        .listen(
+          (incoming) async {
+            if (_bootstrapped) {
+              final previousIds = messages.map((m) => m.id).toSet();
+              final newIncoming = incoming.where(
+                (m) =>
+                    !previousIds.contains(m.id) && m.senderId != currentUserId,
+              );
+              if (!notificacionesSilenciadas) {
+                // UNA notificación por tanda. Todas comparten el mismo id, así
+                // que en pantalla siempre se vio una sola — pero el bucle
+                // disparaba un `show` por mensaje y el teléfono sonaba y
+                // vibraba N veces seguidas cuando llegaban varios de golpe.
+                final pendientes = newIncoming.toList(growable: false);
+                if (pendientes.isNotEmpty) {
+                  await _showMessageNotification(
+                    pendientes.last.texto,
+                    cantidad: pendientes.length,
+                  );
+                }
               }
+            } else {
+              _bootstrapped = true;
             }
-          } else {
-            _bootstrapped = true;
-          }
 
-          messages = incoming;
-          _computeUnreadCount();
-          onChanged?.call();
-        }, onError: (Object e, StackTrace st) {
-          // Sin esto, si el stream corta (permission-denied al terminar el
-          // viaje, índice faltante) el chat enmudecía sin ningún aviso: no
-          // llegaban mensajes nuevos y nada lo registraba (auditoría de
-          // bugs).
-          ErrorReporter.report(e, st, reason: 'chat_controller');
-        });
+            messages = incoming;
+            _computeUnreadCount();
+            onChanged?.call();
+          },
+          onError: (Object e, StackTrace st) {
+            // Sin esto, si el stream corta (permission-denied al terminar el
+            // viaje, índice faltante) el chat enmudecía sin ningún aviso: no
+            // llegaban mensajes nuevos y nada lo registraba (auditoría de
+            // bugs).
+            ErrorReporter.report(e, st, reason: 'chat_controller');
+          },
+        );
   }
 
   Future<void> sendMessage(String text) {
@@ -129,10 +141,12 @@ class ChatController {
         .length;
   }
 
-  Future<void> _showMessageNotification(String body) async {
+  Future<void> _showMessageNotification(String body, {int cantidad = 1}) async {
     try {
       await _notificationService.showChatNotification(
-        senderName: '\u{1F4AC} Nuevo mensaje del $otherPartyLabel',
+        senderName: cantidad > 1
+            ? '\u{1F4AC} $cantidad mensajes del $otherPartyLabel'
+            : '\u{1F4AC} Nuevo mensaje del $otherPartyLabel',
         message: body,
         // Formato consumido por `_manejarTapNotificacion` en main.dart para
         // abrir el chat de este viaje al tocar la notificación.

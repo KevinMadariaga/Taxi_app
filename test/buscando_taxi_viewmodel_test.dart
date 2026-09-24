@@ -57,8 +57,18 @@ class _FakeBuscandoTaxiViewModel extends BuscandoTaxiViewModel {
       _conectadosStream;
 
   @override
-  Future<void> marcarCanceladaPorInactividad() async {
+  Future<String?> marcarCanceladaPorInactividad() async {
     marcarCanceladaCount++;
+    return null;
+  }
+
+  /// Toca `NotificacionesServicio` (no mockeado en este entorno) — se anula
+  /// para poder cruzar los 300 s del primer hito sin salir a Crashlytics.
+  int avisarProponerOfertaCount = 0;
+
+  @override
+  Future<void> avisarProponerOferta() async {
+    avisarProponerOfertaCount++;
   }
 
   /// Toca `NotificacionesServicio` (no mockeado en este entorno) — se anula
@@ -97,11 +107,8 @@ void main() {
   });
 
   group('startSearchTimer', () {
-    // No se llega a `segundosAviso5min` (300s) a propósito: cruzarlo dispara
-    // `_avisar5Minutos()` -> `NotificacionesServicio` -> `ErrorReporter` ->
-    // Crashlytics, ninguno mockeado en este entorno (mismo gap preexistente
-    // en todo el repo: ErrorReporter.report no tiene try/catch propio). No es
-    // parte de lo que se caracteriza acá (el conteo de segundos en sí).
+    // Este grupo se queda por debajo de los 300 s: los hitos que se disparan
+    // al cruzarlos tienen su propio grupo más abajo.
     test('cuenta segundos cada tick', () {
       fakeAsync((async) {
         vm.startSearchTimer();
@@ -125,6 +132,163 @@ void main() {
         expect(vm.searchSeconds, 0);
         async.elapse(const Duration(seconds: 5));
         expect(vm.searchSeconds, 5);
+      });
+    });
+  });
+
+  // Lo que mantiene viva la búsqueda es que el cliente CONTESTE, no el reloj:
+  // cada 5 min se le propone cambiar la oferta, y si deja una propuesta sin
+  // responder 5 min, la solicitud se cancela sola.
+  group('hitos del contador', () {
+    const proponer = BuscandoTaxiViewModel.segundosProponerOferta;
+    const sinRespuesta = BuscandoTaxiViewModel.segundosSinRespuestaParaCancelar;
+
+    test('no propone nada antes de los 5 minutos', () {
+      fakeAsync((async) {
+        vm.startSearchTimer();
+        async.elapse(Duration(seconds: proponer - 1));
+
+        expect(vm.eventoPendiente, isNull);
+        expect(vm.avisarProponerOfertaCount, 0);
+      });
+    });
+
+    test('propone cambiar la oferta a los 5 minutos', () {
+      fakeAsync((async) {
+        vm.startSearchTimer();
+        async.elapse(Duration(seconds: proponer));
+
+        expect(vm.eventoPendiente, EventoBusqueda.proponerCambioOferta);
+        // La notificación local acompaña al modal: con la app en segundo
+        // plano es lo único que se ve.
+        expect(vm.avisarProponerOfertaCount, 1);
+      });
+    });
+
+    test('la propuesta no se vuelve a levantar tras consumirla', () {
+      fakeAsync((async) {
+        vm.startSearchTimer();
+        async.elapse(Duration(seconds: proponer));
+        vm.consumirEvento();
+
+        async.elapse(const Duration(seconds: 60));
+        expect(vm.eventoPendiente, isNull);
+        expect(vm.avisarProponerOfertaCount, 1);
+      });
+    });
+
+    test('sin respuesta, 5 min después cancela por inactividad', () {
+      fakeAsync((async) {
+        vm.startSearchTimer();
+        async.elapse(Duration(seconds: proponer));
+        vm.consumirEvento();
+        vm.registrarPropuestaMostrada();
+
+        async.elapse(Duration(seconds: sinRespuesta - 1));
+        expect(vm.eventoPendiente, isNull);
+
+        async.elapse(const Duration(seconds: 1));
+        expect(vm.eventoPendiente, EventoBusqueda.canceladaPorInactividad);
+      });
+    });
+
+    // El bug que este caso fija: si el reloj de silencio arrancara al
+    // LEVANTAR el evento, una vista que no puede mostrar el diálogo (hay
+    // otro modal encima, se está desmontando) cancelaría la solicitud sin
+    // haberle preguntado nada al cliente.
+    test('si el diálogo nunca se mostró, no cancela: reagenda', () {
+      fakeAsync((async) {
+        vm.startSearchTimer();
+        async.elapse(Duration(seconds: proponer));
+        expect(vm.eventoPendiente, EventoBusqueda.proponerCambioOferta);
+        vm.consumirEvento(); // la vista lo descarta sin abrir nada
+
+        // Pasa de largo el plazo de silencio y NO cancela.
+        async.elapse(Duration(seconds: sinRespuesta + 60));
+        expect(
+          vm.eventoPendiente,
+          isNot(EventoBusqueda.canceladaPorInactividad),
+        );
+
+        // Y el VM no quedó inerte: vuelve a proponer.
+        expect(vm.eventoPendiente, EventoBusqueda.proponerCambioOferta);
+      });
+    });
+
+    test('marcarFlujoTerminado corta los hitos en curso', () {
+      fakeAsync((async) {
+        vm.startSearchTimer();
+        async.elapse(Duration(seconds: proponer));
+        vm.consumirEvento();
+        vm.registrarPropuestaMostrada();
+
+        // El cliente aceptó una oferta mientras el diálogo estaba abierto.
+        // `marcarFlujoTerminado` NO cancela el search timer (eso pasa recién
+        // en `finalizarTrackingConductores`, tras un await), así que sin el
+        // guard el VM seguiría notificando y cancelando por detrás.
+        vm.marcarFlujoTerminado();
+        final avisosAntes = vm.avisarProponerOfertaCount;
+
+        async.elapse(Duration(seconds: sinRespuesta + proponer));
+        expect(vm.eventoPendiente, isNull);
+        expect(vm.avisarProponerOfertaCount, avisosAntes);
+      });
+    });
+
+    test('si el cliente responde, vuelve a proponer 5 min después', () {
+      fakeAsync((async) {
+        vm.startSearchTimer();
+        async.elapse(Duration(seconds: proponer));
+        vm.consumirEvento();
+        vm.registrarPropuestaMostrada();
+        vm.registrarRespuestaOferta();
+
+        // La cuenta de silencio quedó apagada: pasa el plazo y no cancela.
+        async.elapse(Duration(seconds: proponer - 1));
+        expect(vm.eventoPendiente, isNull);
+
+        async.elapse(const Duration(seconds: 1));
+        expect(vm.eventoPendiente, EventoBusqueda.proponerCambioOferta);
+        expect(vm.avisarProponerOfertaCount, 2);
+      });
+    });
+
+    test('responder siempre mantiene la búsqueda viva', () {
+      fakeAsync((async) {
+        vm.startSearchTimer();
+        for (var ronda = 0; ronda < 4; ronda++) {
+          async.elapse(Duration(seconds: proponer));
+          expect(vm.eventoPendiente, EventoBusqueda.proponerCambioOferta);
+          vm.consumirEvento();
+          vm.registrarPropuestaMostrada();
+          vm.registrarRespuestaOferta();
+        }
+        expect(vm.eventoPendiente, isNull);
+        expect(vm.searchSeconds, proponer * 4);
+      });
+    });
+
+    test('notifica a los listeners en el MISMO tick que levanta el evento', () {
+      fakeAsync((async) {
+        // Leer el campo después del `elapse` no distingue "se levantó y se
+        // notificó" de "se levantó y nadie se enteró": la vista abre el
+        // modal desde el listener, así que lo que hay que fijar es qué veía
+        // el listener EN el momento de la notificación. Sin esto, mover el
+        // `_safeNotify()` antes de evaluar los hitos pasa desapercibido.
+        // Se anota EN QUÉ SEGUNDO lo vio el listener: notificar un tick
+        // tarde también sirve para que el modal salga, así que la única
+        // forma de fijar el orden es exigir el segundo exacto.
+        final vistos = <int>[];
+        vm.addListener(() {
+          if (vm.eventoPendiente == EventoBusqueda.proponerCambioOferta) {
+            vistos.add(vm.searchSeconds);
+          }
+        });
+
+        vm.startSearchTimer();
+        async.elapse(Duration(seconds: proponer));
+
+        expect(vistos, [proponer]);
       });
     });
   });
@@ -174,147 +338,6 @@ void main() {
       final activos = vm.conductoresActivos;
       expect(activos.where((c) => c.isMoto), hasLength(1));
       expect(activos.where((c) => !c.isMoto), hasLength(1));
-    });
-  });
-
-  // A los 5 min se propone subir la oferta (una sola vez); a los 10 entra la
-  // de "¿sigues esperando?", que es la que puede cancelar.
-  group('propuesta de cambiar la oferta', () {
-    test('no aparece antes de los 5 minutos', () {
-      fakeAsync((async) {
-        vm.startSearchTimer();
-        async.elapse(const Duration(minutes: 4, seconds: 59));
-
-        expect(vm.ofertaPromptVisible, isFalse);
-      });
-    });
-
-    test('aparece a los 5 minutos', () {
-      fakeAsync((async) {
-        vm.startSearchTimer();
-        async.elapse(const Duration(minutes: 5));
-
-        expect(vm.ofertaPromptVisible, isTrue);
-      });
-    });
-
-    // La vista NO lee el campo: reacciona a `notifyListeners`. Si la bandera
-    // se levanta después de notificar, en ese tick nadie se entera — que es
-    // exactamente el bug que tenía (la modal no salía). Leer el campo tras
-    // `elapse` no lo detecta, hay que mirar qué veía el listener.
-    test('la bandera ya está arriba cuando se notifica', () {
-      fakeAsync((async) {
-        var vistaEncendida = false;
-        vm.addListener(() {
-          if (vm.ofertaPromptVisible) vistaEncendida = true;
-        });
-
-        vm.startSearchTimer();
-        // Justo el tick de los 5 min, ni uno más: si hiciera falta el
-        // siguiente para enterarse, esto queda en false.
-        async.elapse(const Duration(minutes: 5));
-
-        expect(vistaEncendida, isTrue);
-      });
-    });
-
-    test('no vuelve a aparecer una vez cerrada', () {
-      fakeAsync((async) {
-        vm.startSearchTimer();
-        async.elapse(const Duration(minutes: 5));
-        vm.cerrarOfertaPrompt();
-        expect(vm.ofertaPromptVisible, isFalse);
-
-        // Ni siquiera pasada la marca de los 10 min, donde ya toma la posta
-        // la modal de "¿sigues esperando?".
-        async.elapse(const Duration(minutes: 6));
-        expect(vm.ofertaPromptVisible, isFalse);
-      });
-    });
-
-    test('no se pisa con la de seguir esperando: son banderas distintas', () {
-      fakeAsync((async) {
-        vm.startSearchTimer();
-        async.elapse(const Duration(minutes: 5));
-        vm.cerrarOfertaPrompt();
-
-        async.elapse(const Duration(minutes: 5));
-        expect(vm.confirmarSeguirVisible, isTrue);
-        expect(vm.ofertaPromptVisible, isFalse);
-      });
-    });
-  });
-
-  // Una solicitud olvidada en `buscando` le aparece a los conductores como un
-  // viaje disponible que nadie va a tomar. A los 10 min se pregunta, y sin
-  // respuesta en 3 min se cancela sola.
-  group('confirmar "¿sigues esperando?"', () {
-    test('no aparece antes de los 10 minutos', () {
-      fakeAsync((async) {
-        vm.startSearchTimer();
-        async.elapse(const Duration(minutes: 9, seconds: 59));
-
-        expect(vm.confirmarSeguirVisible, isFalse);
-      });
-    });
-
-    test('a los 10 minutos aparece con 3 minutos de cuenta regresiva', () {
-      fakeAsync((async) {
-        vm.startSearchTimer();
-        async.elapse(const Duration(minutes: 10));
-
-        expect(vm.confirmarSeguirVisible, isTrue);
-        expect(vm.segundosRestantesConfirmar, 180);
-        expect(vm.debeCancelarPorNoResponder, isFalse);
-      });
-    });
-
-    test('sin respuesta, a los 3 minutos pide cancelar', () {
-      fakeAsync((async) {
-        vm.startSearchTimer();
-        async.elapse(const Duration(minutes: 10));
-
-        async.elapse(const Duration(minutes: 2, seconds: 59));
-        expect(vm.debeCancelarPorNoResponder, isFalse);
-
-        async.elapse(const Duration(seconds: 1));
-        expect(vm.debeCancelarPorNoResponder, isTrue);
-        expect(vm.confirmarSeguirVisible, isFalse);
-      });
-    });
-
-    test('seguir esperando cierra la modal y vuelve a preguntar en 10 min', () {
-      fakeAsync((async) {
-        vm.startSearchTimer();
-        async.elapse(const Duration(minutes: 10));
-        vm.confirmarSeguirBuscando();
-
-        expect(vm.confirmarSeguirVisible, isFalse);
-
-        // La cuenta regresiva quedó desactivada: pasan los 3 min y no cancela.
-        async.elapse(const Duration(minutes: 3));
-        expect(vm.debeCancelarPorNoResponder, isFalse);
-        expect(vm.confirmarSeguirVisible, isFalse);
-
-        // Y a los 10 min de haber confirmado, vuelve a preguntar.
-        async.elapse(const Duration(minutes: 7));
-        expect(vm.confirmarSeguirVisible, isTrue);
-      });
-    });
-
-    test('marcarFlujoTerminado corta la cuenta regresiva en curso', () {
-      fakeAsync((async) {
-        vm.startSearchTimer();
-        async.elapse(const Duration(minutes: 10));
-        expect(vm.confirmarSeguirVisible, isTrue);
-
-        // El cliente aceptó una oferta mientras la modal estaba abierta.
-        vm.marcarFlujoTerminado();
-        async.elapse(const Duration(minutes: 5));
-
-        expect(vm.debeCancelarPorNoResponder, isFalse);
-        expect(vm.confirmarSeguirVisible, isFalse);
-      });
     });
   });
 
@@ -419,7 +442,11 @@ void main() {
 
         final secondsAfterStop = vm.searchSeconds;
         async.elapse(const Duration(seconds: 5));
-        expect(vm.searchSeconds, secondsAfterStop, reason: 'search timer debe estar detenido');
+        expect(
+          vm.searchSeconds,
+          secondsAfterStop,
+          reason: 'search timer debe estar detenido',
+        );
 
         conectadosController.add({
           'c2': ConductorConectado(
@@ -429,7 +456,11 @@ void main() {
           ),
         });
         async.flushMicrotasks();
-        expect(vm.conectados, isEmpty, reason: 'conectadosSub debe estar cancelada');
+        expect(
+          vm.conectados,
+          isEmpty,
+          reason: 'conectadosSub debe estar cancelada',
+        );
 
         conductoresController.add({'c1': const LatLng(10.0, 10.0)});
         async.flushMicrotasks();
@@ -533,10 +564,9 @@ void main() {
         final asignadas = <String>[];
         final terminales = escuchar(asignadas: asignadas);
 
-        await firestore
-            .collection('solicitudes')
-            .doc(solicitudId)
-            .update({'estado': estado});
+        await firestore.collection('solicitudes').doc(solicitudId).update({
+          'estado': estado,
+        });
         await pumpEventQueue();
 
         expect(terminales, [estado]);
@@ -565,20 +595,50 @@ void main() {
       expect(terminales, [SolicitudEstado.cancelado]);
     });
 
-    test('asignado sigue navegando al viaje y no dispara onTerminada', () async {
-      final asignadas = <String>[];
-      final terminales = escuchar(asignadas: asignadas);
+    test(
+      'si onTerminada falla, NO se re-arma para el próximo snapshot',
+      () async {
+        // El `catch { _terminadaHandled = false; }` que había re-armaba el
+        // one-shot: si la salida tiraba (p.ej. un `Navigator` sobre un context
+        // ya desactivado), el siguiente estado terminal volvía a entrar y
+        // disparaba una SEGUNDA navegación con `clearStackOnNext`. Dos de esas
+        // dejaban el Navigator con una sola ruta y Flutter cerraba la app.
+        var llamadas = 0;
+        terminalVm.iniciarEscucha(
+          solicitudId: solicitudId,
+          onAsignada: (_) async {},
+          onTerminada: (_) async {
+            llamadas++;
+            throw StateError('la salida falló');
+          },
+        );
+        final doc = firestore.collection('solicitudes').doc(solicitudId);
 
-      await firestore
-          .collection('solicitudes')
-          .doc(solicitudId)
-          .update({'estado': SolicitudEstado.asignado});
-      await pumpEventQueue();
+        await doc.update({'estado': SolicitudEstado.cancelado});
+        await pumpEventQueue();
+        await doc.update({'estado': SolicitudEstado.sinRespuesta});
+        await pumpEventQueue();
 
-      expect(asignadas, [solicitudId]);
-      expect(terminales, isEmpty);
-      expect(terminalVm.notificacionEntranteCount, 1);
-    });
+        expect(llamadas, 1);
+      },
+    );
+
+    test(
+      'asignado sigue navegando al viaje y no dispara onTerminada',
+      () async {
+        final asignadas = <String>[];
+        final terminales = escuchar(asignadas: asignadas);
+
+        await firestore.collection('solicitudes').doc(solicitudId).update({
+          'estado': SolicitudEstado.asignado,
+        });
+        await pumpEventQueue();
+
+        expect(asignadas, [solicitudId]);
+        expect(terminales, isEmpty);
+        expect(terminalVm.notificacionEntranteCount, 1);
+      },
+    );
 
     // Un viaje ya asignado que luego se completa NO debe sacar al cliente de
     // acá con un mensaje de "búsqueda finalizada": de esa transición se

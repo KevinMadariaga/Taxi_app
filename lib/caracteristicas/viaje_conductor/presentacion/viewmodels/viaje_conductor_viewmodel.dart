@@ -23,6 +23,7 @@ import 'package:taxi_app/caracteristicas/viaje_conductor/dominio/casos_uso/repor
 import 'package:taxi_app/core/constants/solicitud_estado.dart';
 import 'package:taxi_app/core/services/background_tracking_service.dart';
 import 'package:taxi_app/core/services/notificacion_servicio.dart';
+import 'package:taxi_app/core/utils/notificacion_clave.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
 import 'package:taxi_app/features/trip_tracking_cliente/services/trip_route_math_service.dart';
 
@@ -133,6 +134,7 @@ class ViajeConductorViewModel extends ChangeNotifier {
 
   StreamSubscription<ViajeEntity>? _viajeSub;
   StreamSubscription<Map<String, dynamic>?>? _perfilSub;
+
   /// Última lectura de `usuarios/{conductorId}` — el primer snapshot es la
   /// línea base (ya reflejada en `solicitudes.conductor` por
   /// `aceptarSolicitud`/`enviarContraoferta`, que leen el mismo doc fresco
@@ -179,7 +181,8 @@ class ViajeConductorViewModel extends ChangeNotifier {
     final driver = driverLatLng;
     final objetivo = objetivoActual;
     if (driver == null || objetivo == null) return false;
-    return _mathService.haversineMeters(driver, objetivo) <= _radioLlegadaMetros;
+    return _mathService.haversineMeters(driver, objetivo) <=
+        _radioLlegadaMetros;
   }
 
   /// Radio dentro del cual el conductor puede terminar el viaje — cubre el
@@ -318,40 +321,43 @@ class ViajeConductorViewModel extends ChangeNotifier {
   void _bindPerfilConductor() {
     if (_actualizarInfoConductor == null) return;
     _perfilSub?.cancel();
-    _perfilSub = _perfil.watch(conductorId).listen(
-      (data) {
-        if (data == null) return;
-        if (_perfilBaseline == null) {
-          // Primer snapshot: es la misma foto que ya quedó escrita en la
-          // solicitud al aceptar/contraofertar. No hay nada que propagar.
-          _perfilBaseline = data;
-          return;
-        }
-        final cambios = _diffInfoConductor(_perfilBaseline!, data);
-        _perfilBaseline = data;
-        if (cambios.isEmpty) return;
-        unawaited(
-          _actualizarInfoConductor(
-            viajeId: viajeId,
-            datosConductor: cambios,
-          ).catchError((e, st) {
+    _perfilSub = _perfil
+        .watch(conductorId)
+        .listen(
+          (data) {
+            if (data == null) return;
+            if (_perfilBaseline == null) {
+              // Primer snapshot: es la misma foto que ya quedó escrita en la
+              // solicitud al aceptar/contraofertar. No hay nada que propagar.
+              _perfilBaseline = data;
+              return;
+            }
+            final cambios = _diffInfoConductor(_perfilBaseline!, data);
+            _perfilBaseline = data;
+            if (cambios.isEmpty) return;
+            unawaited(
+              _actualizarInfoConductor(
+                viajeId: viajeId,
+                datosConductor: cambios,
+              ).catchError((e, st) {
+                ErrorReporter.report(
+                  e,
+                  st,
+                  reason:
+                      'ViajeConductorViewModel: fallo al propagar cambio de perfil al viaje activo',
+                );
+              }),
+            );
+          },
+          onError: (e, st) {
             ErrorReporter.report(
               e,
               st,
               reason:
-                  'ViajeConductorViewModel: fallo al propagar cambio de perfil al viaje activo',
+                  'ViajeConductorViewModel: fallo al escuchar perfil del conductor',
             );
-          }),
+          },
         );
-      },
-      onError: (e, st) {
-        ErrorReporter.report(
-          e,
-          st,
-          reason: 'ViajeConductorViewModel: fallo al escuchar perfil del conductor',
-        );
-      },
-    );
   }
 
   /// Diff de los campos relevantes entre dos lecturas de `usuarios/{uid}`.
@@ -598,14 +604,13 @@ class ViajeConductorViewModel extends ChangeNotifier {
   static List<LatLng> get _rutaSimulada {
     const raw = String.fromEnvironment('SIMULAR_RECORRIDO_PUNTOS');
     if (raw.trim().isEmpty) return _rutaSimuladaDefault;
-    return raw
-        .split(';')
-        .where((par) => par.trim().isNotEmpty)
-        .map((par) {
-          final partes = par.split(',');
-          return LatLng(double.parse(partes[0].trim()), double.parse(partes[1].trim()));
-        })
-        .toList();
+    return raw.split(';').where((par) => par.trim().isNotEmpty).map((par) {
+      final partes = par.split(',');
+      return LatLng(
+        double.parse(partes[0].trim()),
+        double.parse(partes[1].trim()),
+      );
+    }).toList();
   }
 
   bool isSimulandoRecorrido = false;
@@ -629,7 +634,10 @@ class ViajeConductorViewModel extends ChangeNotifier {
     } finally {
       isSimulandoRecorrido = false;
       if (!_disposed && !isAppInBackground) {
-        await _ubicacion.iniciarEnvio(conductorId: conductorId, viajeId: viajeId);
+        await _ubicacion.iniciarEnvio(
+          conductorId: conductorId,
+          viajeId: viajeId,
+        );
       }
       _safeNotify();
     }
@@ -743,7 +751,11 @@ class ViajeConductorViewModel extends ChangeNotifier {
       // Solo el cliente cancela, así que el origen no es ambiguo.
       mensajeSalida = 'El cliente canceló la solicitud.';
       unawaited(
-        _notify('Servicio cancelado', 'El cliente ha cancelado el servicio.'),
+        _notify(
+          'Servicio cancelado',
+          'El cliente ha cancelado el servicio.',
+          clave: 'servicio_cancelado',
+        ),
       );
       _safeNotify();
       return;
@@ -890,9 +902,7 @@ class ViajeConductorViewModel extends ChangeNotifier {
       final baseRecta = _mathService.haversineMeters(from, to);
       if (baseRecta > 0) _distanciaInicialTramo ??= baseRecta;
 
-      progresoTramo = _calcularProgreso(
-        _mathService.haversineMeters(from, to),
-      );
+      progresoTramo = _calcularProgreso(_mathService.haversineMeters(from, to));
 
       try {
         if (routePoints.length >= 2) {
@@ -1078,11 +1088,18 @@ class ViajeConductorViewModel extends ChangeNotifier {
     }
   }
 
-  Future<void> _notify(String title, String body) async {
+  /// [clave] identifica el aviso para que uno nuevo del mismo tipo reemplace
+  /// al anterior. Antes el id salía del reloj, así que cada llamada dejaba
+  /// una notificación más en la bandeja.
+  Future<void> _notify(
+    String title,
+    String body, {
+    required String clave,
+  }) async {
     try {
       await _ensureNotifications();
       await NotificacionesServicio.instance.showNotification(
-        id: DateTime.now().millisecondsSinceEpoch % 100000,
+        id: idNotificacionDe(clave, viajeId),
         title: title,
         body: body,
       );

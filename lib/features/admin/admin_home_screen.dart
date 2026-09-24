@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/services/soporte_notification_service.dart';
+import 'package:taxi_app/core/services/sugerencias_service.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
 import 'package:taxi_app/features/admin/admin_configuracion_screen.dart';
 import 'package:taxi_app/features/admin/admin_usuario_filtros.dart';
@@ -69,10 +70,17 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   @override
   void initState() {
     super.initState();
-    SoporteNotificationService.instance.iniciarEscuchaAdmin();
-    SoporteNotificationService.instance.iniciarEscuchaReportes();
-    SoporteNotificationService.instance.iniciarEscuchaEmergencias();
-    SoporteNotificationService.instance.iniciarEscuchaConductores();
+    // Primero los marcadores de "ya notificado", o al reabrir el panel
+    // vuelven a salir las emergencias y reportes que el admin ya vio.
+    unawaited(
+      SoporteNotificationService.instance.cargarUltimosVistos().then((_) {
+        SoporteNotificationService.instance.iniciarEscuchaAdmin();
+        SoporteNotificationService.instance.iniciarEscuchaReportes();
+        SoporteNotificationService.instance.iniciarEscuchaEmergencias();
+        SoporteNotificationService.instance.iniciarEscuchaConductores();
+        SoporteNotificationService.instance.iniciarEscuchaSugerencias();
+      }),
+    );
   }
 
   @override
@@ -881,11 +889,13 @@ class _AdminBellIcon extends StatefulWidget {
 class _AdminBellIconState extends State<_AdminBellIcon> {
   int _chats = 0;
   int _reportes = 0;
+  int _sugerencias = 0;
 
   StreamSubscription<QuerySnapshot>? _chatsSub;
   StreamSubscription<QuerySnapshot>? _reportesSub;
+  StreamSubscription<int>? _sugerenciasSub;
 
-  int get _total => _chats + _reportes;
+  int get _total => _chats + _reportes + _sugerencias;
 
   @override
   void initState() {
@@ -917,12 +927,22 @@ class _AdminBellIconState extends State<_AdminBellIcon> {
           onError: (e, st) =>
               ErrorReporter.report(e, st, reason: 'AdminBellIcon: reportes'),
         );
+
+    _sugerenciasSub = SugerenciasService.instance.watchNoVistasCount().listen(
+      (n) {
+        if (!mounted) return;
+        setState(() => _sugerencias = n);
+      },
+      onError: (e, st) =>
+          ErrorReporter.report(e, st, reason: 'AdminBellIcon: sugerencias'),
+    );
   }
 
   @override
   void dispose() {
     _chatsSub?.cancel();
     _reportesSub?.cancel();
+    _sugerenciasSub?.cancel();
     super.dispose();
   }
 
@@ -937,7 +957,7 @@ class _AdminBellIconState extends State<_AdminBellIcon> {
     // ellas. Esas se ven y se resuelven en la pestaña "Conductores" de este
     // mismo panel (banner de pendientes + botón "Activar").
     return IconButton(
-      tooltip: 'Notificaciones — Mensajes y Reportes',
+      tooltip: 'Notificaciones — Reportes, Mensajes y Sugerencias',
       onPressed: widget.onTap,
       icon: Stack(
         clipBehavior: Clip.none,

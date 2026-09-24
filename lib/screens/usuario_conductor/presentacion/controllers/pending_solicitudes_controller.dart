@@ -8,6 +8,9 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:taxi_app/core/constants/solicitud_estado.dart';
 import 'package:taxi_app/core/helpers/map_helper.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
+import 'package:taxi_app/core/services/avisos_solicitud_store.dart';
+import 'package:taxi_app/core/services/notificacion_servicio.dart';
+import 'package:taxi_app/core/utils/notificacion_clave.dart';
 import 'package:taxi_app/data/models/solicitud_item.dart';
 
 /// Lista de solicitudes pendientes visibles para el conductor: binding a
@@ -64,9 +67,99 @@ class PendingSolicitudesController {
     cache[key] = value;
   }
 
+  /// `solicitudId -> clienteId` de lo que hay listado ahora. Sirve para saber
+  /// de qué notificación hay que deshacerse cuando una solicitud desaparece:
+  /// la clave del aviso "Solicitud entrante" es el CLIENTE, no la solicitud.
+  final Map<String, String> _clientePorSolicitud = {};
+
+  /// El primer snapshot de cada suscripción es el que compara la bandeja
+  /// persistida contra la realidad (ver [_retirarAvisosHuerfanos]).
+  bool _primerSnapshot = true;
+
   final StreamController<String> _newSolicitudController =
       StreamController<String>.broadcast();
   Stream<String> get onNewSolicitud => _newSolicitudController.stream;
+
+  /// Borra de la bandeja el "Solicitud entrante" de las solicitudes que ya no
+  /// están disponibles.
+  ///
+  /// Es la red de seguridad del push de retirada que manda
+  /// `onSolicitudDejaDeBuscar`: Android NO entrega mensajes data-only si el
+  /// conductor forzó el cierre de la app, así que ese push se pierde y el
+  /// aviso quedaría invitando a un viaje que ya no existe. Al reabrir la app
+  /// la query se rehace, la solicitud no está, y acá se limpia.
+  void _retirarNotificacionesDeLasQueYaNoEstan(Set<String> vigentes) {
+    final clientes = clientesSinSolicitudVigente(
+      previas: _knownPendingIds,
+      vigentes: vigentes,
+      clientePorSolicitud: _clientePorSolicitud,
+    );
+    for (final id in _knownPendingIds.difference(vigentes)) {
+      _clientePorSolicitud.remove(id);
+    }
+    _cancelarAvisosDe(clientes);
+  }
+
+  /// Limpia los avisos que quedaron mostrados de solicitudes que ya no están.
+  ///
+  /// Corre con el PRIMER snapshot, contra lo que quedó persistido en
+  /// [AvisosSolicitudStore]. Es el único camino que cubre el caso para el que
+  /// existe la red de seguridad: si el conductor forzó el cierre de la app, el
+  /// push silencioso de retirada no se entrega, y al reabrir `_knownPendingIds`
+  /// arranca vacío — sin esto no habría con qué comparar y no se cancelaría
+  /// nada.
+  Future<void> _retirarAvisosHuerfanos(Set<String> clientesVigentes) async {
+    final mostrados = await AvisosSolicitudStore.mostrados();
+    if (mostrados.isEmpty) return;
+    _cancelarAvisosDe(mostrados.difference(clientesVigentes));
+  }
+
+  void _cancelarAvisosDe(Set<String> clienteIds) {
+    if (clienteIds.isEmpty) return;
+    for (final clienteId in clienteIds) {
+      unawaited(
+        NotificacionesServicio.instance
+            .cancel(
+              idNotificacionDe('nueva_solicitud', clienteId),
+              tag: claveNotificacion('nueva_solicitud', clienteId),
+            )
+            .catchError((Object e, StackTrace st) {
+              ErrorReporter.report(e, st, reason: 'InicioConductorViewModel');
+            }),
+      );
+    }
+    unawaited(AvisosSolicitudStore.olvidar(clienteIds));
+  }
+
+  /// Clientes cuyo aviso "Solicitud entrante" hay que borrar: los que tenían
+  /// una solicitud listada en [previas], ya no la tienen en [vigentes], y
+  /// **no dejaron otra** todavía listada.
+  ///
+  /// La última condición importa porque la clave de la notificación es el
+  /// CLIENTE, no la solicitud: cancelarla por una solicitud que murió le
+  /// borraría al conductor el aviso de otra del mismo cliente que sigue viva.
+  @visibleForTesting
+  static Set<String> clientesSinSolicitudVigente({
+    required Set<String> previas,
+    required Set<String> vigentes,
+    required Map<String, String> clientePorSolicitud,
+  }) {
+    final desaparecidas = previas.difference(vigentes);
+    if (desaparecidas.isEmpty) return const {};
+
+    final clientesVigentes = <String>{
+      for (final id in vigentes)
+        if ((clientePorSolicitud[id] ?? '').isNotEmpty)
+          clientePorSolicitud[id]!,
+    };
+
+    return {
+      for (final id in desaparecidas)
+        if ((clientePorSolicitud[id] ?? '').isNotEmpty &&
+            !clientesVigentes.contains(clientePorSolicitud[id]))
+          clientePorSolicitud[id]!,
+    };
+  }
 
   SolicitudItem? get firstSolicitud =>
       solicitudes.isNotEmpty ? solicitudes.first : null;
@@ -88,6 +181,7 @@ class PendingSolicitudesController {
 
   void subscribe() {
     _sub?.cancel();
+    _primerSnapshot = true;
     // Suscribirse solo a solicitudes en estado "pendiente/buscando" para
     // reducir el volumen de datos descargados.
     _sub = _firestore
@@ -117,6 +211,9 @@ class PendingSolicitudesController {
   void clear() {
     solicitudes.clear();
     _knownPendingIds.clear();
+    // Sin esto quedaban entradas rancias de la sesión anterior, y el mapa
+    // solo se podaba con lo que desaparecía de la query.
+    _clientePorSolicitud.clear();
   }
 
   /// Re-filtra localmente el último snapshot cacheado (sin round-trip a
@@ -163,6 +260,10 @@ class PendingSolicitudesController {
         }
 
         parsedSolicitudes.add(item);
+        final clienteId = item.clienteId;
+        if (clienteId != null && clienteId.isNotEmpty) {
+          _clientePorSolicitud[doc.id] = clienteId;
+        }
         // Primero se rellena con lo ya resuelto en snapshots anteriores; solo
         // se dispara trabajo async por lo que realmente falta.
         _hidratarDesdeCache(item);
@@ -190,6 +291,16 @@ class PendingSolicitudesController {
             }
           }
         }
+        final clientesVigentes = <String>{
+          for (final id in currentPendingIds)
+            if ((_clientePorSolicitud[id] ?? '').isNotEmpty)
+              _clientePorSolicitud[id]!,
+        };
+        if (_primerSnapshot) {
+          _primerSnapshot = false;
+          unawaited(_retirarAvisosHuerfanos(clientesVigentes));
+        }
+        _retirarNotificacionesDeLasQueYaNoEstan(currentPendingIds);
         _knownPendingIds
           ..clear()
           ..addAll(currentPendingIds);
