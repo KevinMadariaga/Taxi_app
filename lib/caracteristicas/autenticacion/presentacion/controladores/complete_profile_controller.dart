@@ -2,8 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/widgets.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:taxi_app/core/validators/name_validator.dart';
-import 'package:taxi_app/core/validators/phone_validator.dart';
+import 'package:taxi_app/core/services/face_detection_service.dart';
 import 'package:taxi_app/core/services/image_cropper_service.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
 import 'package:taxi_app/widgets/flip_preview_view.dart';
@@ -13,6 +12,7 @@ import 'package:taxi_app/caracteristicas/autenticacion/datos/repositorios/client
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/entidades/client_user_entity.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/casos_uso/complete_client_profile_usecase.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/casos_uso/get_client_user_usecase.dart';
+import 'package:taxi_app/caracteristicas/autenticacion/dominio/validar_perfil_cliente.dart';
 import 'package:taxi_app/core/services/services.dart';
 
 class CompleteProfileController extends ChangeNotifier {
@@ -24,7 +24,9 @@ class CompleteProfileController extends ChangeNotifier {
     ImageCropperService? imageCropperService,
     ImagePicker? imagePicker,
     AuthService? authService,
-  }) : _getClientUserUseCase =
+    FaceDetectionService? faceDetectionService,
+  }) : _faceDetectionInyectado = faceDetectionService,
+       _getClientUserUseCase =
            getClientUserUseCase ??
            GetClientUserUseCase(
              clientAuthRepository ?? ClientAuthRepositoryImpl(),
@@ -46,6 +48,16 @@ class CompleteProfileController extends ChangeNotifier {
   final ImagePicker _imagePicker;
   final AuthService _authService;
 
+  // Perezoso: el detector de ML Kit solo se crea si el usuario elige una
+  // foto, no al abrir la pantalla.
+  final FaceDetectionService? _faceDetectionInyectado;
+  FaceDetectionService? _faceDetection;
+  FaceDetectionService get _detector =>
+      _faceDetection ??= _faceDetectionInyectado ?? FaceDetectionService();
+
+  bool _validandoRostro = false;
+  bool get validandoRostro => _validandoRostro;
+
   ClientUserEntity? _currentUser;
   XFile? _selectedImage;
   bool _loadingInitial = true;
@@ -57,6 +69,84 @@ class CompleteProfileController extends ChangeNotifier {
   bool get loadingInitial => _loadingInitial;
   bool get saving => _saving;
   String? get errorMessage => _errorMessage;
+
+  /// Errores del último formulario validado. Un campo solo muestra el suyo
+  /// cuando el usuario ya pasó por él (salió del campo) o intentó enviar:
+  /// no se pinta todo en rojo apenas se abre la pantalla.
+  Map<CampoPerfil, ErrorCampo> _errores = const {};
+  final Set<CampoPerfil> _visibles = {};
+  int _intentosFallidos = 0;
+
+  String? errorDe(CampoPerfil campo) =>
+      _visibles.contains(campo) ? _errores[campo]?.mensaje : null;
+
+  /// Cambia en cada envío rechazado: la vista lo usa para sacudir los
+  /// campos con error aunque sean los mismos que la vez anterior.
+  int get intentosFallidos => _intentosFallidos;
+
+  bool get tieneFoto => _selectedImage != null || tieneFotoPrevia;
+
+  /// Pasos del registro y los campos que valida cada uno, en orden.
+  static const List<List<CampoPerfil>> pasos = [
+    [CampoPerfil.nombre, CampoPerfil.apellido],
+    [CampoPerfil.telefono],
+    [CampoPerfil.foto],
+  ];
+
+  int _paso = 0;
+  int get paso => _paso;
+  bool get esUltimoPaso => _paso == pasos.length - 1;
+
+  static int _pasoDe(CampoPerfil campo) =>
+      pasos.indexWhere((campos) => campos.contains(campo));
+
+  /// Valida solo los campos del paso actual. Si están bien pasa al
+  /// siguiente y devuelve `null`; si no, deja sus errores a la vista y
+  /// devuelve el primer campo a corregir.
+  CampoPerfil? avanzar(PerfilFormulario f) {
+    final errores = validarPerfilCliente(f);
+    final pendientes = pasos[_paso].where(errores.containsKey);
+    if (pendientes.isNotEmpty) {
+      _errores = errores;
+      _visibles.addAll(pasos[_paso]);
+      _intentosFallidos++;
+      _safeNotify();
+      return pendientes.first;
+    }
+    if (!esUltimoPaso) {
+      _paso++;
+      _safeNotify();
+    }
+    return null;
+  }
+
+  /// Vuelve al paso anterior; `false` si ya está en el primero.
+  bool retroceder() {
+    if (_paso == 0 || _saving) return false;
+    _paso--;
+    _safeNotify();
+    return true;
+  }
+
+  /// Campos que ya están bien (progreso y check verde de cada campo).
+  Set<CampoPerfil> camposValidos(PerfilFormulario f) {
+    final errores = validarPerfilCliente(f);
+    return CampoPerfil.values.where((c) => !errores.containsKey(c)).toSet();
+  }
+
+  /// El usuario salió de [campo]: a partir de acá se le muestra su error.
+  void marcarVisitado(CampoPerfil campo, PerfilFormulario f) {
+    _visibles.add(campo);
+    revalidar(f);
+  }
+
+  /// Revalida en vivo (al escribir) solo si ya hay algún error a la vista,
+  /// para que el mensaje desaparezca apenas se corrige.
+  void revalidar(PerfilFormulario f) {
+    if (_visibles.isEmpty) return;
+    _errores = validarPerfilCliente(f);
+    _safeNotify();
+  }
 
   Future<void> loadInitialData() async {
     _loadingInitial = true;
@@ -99,6 +189,10 @@ class CompleteProfileController extends ChangeNotifier {
 
       File sourceFile = File(picked.path);
 
+      // Antes del flip/crop, para no hacer recortar una foto que igual se
+      // va a rechazar.
+      if (!await _tieneRostro(sourceFile.path)) return;
+
       // El "voltear" corrige el espejado que aplica la cámara frontal — no
       // aplica a una foto ya elegida de galería.
       if (origen == ImageSource.camera) {
@@ -113,8 +207,13 @@ class CompleteProfileController extends ChangeNotifier {
       );
       if (cropped == null) return;
 
+      // Y otra vez sobre el recorte, que es lo que se sube: el usuario pudo
+      // haber dejado la cara fuera del cuadro.
+      if (!await _tieneRostro(cropped.path)) return;
+
       _selectedImage = XFile(cropped.path);
       _errorMessage = null;
+      _errores = Map.of(_errores)..remove(CampoPerfil.foto);
       _safeNotify();
     } catch (e, st) {
       ErrorReporter.report(e, st, reason: 'complete_profile_controller');
@@ -122,6 +221,32 @@ class CompleteProfileController extends ChangeNotifier {
           ? 'No se pudo obtener la foto. Puedes continuar con tu foto actual.'
           : 'No se pudo obtener la foto. Revisa los permisos de la app e '
                 'intenta de nuevo.';
+      _safeNotify();
+    }
+  }
+
+  /// `false` (y deja el error bajo la foto) si no se ve un rostro. Si el
+  /// detector falla, `FaceDetectionService.hasFace` deja pasar la foto: un
+  /// fallo del modelo no debe dejar al usuario sin poder registrarse.
+  Future<bool> _tieneRostro(String path) async {
+    _validandoRostro = true;
+    _safeNotify();
+    try {
+      final ok = await _detector.hasFace(path);
+      if (!ok) {
+        _errores = {
+          ..._errores,
+          CampoPerfil.foto: const ErrorCampo(
+            'No se ve un rostro en la foto. Usa una foto tuya, de frente '
+            'y con buena luz.',
+            vacio: false,
+          ),
+        };
+        _visibles.add(CampoPerfil.foto);
+      }
+      return ok;
+    } finally {
+      _validandoRostro = false;
       _safeNotify();
     }
   }
@@ -140,17 +265,10 @@ class CompleteProfileController extends ChangeNotifier {
     String? correo,
     bool requireTelefono = true,
   }) async {
-    final nombreError = NameValidator.validateRequired(
-      nombre,
-      fieldName: 'Nombre',
-    );
-    if (nombreError != null) return nombreError;
-
-    final apellidoError = NameValidator.validateRequired(
-      apellido,
-      fieldName: 'Apellido',
-    );
-    if (apellidoError != null) return apellidoError;
+    var telefonoNormalizado = normalizarTelefono10(telefono);
+    if (telefonoNormalizado.isEmpty) {
+      telefonoNormalizado = normalizarTelefono10(_currentUser?.telefono);
+    }
 
     // Solo se exige foto nueva si el usuario tampoco tiene una previa
     // guardada en Firestore (ver `tieneFotoPrevia`). En un alta nueva con
@@ -159,22 +277,27 @@ class CompleteProfileController extends ChangeNotifier {
     // existe para quien ya completó el perfil una vez y vuelve a pasar por
     // acá sin poder usar la cámara (permiso denegado, equipo sin cámara):
     // no queda encerrado si ya tiene una foto válida guardada.
-    if (_selectedImage == null && !tieneFotoPrevia) {
-      return 'Toma una foto de perfil para continuar.';
-    }
-
-    var telefonoNormalizado = _normalizeToTenDigits(telefono);
-    if (telefonoNormalizado.isEmpty) {
-      telefonoNormalizado = _normalizeToTenDigits(_currentUser?.telefono ?? '');
-    }
-
-    if (requireTelefono) {
-      final telefonoError = PhoneValidator.validateTenDigits(
-        telefonoNormalizado,
-      );
-      if (telefonoError != null) return telefonoError;
-    } else if (telefonoNormalizado.isEmpty) {
+    final errores = validarPerfilCliente(
+      PerfilFormulario(
+        nombre: nombre,
+        apellido: apellido,
+        telefono: telefonoNormalizado,
+        tieneFoto: tieneFoto,
+      ),
+    );
+    if (!requireTelefono && telefonoNormalizado.isEmpty) {
       return 'No se pudo recuperar el telefono de verificacion.';
+    }
+    if (!requireTelefono) errores.remove(CampoPerfil.telefono);
+    if (errores.isNotEmpty) {
+      _errores = errores;
+      _visibles.addAll(CampoPerfil.values);
+      _intentosFallidos++;
+      // Lleva al paso del primer dato que falta (ej. el teléfono de la
+      // cuenta cambió entre pasos).
+      _paso = _pasoDe(CampoPerfil.values.firstWhere(errores.containsKey));
+      _safeNotify();
+      return mensajeResumenPerfil(errores);
     }
 
     _saving = true;
@@ -230,17 +353,8 @@ class CompleteProfileController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    // Solo el que creó el controller; uno inyectado lo cierra su dueño.
+    if (_faceDetectionInyectado == null) _faceDetection?.dispose();
     super.dispose();
-  }
-
-  String _normalizeToTenDigits(String input) {
-    final digits = input.replaceAll(RegExp(r'\D'), '');
-    if (digits.isEmpty) {
-      return '';
-    }
-    if (digits.length <= 10) {
-      return digits;
-    }
-    return digits.substring(digits.length - 10);
   }
 }
