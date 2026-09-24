@@ -8,6 +8,7 @@ import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/services/soporte_chat_service.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
 import 'package:taxi_app/caracteristicas/confirmar_solicitud/datos/repositorios/cliente_repository_impl.dart';
+import 'package:taxi_app/widgets/ajustes_ui.dart';
 
 class SoporteChatScreen extends StatefulWidget {
   const SoporteChatScreen({super.key, this.userType = 'cliente'});
@@ -124,12 +125,7 @@ class _SoporteChatScreenState extends State<SoporteChatScreen> {
     final expirado = _expirado;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Chat de soporte'),
-        backgroundColor: AppColores.primary,
-        foregroundColor: AppColores.textWhite,
-        elevation: 0,
-      ),
+      appBar: appBarNeutra(context, titulo: 'Chat de soporte'),
       backgroundColor: context.palette.background,
       body: Column(
         children: [
@@ -197,7 +193,7 @@ class _SoporteChatScreenState extends State<SoporteChatScreen> {
                         ? CrossAxisAlignment.start
                         : CrossAxisAlignment.end;
                     final bg = esAdmin
-                        ? context.palette.grey200
+                        ? context.palette.surface
                         : AppColores.buttonPrimary.withValues(alpha: 0.22);
 
                     return Column(
@@ -214,7 +210,18 @@ class _SoporteChatScreenState extends State<SoporteChatScreen> {
                           ),
                           decoration: BoxDecoration(
                             color: bg,
-                            borderRadius: BorderRadius.circular(14),
+                            // Esquina "pegada" del lado de quien habla.
+                            borderRadius: BorderRadius.only(
+                              topLeft: const Radius.circular(18),
+                              topRight: const Radius.circular(18),
+                              bottomLeft: Radius.circular(esAdmin ? 4 : 18),
+                              bottomRight: Radius.circular(esAdmin ? 18 : 4),
+                            ),
+                            border: esAdmin
+                                ? Border.all(
+                                    color: context.palette.borderSubtle,
+                                  )
+                                : null,
                           ),
                           child: Column(
                             crossAxisAlignment: esAdmin
@@ -282,7 +289,7 @@ class _SoporteChatScreenState extends State<SoporteChatScreen> {
                       child: ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColores.buttonPrimary,
-                          foregroundColor: context.palette.textPrimary,
+                          foregroundColor: Colors.black,
                           minimumSize: const Size.fromHeight(46),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -336,7 +343,7 @@ class _SoporteChatScreenState extends State<SoporteChatScreen> {
                       onPressed: _send,
                       style: IconButton.styleFrom(
                         backgroundColor: AppColores.buttonPrimary,
-                        foregroundColor: context.palette.textPrimary,
+                        foregroundColor: Colors.black,
                       ),
                       icon: const Icon(Icons.send),
                     ),

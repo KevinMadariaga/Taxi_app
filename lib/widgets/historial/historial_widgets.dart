@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
+import 'package:taxi_app/widgets/ajustes_ui.dart';
 
 const Color kHistorialAmberDark = Color(0xFFB38F00);
 
@@ -50,101 +51,102 @@ class HistorialViajeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: context.palette.borderSubtle),
-      ),
-      color: context.palette.surface,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            children: [
-              Container(
-                width: 46,
-                height: 46,
-                decoration: const BoxDecoration(
-                  color: AppColores.primary,
-                  shape: BoxShape.circle,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        color: context.palette.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: context.palette.borderSubtle),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: AppColores.primary.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(
+                    isMoto
+                        ? Icons.two_wheeler_rounded
+                        : Icons.directions_car_rounded,
+                    color: acentoMarca(context),
+                  ),
                 ),
-                child: Icon(
-                  isMoto
-                      ? Icons.two_wheeler_rounded
-                      : Icons.directions_car_rounded,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    FutureBuilder<String>(
-                      future: destinoFuture,
-                      builder: (context, snap) {
-                        final text =
-                            snap.connectionState == ConnectionState.waiting
-                            ? destinoFallback
-                            : (snap.data ?? destinoFallback);
-                        return Text(
-                          text,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 15,
-                            color: context.palette.textPrimary,
-                          ),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.event_rounded,
-                          size: 14,
-                          color: context.palette.textSecondary,
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            fecha ?? 'Fecha no disponible',
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      FutureBuilder<String>(
+                        future: destinoFuture,
+                        builder: (context, snap) {
+                          final text =
+                              snap.connectionState == ConnectionState.waiting
+                              ? destinoFallback
+                              : (snap.data ?? destinoFallback);
+                          return Text(
+                            text,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              fontSize: 12.5,
-                              color: context.palette.textSecondary,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 15,
+                              color: context.palette.textPrimary,
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.event_rounded,
+                            size: 14,
+                            color: context.palette.textSecondary,
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              fecha ?? 'Fecha no disponible',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                color: context.palette.textSecondary,
+                              ),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      valor,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 15,
+                        color: AppColores.success,
+                      ),
                     ),
+                    const SizedBox(height: 6),
+                    _MiniRating(valor: calificacion),
                   ],
                 ),
-              ),
-              const SizedBox(width: 10),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    valor,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 15,
-                      color: AppColores.success,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  _MiniRating(valor: calificacion),
-                ],
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -173,7 +175,7 @@ class _MiniRating extends StatelessWidget {
           Icon(
             Icons.star_rounded,
             size: 14,
-            color: tiene ? AppColores.primary : context.palette.grey400,
+            color: tiene ? acentoMarca(context) : context.palette.grey400,
           ),
           const SizedBox(width: 3),
           Text(
@@ -273,47 +275,35 @@ class DetalleViajeDialog extends StatelessWidget {
     final media = (score - llenas) >= 0.5;
 
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      backgroundColor: context.palette.surface,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 380),
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.fromLTRB(20, 18, 12, 18),
-                decoration: const BoxDecoration(
-                  color: AppColores.primary,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-                ),
-                child: Stack(
-                  alignment: Alignment.center,
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 8, 0),
+                child: Row(
                   children: [
-                    const Center(
+                    Expanded(
                       child: Text(
                         'Detalle del viaje',
-                        textAlign: TextAlign.center,
                         style: TextStyle(
                           fontWeight: FontWeight.w800,
-                          fontSize: 17,
-                          color: Colors.white,
+                          fontSize: 18,
+                          color: context.palette.textPrimary,
                         ),
                       ),
                     ),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: InkWell(
-                        onTap: () => Navigator.of(context).pop(),
-                        borderRadius: BorderRadius.circular(20),
-                        child: const Padding(
-                          padding: EdgeInsets.all(6),
-                          child: Icon(
-                            Icons.close,
-                            color: Colors.white,
-                            size: 22,
-                          ),
-                        ),
+                    IconButton(
+                      tooltip: 'Cerrar',
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: Icon(
+                        Icons.close_rounded,
+                        color: context.palette.textSecondary,
                       ),
                     ),
                   ],
@@ -356,9 +346,9 @@ class DetalleViajeDialog extends StatelessWidget {
                       backgroundColor: AppColores.primary.withValues(
                         alpha: 0.18,
                       ),
-                      child: const Icon(
-                        Icons.person,
-                        color: kHistorialAmberDark,
+                      child: Icon(
+                        Icons.person_rounded,
+                        color: acentoMarca(context),
                         size: 32,
                       ),
                     ),

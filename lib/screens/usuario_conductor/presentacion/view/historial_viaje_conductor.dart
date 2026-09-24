@@ -1,10 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodels/historial_conductor_viewmodel.dart';
+import 'package:taxi_app/widgets/ajustes_ui.dart';
 import 'package:taxi_app/widgets/historial/historial_widgets.dart';
 import 'historial_detalle_conductor.dart';
 
@@ -17,6 +17,11 @@ class HistorialConductor extends StatefulWidget {
 
 class HistorialConductorState extends State<HistorialConductor> {
   final _vm = HistorialConductorViewModel();
+
+  // Una sola consulta por pantalla: con `_vm.cargarHistorial()` dentro de
+  // `build()`, cada cambio de filtro (`setState`) volvía a leer Firestore.
+  late final Future<List<Map<String, dynamic>>> _historial = _vm
+      .cargarHistorial();
   FiltroHistorial _filtro = FiltroHistorial.hoy;
 
   double? _lastSyncedAverageRating;
@@ -86,27 +91,16 @@ class HistorialConductorState extends State<HistorialConductor> {
 
     return Scaffold(
       backgroundColor: context.palette.background,
-      appBar: AppBar(
-        title: const Text(
-          'Historial de Viajes',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: AppColores.primary,
-        foregroundColor: Colors.white,
-        surfaceTintColor: AppColores.primary,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        systemOverlayStyle: const SystemUiOverlayStyle(
-          statusBarColor: AppColores.primary,
-          statusBarIconBrightness: Brightness.dark,
-          statusBarBrightness: Brightness.light,
-        ),
-      ),
+      appBar: appBarNeutra(context, titulo: 'Historial de viajes'),
       floatingActionButton: FloatingActionButton.extended(
         icon: const Icon(Icons.analytics_rounded),
-        label: const Text('Ver ganancias'),
-        backgroundColor: AppColores.primary,
-        foregroundColor: Colors.white,
+        label: const Text(
+          'Ver ganancias',
+          style: TextStyle(fontWeight: FontWeight.w800),
+        ),
+        backgroundColor: AppColores.buttonPrimary,
+        foregroundColor: Colors.black,
+        elevation: 2,
         onPressed: () {
           Navigator.of(context).push(
             MaterialPageRoute(
@@ -117,7 +111,7 @@ class HistorialConductorState extends State<HistorialConductor> {
         },
       ),
       body: FutureBuilder<List<Map<String, dynamic>>>(
-        future: _vm.cargarHistorial(),
+        future: _historial,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return Center(
@@ -268,12 +262,13 @@ class _FiltroHistorialChips extends StatelessWidget {
                 selected: filtro == opcion,
                 onSelected: (_) => onChanged(opcion),
                 showCheckmark: false,
-                selectedColor: AppColores.primary,
+                selectedColor: AppColores.buttonPrimary,
                 backgroundColor: context.palette.surface,
+                shape: const StadiumBorder(),
                 labelStyle: TextStyle(
                   fontWeight: FontWeight.w700,
                   color: filtro == opcion
-                      ? AppColores.textWhite
+                      ? Colors.black
                       : context.palette.textPrimary,
                 ),
                 side: BorderSide(
@@ -468,7 +463,7 @@ class _ResumenConductor extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
       decoration: BoxDecoration(
         color: context.palette.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: context.palette.borderSubtle),
       ),
       child: Row(
@@ -477,14 +472,14 @@ class _ResumenConductor extends StatelessWidget {
             icon: Icons.directions_car_rounded,
             valor: totalViajes.toString(),
             label: 'Viajes',
-            color: AppColores.primary,
+            color: acentoMarca(context),
           ),
           const _SeparadorVertical(),
           _ResumenItem(
             icon: Icons.star_rounded,
             valor: promedio > 0 ? promedio.toStringAsFixed(1) : '–',
             label: 'Calificación',
-            color: AppColores.primary,
+            color: acentoMarca(context),
           ),
           const _SeparadorVertical(),
           _ResumenItem(

@@ -1,9 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/historial_cliente_viewmodel.dart';
+import 'package:taxi_app/widgets/ajustes_ui.dart';
 import 'package:taxi_app/widgets/historial/historial_widgets.dart';
 
 class HistorialCliente extends StatefulWidget {
@@ -15,6 +14,11 @@ class HistorialCliente extends StatefulWidget {
 
 class HistorialClienteState extends State<HistorialCliente> {
   final _vm = HistorialClienteViewModel();
+
+  // Una sola consulta por pantalla: con `_vm.cargarHistorial()` dentro de
+  // `build()` cada rebuild (tema, teclado, rotación) volvía a leer Firestore.
+  late final Future<List<Map<String, dynamic>>> _historial = _vm
+      .cargarHistorial();
 
   void _mostrarDetalle(BuildContext context, Map<String, dynamic> data) async {
     final destinoRaw = data['destino'] ?? 'Destino no disponible';
@@ -38,24 +42,9 @@ class HistorialClienteState extends State<HistorialCliente> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: context.palette.background,
-      appBar: AppBar(
-        title: const Text(
-          'Historial de Viajes',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: AppColores.primary,
-        foregroundColor: Colors.white,
-        surfaceTintColor: AppColores.primary,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        systemOverlayStyle: const SystemUiOverlayStyle(
-          statusBarColor: AppColores.primary,
-          statusBarIconBrightness: Brightness.dark,
-          statusBarBrightness: Brightness.light,
-        ),
-      ),
+      appBar: appBarNeutra(context, titulo: 'Historial de viajes'),
       body: FutureBuilder<List<Map<String, dynamic>>>(
-        future: _vm.cargarHistorial(),
+        future: _historial,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return Center(

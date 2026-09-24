@@ -6,6 +6,7 @@ import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/features/trip_tracking_cliente/services/trip_tracking_firestore_service.dart';
 import 'package:taxi_app/widgets/MapaGoogle.dart';
+import 'package:taxi_app/widgets/ajustes_ui.dart';
 
 /// Permite al cliente elegir un nuevo destino tocando el mapa. Hace
 /// reverse-geocoding para obtener la dirección y actualiza el campo `destino`
@@ -163,15 +164,7 @@ class _CambiarDestinoViewState extends State<CambiarDestinoView> {
 
     return Scaffold(
       backgroundColor: context.palette.background,
-      appBar: AppBar(
-        backgroundColor: AppColores.primary,
-        foregroundColor: AppColores.textWhite,
-        elevation: 0,
-        title: const Text(
-          'Cambiar dirección destino',
-          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
-        ),
-      ),
+      appBar: appBarNeutra(context, titulo: 'Cambiar destino'),
       body: Stack(
         children: [
           Positioned.fill(

@@ -3,6 +3,7 @@ import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/constants/solicitud_estado.dart';
 import 'package:taxi_app/features/trip_tracking_cliente/services/trip_tracking_firestore_service.dart';
+import 'package:taxi_app/widgets/ajustes_ui.dart';
 
 /// Muestra el estado actual de la solicitud en tiempo real con una línea de
 /// tiempo (timeline). Escucha el documento `solicitudes/{id}` en Firestore.
@@ -56,15 +57,7 @@ class EstadoSolicitudView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: context.palette.background,
-      appBar: AppBar(
-        backgroundColor: AppColores.primary,
-        foregroundColor: AppColores.textWhite,
-        elevation: 0,
-        title: const Text(
-          'Estado de mi solicitud',
-          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
-        ),
-      ),
+      appBar: appBarNeutra(context, titulo: 'Estado de mi solicitud'),
       body: StreamBuilder<Map<String, dynamic>>(
         stream: _stream,
         builder: (context, snapshot) {

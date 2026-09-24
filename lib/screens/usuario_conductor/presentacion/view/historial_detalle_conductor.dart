@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
+import 'package:taxi_app/widgets/ajustes_ui.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:taxi_app/data/solicitud_repository.dart';
@@ -117,15 +118,7 @@ class _HistorialDetalleConductorState extends State<HistorialDetalleConductor> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: context.palette.background,
-      appBar: AppBar(
-        title: const Text(
-          'Detalle de Ganancias',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: AppColores.primary,
-        foregroundColor: Colors.white,
-        elevation: 0,
-      ),
+      appBar: appBarNeutra(context, titulo: 'Mis ganancias'),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: _solicitudesStream,
         builder: (context, snapshot) {
@@ -548,8 +541,8 @@ class _SelectorMes extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: sel ? AppColores.primary : context.palette.surface,
-                borderRadius: BorderRadius.circular(12),
+                color: sel ? AppColores.buttonPrimary : context.palette.surface,
+                borderRadius: BorderRadius.circular(99),
                 border: Border.all(
                   color: sel
                       ? AppColores.primary
@@ -561,7 +554,7 @@ class _SelectorMes extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
-                  color: sel ? Colors.white : context.palette.textPrimary,
+                  color: sel ? Colors.black : context.palette.textPrimary,
                 ),
               ),
             ),
@@ -924,10 +917,12 @@ class _GraficoDia extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isTop ? t.color.withValues(alpha: 0.08) : Colors.grey.shade50,
+        color: isTop
+            ? t.color.withValues(alpha: 0.08)
+            : context.palette.grey100,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: isTop ? t.color : Colors.grey.shade200,
+          color: isTop ? t.color : context.palette.borderSubtle,
           width: isTop ? 1.5 : 1,
         ),
       ),
@@ -954,7 +949,10 @@ class _GraficoDia extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             '${t.start}h–${endLabel}h',
-            style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
+            style: TextStyle(
+              fontSize: 10,
+              color: context.palette.textSecondary,
+            ),
           ),
           const SizedBox(height: 8),
           Text(

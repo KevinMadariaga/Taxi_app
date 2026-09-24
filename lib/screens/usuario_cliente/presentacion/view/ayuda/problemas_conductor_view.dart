@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/services/reportes_service.dart';
+import 'package:taxi_app/widgets/ajustes_ui.dart';
 
 /// Formulario para reportar problemas con el conductor. Guarda el reporte en la
 /// colección `reportes` de Firestore.
@@ -135,15 +136,7 @@ class _ProblemasConductorViewState extends State<ProblemasConductorView> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: context.palette.background,
-      appBar: AppBar(
-        backgroundColor: AppColores.primary,
-        foregroundColor: AppColores.textWhite,
-        elevation: 0,
-        title: const Text(
-          'Problemas con el conductor',
-          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
-        ),
-      ),
+      appBar: appBarNeutra(context, titulo: 'Problemas con el conductor'),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
         children: [
