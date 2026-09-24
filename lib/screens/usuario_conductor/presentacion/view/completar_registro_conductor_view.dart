@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:taxi_app/core/app_colores.dart';
@@ -11,7 +12,8 @@ import 'package:taxi_app/core/helpers/session_helper.dart';
 import 'package:taxi_app/core/services/image_cropper_service.dart';
 import 'package:taxi_app/core/services/image_upload_service.dart';
 import 'package:taxi_app/features/phone_auth/services/user_data_service.dart';
-import 'package:taxi_app/widgets/boton.dart';
+import 'package:taxi_app/core/helpers/responsive_helper.dart';
+import 'package:taxi_app/widgets/ajustes_ui.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/vehicle_type.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioConductorView.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
@@ -32,7 +34,7 @@ class _CompletarRegistroConductorViewState
     extends State<CompletarRegistroConductorView> {
   final ImagePicker _picker = ImagePicker();
   final ImageCropperService _cropper = const ImageCropperService();
-  final ImageUploadService _imageUploadService = ImageUploadService();
+  late final ImageUploadService _imageUploadService = ImageUploadService();
   final TextEditingController _placaController = TextEditingController();
 
   XFile? _fotoVehiculo;
@@ -40,6 +42,8 @@ class _CompletarRegistroConductorViewState
   String? _fotoVehiculoExistenteUrl;
   VehicleType _tipoVehiculo = VehicleType.carro;
   bool _guardando = false;
+  String? _errorFoto;
+  String? _errorPlaca;
 
   @override
   void initState() {
@@ -79,17 +83,22 @@ class _CompletarRegistroConductorViewState
   Future<ImageSource?> _elegirFuenteImagen() {
     return showModalBottomSheet<ImageSource>(
       context: context,
+      backgroundColor: context.palette.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (ctx) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            const SizedBox(height: 8),
             ListTile(
-              leading: const Icon(Icons.camera_alt),
+              leading: const Icon(Icons.photo_camera_outlined),
               title: const Text('Tomar foto'),
               onTap: () => Navigator.pop(ctx, ImageSource.camera),
             ),
             ListTile(
-              leading: const Icon(Icons.photo_library),
+              leading: const Icon(Icons.photo_library_outlined),
               title: const Text('Elegir de la galería'),
               onTap: () => Navigator.pop(ctx, ImageSource.gallery),
             ),
@@ -115,6 +124,7 @@ class _CompletarRegistroConductorViewState
 
       setState(() {
         _fotoVehiculo = XFile(cropped.path);
+        _errorFoto = null;
       });
     } catch (e) {
       if (!mounted) return;
@@ -141,12 +151,18 @@ class _CompletarRegistroConductorViewState
         _fotoVehiculo != null ||
         (_fotoVehiculoExistenteUrl != null &&
             _fotoVehiculoExistenteUrl!.isNotEmpty);
-    if (!tieneFotoVehiculo) {
-      _mostrarError('Agrega la foto de tu vehículo.');
-      return;
-    }
-    if (placa.isEmpty) {
-      _mostrarError('Ingresa el número de placa.');
+    // Errores bajo cada dato (no en un snackbar que tapa el botón): se
+    // marcan los dos a la vez para que el usuario vea todo lo que falta.
+    setState(() {
+      _errorFoto = tieneFotoVehiculo ? null : 'Agrega la foto de tu vehículo.';
+      _errorPlaca = placa.isEmpty
+          ? 'Escribe la placa de tu vehículo.'
+          : placa.length < 5
+          ? 'La placa parece incompleta (ej. ABC123).'
+          : null;
+    });
+    if (_errorFoto != null || _errorPlaca != null) {
+      HapticFeedback.mediumImpact();
       return;
     }
 
@@ -209,39 +225,290 @@ class _CompletarRegistroConductorViewState
   }
 
   Widget _tipoCard(VehicleType tipo, IconData icon) {
+    final palette = context.palette;
     final sel = _tipoVehiculo == tipo;
-    return InkWell(
-      borderRadius: BorderRadius.circular(14),
-      onTap: () => setState(() => _tipoVehiculo = tipo),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 18),
-        decoration: BoxDecoration(
-          color: sel
-              ? AppColores.primary.withValues(alpha: 0.12)
-              : context.palette.surface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: sel ? AppColores.primary : context.palette.grey300,
-            width: sel ? 2 : 1,
-          ),
+    return Material(
+      color: sel
+          ? Color.alphaBlend(
+              AppColores.primary.withValues(alpha: 0.14),
+              palette.surface,
+            )
+          : palette.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: BorderSide(
+          color: sel ? AppColores.primary : palette.grey300,
+          width: sel ? 2 : 1.2,
         ),
-        child: Column(
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: _guardando ? null : () => setState(() => _tipoVehiculo = tipo),
+        child: Stack(
           children: [
-            Icon(
-              icon,
-              size: 34,
-              color: sel ? const Color(0xFFB38F00) : context.palette.grey600,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              tipo.label,
-              style: TextStyle(
-                fontWeight: sel ? FontWeight.w800 : FontWeight.w600,
-                fontSize: 15,
-                color: context.palette.textPrimary,
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 20),
+              child: Center(
+                child: Column(
+                  children: [
+                    Icon(
+                      icon,
+                      size: 36,
+                      color: sel ? acentoMarca(context) : palette.textSecondary,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      tipo.label,
+                      style: TextStyle(
+                        fontWeight: sel ? FontWeight.w800 : FontWeight.w600,
+                        fontSize: 15,
+                        color: palette.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
+            if (sel)
+              const Positioned(
+                top: 10,
+                right: 10,
+                child: Icon(
+                  Icons.check_circle_rounded,
+                  size: 20,
+                  color: AppColores.primary,
+                ),
+              ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _titulo(String texto, String ayuda) {
+    final palette = context.palette;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          texto,
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w800,
+            color: palette.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          ayuda,
+          style: TextStyle(
+            fontSize: 12.5,
+            height: 1.35,
+            color: palette.textSecondary,
+          ),
+        ),
+        const SizedBox(height: 10),
+      ],
+    );
+  }
+
+  Widget _error(String? mensaje) => AnimatedSize(
+    duration: const Duration(milliseconds: 200),
+    child: mensaje == null
+        ? const SizedBox(width: double.infinity)
+        : Padding(
+            padding: const EdgeInsets.only(top: 6, left: 4),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.info_outline_rounded,
+                  size: 15,
+                  color: AppColores.error,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    mensaje,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: AppColores.error,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+  );
+
+  Widget _fotoVehiculoWidget() {
+    final palette = context.palette;
+    final existente = _fotoVehiculoExistenteUrl ?? '';
+    final tieneFoto = _fotoVehiculo != null || existente.isNotEmpty;
+
+    final Widget contenido;
+    if (_fotoVehiculo != null) {
+      contenido = Image.file(
+        File(_fotoVehiculo!.path),
+        fit: BoxFit.cover,
+        cacheWidth: 900,
+      );
+    } else if (existente.isNotEmpty) {
+      contenido = CachedNetworkImage(
+        imageUrl: existente,
+        fit: BoxFit.cover,
+        memCacheWidth: 900,
+        placeholder: (_, _) => const Center(
+          child: CircularProgressIndicator(color: AppColores.primary),
+        ),
+        errorWidget: (_, _, _) => Center(
+          child: Icon(
+            Icons.broken_image_outlined,
+            size: 40,
+            color: palette.textSecondary,
+          ),
+        ),
+      );
+    } else {
+      contenido = Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: AppColores.primary.withValues(alpha: 0.16),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.add_a_photo_outlined,
+              color: acentoMarca(context),
+              size: 26,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Toca para agregar la foto',
+            style: TextStyle(
+              fontSize: 13.5,
+              fontWeight: FontWeight.w600,
+              color: palette.textPrimary,
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Material(
+      color: palette.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(
+          color: _errorFoto != null ? AppColores.error : palette.grey300,
+          width: _errorFoto != null ? 1.8 : 1.2,
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: _guardando ? null : _pickImageVehiculo,
+        child: AspectRatio(
+          aspectRatio: 16 / 9,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              contenido,
+              if (tieneFoto)
+                Positioned(
+                  right: 10,
+                  bottom: 10,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 7,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.edit_rounded, size: 15, color: Colors.white),
+                        SizedBox(width: 6),
+                        Text(
+                          'Cambiar',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _campoPlaca() {
+    final palette = context.palette;
+    final conError = _errorPlaca != null;
+    return TextField(
+      controller: _placaController,
+      enabled: !_guardando,
+      textCapitalization: TextCapitalization.characters,
+      inputFormatters: [
+        FilteringTextInputFormatter.allow(RegExp('[A-Za-z0-9]')),
+        LengthLimitingTextInputFormatter(7),
+        TextInputFormatter.withFunction(
+          (_, nuevo) => nuevo.copyWith(text: nuevo.text.toUpperCase()),
+        ),
+      ],
+      onChanged: (_) {
+        if (_errorPlaca != null) setState(() => _errorPlaca = null);
+      },
+      cursorColor: AppColores.primary,
+      style: TextStyle(
+        fontSize: 18,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 2,
+        color: palette.textPrimary,
+      ),
+      decoration: InputDecoration(
+        hintText: 'ABC123',
+        hintStyle: TextStyle(
+          letterSpacing: 2,
+          fontWeight: FontWeight.w600,
+          color: palette.textSecondary.withValues(alpha: 0.6),
+        ),
+        prefixIcon: Icon(Icons.pin_outlined, color: palette.textSecondary),
+        filled: true,
+        fillColor: palette.surface,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 16,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(
+            color: conError ? AppColores.error : palette.grey300,
+            width: conError ? 1.8 : 1.2,
+          ),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(
+            color: conError ? AppColores.error : AppColores.primary,
+            width: 1.8,
+          ),
+        ),
+        disabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: palette.grey200),
         ),
       ),
     );
@@ -249,144 +516,107 @@ class _CompletarRegistroConductorViewState
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+    final resp = ResponsiveHelper.getResponsiveData(context);
+    final esMovil = resp.deviceType == DeviceType.mobile;
+    final horizontal = esMovil ? resp.screenWidth * 0.05 : 32.0;
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Registro conductor'),
-        backgroundColor: AppColores.primary,
+      backgroundColor: palette.background,
+      appBar: appBarNeutra(context, titulo: 'Ser conductor'),
+      bottomNavigationBar: BarraAccionInferior(
+        texto: 'Enviar registro',
+        icono: Icons.send_rounded,
+        cargando: _guardando,
+        onPressed: _guardar,
       ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(height: 8),
-              const Text(
-                'Foto del vehículo',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
-              ),
-              const SizedBox(height: 8),
-              GestureDetector(
-                onTap: _pickImageVehiculo,
-                child: Stack(
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: Container(
-                        height: 170,
-                        width: double.infinity,
-                        color: Colors.grey.shade200,
-                        child: _fotoVehiculo != null
-                            ? Image.file(
-                                File(_fotoVehiculo!.path),
-                                fit: BoxFit.cover,
-                              )
-                            : (_fotoVehiculoExistenteUrl != null &&
-                                  _fotoVehiculoExistenteUrl!.isNotEmpty)
-                            ? CachedNetworkImage(
-                                imageUrl: _fotoVehiculoExistenteUrl!,
-                                fit: BoxFit.cover,
-                                memCacheWidth: 780,
-                                memCacheHeight: 340,
-                                placeholder: (context, url) => const Center(
-                                  child: CircularProgressIndicator(
-                                    color: AppColores.primary,
-                                  ),
-                                ),
-                                errorWidget: (context, url, error) =>
-                                    const Center(
-                                      child: Icon(
-                                        Icons.broken_image_outlined,
-                                        size: 40,
-                                        color: Colors.black38,
-                                      ),
-                                    ),
-                              )
-                            : Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: const [
-                                  Icon(
-                                    Icons.directions_car,
-                                    size: 40,
-                                    color: Colors.black54,
-                                  ),
-                                  SizedBox(height: 8),
-                                  Text(
-                                    'Agregar foto del vehículo',
-                                    style: TextStyle(fontSize: 13),
-                                  ),
-                                ],
-                              ),
-                      ),
+      body: ListView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        padding: EdgeInsets.fromLTRB(horizontal, 8, horizontal, 28),
+        children: [
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 600),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: AppColores.primary.withValues(alpha: 0.16),
+                      borderRadius: BorderRadius.circular(14),
                     ),
-                    Positioned(
-                      bottom: 8,
-                      right: 8,
-                      child: InkWell(
-                        onTap: _pickImageVehiculo,
-                        child: Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: AppColores.buttonPrimary,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Icon(
-                            Icons.camera_alt,
-                            color: context.palette.textPrimary,
-                          ),
+                    child: Icon(
+                      Icons.local_taxi_rounded,
+                      color: acentoMarca(context),
+                      size: 26,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    'Registra tu vehículo',
+                    style: TextStyle(
+                      fontSize: esMovil ? 25 : 29,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.4,
+                      color: palette.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Un administrador revisará tus datos y activará tu '
+                    'membresía para que empieces a recibir viajes.',
+                    style: TextStyle(
+                      fontSize: 14.5,
+                      height: 1.4,
+                      color: palette.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 26),
+                  _titulo(
+                    '¿Qué conduces?',
+                    'Solo verás solicitudes de pasajeros para ese tipo de '
+                        'vehículo.',
+                  ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _tipoCard(
+                          VehicleType.carro,
+                          Icons.directions_car_filled_rounded,
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                '¿Qué conduces?',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: _tipoCard(
-                      VehicleType.carro,
-                      Icons.directions_car_filled_rounded,
-                    ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _tipoCard(
+                          VehicleType.moto,
+                          Icons.two_wheeler_rounded,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _tipoCard(
-                      VehicleType.moto,
-                      Icons.two_wheeler_rounded,
-                    ),
+                  const SizedBox(height: 26),
+                  _titulo(
+                    'Foto del vehículo',
+                    'De lado o de frente, con la placa visible y buena luz. '
+                        'El pasajero la verá para reconocerte.',
                   ),
+                  _fotoVehiculoWidget(),
+                  _error(_errorFoto),
+                  const SizedBox(height: 26),
+                  _titulo(
+                    'Placa',
+                    'Tal como aparece en el vehículo, sin espacios ni '
+                        'guiones.',
+                  ),
+                  _campoPlaca(),
+                  _error(_errorPlaca),
                 ],
               ),
-              const SizedBox(height: 24),
-              TextField(
-                controller: _placaController,
-                textCapitalization: TextCapitalization.characters,
-                decoration: const InputDecoration(
-                  labelText: 'Placa del vehículo',
-                  prefixIcon: Icon(Icons.confirmation_number),
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 28),
-              CustomButton(
-                text: _guardando ? 'Guardando...' : 'Guardar',
-                isLoading: _guardando,
-                onPressed: _guardando ? null : _guardar,
-                height: 50,
-                fontSize: 16,
-              ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

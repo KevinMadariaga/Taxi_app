@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:animated_snack_bar/animated_snack_bar.dart';
 import 'package:firebase_storage/firebase_storage.dart' as firebase_storage;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:taxi_app/widgets/boton.dart';
+import 'package:taxi_app/core/helpers/responsive_helper.dart';
+import 'package:taxi_app/widgets/ajustes_ui.dart';
 import 'package:taxi_app/widgets/flip_preview_view.dart';
 import 'package:taxi_app/widgets/elegir_origen_imagen_sheet.dart';
 
@@ -185,496 +187,413 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
     }
   }
 
-  Widget _sectionCard({
-    required double screenWidth,
-    required List<Widget> children,
-  }) {
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.all(screenWidth * 0.045),
-      decoration: BoxDecoration(
-        color: context.palette.surface,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: context.palette.borderSubtle),
-        boxShadow: [
-          BoxShadow(
-            color: context.palette.overlayLight,
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+  Future<void> _guardar() async {
+    if (!_hasChanges) {
+      Navigator.pop(context);
+      return;
+    }
+    setState(() => _isUploading = true);
+    try {
+      String? imageUrl;
+      String? vehicleUrl;
+      final uid = await _getUid();
+      // Siempre guardar en 'usuarios' (no en 'conductor' ni 'cliente')
+      // Subir imagen de perfil solo si el usuario tomó una nueva en esta sesión
+      if (_imageChangedByUser && _image != null && uid != null) {
+        // Ya se comprimió al tomar la foto (_pickImage);
+        // no recomprimir aquí para no gastar CPU de más.
+        final profileToUpload = _image!;
+        final prevDoc = await FirebaseFirestore.instance
+            .collection('usuarios')
+            .doc(uid)
+            .get();
+        final prevUrl = prevDoc.data()?['foto'] as String?;
+        // Eliminar imagen anterior antes de subir la nueva
+        try {
+          if (prevUrl != null && prevUrl.isNotEmpty) {
+            await firebase_storage.FirebaseStorage.instance
+                .refFromURL(prevUrl)
+                .delete();
+          }
+        } catch (e, st) {
+          ErrorReporter.report(e, st, reason: 'editar_perfil');
+        }
+        final path =
+            'usuarios/$uid/profile_${DateTime.now().millisecondsSinceEpoch}.webp';
+        final ref = firebase_storage.FirebaseStorage.instance.ref().child(path);
+        // contentType explícito: `storage.rules`
+        // exige `image/.*` en la escritura
+        // (auditoría de seguridad), y esa condición
+        // solo es fiable si el cliente lo manda.
+        final uploadTask = ref.putFile(
+          profileToUpload,
+          firebase_storage.SettableMetadata(contentType: 'image/webp'),
+        );
+        final snapshot = await uploadTask;
+        imageUrl = await snapshot.ref.getDownloadURL();
+        await widget.onImageChanged(_image);
+      }
+      // Subir imagen de vehículo solo si el usuario tomó una nueva en esta sesión
+      if (widget.esConductor &&
+          _vehicleChangedByUser &&
+          _vehicleImage != null &&
+          uid != null) {
+        // Ya se comprimió al tomar la foto (_pickImage);
+        // no recomprimir aquí para no gastar CPU de más.
+        final vehicleToUpload = _vehicleImage!;
+        final prevDoc = await FirebaseFirestore.instance
+            .collection('usuarios')
+            .doc(uid)
+            .get();
+        final prevUrl = prevDoc.data()?['fotoVehiculo'] as String?;
+        // Eliminar imagen anterior antes de subir la nueva
+        try {
+          if (prevUrl != null && prevUrl.isNotEmpty) {
+            await firebase_storage.FirebaseStorage.instance
+                .refFromURL(prevUrl)
+                .delete();
+          }
+        } catch (e, st) {
+          ErrorReporter.report(e, st, reason: 'editar_perfil');
+        }
+        final path =
+            'usuarios/$uid/vehicle_${DateTime.now().millisecondsSinceEpoch}.webp';
+        final ref = firebase_storage.FirebaseStorage.instance.ref().child(path);
+        // contentType explícito: `storage.rules`
+        // exige `image/.*` en la escritura
+        // (auditoría de seguridad), y esa condición
+        // solo es fiable si el cliente lo manda.
+        final uploadTask = ref.putFile(
+          vehicleToUpload,
+          firebase_storage.SettableMetadata(contentType: 'image/webp'),
+        );
+        final snapshot = await uploadTask;
+        vehicleUrl = await snapshot.ref.getDownloadURL();
+        await widget.onVehicleImageChanged(_vehicleImage);
+      }
+      final Map<String, dynamic> datos = {};
+      datos['nombre'] = widget.nombreController.text.trim();
+      datos['apellido'] = widget.apellidoController.text.trim();
+      datos['telefono'] = widget.telefonoController.text.trim();
+      if (widget.esConductor) {
+        datos['placa'] = widget.placaController.text.trim();
+      }
+      if (imageUrl != null) {
+        datos['foto'] = imageUrl;
+      }
+      if (vehicleUrl != null) {
+        datos['fotoVehiculo'] = vehicleUrl;
+      }
+      await widget.onSave(datos);
+      if (!mounted) return;
+      mostrarAvisoExito(
+        context,
+        titulo: 'Perfil actualizado',
+        mensaje: 'Tus cambios quedaron guardados.',
+      );
+      Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      AnimatedSnackBar.material(
+        'Error al guardar: $e',
+        type: AnimatedSnackBarType.error,
+      ).show(context);
+    } finally {
+      if (mounted) setState(() => _isUploading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final resp = ResponsiveHelper.getResponsiveData(context);
+    final esMovil = resp.deviceType == DeviceType.mobile;
+    final horizontal = esMovil ? resp.screenWidth * 0.05 : 32.0;
+    final avatar = esMovil ? 104.0 : 124.0;
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+
+    return Scaffold(
+      backgroundColor: palette.background,
+      appBar: appBarNeutra(context, titulo: 'Editar perfil'),
+      bottomNavigationBar: BarraAccionInferior(
+        texto: 'Guardar cambios',
+        icono: Icons.check_rounded,
+        cargando: _isUploading,
+        onPressed: _isValidatingFace ? null : _guardar,
+      ),
+      body: ListView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        padding: EdgeInsets.fromLTRB(horizontal, 8, horizontal, 28),
+        children: [
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 600),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: GestureDetector(
+                      onTap: _isValidatingFace || _isUploading
+                          ? null
+                          : () => _pickImage(false),
+                      child: Container(
+                        padding: const EdgeInsets.all(3),
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [AppColores.brand400, AppColores.brand500],
+                          ),
+                        ),
+                        child: Container(
+                          padding: const EdgeInsets.all(3),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: palette.background,
+                          ),
+                          child: ClipOval(
+                            child: SizedBox.square(
+                              dimension: avatar,
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  if (_image != null)
+                                    Image.file(
+                                      _image!,
+                                      fit: BoxFit.cover,
+                                      cacheWidth: (avatar * dpr).round(),
+                                      gaplessPlayback: true,
+                                    )
+                                  else
+                                    ColoredBox(
+                                      color: palette.grey200,
+                                      child: Icon(
+                                        Icons.person_rounded,
+                                        size: avatar * 0.5,
+                                        color: palette.textSecondary,
+                                      ),
+                                    ),
+                                  if (_isValidatingFace)
+                                    const ColoredBox(
+                                      color: Colors.black45,
+                                      child: Center(
+                                        child: SizedBox(
+                                          width: 28,
+                                          height: 28,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 3,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Center(
+                    child: TextButton.icon(
+                      onPressed: _isValidatingFace || _isUploading
+                          ? null
+                          : () => _pickImage(false),
+                      icon: const Icon(Icons.edit_rounded, size: 16),
+                      label: Text(
+                        _isValidatingFace
+                            ? 'Verificando tu rostro…'
+                            : 'Cambiar foto',
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      style: TextButton.styleFrom(
+                        foregroundColor: acentoMarca(context),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  _grupo('Datos personales', [
+                    _Campo(
+                      etiqueta: 'Nombre',
+                      controller: widget.nombreController,
+                      icono: Icons.person_outline_rounded,
+                      hint: 'Ej. Laura',
+                      enabled: !_isUploading,
+                      textCapitalization: TextCapitalization.words,
+                      inputFormatters: [LengthLimitingTextInputFormatter(40)],
+                    ),
+                    _Campo(
+                      etiqueta: 'Apellido',
+                      controller: widget.apellidoController,
+                      icono: Icons.badge_outlined,
+                      hint: 'Ej. Gómez',
+                      enabled: !_isUploading,
+                      textCapitalization: TextCapitalization.words,
+                      inputFormatters: [LengthLimitingTextInputFormatter(40)],
+                    ),
+                  ]),
+                  const SizedBox(height: 18),
+                  _grupo('Contacto', [
+                    _Campo(
+                      etiqueta: 'Celular',
+                      controller: widget.telefonoController,
+                      icono: Icons.phone_iphone_rounded,
+                      hint: '300 123 4567',
+                      prefijo: '+57',
+                      enabled: !_isUploading,
+                      keyboardType: TextInputType.phone,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(10),
+                      ],
+                    ),
+                  ]),
+                  if (widget.esConductor) ...[
+                    const SizedBox(height: 18),
+                    _grupo('Vehículo', [
+                      _Campo(
+                        etiqueta: 'Placa',
+                        controller: widget.placaController,
+                        icono: Icons.pin_outlined,
+                        hint: 'ABC123',
+                        enabled: !_isUploading,
+                        textCapitalization: TextCapitalization.characters,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(
+                            RegExp('[A-Za-z0-9]'),
+                          ),
+                          LengthLimitingTextInputFormatter(7),
+                          TextInputFormatter.withFunction(
+                            (_, nuevo) =>
+                                nuevo.copyWith(text: nuevo.text.toUpperCase()),
+                          ),
+                        ],
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(14, 4, 14, 14),
+                        child: _fotoVehiculo(palette),
+                      ),
+                    ]),
+                  ],
+                ],
+              ),
+            ),
           ),
         ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: children,
       ),
     );
   }
 
-  Widget _sectionHeader({
-    required IconData icon,
-    required String label,
-    required double screenWidth,
-  }) {
-    return Row(
+  /// Título de sección + tarjeta con los campos (sin separadores: cada
+  /// campo ya trae su propio borde).
+  Widget _grupo(String titulo, List<Widget> campos) {
+    final palette = context.palette;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Container(
-          padding: EdgeInsets.all(screenWidth * 0.018),
-          decoration: BoxDecoration(
-            color: AppColores.primary.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Icon(
-            icon,
-            size: screenWidth * 0.05,
-            color: AppColores.primary,
+        Padding(
+          padding: const EdgeInsets.only(left: 6, bottom: 8),
+          child: Text(
+            titulo.toUpperCase(),
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.8,
+              color: palette.textSecondary,
+            ),
           ),
         ),
-        SizedBox(width: screenWidth * 0.03),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: screenWidth * 0.042,
-            fontWeight: FontWeight.w700,
-            color: context.palette.textPrimary,
+        Container(
+          padding: const EdgeInsets.only(top: 4),
+          decoration: BoxDecoration(
+            color: palette.surface,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: palette.borderSubtle),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: campos,
           ),
         ),
       ],
     );
   }
 
-  InputDecoration _fieldDecoration({
-    required String label,
-    required IconData icon,
-  }) {
-    OutlineInputBorder border(Color color, double width) => OutlineInputBorder(
-      borderRadius: BorderRadius.circular(12),
-      borderSide: BorderSide(color: color, width: width),
-    );
-    return InputDecoration(
-      labelText: label,
-      labelStyle: TextStyle(color: context.palette.textSecondary),
-      prefixIcon: Icon(icon, color: AppColores.primary),
-      filled: true,
-      fillColor: context.palette.background,
-      border: border(context.palette.divider, 1),
-      enabledBorder: border(context.palette.divider, 1),
-      focusedBorder: border(AppColores.primary, 1.6),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
-    final avatarRadius = screenWidth * 0.18;
-    final avatarIconSize = avatarRadius * 0.9;
-    final cameraButtonRadius = avatarRadius * 0.28;
-    final cameraIconSize = cameraButtonRadius * 0.9;
-    final fieldFontSize = screenWidth * 0.042;
-    final vehicleImgWidth = screenWidth * 0.42;
-    final vehicleImgHeight = screenHeight * 0.11;
-    final vehicleCameraBtnSize = screenWidth * 0.09;
-    final vehicleCameraIconSize = vehicleCameraBtnSize * 0.6;
-    final buttonHeight = screenHeight * 0.055;
-    final buttonFontSize = screenWidth * 0.045;
-    final fieldTextStyle = TextStyle(
-      fontSize: fieldFontSize,
-      color: context.palette.textPrimary,
-    );
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: AppColores.primary,
-        foregroundColor: AppColores.textWhite,
-        elevation: 0,
-        title: const Text(
-          'Editar perfil',
-          style: TextStyle(
-            color: AppColores.textWhite,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        iconTheme: const IconThemeData(color: AppColores.textWhite),
+  Widget _fotoVehiculo(AppPalette palette) {
+    return Material(
+      color: palette.grey100,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: palette.grey300),
       ),
-      backgroundColor: context.palette.background,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-          padding: EdgeInsets.fromLTRB(
-            screenWidth * 0.04,
-            screenWidth * 0.04,
-            screenWidth * 0.04,
-            screenWidth * 0.04 + screenHeight * 0.02,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: _isUploading ? null : () => _pickImage(true),
+        child: AspectRatio(
+          aspectRatio: 16 / 9,
+          child: Stack(
+            fit: StackFit.expand,
             children: [
-              Center(
-                child: Stack(
-                  alignment: Alignment.center,
+              if (_vehicleImage != null)
+                Image.file(
+                  _vehicleImage!,
+                  fit: BoxFit.cover,
+                  cacheWidth: 900,
+                  gaplessPlayback: true,
+                )
+              else
+                Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(3),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: AppColores.primary, width: 3),
-                      ),
-                      child: CircleAvatar(
-                        radius: avatarRadius,
-                        backgroundColor: context.palette.grey200,
-                        backgroundImage: _image != null
-                            ? FileImage(_image!)
-                            : null,
-                        child: _image == null
-                            ? Icon(
-                                Icons.person,
-                                size: avatarIconSize,
-                                color: context.palette.grey600,
-                              )
-                            : null,
+                    Icon(
+                      Icons.add_a_photo_outlined,
+                      size: 30,
+                      color: acentoMarca(context),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Toca para agregar la foto del vehículo',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: palette.textPrimary,
                       ),
                     ),
-                    Positioned(
-                      bottom: cameraButtonRadius * 0.4,
-                      right: cameraButtonRadius * 0.4,
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(cameraButtonRadius),
-                        onTap: _isValidatingFace
-                            ? null
-                            : () => _pickImage(false),
-                        child: CircleAvatar(
-                          radius: cameraButtonRadius,
-                          backgroundColor: AppColores.primary,
-                          child: _isValidatingFace
-                              ? SizedBox(
-                                  width: cameraIconSize,
-                                  height: cameraIconSize,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: context.palette.textPrimary,
-                                  ),
-                                )
-                              : Icon(
-                                  Icons.camera_alt,
-                                  size: cameraIconSize,
-                                  color: context.palette.textPrimary,
-                                ),
+                  ],
+                ),
+              if (_vehicleImage != null)
+                Positioned(
+                  right: 10,
+                  bottom: 10,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 7,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.edit_rounded, size: 15, color: Colors.white),
+                        SizedBox(width: 6),
+                        Text(
+                          'Cambiar',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
-                      ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
-              ),
-              SizedBox(height: screenHeight * 0.03),
-              _sectionCard(
-                screenWidth: screenWidth,
-                children: [
-                  _sectionHeader(
-                    icon: Icons.badge_outlined,
-                    label: 'Datos personales',
-                    screenWidth: screenWidth,
-                  ),
-                  SizedBox(height: screenHeight * 0.02),
-                  TextField(
-                    controller: widget.nombreController,
-                    decoration: _fieldDecoration(
-                      label: 'Nombre',
-                      icon: Icons.person_outline,
-                    ),
-                    style: fieldTextStyle,
-                  ),
-                  SizedBox(height: screenHeight * 0.018),
-                  TextField(
-                    controller: widget.apellidoController,
-                    decoration: _fieldDecoration(
-                      label: 'Apellido',
-                      icon: Icons.person_outline,
-                    ),
-                    style: fieldTextStyle,
-                  ),
-                  SizedBox(height: screenHeight * 0.018),
-                  TextField(
-                    controller: widget.telefonoController,
-                    decoration: _fieldDecoration(
-                      label: 'Teléfono',
-                      icon: Icons.phone_outlined,
-                    ),
-                    keyboardType: TextInputType.phone,
-                    style: fieldTextStyle,
-                  ),
-                ],
-              ),
-              if (widget.esConductor) ...[
-                SizedBox(height: screenHeight * 0.022),
-                _sectionCard(
-                  screenWidth: screenWidth,
-                  children: [
-                    _sectionHeader(
-                      icon: Icons.directions_car_filled_outlined,
-                      label: 'Vehículo',
-                      screenWidth: screenWidth,
-                    ),
-                    SizedBox(height: screenHeight * 0.02),
-                    TextField(
-                      controller: widget.placaController,
-                      decoration: _fieldDecoration(
-                        label: 'Placa',
-                        icon: Icons.pin_outlined,
-                      ),
-                      style: fieldTextStyle,
-                    ),
-                    SizedBox(height: screenHeight * 0.02),
-                    Center(
-                      child: Stack(
-                        children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(14),
-                            child: SizedBox(
-                              width: vehicleImgWidth,
-                              height: vehicleImgHeight,
-                              child: _vehicleImage != null
-                                  ? Image.file(
-                                      _vehicleImage!,
-                                      fit: BoxFit.cover,
-                                    )
-                                  : Container(
-                                      color: context.palette.grey200,
-                                      child: Icon(
-                                        Icons.directions_car,
-                                        color: context.palette.grey600,
-                                        size: vehicleImgHeight * 0.5,
-                                      ),
-                                    ),
-                            ),
-                          ),
-                          Positioned(
-                            bottom: 6,
-                            right: 6,
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(
-                                vehicleCameraBtnSize * 0.33,
-                              ),
-                              onTap: () => _pickImage(true),
-                              child: Container(
-                                width: vehicleCameraBtnSize,
-                                height: vehicleCameraBtnSize,
-                                decoration: BoxDecoration(
-                                  color: AppColores.primary,
-                                  borderRadius: BorderRadius.circular(
-                                    vehicleCameraBtnSize * 0.33,
-                                  ),
-                                ),
-                                child: Icon(
-                                  Icons.camera_alt,
-                                  size: vehicleCameraIconSize,
-                                  color: context.palette.textPrimary,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-              SizedBox(height: screenHeight * 0.04),
-              Row(
-                children: [
-                  Expanded(
-                    child: CustomButton(
-                      text: 'Cancelar',
-                      icon: const Icon(
-                        Icons.close,
-                        color: AppColores.primary,
-                        size: 18,
-                      ),
-                      onPressed: () => Navigator.pop(context),
-                      color: context.palette.surface,
-                      textColor: AppColores.primary,
-                      borderColor: AppColores.primary,
-                      height: buttonHeight,
-                      fontSize: buttonFontSize,
-                    ),
-                  ),
-                  SizedBox(width: screenWidth * 0.04),
-                  Expanded(
-                    child: CustomButton(
-                      text: 'Guardar',
-                      icon: _isUploading
-                          ? null
-                          : const Icon(
-                              Icons.check,
-                              color: AppColores.textWhite,
-                              size: 18,
-                            ),
-                      textColor: AppColores.textWhite,
-                      onPressed: _isUploading
-                          ? null
-                          : () async {
-                              if (!_hasChanges) {
-                                Navigator.pop(context);
-                                return;
-                              }
-                              setState(() => _isUploading = true);
-                              try {
-                                String? imageUrl;
-                                String? vehicleUrl;
-                                final uid = await _getUid();
-                                // Siempre guardar en 'usuarios' (no en 'conductor' ni 'cliente')
-                                // Subir imagen de perfil solo si el usuario tomó una nueva en esta sesión
-                                if (_imageChangedByUser &&
-                                    _image != null &&
-                                    uid != null) {
-                                  // Ya se comprimió al tomar la foto (_pickImage);
-                                  // no recomprimir aquí para no gastar CPU de más.
-                                  final profileToUpload = _image!;
-                                  final prevDoc = await FirebaseFirestore
-                                      .instance
-                                      .collection('usuarios')
-                                      .doc(uid)
-                                      .get();
-                                  final prevUrl =
-                                      prevDoc.data()?['foto'] as String?;
-                                  // Eliminar imagen anterior antes de subir la nueva
-                                  try {
-                                    if (prevUrl != null && prevUrl.isNotEmpty) {
-                                      await firebase_storage
-                                          .FirebaseStorage
-                                          .instance
-                                          .refFromURL(prevUrl)
-                                          .delete();
-                                    }
-                                  } catch (e, st) {
-                                    ErrorReporter.report(
-                                      e,
-                                      st,
-                                      reason: 'editar_perfil',
-                                    );
-                                  }
-                                  final path =
-                                      'usuarios/$uid/profile_${DateTime.now().millisecondsSinceEpoch}.webp';
-                                  final ref = firebase_storage
-                                      .FirebaseStorage
-                                      .instance
-                                      .ref()
-                                      .child(path);
-                                  // contentType explícito: `storage.rules`
-                                  // exige `image/.*` en la escritura
-                                  // (auditoría de seguridad), y esa condición
-                                  // solo es fiable si el cliente lo manda.
-                                  final uploadTask = ref.putFile(
-                                    profileToUpload,
-                                    firebase_storage.SettableMetadata(
-                                      contentType: 'image/webp',
-                                    ),
-                                  );
-                                  final snapshot = await uploadTask;
-                                  imageUrl = await snapshot.ref
-                                      .getDownloadURL();
-                                  await widget.onImageChanged(_image);
-                                }
-                                // Subir imagen de vehículo solo si el usuario tomó una nueva en esta sesión
-                                if (widget.esConductor &&
-                                    _vehicleChangedByUser &&
-                                    _vehicleImage != null &&
-                                    uid != null) {
-                                  // Ya se comprimió al tomar la foto (_pickImage);
-                                  // no recomprimir aquí para no gastar CPU de más.
-                                  final vehicleToUpload = _vehicleImage!;
-                                  final prevDoc = await FirebaseFirestore
-                                      .instance
-                                      .collection('usuarios')
-                                      .doc(uid)
-                                      .get();
-                                  final prevUrl =
-                                      prevDoc.data()?['fotoVehiculo']
-                                          as String?;
-                                  // Eliminar imagen anterior antes de subir la nueva
-                                  try {
-                                    if (prevUrl != null && prevUrl.isNotEmpty) {
-                                      await firebase_storage
-                                          .FirebaseStorage
-                                          .instance
-                                          .refFromURL(prevUrl)
-                                          .delete();
-                                    }
-                                  } catch (e, st) {
-                                    ErrorReporter.report(
-                                      e,
-                                      st,
-                                      reason: 'editar_perfil',
-                                    );
-                                  }
-                                  final path =
-                                      'usuarios/$uid/vehicle_${DateTime.now().millisecondsSinceEpoch}.webp';
-                                  final ref = firebase_storage
-                                      .FirebaseStorage
-                                      .instance
-                                      .ref()
-                                      .child(path);
-                                  // contentType explícito: `storage.rules`
-                                  // exige `image/.*` en la escritura
-                                  // (auditoría de seguridad), y esa condición
-                                  // solo es fiable si el cliente lo manda.
-                                  final uploadTask = ref.putFile(
-                                    vehicleToUpload,
-                                    firebase_storage.SettableMetadata(
-                                      contentType: 'image/webp',
-                                    ),
-                                  );
-                                  final snapshot = await uploadTask;
-                                  vehicleUrl = await snapshot.ref
-                                      .getDownloadURL();
-                                  await widget.onVehicleImageChanged(
-                                    _vehicleImage,
-                                  );
-                                }
-                                final Map<String, dynamic> datos = {};
-                                datos['nombre'] = widget.nombreController.text
-                                    .trim();
-                                datos['apellido'] = widget
-                                    .apellidoController
-                                    .text
-                                    .trim();
-                                datos['telefono'] = widget
-                                    .telefonoController
-                                    .text
-                                    .trim();
-                                if (widget.esConductor) {
-                                  datos['placa'] = widget.placaController.text
-                                      .trim();
-                                }
-                                if (imageUrl != null) {
-                                  datos['foto'] = imageUrl;
-                                }
-                                if (vehicleUrl != null) {
-                                  datos['fotoVehiculo'] = vehicleUrl;
-                                }
-                                await widget.onSave(datos);
-                                if (!mounted) return;
-                                AnimatedSnackBar.material(
-                                  'Datos actualizados',
-                                  type: AnimatedSnackBarType.success,
-                                  duration: const Duration(seconds: 2),
-                                ).show(context);
-                                Navigator.pop(context);
-                              } catch (e) {
-                                AnimatedSnackBar.material(
-                                  'Error al guardar: $e',
-                                  type: AnimatedSnackBarType.error,
-                                ).show(context);
-                              } finally {
-                                setState(() => _isUploading = false);
-                              }
-                            },
-                      isLoading: _isUploading,
-                      height: buttonHeight,
-                      fontSize: buttonFontSize,
-                    ),
-                  ),
-                ],
-              ),
             ],
           ),
         ),
@@ -688,5 +607,93 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
     } catch (_) {
       return null;
     }
+  }
+}
+
+/// Campo con etiqueta arriba y borde que se resalta en naranja al enfocar
+/// (visible también en modo oscuro).
+class _Campo extends StatelessWidget {
+  const _Campo({
+    required this.etiqueta,
+    required this.controller,
+    required this.icono,
+    required this.hint,
+    required this.enabled,
+    this.prefijo,
+    this.keyboardType,
+    this.textCapitalization = TextCapitalization.none,
+    this.inputFormatters,
+  });
+
+  final String etiqueta;
+  final TextEditingController controller;
+  final IconData icono;
+  final String hint;
+  final bool enabled;
+  final String? prefijo;
+  final TextInputType? keyboardType;
+  final TextCapitalization textCapitalization;
+  final List<TextInputFormatter>? inputFormatters;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    OutlineInputBorder borde(Color color, double ancho) => OutlineInputBorder(
+      borderRadius: BorderRadius.circular(14),
+      borderSide: BorderSide(color: color, width: ancho),
+    );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            etiqueta,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: palette.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 6),
+          TextField(
+            controller: controller,
+            enabled: enabled,
+            keyboardType: keyboardType,
+            textCapitalization: textCapitalization,
+            inputFormatters: inputFormatters,
+            cursorColor: AppColores.primary,
+            style: TextStyle(
+              fontSize: 15.5,
+              fontWeight: FontWeight.w600,
+              color: palette.textPrimary,
+            ),
+            decoration: InputDecoration(
+              hintText: hint,
+              hintStyle: TextStyle(
+                fontWeight: FontWeight.w400,
+                color: palette.textSecondary.withValues(alpha: 0.7),
+              ),
+              prefixIcon: Icon(icono, size: 21, color: palette.textSecondary),
+              prefixText: prefijo == null ? null : '$prefijo  ',
+              prefixStyle: TextStyle(
+                fontSize: 15.5,
+                fontWeight: FontWeight.w700,
+                color: palette.textSecondary,
+              ),
+              filled: true,
+              fillColor: palette.background,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 15,
+              ),
+              enabledBorder: borde(palette.grey300, 1.2),
+              disabledBorder: borde(palette.grey200, 1.2),
+              focusedBorder: borde(AppColores.primary, 1.8),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

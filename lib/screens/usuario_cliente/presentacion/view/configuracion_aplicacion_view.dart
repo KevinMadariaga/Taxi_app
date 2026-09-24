@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/theme/theme_controller.dart';
+import 'package:taxi_app/core/helpers/responsive_helper.dart';
+import 'package:taxi_app/widgets/ajustes_ui.dart';
 import 'package:taxi_app/routes/app_routes.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/eliminar_cuenta_screen.dart';
 import 'package:taxi_app/core/services/services.dart';
@@ -145,79 +147,113 @@ class _ConfiguracionAplicacionViewState
   Widget build(BuildContext context) {
     final temaActual = context.watch<ThemeController>().themeMode;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Configuración de la aplicación'),
-        backgroundColor: AppColores.primary,
-        foregroundColor: AppColores.textWhite,
-        elevation: 0,
+    final palette = context.palette;
+    final ocupado = _isLoggingOut || _isDeletingAccount;
+    final resp = ResponsiveHelper.getResponsiveData(context);
+    final horizontal = resp.deviceType == DeviceType.mobile
+        ? resp.screenWidth * 0.05
+        : 32.0;
+
+    Widget valor(String texto) => Text(
+      texto,
+      style: TextStyle(
+        fontSize: 13.5,
+        fontWeight: FontWeight.w600,
+        color: palette.textSecondary,
       ),
-      backgroundColor: context.palette.background,
+    );
+
+    return Scaffold(
+      backgroundColor: palette.background,
+      appBar: appBarNeutra(context, titulo: 'Configuración'),
       body: ListView(
+        padding: EdgeInsets.fromLTRB(horizontal, 8, horizontal, 28),
         children: [
-          ListTile(
-            leading: const Icon(Icons.palette_outlined),
-            title: const Text('Apariencia'),
-            subtitle: Text('Actual: ${_etiquetaTema(temaActual)}'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: _seleccionarApariencia,
-          ),
-          ListTile(
-            leading: const Icon(Icons.gavel_outlined),
-            title: const Text('Documentos legales'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: _abrirDocumentosLegales,
-          ),
-          ListTile(
-            leading: const Icon(Icons.info_outline),
-            title: const Text('Versión de la aplicación'),
-            subtitle: Text(_appVersion),
-          ),
-          const Divider(height: 24),
-          ListTile(
-            leading: Icon(
-              Icons.logout,
-              color: _isLoggingOut
-                  ? context.palette.textSecondary
-                  : AppColores.error,
-            ),
-            title: Text(
-              _isLoggingOut ? 'Cerrando sesión...' : 'Cerrar sesión',
-              style: TextStyle(
-                color: _isLoggingOut
-                    ? context.palette.textSecondary
-                    : AppColores.error,
-                fontWeight: FontWeight.w600,
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 600),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SeccionAgrupada(
+                    titulo: 'Preferencias',
+                    children: [
+                      FilaOpcion(
+                        icono: Icons.dark_mode_outlined,
+                        titulo: 'Apariencia',
+                        subtitulo: 'Claro, oscuro o según tu dispositivo',
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            valor(_etiquetaTema(temaActual)),
+                            Icon(
+                              Icons.chevron_right_rounded,
+                              color: palette.textSecondary.withValues(
+                                alpha: 0.8,
+                              ),
+                            ),
+                          ],
+                        ),
+                        onTap: _seleccionarApariencia,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  SeccionAgrupada(
+                    titulo: 'Información',
+                    children: [
+                      FilaOpcion(
+                        icono: Icons.policy_outlined,
+                        titulo: 'Documentos legales',
+                        subtitulo: 'Términos y política de privacidad',
+                        onTap: _abrirDocumentosLegales,
+                      ),
+                      FilaOpcion(
+                        icono: Icons.info_outline_rounded,
+                        titulo: 'Versión de la aplicación',
+                        trailing: valor(_appVersion),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  SeccionAgrupada(
+                    titulo: 'Cuenta',
+                    children: [
+                      FilaOpcion(
+                        icono: Icons.logout_rounded,
+                        titulo: _isLoggingOut
+                            ? 'Cerrando sesión…'
+                            : 'Cerrar sesión',
+                        peligro: true,
+                        trailing: _isLoggingOut ? _spinner() : null,
+                        onTap: ocupado ? null : _cerrarSesion,
+                      ),
+                      FilaOpcion(
+                        icono: Icons.delete_outline_rounded,
+                        titulo: _isDeletingAccount
+                            ? 'Abriendo eliminación…'
+                            : 'Eliminar cuenta',
+                        subtitulo: 'Borra tu cuenta y tus datos de Ride',
+                        peligro: true,
+                        trailing: _isDeletingAccount ? _spinner() : null,
+                        onTap: ocupado ? null : _eliminarCuenta,
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
-            enabled: !_isLoggingOut && !_isDeletingAccount,
-            onTap: _cerrarSesion,
-          ),
-          ListTile(
-            leading: Icon(
-              Icons.delete_forever_outlined,
-              color: _isDeletingAccount
-                  ? context.palette.textSecondary
-                  : AppColores.error,
-            ),
-            title: Text(
-              _isDeletingAccount
-                  ? 'Abriendo eliminación...'
-                  : 'Eliminar cuenta',
-              style: TextStyle(
-                color: _isDeletingAccount
-                    ? context.palette.textSecondary
-                    : AppColores.error,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            enabled: !_isDeletingAccount && !_isLoggingOut,
-            onTap: _eliminarCuenta,
           ),
         ],
       ),
     );
   }
+
+  Widget _spinner() => const SizedBox(
+    width: 18,
+    height: 18,
+    child: CircularProgressIndicator(strokeWidth: 2),
+  );
 }
 
 /// Modal de selección de apariencia: Sistema/Claro/Oscuro con `RadioListTile`,
@@ -395,12 +431,7 @@ class _DocumentosLegalesView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Documentos legales'),
-        backgroundColor: AppColores.primary,
-        foregroundColor: AppColores.textWhite,
-        elevation: 0,
-      ),
+      appBar: appBarNeutra(context, titulo: 'Documentos legales'),
       backgroundColor: context.palette.background,
       body: ListView(
         padding: EdgeInsets.fromLTRB(
@@ -440,12 +471,7 @@ class _DocumentoLegalView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(title),
-        backgroundColor: AppColores.primary,
-        foregroundColor: AppColores.textWhite,
-        elevation: 0,
-      ),
+      appBar: appBarNeutra(context, titulo: title),
       backgroundColor: context.palette.background,
       body: FutureBuilder<String>(
         future: rootBundle.loadString(asset),

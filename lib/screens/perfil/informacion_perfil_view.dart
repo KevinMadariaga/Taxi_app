@@ -2,7 +2,9 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
+import 'package:taxi_app/core/helpers/responsive_helper.dart';
 import 'package:taxi_app/features/phone_auth/services/user_data_service.dart';
+import 'package:taxi_app/widgets/ajustes_ui.dart';
 
 /// Pantalla de solo lectura con la información del perfil: foto, nombre,
 /// apellido, correo y teléfono. Si es conductor, además muestra el/los
@@ -46,11 +48,7 @@ class _InformacionPerfilViewState extends State<InformacionPerfilView> {
         if (snapshot.connectionState != ConnectionState.done) {
           return Scaffold(
             backgroundColor: context.palette.background,
-            appBar: AppBar(
-              title: const Text('Información del perfil'),
-              backgroundColor: AppColores.primary,
-              foregroundColor: AppColores.textWhite,
-            ),
+            appBar: appBarNeutra(context, titulo: 'Información del perfil'),
             body: const Center(child: CircularProgressIndicator()),
           );
         }
@@ -116,12 +114,11 @@ class _InformacionPerfilContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
-    final avatarRadius = screenWidth * 0.145;
-    final nameFontSize = screenWidth * 0.05;
-    final sectionFontSize = screenWidth * 0.04;
-    final horizontalPadding = screenWidth * 0.04;
+    final palette = context.palette;
+    final resp = ResponsiveHelper.getResponsiveData(context);
+    final esMovil = resp.deviceType == DeviceType.mobile;
+    final horizontal = esMovil ? resp.screenWidth * 0.05 : 32.0;
+    final avatar = esMovil ? 92.0 : 112.0;
 
     final nombre = _str(['nombre']);
     final apellido = _str(['apellido']);
@@ -133,132 +130,137 @@ class _InformacionPerfilContent extends StatelessWidget {
       apellido,
     ].where((p) => p.trim().isNotEmpty).join(' ').trim();
     final vehiculos = esConductor ? _vehiculos() : const <_Vehiculo>[];
+    final cache = (avatar * MediaQuery.devicePixelRatioOf(context)).round();
 
     return Scaffold(
-      backgroundColor: context.palette.background,
-      appBar: AppBar(
-        title: const Text('Información del perfil'),
-        backgroundColor: AppColores.primary,
-        foregroundColor: AppColores.textWhite,
-      ),
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 640),
-            child: SingleChildScrollView(
-              padding: EdgeInsets.fromLTRB(
-                horizontalPadding,
-                screenHeight * 0.024,
-                horizontalPadding,
-                screenHeight * 0.035,
-              ),
+      backgroundColor: palette.background,
+      appBar: appBarNeutra(context, titulo: 'Información del perfil'),
+      bottomNavigationBar: onEditar == null
+          ? null
+          : BarraAccionInferior(
+              texto: 'Editar datos',
+              icono: Icons.edit_rounded,
+              onPressed: () {
+                Navigator.of(context).pop();
+                onEditar!();
+              },
+            ),
+      body: ListView(
+        padding: EdgeInsets.fromLTRB(horizontal, 8, horizontal, 28),
+        children: [
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 600),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Center(
-                    child: CircleAvatar(
-                      radius: avatarRadius,
-                      backgroundColor: AppColores.primary.withValues(
-                        alpha: 0.18,
-                      ),
-                      backgroundImage: fotoUrl.isNotEmpty
-                          ? CachedNetworkImageProvider(fotoUrl)
-                          : null,
-                      child: fotoUrl.isEmpty
-                          ? Icon(
-                              Icons.person,
-                              size: avatarRadius,
-                              color: AppColores.primaryDark,
-                            )
-                          : null,
-                    ),
-                  ),
-                  SizedBox(height: screenHeight * 0.015),
-                  Center(
-                    child: Text(
-                      nombreCompleto.isEmpty ? 'Usuario' : nombreCompleto,
-                      style: TextStyle(
-                        fontSize: nameFontSize,
-                        fontWeight: FontWeight.w800,
-                        color: context.palette.textPrimary,
+                    child: ClipOval(
+                      child: SizedBox.square(
+                        dimension: avatar,
+                        child: fotoUrl.isNotEmpty
+                            ? CachedNetworkImage(
+                                imageUrl: fotoUrl,
+                                fit: BoxFit.cover,
+                                memCacheWidth: cache,
+                                fadeInDuration: const Duration(
+                                  milliseconds: 150,
+                                ),
+                                errorWidget: (_, _, _) => _sinFoto(palette),
+                              )
+                            : _sinFoto(palette),
                       ),
                     ),
                   ),
-                  SizedBox(height: screenHeight * 0.03),
-                  _InfoTile(
-                    icon: Icons.badge_rounded,
-                    label: 'Nombre',
-                    value: nombre.isEmpty ? '—' : nombre,
+                  const SizedBox(height: 12),
+                  Text(
+                    nombreCompleto.isEmpty ? 'Usuario' : nombreCompleto,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 21,
+                      fontWeight: FontWeight.w800,
+                      color: palette.textPrimary,
+                    ),
                   ),
-                  _InfoTile(
-                    icon: Icons.person_outline_rounded,
-                    label: 'Apellido',
-                    value: apellido.isEmpty ? '—' : apellido,
+                  const SizedBox(height: 4),
+                  Text(
+                    esConductor ? 'Conductor' : 'Pasajero',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w600,
+                      color: palette.textSecondary,
+                    ),
                   ),
-                  _InfoTile(
-                    icon: Icons.email_outlined,
-                    label: 'Correo',
-                    value: correo,
+                  const SizedBox(height: 24),
+                  SeccionAgrupada(
+                    titulo: 'Datos personales',
+                    children: [
+                      FilaDato(
+                        icono: Icons.person_outline_rounded,
+                        etiqueta: 'Nombre',
+                        valor: nombre.isEmpty ? '—' : nombre,
+                      ),
+                      FilaDato(
+                        icono: Icons.badge_outlined,
+                        etiqueta: 'Apellido',
+                        valor: apellido.isEmpty ? '—' : apellido,
+                      ),
+                    ],
                   ),
-                  _InfoTile(
-                    icon: Icons.phone_outlined,
-                    label: 'Teléfono',
-                    value: telefono,
+                  const SizedBox(height: 18),
+                  SeccionAgrupada(
+                    titulo: 'Contacto',
+                    children: [
+                      FilaDato(
+                        icono: Icons.phone_iphone_rounded,
+                        etiqueta: 'Celular',
+                        valor: telefono,
+                      ),
+                      FilaDato(
+                        icono: Icons.alternate_email_rounded,
+                        etiqueta: 'Correo',
+                        valor: correo,
+                      ),
+                    ],
                   ),
                   if (esConductor) ...[
-                    SizedBox(height: screenHeight * 0.02),
-                    Text(
-                      'Vehículos',
-                      style: TextStyle(
-                        fontSize: sectionFontSize,
-                        fontWeight: FontWeight.w800,
-                        color: context.palette.textPrimary,
+                    const SizedBox(height: 18),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 6, bottom: 8),
+                      child: Text(
+                        'VEHÍCULOS',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.8,
+                          color: palette.textSecondary,
+                        ),
                       ),
                     ),
-                    SizedBox(height: screenHeight * 0.012),
                     ...vehiculos.map((v) => _VehiculoCard(vehiculo: v)),
                     if (vehiculos.isEmpty)
-                      Text(
-                        'Sin vehículos registrados.',
-                        style: TextStyle(color: context.palette.textSecondary),
-                      ),
-                  ],
-                  if (onEditar != null) ...[
-                    SizedBox(height: screenHeight * 0.03),
-                    SizedBox(
-                      width: double.infinity,
-                      height: screenHeight * 0.065,
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                          onEditar!();
-                        },
-                        icon: const Icon(Icons.edit_rounded, size: 20),
-                        label: Text(
-                          'Editar datos',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: sectionFontSize,
-                          ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColores.primary,
-                          foregroundColor: AppColores.textWhite,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
+                      Padding(
+                        padding: const EdgeInsets.only(left: 6),
+                        child: Text(
+                          'Sin vehículos registrados.',
+                          style: TextStyle(color: palette.textSecondary),
                         ),
                       ),
-                    ),
                   ],
                 ],
               ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
+
+  Widget _sinFoto(AppPalette palette) => ColoredBox(
+    color: palette.grey200,
+    child: Icon(Icons.person_rounded, size: 46, color: palette.textSecondary),
+  );
 }
 
 class _Vehiculo {
@@ -283,67 +285,6 @@ class _Vehiculo {
       : Icons.directions_car_filled_rounded;
 }
 
-class _InfoTile extends StatelessWidget {
-  const _InfoTile({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
-  final IconData icon;
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      decoration: BoxDecoration(
-        color: context.palette.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: context.palette.borderSubtle),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: AppColores.primary.withValues(alpha: 0.14),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, size: 20, color: AppColores.primary),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
-                    color: context.palette.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: context.palette.textPrimary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _VehiculoCard extends StatelessWidget {
   const _VehiculoCard({required this.vehiculo});
   final _Vehiculo vehiculo;
@@ -354,19 +295,20 @@ class _VehiculoCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: context.palette.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: context.palette.borderSubtle),
       ),
       clipBehavior: Clip.hardEdge,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          SizedBox(
-            height: 150,
+          AspectRatio(
+            aspectRatio: 16 / 9,
             child: vehiculo.foto.isNotEmpty
                 ? CachedNetworkImage(
                     imageUrl: vehiculo.foto,
                     fit: BoxFit.cover,
+                    memCacheWidth: 900,
                     fadeInDuration: const Duration(milliseconds: 150),
                     placeholder: (_, _) => Container(
                       color: context.palette.grey200,
@@ -402,10 +344,10 @@ class _VehiculoCard extends StatelessWidget {
                   ),
           ),
           Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(14),
             child: Row(
               children: [
-                Icon(vehiculo.icon, color: AppColores.primaryDark, size: 22),
+                Icon(vehiculo.icon, color: acentoMarca(context), size: 22),
                 const SizedBox(width: 10),
                 Text(
                   vehiculo.tipoLabel,

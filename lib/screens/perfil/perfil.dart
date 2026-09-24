@@ -5,7 +5,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
-import 'dart:math' as math;
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/helpers/responsive_helper.dart';
@@ -20,6 +19,7 @@ import 'package:taxi_app/screens/usuario_conductor/presentacion/view/cambiar_veh
 import 'package:taxi_app/screens/perfil/informacion_perfil_view.dart';
 import 'package:taxi_app/screens/perfil/editar_perfil.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
+import 'package:taxi_app/widgets/ajustes_ui.dart';
 
 class PaginaPerfilUsuario extends StatefulWidget {
   final String tipoUsuario; // 'cliente' o 'conductor'
@@ -34,9 +34,6 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
   bool _guardando = false;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final UserDataService _userDataService = UserDataService();
-
-  bool _isUploading = false;
-  double _uploadProgress = 0.0;
 
   Map<String, dynamic>? userData;
   File? _cachedImageFile;
@@ -344,443 +341,190 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
     );
   }
 
-  Widget _buildSerConductorCard() {
+  bool get _esConductor =>
+      widget.tipoUsuario == 'conductor' ||
+      (userData?['rol'] ?? '').toString().toLowerCase() == 'conductor';
+
+  void _abrirInformacionPerfil() {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => InformacionPerfilView(
+          uid: uid,
+          esConductor: _esConductor,
+          onEditar: _mostrarDialogoEditar,
+        ),
+      ),
+    );
+  }
+
+  void _abrirConfiguracion() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const ConfiguracionAplicacionView()),
+    );
+  }
+
+  Future<void> _abrirCambiarVehiculo() async {
+    final cambiado = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => const CambiarVehiculoView()),
+    );
+    if (cambiado == true) await _cargarDatos();
+  }
+
+  void _abrirMembresia() {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return;
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => MembresiaDetalleView(uid: uid)));
+  }
+
+  void _serConductor() {
     // Si ya tiene datos de conductor guardados (placa + foto vehículo), solo
     // cambia de vista a InicioConductor sin volver a registrar.
-    final placa = (userData?['placa'] ?? '').toString().trim();
-    final fotoVeh = (userData?['fotoVehiculo'] ?? '').toString().trim();
-    final yaRegistrado = placa.isNotEmpty && fotoVeh.isNotEmpty;
-
-    return Card(
-      margin: EdgeInsets.symmetric(vertical: ResponsiveHelper.hp(context, 0.8)),
-      child: ListTile(
-        leading: Icon(Icons.local_taxi, color: AppColores.primary),
-        title: Text(
-          yaRegistrado ? 'Modo conductor' : 'Ser conductor',
-          style: const TextStyle(fontWeight: FontWeight.w600),
+    if (_yaRegistradoComoConductor) {
+      // Cambiar rol a conductor (Firestore + caché) para que al reiniciar la
+      // app abra como conductor.
+      _cambiarRol(
+        rol: 'conductor',
+        escribir: _userDataService.cambiarRolAConductor,
+        destino: () => const InicioConductor(),
+      );
+    } else {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => const CompletarRegistroConductorView(),
         ),
-        subtitle: Text(
-          yaRegistrado
-              ? 'Entra como conductor'
-              : 'Completa tu registro y empieza a recibir viajes',
-        ),
-        trailing: const Icon(Icons.chevron_right),
-        contentPadding: EdgeInsets.symmetric(
-          horizontal: ResponsiveHelper.wp(context, 4),
-          vertical: ResponsiveHelper.hp(context, 0.5),
-        ),
-        onTap: () {
-          if (yaRegistrado) {
-            // Cambiar rol a conductor (Firestore + caché) para que al
-            // reiniciar la app abra como conductor.
-            _cambiarRol(
-              rol: 'conductor',
-              escribir: _userDataService.cambiarRolAConductor,
-              destino: () => const InicioConductor(),
-            );
-          } else {
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => const CompletarRegistroConductorView(),
-              ),
-            );
-          }
-        },
-      ),
-    );
-  }
-
-  Widget _buildVolverClienteCard() {
-    return Card(
-      margin: EdgeInsets.symmetric(vertical: ResponsiveHelper.hp(context, 0.8)),
-      child: ListTile(
-        leading: Icon(Icons.person_outline, color: AppColores.primary),
-        title: const Text(
-          'Volver a ser cliente',
-          style: TextStyle(fontWeight: FontWeight.w600),
-        ),
-        subtitle: const Text('Usa la app como cliente'),
-        trailing: const Icon(Icons.chevron_right),
-        contentPadding: EdgeInsets.symmetric(
-          horizontal: ResponsiveHelper.wp(context, 4),
-          vertical: ResponsiveHelper.hp(context, 0.5),
-        ),
-        onTap: () {
-          // rol cliente + quitar solicitud → retira notif del admin.
-          _cambiarRol(
-            rol: 'cliente',
-            escribir: _userDataService.volverACliente,
-            destino: () => const HomeClienteView(),
-            rootNavigator: true,
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildInfoPerfilCard() {
-    final esConductor =
-        widget.tipoUsuario == 'conductor' ||
-        (userData?['rol'] ?? '').toString().toLowerCase() == 'conductor';
-    return Card(
-      margin: EdgeInsets.symmetric(vertical: ResponsiveHelper.hp(context, 0.8)),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () {
-          final uid = _auth.currentUser?.uid;
-          if (uid == null) return;
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => InformacionPerfilView(
-                uid: uid,
-                esConductor: esConductor,
-                onEditar: _mostrarDialogoEditar,
-              ),
-            ),
-          );
-        },
-        child: Padding(
-          padding: EdgeInsets.symmetric(
-            horizontal: ResponsiveHelper.wp(context, 4),
-            vertical: ResponsiveHelper.hp(context, 1.5),
-          ),
-          child: Row(
-            children: [
-              const Icon(
-                Icons.account_circle_outlined,
-                color: AppColores.primary,
-                size: 28,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Información del perfil',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 16,
-                        color: context.palette.textPrimary,
-                      ),
-                    ),
-                    SizedBox(height: 4),
-                    Text(
-                      'Datos personales y vehículos',
-                      style: TextStyle(
-                        color: context.palette.textSecondary,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(Icons.chevron_right, color: context.palette.textSecondary),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCambiarVehiculoCard() {
-    final tipo = (userData?['tipoVehiculo'] ?? '').toString().toLowerCase();
-    final tipoLabel = tipo == 'moto'
-        ? 'Moto'
-        : tipo == 'carro'
-        ? 'Carro'
-        : '—';
-    return Card(
-      margin: EdgeInsets.symmetric(vertical: ResponsiveHelper.hp(context, 0.8)),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () async {
-          final cambiado = await Navigator.of(context).push<bool>(
-            MaterialPageRoute(builder: (_) => const CambiarVehiculoView()),
-          );
-          if (cambiado == true) await _cargarDatos();
-        },
-        child: Padding(
-          padding: EdgeInsets.symmetric(
-            horizontal: ResponsiveHelper.wp(context, 4),
-            vertical: ResponsiveHelper.hp(context, 1.5),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                tipo == 'moto'
-                    ? Icons.two_wheeler_rounded
-                    : Icons.directions_car_filled_rounded,
-                color: AppColores.primary,
-                size: 28,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Cambiar de vehículo',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 16,
-                        color: context.palette.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Actual: $tipoLabel · Cambia tipo, foto y placa',
-                      style: TextStyle(
-                        color: context.palette.textSecondary,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(Icons.chevron_right, color: context.palette.textSecondary),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMembresiaConductorCard() {
-    final activa =
-        (userData?['membresia'] ?? '').toString().toLowerCase() == 'activa';
-    final dias = userData?['membresiaDias'];
-    final venceTs = userData?['membresiaVence'];
-    String? venceStr;
-    int? diasRestantes;
-    if (venceTs is Timestamp) {
-      final d = venceTs.toDate();
-      venceStr =
-          '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
-      diasRestantes = d.difference(DateTime.now()).inDays;
-      if (diasRestantes < 0) diasRestantes = 0;
+      );
     }
-    final color = activa ? AppColores.success : AppColores.error;
+  }
 
-    return Card(
-      margin: EdgeInsets.symmetric(vertical: ResponsiveHelper.hp(context, 0.8)),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () {
-          final uid = _auth.currentUser?.uid;
-          if (uid == null) return;
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => MembresiaDetalleView(uid: uid)),
-          );
-        },
-        child: Padding(
-          padding: EdgeInsets.symmetric(
-            horizontal: ResponsiveHelper.wp(context, 4),
-            vertical: ResponsiveHelper.hp(context, 1.5),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                activa ? Icons.verified : Icons.cancel,
-                color: color,
-                size: 28,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      activa ? 'Estás activo' : 'No estás activo',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: color,
-                        fontSize: 16,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      activa
-                          ? (dias != null
-                                ? 'Membresía activa · $dias días'
-                                      '${diasRestantes != null ? ' · faltan $diasRestantes días' : ''}'
-                                      '${venceStr != null ? ' · vence $venceStr' : ''}'
-                                : 'Membresía activa')
-                          : 'Activa tu membresía para recibir viajes',
-                      style: TextStyle(
-                        color: context.palette.textSecondary,
-                        fontSize: 13,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Toca para más detalles',
-                      style: TextStyle(
-                        color: context.palette.textSecondary,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(Icons.chevron_right, color: context.palette.textSecondary),
-            ],
-          ),
-        ),
-      ),
+  void _volverACliente() {
+    // rol cliente + quitar solicitud → retira notif del admin.
+    _cambiarRol(
+      rol: 'cliente',
+      escribir: _userDataService.volverACliente,
+      destino: () => const HomeClienteView(),
+      rootNavigator: true,
     );
   }
+
+  bool get _yaRegistradoComoConductor =>
+      (userData?['placa'] ?? '').toString().trim().isNotEmpty &&
+      (userData?['fotoVehiculo'] ?? '').toString().trim().isNotEmpty;
 
   @override
   Widget build(BuildContext context) {
-    final nombreCompleto = [
-      (userData?['nombre'] ?? '').toString().trim(),
-      (userData?['apellido'] ?? '').toString().trim(),
-    ].where((p) => p.isNotEmpty).join(' ').trim();
-    final nombre = nombreCompleto.isEmpty ? 'Usuario' : nombreCompleto;
-    final fotoUrl = (userData?['foto'] ?? userData?['fotoUrl'] ?? '')
-        .toString();
-
-    // Responsive sizes based on screen dimensions and safe clamps
-    final screenWidth = MediaQuery.of(context).size.width;
-
-    final double appBarFontSize = (screenWidth * 0.05).clamp(18.0, 22.0);
-    double computedNameFontSize = (screenWidth * 0.06).clamp(18.0, 26.0);
-    double avatarRadius = (screenWidth * 0.14).clamp(36.0, 70.0);
-    final double avatarIconSize = (avatarRadius * 0.9).clamp(28.0, 56.0);
-
-    // Adjust name font size for very long names
-    if (nombre.length > 18 && nombre.length <= 26) {
-      computedNameFontSize = math.max(18.0, computedNameFontSize * 0.9);
-    } else if (nombre.length > 26) {
-      computedNameFontSize = math.max(16.0, computedNameFontSize * 0.8);
-    }
+    final palette = context.palette;
+    final resp = ResponsiveHelper.getResponsiveData(context);
+    final esMovil = resp.deviceType == DeviceType.mobile;
+    final horizontal = esMovil ? resp.screenWidth * 0.05 : 32.0;
+    final esVistaConductor = widget.tipoUsuario == 'conductor';
 
     return Scaffold(
-      appBar: AppBar(
-        automaticallyImplyLeading: widget.tipoUsuario == 'cliente'
-            ? false
-            : true,
-        title: Text('Perfil', style: TextStyle(fontSize: appBarFontSize)),
-        actions: [
-          IconButton(
-            tooltip: 'Configuración',
-            icon: const Icon(Icons.settings),
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => const ConfiguracionAplicacionView(),
-                ),
-              );
-            },
-          ),
-        ],
+      backgroundColor: palette.background,
+      appBar: appBarNeutra(
+        context,
+        titulo: 'Mi perfil',
+        automaticallyImplyLeading: widget.tipoUsuario != 'cliente',
       ),
       body: userData == null
           ? const Center(child: CircularProgressIndicator())
           : SafeArea(
-              child: Column(
+              top: false,
+              child: ListView(
+                padding: EdgeInsets.fromLTRB(horizontal, 4, horizontal, 28),
                 children: [
-                  Expanded(
-                    child: SingleChildScrollView(
-                      padding: EdgeInsets.only(
-                        left: ResponsiveHelper.wp(context, 4),
-                        right: ResponsiveHelper.wp(context, 4),
-                        top: ResponsiveHelper.hp(context, 0.5),
-                        bottom: ResponsiveHelper.hp(context, 2),
+                  Center(
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: esMovil ? 560 : 600,
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          SizedBox(height: ResponsiveHelper.hp(context, 0.5)),
-                          Center(
-                            child: Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                CircleAvatar(
-                                  radius: avatarRadius,
-                                  backgroundColor: Colors.grey.shade200,
-                                  backgroundImage:
-                                      _cachedImageFile != null &&
-                                          _cachedImageFile!.existsSync()
-                                      ? FileImage(_cachedImageFile!)
-                                            as ImageProvider
-                                      : (fotoUrl.isNotEmpty
-                                            ? NetworkImage(fotoUrl)
-                                            : null),
-                                  child:
-                                      (_cachedImageFile == null ||
-                                              !(_cachedImageFile
-                                                      ?.existsSync() ??
-                                                  false)) &&
-                                          fotoUrl.isEmpty
-                                      ? Icon(
-                                          Icons.person,
-                                          size: avatarIconSize,
-                                          color: Colors.white,
-                                        )
-                                      : null,
-                                ),
-                                if (_isUploading)
-                                  Positioned(
-                                    bottom: -6,
-                                    child: SizedBox(
-                                      width: avatarRadius * 1.8,
-                                      child: LinearProgressIndicator(
-                                        value: _uploadProgress,
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
+                          _EncabezadoPerfil(
+                            nombre: _nombreVisible,
+                            esConductor: esVistaConductor,
+                            placa: (userData?['placa'] ?? '').toString(),
+                            imagenLocal: _cachedImageFile,
+                            fotoUrl:
+                                (userData?['foto'] ??
+                                        userData?['fotoUrl'] ??
+                                        '')
+                                    .toString(),
+                            avatarSize: esMovil ? 96 : 116,
                           ),
-                          SizedBox(height: ResponsiveHelper.hp(context, 2)),
-                          Center(
-                            child: ConstrainedBox(
-                              constraints: BoxConstraints(
-                                maxWidth: ResponsiveHelper.wp(context, 80),
-                              ),
-                              child: Text(
-                                nombre.toUpperCase(),
-                                textAlign: TextAlign.center,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: computedNameFontSize,
-                                  fontWeight: FontWeight.bold,
-                                  color: context.palette.textPrimary,
-                                ),
-                              ),
+                          const SizedBox(height: 22),
+                          if (esVistaConductor) ...[
+                            _TarjetaMembresia(
+                              data: userData!,
+                              onTap: _abrirMembresia,
                             ),
-                          ),
-                          SizedBox(height: ResponsiveHelper.hp(context, 1.2)),
-                          if (widget.tipoUsuario == 'conductor') ...[
-                            // Conductor: membresía (estás activo / vence / toca
-                            // para más detalles) primero → información del perfil
-                            // → cambiar vehículo → volver a ser cliente.
-                            _buildMembresiaConductorCard(),
-                            SizedBox(height: ResponsiveHelper.hp(context, 0.4)),
-                            _buildInfoPerfilCard(),
-                            SizedBox(height: ResponsiveHelper.hp(context, 0.4)),
-                            _buildCambiarVehiculoCard(),
-                            SizedBox(height: ResponsiveHelper.hp(context, 0.4)),
-                            _buildVolverClienteCard(),
-                          ] else ...[
-                            // Cliente: información del perfil + opción de
-                            // convertirse en conductor.
-                            _buildInfoPerfilCard(),
-                            if (widget.tipoUsuario == 'cliente' ||
-                                (userData?['rol'] ?? '')
-                                        .toString()
-                                        .toLowerCase() ==
-                                    'cliente') ...[
-                              SizedBox(
-                                height: ResponsiveHelper.hp(context, 0.4),
-                              ),
-                              _buildSerConductorCard(),
-                            ],
+                            const SizedBox(height: 22),
                           ],
-                          SizedBox(height: ResponsiveHelper.hp(context, 1.4)),
+                          SeccionAgrupada(
+                            titulo: 'Cuenta',
+                            children: [
+                              FilaOpcion(
+                                titulo: 'Información del perfil',
+                                subtitulo: esVistaConductor
+                                    ? 'Datos personales y de tu vehículo'
+                                    : 'Nombre, teléfono y foto',
+                                onTap: _abrirInformacionPerfil,
+                              ),
+                            ],
+                          ),
+                          if (esVistaConductor) ...[
+                            const SizedBox(height: 18),
+                            SeccionAgrupada(
+                              titulo: 'Vehículo',
+                              children: [_opcionVehiculo()],
+                            ),
+                          ],
+                          const SizedBox(height: 18),
+                          SeccionAgrupada(
+                            titulo: 'Modo de uso',
+                            children: [
+                              if (esVistaConductor)
+                                FilaOpcion(
+                                  icono: Icons.person_outline_rounded,
+                                  titulo: 'Volver a ser cliente',
+                                  subtitulo: 'Pide viajes como pasajero',
+                                  onTap: _guardando ? null : _volverACliente,
+                                )
+                              else if (widget.tipoUsuario == 'cliente' ||
+                                  (userData?['rol'] ?? '')
+                                          .toString()
+                                          .toLowerCase() ==
+                                      'cliente')
+                                FilaOpcion(
+                                  icono: Icons.local_taxi_outlined,
+                                  titulo: _yaRegistradoComoConductor
+                                      ? 'Modo conductor'
+                                      : 'Ser conductor',
+                                  subtitulo: _yaRegistradoComoConductor
+                                      ? 'Entra como conductor'
+                                      : 'Regístrate y empieza a recibir viajes',
+                                  destacado: !_yaRegistradoComoConductor,
+                                  onTap: _guardando ? null : _serConductor,
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 18),
+                          SeccionAgrupada(
+                            titulo: 'Ajustes',
+                            children: [
+                              FilaOpcion(
+                                icono: Icons.tune_rounded,
+                                titulo: 'Configuración',
+                                subtitulo:
+                                    'Tema, notificaciones, legal y cuenta',
+                                onTap: _abrirConfiguracion,
+                              ),
+                            ],
+                          ),
                         ],
                       ),
                     ),
@@ -790,4 +534,317 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
             ),
     );
   }
+
+  String get _nombreVisible {
+    final completo = [
+      (userData?['nombre'] ?? '').toString().trim(),
+      (userData?['apellido'] ?? '').toString().trim(),
+    ].where((p) => p.isNotEmpty).join(' ');
+    return completo.isEmpty ? 'Usuario' : completo;
+  }
+
+  Widget _opcionVehiculo() {
+    final tipo = (userData?['tipoVehiculo'] ?? '').toString().toLowerCase();
+    final tipoLabel = switch (tipo) {
+      'moto' => 'Moto',
+      'carro' => 'Carro',
+      _ => 'Sin definir',
+    };
+    final placa = (userData?['placa'] ?? '').toString().trim().toUpperCase();
+    return FilaOpcion(
+      icono: tipo == 'moto'
+          ? Icons.two_wheeler_rounded
+          : Icons.directions_car_outlined,
+      titulo: 'Cambiar de vehículo',
+      subtitulo: placa.isEmpty ? tipoLabel : '$tipoLabel · $placa',
+      onTap: _guardando ? null : _abrirCambiarVehiculo,
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _EncabezadoPerfil extends StatelessWidget {
+  const _EncabezadoPerfil({
+    required this.nombre,
+    required this.esConductor,
+    required this.placa,
+    required this.imagenLocal,
+    required this.fotoUrl,
+    required this.avatarSize,
+  });
+
+  final String nombre;
+  final bool esConductor;
+  final String placa;
+  final File? imagenLocal;
+  final String fotoUrl;
+  final double avatarSize;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(
+        children: [
+          _Avatar(archivo: imagenLocal, url: fotoUrl, size: avatarSize),
+          const SizedBox(height: 14),
+          Text(
+            nombre,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 21,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.2,
+              color: palette.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _Chip(
+                icono: esConductor
+                    ? Icons.local_taxi_rounded
+                    : Icons.person_rounded,
+                texto: esConductor ? 'Conductor' : 'Pasajero',
+              ),
+              if (esConductor && placa.trim().isNotEmpty)
+                _Chip(
+                  icono: Icons.pin_outlined,
+                  texto: placa.trim().toUpperCase(),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Foto de perfil decodificada al tamaño en pantalla (`cacheWidth`): una
+/// foto de cámara a resolución completa ocupa decenas de MB en memoria para
+/// pintar un círculo de ~100 px.
+class _Avatar extends StatelessWidget {
+  const _Avatar({required this.archivo, required this.url, required this.size});
+
+  final File? archivo;
+  final String url;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final cache = (size * MediaQuery.devicePixelRatioOf(context)).round();
+    Widget sinFoto() => ColoredBox(
+      color: palette.grey200,
+      child: Icon(
+        Icons.person_rounded,
+        size: size * 0.5,
+        color: palette.textSecondary,
+      ),
+    );
+
+    final Widget imagen;
+    if (archivo != null) {
+      imagen = Image.file(
+        archivo!,
+        fit: BoxFit.cover,
+        cacheWidth: cache,
+        gaplessPlayback: true,
+        errorBuilder: (_, _, _) => sinFoto(),
+      );
+    } else if (url.isNotEmpty) {
+      imagen = Image.network(
+        url,
+        fit: BoxFit.cover,
+        cacheWidth: cache,
+        gaplessPlayback: true,
+        errorBuilder: (_, _, _) => sinFoto(),
+      );
+    } else {
+      imagen = sinFoto();
+    }
+
+    return Semantics(
+      label: 'Foto de perfil',
+      child: Container(
+        padding: const EdgeInsets.all(3),
+        decoration: const BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [AppColores.brand400, AppColores.brand500],
+          ),
+        ),
+        child: Container(
+          padding: const EdgeInsets.all(3),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: palette.surface,
+          ),
+          child: ClipOval(
+            child: SizedBox.square(dimension: size, child: imagen),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Chip extends StatelessWidget {
+  const _Chip({required this.icono, required this.texto});
+
+  final IconData icono;
+  final String texto;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColores.primary.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icono, size: 15, color: acentoMarca(context)),
+          const SizedBox(width: 6),
+          Text(
+            texto,
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w700,
+              color: palette.textPrimary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TarjetaMembresia extends StatelessWidget {
+  const _TarjetaMembresia({required this.data, required this.onTap});
+
+  final Map<String, dynamic> data;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final activa =
+        (data['membresia'] ?? '').toString().toLowerCase() == 'activa';
+    final dias = int.tryParse('${data['membresiaDias'] ?? ''}');
+    final venceTs = data['membresiaVence'];
+    String? venceStr;
+    int? restantes;
+    if (venceTs is Timestamp) {
+      final d = venceTs.toDate();
+      venceStr =
+          '${d.day.toString().padLeft(2, '0')}/'
+          '${d.month.toString().padLeft(2, '0')}/${d.year}';
+      restantes = d.difference(DateTime.now()).inDays.clamp(0, 9999);
+    }
+    final color = activa ? AppColores.success : AppColores.error;
+    final progreso = activa && dias != null && dias > 0 && restantes != null
+        ? (restantes / dias).clamp(0.0, 1.0)
+        : null;
+
+    return Material(
+      color: Color.alphaBlend(color.withValues(alpha: 0.10), palette.surface),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(color: color.withValues(alpha: 0.35)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.16),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Icon(
+                      activa
+                          ? Icons.workspace_premium_rounded
+                          : Icons.lock_clock_outlined,
+                      color: color,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          activa ? 'Membresía activa' : 'Membresía inactiva',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            color: palette.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          activa
+                              ? [
+                                  if (restantes != null)
+                                    'Te quedan $restantes días',
+                                  if (venceStr != null) 'vence $venceStr',
+                                ].join(' · ').ifEmpty('Puedes recibir viajes')
+                              : 'Actívala para empezar a recibir viajes',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: palette.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    color: palette.textSecondary,
+                  ),
+                ],
+              ),
+              if (progreso != null) ...[
+                const SizedBox(height: 14),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(99),
+                  child: LinearProgressIndicator(
+                    value: progreso,
+                    minHeight: 6,
+                    backgroundColor: color.withValues(alpha: 0.18),
+                    color: color,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+extension on String {
+  String ifEmpty(String otro) => isEmpty ? otro : this;
 }

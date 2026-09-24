@@ -161,19 +161,21 @@ class _InicioClienteViewState extends State<InicioClienteView>
     final brightness = Theme.of(context).brightness;
     final isDark = brightness == Brightness.dark;
     _lastOverlayBrightness = brightness;
-    // Pestañas 0 (Historial, sin uso hoy) y 2 (Perfil) tienen su propio
-    // AppBar amarillo de marca — la franja de la barra de estado debe ser
-    // igual. La pestaña 1 (Home) no tiene AppBar propio, así que sigue el
-    // fondo adaptativo del tema.
+    // La pestaña 0 (Historial, sin uso hoy) tiene AppBar amarillo de marca
+    // — la franja de la barra de estado debe ser igual. Home (1) y Perfil
+    // (2) siguen el fondo adaptativo del tema (Perfil ya no usa AppBar de
+    // color).
     SystemChrome.setSystemUIOverlayStyle(
-      _selectedIndex == 0 || _selectedIndex == 2
+      _selectedIndex == 0
           ? const SystemUiOverlayStyle(
               statusBarColor: AppColores.primary,
               statusBarIconBrightness: Brightness.dark,
               statusBarBrightness: Brightness.light,
             )
           : SystemUiOverlayStyle(
-              statusBarColor: context.palette.surface,
+              statusBarColor: _selectedIndex == 2
+                  ? context.palette.background
+                  : context.palette.surface,
               statusBarIconBrightness: isDark
                   ? Brightness.light
                   : Brightness.dark,
@@ -672,9 +674,13 @@ class _InicioClienteViewState extends State<InicioClienteView>
           children: [
             Container(
               height: MediaQuery.of(context).padding.top,
-              color: _selectedIndex == 0 || _selectedIndex == 2
-                  ? AppColores.primary
-                  : context.palette.surface,
+              // La barra de estado es transparente (main.dart): este es el
+              // color que se ve detrás. Perfil (2) usa el fondo del tema.
+              color: switch (_selectedIndex) {
+                0 => AppColores.primary,
+                2 => context.palette.background,
+                _ => context.palette.surface,
+              },
             ),
             SafeArea(
               child: Stack(
