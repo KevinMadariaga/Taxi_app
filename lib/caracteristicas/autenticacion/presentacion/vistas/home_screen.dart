@@ -261,7 +261,7 @@ class _HomeViewState extends State<HomeView> {
                             ),
                           ],
 
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 18),
                           Text(
                             'Al continuar aceptas nuestros Términos y la\n'
                             'Política de privacidad.',

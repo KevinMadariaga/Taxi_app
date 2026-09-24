@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
@@ -402,18 +403,25 @@ class _DocumentosLegalesView extends StatelessWidget {
       ),
       backgroundColor: context.palette.background,
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.fromLTRB(
+          16,
+          16,
+          16,
+          16 + MediaQuery.viewPaddingOf(context).bottom,
+        ),
         children: const [
           _LegalCard(
             title: 'Términos y condiciones',
             content:
-                'Al usar la aplicación aceptas los términos del servicio, las políticas de uso y las condiciones de la plataforma de transporte.',
+                'Condiciones de uso de Ride para pasajeros y conductores: viajes, pagos, cancelaciones y responsabilidades.',
+            asset: 'assets/legal/terminos_condiciones.txt',
           ),
           SizedBox(height: 12),
           _LegalCard(
             title: 'Política de privacidad',
             content:
-                'La aplicación utiliza datos de ubicación y contacto para operar el servicio de viajes, mejorar la seguridad y brindar soporte al usuario.',
+                'Cómo recopilamos, usamos, compartimos y protegemos tu información personal.',
+            asset: 'assets/legal/politica_privacidad.txt',
           ),
         ],
       ),
@@ -421,42 +429,138 @@ class _DocumentosLegalesView extends StatelessWidget {
   }
 }
 
-class _LegalCard extends StatelessWidget {
-  const _LegalCard({required this.title, required this.content});
+class _DocumentoLegalView extends StatelessWidget {
+  const _DocumentoLegalView({required this.title, required this.asset});
 
   final String title;
-  final String content;
+  final String asset;
+
+  static final _encabezado = RegExp(r'^(\d+(\.\d+)*\.?\s|[A-ZÁÉÍÓÚÑ ]{8,}$)');
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: context.palette.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: context.palette.borderSubtle),
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(title),
+        backgroundColor: AppColores.primary,
+        foregroundColor: AppColores.textWhite,
+        elevation: 0,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: context.palette.textPrimary,
+      backgroundColor: context.palette.background,
+      body: FutureBuilder<String>(
+        future: rootBundle.loadString(asset),
+        builder: (context, snap) {
+          if (snap.hasError) {
+            return const Center(child: Text('No se pudo cargar el documento.'));
+          }
+          if (!snap.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final lineas = snap.data!
+              .split('\n')
+              .map((l) => l.trim())
+              .where((l) => l.isNotEmpty)
+              .toList();
+          return SelectionArea(
+            child: ListView.builder(
+              padding: EdgeInsets.fromLTRB(
+                16,
+                16,
+                16,
+                32 + MediaQuery.viewPaddingOf(context).bottom,
+              ),
+              itemCount: lineas.length,
+              itemBuilder: (context, i) {
+                final linea = lineas[i];
+                final esEncabezado =
+                    linea.length < 60 && _encabezado.hasMatch(linea);
+                return Padding(
+                  padding: EdgeInsets.only(
+                    top: esEncabezado && i > 0 ? 14 : 0,
+                    bottom: 6,
+                    left: linea.startsWith('•') ? 8 : 0,
+                  ),
+                  child: Text(
+                    linea,
+                    style: TextStyle(
+                      fontSize: esEncabezado ? 16 : 14,
+                      fontWeight: esEncabezado
+                          ? FontWeight.w700
+                          : FontWeight.normal,
+                      color: esEncabezado
+                          ? context.palette.textPrimary
+                          : context.palette.textSecondary,
+                      height: 1.4,
+                    ),
+                  ),
+                );
+              },
             ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _LegalCard extends StatelessWidget {
+  const _LegalCard({
+    required this.title,
+    required this.content,
+    required this.asset,
+  });
+
+  final String title;
+  final String content;
+  final String asset;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: context.palette.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: context.palette.borderSubtle),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => _DocumentoLegalView(title: title, asset: asset),
           ),
-          const SizedBox(height: 8),
-          Text(
-            content,
-            style: TextStyle(
-              fontSize: 14,
-              color: context.palette.textSecondary,
-              height: 1.35,
-            ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: context.palette.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      content,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: context.palette.textSecondary,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right, color: context.palette.textSecondary),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

@@ -1,0 +1,207 @@
+POLÍTICA DE PRIVACIDAD
+Última actualización: 21 de septiembre 2026
+1. Introducción
+Ride respeta la privacidad de sus usuarios y se compromete a proteger su información personal.
+Esta Política de Privacidad describe cómo recopilamos, utilizamos, almacenamos y protegemos la información personal cuando utilizas nuestra aplicación móvil Ride y los servicios relacionados con ella.
+Al utilizar la Aplicación, el usuario reconoce haber sido informado sobre las prácticas de tratamiento de datos personales descritas en esta Política de Privacidad. Cuando la normativa aplicable requiera autorización para un determinado tratamiento, dicha autorización será solicitada mediante los mecanismos correspondientes.
+La presente Política de Privacidad se aplica a los usuarios que utilizan Ride como pasajeros, conductores u otros usuarios autorizados de la Aplicación.
+
+2. Información que recopilamos
+2.1 Información de ubicación
+La aplicación puede recopilar información de ubicación del dispositivo para permitir el funcionamiento de las funciones relacionadas con el servicio de transporte.
+La información de ubicación puede utilizarse para:
+• Mostrar la posición del usuario en el mapa.
+• Encontrar conductores disponibles cercanos.
+• Permitir al conductor conocer la ubicación de recogida del pasajero.
+• Permitir al pasajero conocer la ubicación del conductor durante un servicio.
+• Calcular rutas, distancias y tiempos estimados.
+• Facilitar la navegación durante el servicio.
+• Actualizar el estado y progreso del viaje.
+• Mejorar la coordinación y seguridad durante la prestación del servicio.
+2.2 Ubicación en segundo plano para conductores
+Cuando un conductor tenga un servicio activo, la Aplicación podrá recopilar su ubicación en tiempo real, incluso cuando la Aplicación se encuentre en segundo plano, con el objetivo de mantener informado al pasajero sobre la ubicación y avance del conductor hacia el punto de recogida o durante el recorrido.
+La recopilación de ubicación en segundo plano estará asociada a las situaciones necesarias para la prestación del servicio y podrá finalizar cuando el servicio haya terminado, haya sido cancelado o deje de ser necesaria para su funcionamiento.
+La ubicación del conductor podrá ser mostrada al pasajero durante el servicio para facilitar su seguimiento y coordinación.
+La disponibilidad y precisión de la ubicación pueden depender del dispositivo utilizado, los permisos otorgados por el usuario, la señal GPS, la conexión a Internet y otros factores externos.
+El usuario deberá otorgar los permisos de ubicación necesarios para utilizar las funciones que requieran información de ubicación.
+
+2.3 Información personal
+Podemos recopilar información personal proporcionada por el usuario o generada como consecuencia del uso de la Aplicación, incluyendo, según corresponda:
+• Nombre.
+• Número de teléfono.
+• Correo electrónico.
+• Información del perfil.
+• Información relacionada con los servicios solicitados o prestados.
+• Historial de viajes.
+La información recopilada dependerá de las funciones que el usuario utilice dentro de la Aplicación.
+
+2.4 Fotografías de perfil y galería
+La Aplicación puede permitir al usuario cargar una fotografía de perfil o seleccionar fotografías desde la galería de su dispositivo.
+Estas fotografías podrán utilizarse para:
+• Facilitar la identificación del usuario dentro de la Aplicación.
+• Permitir que pasajeros y conductores puedan identificarse durante la prestación del servicio.
+• Mostrar información asociada al perfil del usuario.
+• Contribuir a la seguridad y confianza durante la prestación del servicio.
+El usuario es responsable de asegurarse de que las fotografías que cargue sean propias o que cuenta con las autorizaciones necesarias para utilizarlas.
+No está permitido cargar fotografías falsas, engañosas, ofensivas, ilegales o que correspondan a otra persona con la intención de hacerse pasar por ella.
+La Aplicación podrá retirar o restringir fotografías que incumplan estas condiciones o que puedan afectar la seguridad de los usuarios o el funcionamiento de la plataforma.
+Las fotografías podrán permanecer asociadas al perfil del usuario mientras sean necesarias para el funcionamiento de la cuenta o hasta que el usuario las actualice o elimine, de acuerdo con las funcionalidades disponibles en la Aplicación y las obligaciones legales aplicables.
+
+2.5 Información de vehículos
+Cuando el usuario utilice la Aplicación como conductor, podremos recopilar y almacenar información relacionada con el vehículo registrado para prestar el servicio, de acuerdo con la información solicitada por la Aplicación.
+Esta información puede incluir, entre otros datos:
+• Tipo de vehículo.
+• Marca y modelo.
+• Placa.
+• Características necesarias para identificar el vehículo.
+• Fotografías del vehículo, cuando sean solicitadas.
+La información del vehículo podrá mostrarse al pasajero cuando sea necesaria para identificar el vehículo y facilitar la prestación del servicio.
+Los conductores son responsables de proporcionar información verdadera, actualizada y correspondiente al vehículo que utilizan para prestar el servicio.
+El conductor deberá mantener actualizada la información del vehículo cuando esta cambie.
+
+2.6 Información del dispositivo
+Podemos recopilar determinada información técnica relacionada con el dispositivo utilizado para acceder a la Aplicación, incluyendo, según corresponda:
+• Tipo de dispositivo.
+• Sistema operativo.
+• Versión de la Aplicación.
+• Identificadores técnicos o de dispositivo, cuando sean necesarios para el funcionamiento de los servicios.
+• Datos relacionados con el uso de la Aplicación.
+• Información técnica relacionada con errores y rendimiento.
+Esta información puede utilizarse para mantener, mejorar, proteger y solucionar problemas relacionados con el funcionamiento de la Aplicación.
+
+3. Responsable del tratamiento
+El responsable del tratamiento de los datos personales recopilados a través de la Aplicación será:
+Aplicación: Ride
+Responsable: Kevin Danilo Madariaga Bayona
+País: Colombia
+Correo electrónico: soportedelride@gmail.com
+El usuario podrá utilizar este medio de contacto para realizar consultas, solicitudes, peticiones o reclamos relacionados con el tratamiento de sus datos personales.
+
+4. Uso de Firebase
+La Aplicación utiliza servicios tecnológicos proporcionados por Firebase, perteneciente a Google, para determinadas funciones necesarias para su funcionamiento.
+Estos servicios pueden incluir:
+• Autenticación de usuarios.
+• Base de datos en la nube.
+• Almacenamiento y gestión de información de la Aplicación.
+• Registro y análisis de errores.
+• Monitoreo del rendimiento de la Aplicación.
+Los servicios de Firebase pueden recopilar y procesar determinada información técnica de acuerdo con sus propias condiciones y políticas de privacidad.
+Puedes consultar la política de privacidad de Firebase en:
+https://firebase.google.com/support/privacy
+
+
+5. Uso de Google Maps
+La Aplicación utiliza servicios de Google Maps para proporcionar determinadas funciones relacionadas con mapas y ubicación.
+Estos servicios pueden utilizarse para:
+• Mostrar mapas interactivos.
+• Mostrar ubicaciones.
+• Calcular rutas.
+• Determinar distancias.
+• Obtener tiempos estimados de desplazamiento.
+• Facilitar la navegación durante la prestación del servicio.
+Google puede procesar determinada información de acuerdo con sus propias políticas y condiciones de privacidad.
+Puedes consultar la política de privacidad de Google en:
+https://policies.google.com/privacy
+
+6. Notificaciones
+La Aplicación puede enviar notificaciones locales o notificaciones relacionadas con el servicio para informar al usuario sobre eventos importantes relacionados con su utilización de Ride.
+Estas notificaciones pueden incluir:
+• Confirmaciones de viaje.
+• Actualizaciones del estado del servicio.
+• Información relacionada con la asignación de un conductor.
+• Información relacionada con la llegada o desplazamiento del conductor.
+• Cambios relevantes en el estado del viaje.
+• Información importante relacionada con el servicio.
+Las notificaciones descritas en esta Política de Privacidad no se utilizan con fines publicitarios.
+El usuario puede administrar los permisos de notificaciones desde la configuración de su dispositivo cuando dicha funcionalidad esté disponible.
+
+
+7. Cómo utilizamos la información
+La información recopilada podrá ser utilizada para:
+• Crear y administrar cuentas de usuario.
+• Conectar pasajeros y conductores.
+• Procesar solicitudes de transporte.
+• Facilitar la prestación de los servicios solicitados.
+• Mostrar información relacionada con el conductor y el vehículo.
+• Permitir el seguimiento de la ubicación del conductor durante un servicio activo.
+• Facilitar la navegación y cálculo de rutas.
+• Mostrar información de ubicación necesaria para coordinar el servicio.
+• Mantener y mejorar el funcionamiento de la Aplicación.
+• Detectar y prevenir usos indebidos de la plataforma.
+• Proteger la seguridad de los usuarios.
+• Resolver problemas técnicos.
+• Cumplir obligaciones legales aplicables.
+No vendemos información personal de los usuarios a terceros.
+
+8. Compartición de información
+Ride podrá compartir determinada información cuando sea necesario para proporcionar y facilitar el funcionamiento del servicio.
+8.1 Información entre pasajeros y conductores
+Durante la prestación de un servicio, determinada información podrá ser visible para el pasajero o el conductor cuando sea necesaria para facilitar la identificación, coordinación y realización del viaje.
+Esta información puede incluir, según corresponda:
+• Nombre del usuario.
+• Fotografía de perfil.
+• Información básica del vehículo.
+• Ubicación relacionada con el servicio.
+• Información necesaria para identificar el punto de recogida.
+• Información necesaria para identificar el destino.
+• Información relacionada con el estado del servicio.
+La información se mostrará únicamente en la medida necesaria para permitir el funcionamiento del servicio y la interacción entre los usuarios.
+
+8.2 Proveedores tecnológicos
+Determinados datos podrán ser tratados por proveedores tecnológicos que prestan servicios necesarios para el funcionamiento de Ride, incluyendo servicios como Firebase y Google Maps.
+Estos proveedores podrán procesar información de acuerdo con sus propias condiciones y políticas de privacidad y con las instrucciones aplicables al servicio que proporcionan.
+8.3 Requerimientos legales
+La información podrá ser comunicada cuando exista una obligación legal, una orden de autoridad competente o cuando sea necesario para atender un procedimiento o requerimiento conforme a la legislación aplicable.
+
+9. Seguridad
+Ride implementa medidas técnicas y organizativas razonables destinadas a proteger la información personal contra accesos no autorizados, pérdida, alteración, divulgación o uso indebido.
+El acceso a determinada información estará limitado a las funciones y servicios que requieran dicha información.
+Sin embargo, ningún sistema de almacenamiento o transmisión de información a través de Internet puede garantizar una seguridad absoluta. Por esta razón, recomendamos a los usuarios proteger sus dispositivos, mantener sus credenciales seguras y evitar compartir información de acceso a su cuenta con terceros.
+
+10. Derechos del usuario
+De acuerdo con la normativa colombiana aplicable en materia de protección de datos personales, el usuario podrá ejercer los derechos que le correspondan respecto de su información personal, incluyendo:
+• Conocer y consultar la información personal que sea objeto de tratamiento.
+• Solicitar la actualización o corrección de información inexacta, incompleta o desactualizada.
+• Solicitar información sobre el tratamiento y uso de sus datos personales.
+• Presentar consultas o reclamos relacionados con el tratamiento de sus datos personales.
+• Solicitar, cuando legalmente corresponda, la supresión de sus datos personales.
+• Solicitar, cuando legalmente corresponda, la revocatoria de la autorización para el tratamiento de sus datos personales.
+Para ejercer estos derechos, el usuario puede comunicarse a:
+Correo electrónico: soportedelride@gmail.com
+Las solicitudes serán atendidas de acuerdo con los procedimientos y plazos establecidos por la normativa colombiana aplicable.
+
+11. Eliminación de la cuenta
+El usuario podrá solicitar o realizar la eliminación de su cuenta mediante las funcionalidades disponibles dentro de la Aplicación.
+Cuando la cuenta sea eliminada, Ride procederá con la eliminación o anonimización de la información personal que corresponda, de acuerdo con las funcionalidades disponibles y la normativa aplicable.
+Determinada información podrá conservarse durante el período que resulte necesario cuando exista una obligación legal, contractual o una razón legítima que permita o exija su conservación.
+La eliminación de la cuenta podrá afectar el acceso del usuario a determinadas funcionalidades y al historial asociado a la cuenta.
+
+12. Retención de datos
+Conservamos los datos personales durante el tiempo que sean necesarios para las finalidades descritas en esta Política de Privacidad, mientras la cuenta permanezca activa y durante los períodos adicionales que puedan ser necesarios para:
+• Cumplir obligaciones legales.
+• Atender solicitudes de los usuarios.
+• Resolver controversias.
+• Prevenir o investigar usos indebidos.
+• Ejercer o defender derechos.
+• Mantener registros necesarios para el funcionamiento de la plataforma.
+Una vez que la información deje de ser necesaria y no exista una obligación legal que requiera su conservación, se procederá de acuerdo con las medidas y procedimientos aplicables para su eliminación, anonimización o conservación limitada.
+
+13. Operación en Colombia
+Ride presta sus servicios y gestiona el tratamiento de información de acuerdo con la legislación colombiana que resulte aplicable.
+Los usuarios que utilicen la Aplicación desde Colombia deberán cumplir las normas aplicables al uso de la plataforma y a la prestación de los servicios de transporte correspondientes.
+La disponibilidad y características de los servicios ofrecidos mediante Ride podrán depender de la normativa aplicable, la modalidad de transporte y las condiciones operativas de cada lugar.
+
+14. Cambios en esta Política de Privacidad
+Ride podrá actualizar esta Política de Privacidad cuando sea necesario para reflejar cambios en la Aplicación, en sus servicios, en las prácticas de tratamiento de información o en la normativa aplicable.
+Cuando se realicen modificaciones, la versión actualizada podrá ser publicada dentro de la Aplicación.
+La fecha de actualización indicada al inicio de esta Política permitirá al usuario conocer cuándo fue realizada la última modificación.
+
+15. Contacto
+Para cualquier consulta, solicitud, petición o reclamo relacionado con esta Política de Privacidad o con el tratamiento de datos personales, el usuario puede comunicarse a:
+Aplicación: Ride
+Responsable: Kevin Danilo Madariaga Bayona
+País: Colombia
+Correo electrónico: soportedelride@gmail.com
+Última actualización: 21 de septiembre 2026
+
+

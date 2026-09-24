@@ -1,0 +1,107 @@
+TÉRMINOS Y CONDICIONES DE USO
+Última actualización: 24 de septiembre 2026
+
+1. Aceptación de los términos
+Estos Términos y Condiciones regulan el acceso y uso de la aplicación móvil Ride y de los servicios relacionados con ella.
+Al registrarse o utilizar la Aplicación, el usuario declara haber leído, entendido y aceptado estos Términos y Condiciones, así como la Política de Privacidad. Si el usuario no está de acuerdo, deberá abstenerse de utilizar la Aplicación.
+Estos Términos se aplican a los usuarios que utilizan Ride como pasajeros, conductores u otros usuarios autorizados.
+
+2. Descripción del servicio
+Ride es una plataforma tecnológica que facilita el contacto entre pasajeros que requieren un servicio de transporte y conductores disponibles.
+Ride no presta directamente el servicio de transporte. El servicio es prestado por el conductor, quien actúa de manera independiente y es responsable de su vehículo, su documentación y el cumplimiento de las normas de tránsito y transporte aplicables.
+La disponibilidad del servicio puede variar según la zona, el horario, la cantidad de conductores conectados y otras condiciones operativas.
+
+3. Registro y cuenta
+3.1 Pasajeros
+El pasajero podrá registrarse mediante los métodos de acceso disponibles en la Aplicación, como número de teléfono, cuenta de Google o cuenta de Apple.
+3.2 Conductores
+El registro de conductores está sujeto a la revisión y aprobación de un administrador. Ride podrá solicitar información personal, información del vehículo, fotografías y demás datos necesarios para verificar la identidad del conductor y del vehículo.
+3.3 Responsabilidad sobre la cuenta
+El usuario se compromete a:
+• Proporcionar información veraz, completa y actualizada.
+• Mantener la confidencialidad de sus credenciales de acceso.
+• No compartir, ceder ni vender su cuenta a terceros.
+• Informar de inmediato cualquier uso no autorizado de su cuenta.
+El usuario es responsable de toda actividad realizada desde su cuenta.
+
+4. Solicitud de viajes
+4.1 El pasajero podrá solicitar un viaje indicando el punto de recogida, el destino y el valor ofrecido por el servicio.
+4.2 La solicitud será visible para los conductores disponibles, quienes podrán aceptarla o ignorarla. Ride no garantiza que una solicitud sea aceptada.
+4.3 Si una solicitud no es aceptada dentro de un tiempo razonable, la Aplicación podrá sugerir cambiar la oferta, continuar buscando o cancelar la solicitud de forma automática.
+4.4 Una vez aceptado el viaje, el pasajero podrá ver la información del conductor, del vehículo y su ubicación durante el servicio.
+
+5. Tarifas y pagos
+5.1 El valor del viaje es el acordado entre pasajero y conductor a través de la Aplicación al momento de la solicitud.
+5.2 El pago se realiza directamente al conductor mediante los métodos habilitados en la Aplicación, como efectivo o transferencia (por ejemplo, Nequi). Ride no procesa ni retiene los pagos de los viajes.
+5.3 Cualquier diferencia o reclamo sobre el pago deberá resolverse entre pasajero y conductor. Ride podrá intervenir a través de soporte para facilitar la comunicación entre las partes, sin asumir responsabilidad por el valor pagado.
+5.4 Los conductores podrán estar sujetos a una membresía o cargo por el uso de la plataforma, en las condiciones informadas por el administrador correspondiente.
+
+6. Cancelaciones
+6.1 El pasajero y el conductor podrán cancelar un viaje de acuerdo con las opciones disponibles en la Aplicación.
+6.2 Las cancelaciones frecuentes o injustificadas podrán dar lugar a advertencias, restricciones o suspensión de la cuenta.
+6.3 Si el pasajero no se presenta en el punto de recogida dentro de un tiempo razonable, el conductor podrá cancelar el servicio.
+
+7. Obligaciones del pasajero
+El pasajero se compromete a:
+• Indicar correctamente el punto de recogida y el destino.
+• Estar disponible en el punto de recogida al momento de la llegada del conductor.
+• Tratar con respeto al conductor y cuidar el vehículo.
+• No transportar objetos o sustancias ilegales o peligrosas.
+• Pagar el valor acordado al finalizar el servicio.
+
+8. Obligaciones del conductor
+El conductor se compromete a:
+• Contar con licencia de conducción vigente y la documentación del vehículo exigida por la ley (incluyendo SOAT y revisión técnico-mecánica cuando aplique).
+• Mantener el vehículo en condiciones adecuadas de seguridad y limpieza.
+• Cumplir las normas de tránsito y transporte vigentes en Colombia.
+• Tratar con respeto al pasajero y seguir la ruta más conveniente hacia el destino.
+• Cobrar únicamente el valor acordado en la Aplicación.
+• Mantener actualizada la información de su perfil y de su vehículo.
+
+9. Conducta prohibida
+No está permitido:
+• Utilizar la Aplicación con fines ilegales o fraudulentos.
+• Suplantar la identidad de otra persona o usar fotografías que no correspondan al usuario.
+• Acosar, amenazar, discriminar o agredir a otros usuarios.
+• Usar el chat u otros medios de la Aplicación para enviar contenido ofensivo, publicidad o spam.
+• Intentar acceder sin autorización a sistemas, cuentas o información de la plataforma.
+• Manipular la ubicación, las calificaciones o cualquier función de la Aplicación.
+
+10. Seguridad
+La Aplicación puede ofrecer funciones de seguridad, como el botón de pánico, el seguimiento del viaje en tiempo real y la verificación de recogida. Estas funciones son de apoyo y no reemplazan la atención de las autoridades competentes.
+En caso de emergencia, el usuario debe comunicarse directamente con la línea de emergencias 123.
+
+11. Calificaciones
+Al finalizar un viaje, el pasajero podrá calificar al conductor. Las calificaciones deben ser honestas y basadas en la experiencia real del servicio. Ride podrá utilizar las calificaciones para mantener la calidad y seguridad de la plataforma.
+
+12. Suspensión y terminación de la cuenta
+Ride podrá suspender, restringir o deshabilitar una cuenta cuando el usuario incumpla estos Términos, proporcione información falsa, afecte la seguridad de otros usuarios o haga un uso indebido de la plataforma.
+El usuario podrá eliminar su cuenta en cualquier momento desde la sección de configuración de la Aplicación. El tratamiento de los datos tras la eliminación se rige por la Política de Privacidad.
+
+13. Limitación de responsabilidad
+Ride actúa como intermediario tecnológico y no es responsable por:
+• Los actos u omisiones de pasajeros o conductores durante la prestación del servicio.
+• Retrasos, accidentes, daños o pérdidas ocurridos durante el viaje, salvo lo que disponga la ley aplicable.
+• Objetos olvidados en el vehículo, aunque procurará facilitar el contacto entre las partes para su recuperación.
+• Fallas temporales de la Aplicación, de la conexión a Internet, del GPS o de servicios de terceros como Google Maps o Firebase.
+La precisión de la ubicación, las rutas y los tiempos estimados depende de factores externos y puede no ser exacta.
+
+14. Propiedad intelectual
+La Aplicación, su nombre, logotipo, diseño y contenidos son propiedad de su titular y están protegidos por la normativa de propiedad intelectual. No está permitido copiar, modificar, distribuir o utilizar dichos elementos sin autorización previa.
+
+15. Protección de datos personales
+El tratamiento de los datos personales de los usuarios se rige por la Política de Privacidad de Ride, disponible dentro de la Aplicación, y por la normativa colombiana aplicable, incluyendo la Ley 1581 de 2012.
+
+16. Modificaciones
+Ride podrá modificar estos Términos y Condiciones cuando sea necesario para reflejar cambios en la Aplicación, en los servicios o en la normativa aplicable. La versión actualizada será publicada dentro de la Aplicación, y el uso continuado de la Aplicación después de su publicación implica la aceptación de los cambios.
+
+17. Ley aplicable
+Estos Términos y Condiciones se rigen por las leyes de la República de Colombia. Cualquier controversia será resuelta ante las autoridades competentes de Colombia, sin perjuicio de los derechos que la ley otorga a los consumidores.
+
+18. Contacto
+Para cualquier consulta, petición, queja o reclamo relacionado con estos Términos y Condiciones, el usuario puede comunicarse a:
+Aplicación: Ride
+Responsable: Kevin Danilo Madariaga Bayona
+País: Colombia
+Correo electrónico: soportedelride@gmail.com
+Última actualización: 24 de septiembre 2026
