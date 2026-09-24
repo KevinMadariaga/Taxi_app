@@ -62,6 +62,21 @@ class AuthService {
     }
   }
 
+  /// Marca en caché que el perfil del cliente ya quedó completo.
+  ///
+  /// `initial_screen_resolver.dart` usa `profile_complete` como respaldo
+  /// cuando Firestore falla al arrancar, pero solo él lo escribía: si el
+  /// usuario abrió la app con el perfil a medias quedaba en `false`, y tras
+  /// completarlo un fallo de Firestore lo devolvía a "Completa tu perfil".
+  Future<void> marcarPerfilCompleto() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('profile_complete', true);
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'auth_service');
+    }
+  }
+
   /// Guarda la información de sesión del usuario
   Future<void> saveUserSession({
     required String role,
@@ -201,6 +216,10 @@ class AuthService {
     await _safeRemovePref(prefs, 'user_role');
     await _safeRemovePref(prefs, 'user_uid');
     await _safeRemovePref(prefs, 'cached_user_name');
+    // Es por cuenta: sin borrarlo, el `true` del usuario anterior dejaba a
+    // uno nuevo en el mismo teléfono saltarse "Completa tu perfil" cuando
+    // Firestore fallaba al arrancar.
+    await _safeRemovePref(prefs, 'profile_complete');
     await _safeRemovePref(prefs, 'conductor_solicitud_activa');
     await _safeRemovePref(prefs, 'cliente_solicitud_activa');
     await _safeRemovePref(prefs, 'active_solicitud_id');

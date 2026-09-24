@@ -2,6 +2,8 @@
 // guardadas, soporte y reportes.
 
 import { test, describe, before, after, beforeEach } from 'node:test';
+import firebase from 'firebase/compat/app';
+import 'firebase/compat/firestore';
 import {
   crearEntorno, sembrarActores, sembrar, como, comoAnonimo,
   assertFails, assertSucceeds,
@@ -88,6 +90,24 @@ describe('usuarios', () => {
       como(env, CLIENTE).doc(`usuarios/${CLIENTE}`).update({
         nombre: 'Kevin', telefono: '3001234567', rol: 'cliente',
       }),
+    );
+  });
+
+  // ClientUserFirestoreDataSource.completeProfile — el write EXACTO que
+  // marca el perfil completo, sobre el doc que deja el alta con Google.
+  test('el cliente completa su perfil (isProfileComplete: true)', async () => {
+    await sembrar(env, `usuarios/${CLIENTE}`, {
+      id: CLIENTE, uid: CLIENTE, nombre: 'Laura', apellido: '', telefono: '',
+      foto: '', rol: 'cliente', email: 'l@x.com', isProfileComplete: false,
+    });
+    const { FieldValue } = firebase.firestore;
+    await assertSucceeds(
+      como(env, CLIENTE).doc(`usuarios/${CLIENTE}`).set({
+        id: CLIENTE, uid: CLIENTE, nombre: 'Laura', apellido: 'Gómez',
+        telefono: '3001234567', foto: 'https://x/foto.webp',
+        fotoUrl: FieldValue.delete(), email: 'l@x.com', rol: 'cliente',
+        isProfileComplete: true, updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true }),
     );
   });
 

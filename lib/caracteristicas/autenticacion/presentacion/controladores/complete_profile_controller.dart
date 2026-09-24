@@ -320,6 +320,7 @@ class CompleteProfileController extends ChangeNotifier {
 
       _currentUser = updated;
       await _authService.saveUserSession(role: 'cliente', isLoggedIn: true);
+      await _authService.marcarPerfilCompleto();
 
       return null;
     } catch (error) {

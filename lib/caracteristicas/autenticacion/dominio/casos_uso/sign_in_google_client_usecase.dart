@@ -28,7 +28,7 @@ class SignInGoogleClientUseCase {
     await _repository.syncAuthDisplayName(nombreCompleto);
 
     return AuthFlowResult(
-      destination: user.isProfileComplete
+      destination: user.perfilCompleto
           ? AuthFlowDestination.clientHome
           : AuthFlowDestination.completeProfile,
       user: user,
