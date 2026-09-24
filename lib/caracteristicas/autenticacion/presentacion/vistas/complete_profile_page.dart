@@ -284,7 +284,6 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
     bool esMovil,
   ) {
     final validos = vm.camposValidos(_formulario(vm));
-    final correo = _correoController.text.trim();
     return _paso(
       esMovil: esMovil,
       icono: Icons.waving_hand_rounded,
@@ -330,12 +329,6 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
           onChanged: (_) => _alEscribir(),
           onSubmitted: (_) => _continuar(context, vm),
         ),
-        // El correo lo entrega el proveedor y no se edita: solo se muestra
-        // cuando existe (Apple puede no entregarlo).
-        if (correo.isNotEmpty) ...[
-          const SizedBox(height: 18),
-          _CorreoSoloLectura(correo: correo),
-        ],
       ],
     );
   }
@@ -1110,58 +1103,6 @@ class _CampoTexto extends StatelessWidget {
           ),
         );
       },
-    );
-  }
-}
-
-class _CorreoSoloLectura extends StatelessWidget {
-  const _CorreoSoloLectura({required this.correo});
-
-  final String correo;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = context.palette;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      decoration: BoxDecoration(
-        color: palette.grey100,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: palette.borderSubtle),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.email_outlined, size: 21, color: palette.textSecondary),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Correo de tu cuenta',
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w600,
-                    color: palette.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  correo,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 14.5,
-                    fontWeight: FontWeight.w600,
-                    color: palette.textPrimary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Icon(Icons.lock_outline_rounded, size: 18, color: palette.grey400),
-        ],
-      ),
     );
   }
 }
