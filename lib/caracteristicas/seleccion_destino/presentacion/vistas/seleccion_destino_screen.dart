@@ -19,6 +19,7 @@ import '../viewmodels/seleccion_destino_viewmodel.dart';
 import 'seleccionar_ubicacion_mapa_view.dart';
 import 'widgets/favoritos_bottom_sheet.dart';
 import 'widgets/pegar_ubicacion_modal.dart';
+import 'package:taxi_app/widgets/ajustes_ui.dart';
 
 /// Pantalla de selección de destino. Reemplaza a la legacy
 /// `DestinoSeleccionView` (`screens/.../SeleccionDestino.dart`) — misma forma
@@ -281,28 +282,15 @@ class _SeleccionDestinoScreenState extends State<SeleccionDestinoScreen> {
             onPopInvokedWithResult: (_, _) => _manejarBack(),
             child: Scaffold(
               backgroundColor: context.palette.background,
-              appBar: AppBar(
-                backgroundColor: AppColores.primary,
-                foregroundColor: AppColores.textWhite,
-                elevation: 0,
-                centerTitle: true,
+              appBar: appBarNeutra(
+                context,
+                titulo: '¿A dónde vamos?',
                 leading: IconButton(
-                  icon: const Icon(
-                    Icons.arrow_back_ios_new_rounded,
-                    size: 20,
-                    color: AppColores.textWhite,
-                  ),
+                  tooltip: 'Atrás',
+                  icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
                   onPressed: () async {
                     if (await _manejarBack()) return;
                   },
-                ),
-                title: Text(
-                  '¿A dónde vamos?',
-                  style: TextStyle(
-                    fontSize: 17.sp,
-                    fontWeight: FontWeight.w700,
-                    color: AppColores.textWhite,
-                  ),
                 ),
               ),
               body: SafeArea(
@@ -313,7 +301,9 @@ class _SeleccionDestinoScreenState extends State<SeleccionDestinoScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          SizedBox(height: 16.h),
+                          SizedBox(height: 8.h),
+                          const _ComoFunciona(),
+                          SizedBox(height: 12.h),
                           _DestinoField(
                             controller: _destinoController,
                             focusNode: _destinoFocus,
@@ -376,6 +366,41 @@ class _SeleccionDestinoScreenState extends State<SeleccionDestinoScreen> {
 // Secciones visuales
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// Línea corta que explica las tres formas de elegir el destino.
+class _ComoFunciona extends StatelessWidget {
+  const _ComoFunciona();
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: EdgeInsets.only(top: 1.h),
+          child: Icon(
+            Icons.info_outline_rounded,
+            size: 16,
+            color: acentoMarca(context),
+          ),
+        ),
+        SizedBox(width: 8.w),
+        Expanded(
+          child: Text(
+            'Escribe la dirección y elígela de la lista, márcala en el mapa '
+            'o toca un favorito o un destino reciente.',
+            style: TextStyle(
+              fontSize: 12.5.sp,
+              height: 1.35,
+              color: palette.textSecondary,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _DestinoField extends StatelessWidget {
   const _DestinoField({
     required this.controller,
@@ -411,7 +436,7 @@ class _DestinoField extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Tu Destino..',
+            'Tu destino',
             style: TextStyle(
               fontSize: 13.sp,
               fontWeight: FontWeight.w600,
@@ -486,10 +511,10 @@ class _DestinoField extends StatelessWidget {
             color: context.palette.grey100,
             textColor: context.palette.textPrimary,
             borderColor: context.palette.borderSubtle,
-            icon: const Icon(
+            icon: Icon(
               Icons.map_rounded,
               size: 16,
-              color: AppColores.primary,
+              color: acentoMarca(context),
             ),
             onPressed: onElegirEnMapa,
           ),

@@ -8,6 +8,7 @@ import 'package:taxi_app/widgets/MapaGoogle.dart';
 import 'package:taxi_app/widgets/boton.dart';
 
 import '../viewmodels/seleccionar_ubicacion_mapa_viewmodel.dart';
+import 'package:taxi_app/widgets/ajustes_ui.dart';
 
 export '../../dominio/entidades/seleccion_ubicacion_result.dart';
 
@@ -75,23 +76,9 @@ class _SeleccionarUbicacionMapaBodyState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Builder(
-          builder: (context) {
-            final screenW = MediaQuery.of(context).size.width;
-            final titleFontSize = (screenW / 390 * 18).clamp(15, 26);
-            return Text(
-              widget.titulo ?? 'Selecciona ubicación',
-              style: TextStyle(
-                fontSize: titleFontSize.toDouble(),
-                color: AppColores.textWhite,
-              ),
-            );
-          },
-        ),
-        backgroundColor: AppColores.primary,
-        foregroundColor: AppColores.textWhite,
-        elevation: 0,
+      appBar: appBarNeutra(
+        context,
+        titulo: widget.titulo ?? 'Selecciona ubicación',
       ),
       backgroundColor: context.palette.surface,
       body: SafeArea(
