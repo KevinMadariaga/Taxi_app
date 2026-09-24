@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
@@ -28,7 +27,11 @@ Future<bool?> mostrarTipoVehiculoSheet(
   return showModalBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
-    backgroundColor: Colors.transparent,
+    showDragHandle: true,
+    backgroundColor: context.palette.surface,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+    ),
     builder: (ctx) => _TipoVehiculoSheetBody(vm: vm),
   );
 }
@@ -111,158 +114,179 @@ class _TipoVehiculoSheetBodyState extends State<_TipoVehiculoSheetBody> {
     // `viewInsets.bottom` es el alto del teclado — sin sumarlo acá el sheet
     // se queda anclado al fondo de la pantalla y el teclado tapa el campo de
     // valor (que queda más abajo, después de los cuadros de vehículo).
-    final teclado = MediaQuery.of(context).viewInsets.bottom;
+    final media = MediaQuery.of(context);
+    final teclado = media.viewInsets.bottom;
     final palette = context.palette;
+    final conError = _error != null;
+
     return AnimatedPadding(
       duration: const Duration(milliseconds: 150),
       curve: Curves.easeOut,
-      padding: EdgeInsets.fromLTRB(
-        12.w,
-        0,
-        12.w,
-        teclado + MediaQuery.of(context).viewPadding.bottom + 12,
-      ),
+      padding: EdgeInsets.only(bottom: teclado),
       child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.8,
-        ),
-        child: Material(
-          color: palette.surface,
-          borderRadius: BorderRadius.circular(20.r),
-          clipBehavior: Clip.antiAlias,
-          child: SingleChildScrollView(
-            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-            padding: EdgeInsets.fromLTRB(20.w, 20.h, 20.w, 20.h),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40.w,
-                    height: 4.h,
-                    margin: EdgeInsets.only(bottom: 16.h),
-                    decoration: BoxDecoration(
-                      color: palette.borderSubtle,
-                      borderRadius: BorderRadius.circular(2.r),
+        constraints: BoxConstraints(maxHeight: media.size.height * 0.85),
+        child: SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          padding: EdgeInsets.fromLTRB(
+            20,
+            0,
+            20,
+            (teclado > 0 ? 0 : media.viewPadding.bottom) + 16,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Elige tu vehículo',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 20,
+                  color: palette.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'El precio sugerido cambia según el vehículo.',
+                style: TextStyle(fontSize: 13.5, color: palette.textSecondary),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  for (final tipo in VehicleType.values) ...[
+                    Expanded(
+                      child: _VehiculoCuadro(
+                        tipo: tipo,
+                        precio: widget.vm.previsualizarValor(tipo),
+                        isSelected: _seleccionado == tipo,
+                        onTap: () => _seleccionarTipo(tipo),
+                      ),
+                    ),
+                    if (tipo != VehicleType.values.last)
+                      const SizedBox(width: 12),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 22),
+              Text(
+                'Valor del servicio',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 15,
+                  color: palette.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                'Puedes ajustar el monto antes de confirmar.',
+                style: TextStyle(fontSize: 12.5, color: palette.textSecondary),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: _valorController,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: false,
+                  signed: false,
+                ),
+                textInputAction: TextInputAction.done,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                onChanged: _onValorChanged,
+                onSubmitted: (_) => _confirmar(),
+                cursorColor: AppColores.primary,
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  color: palette.textPrimary,
+                ),
+                decoration: InputDecoration(
+                  prefixIcon: Padding(
+                    padding: const EdgeInsets.only(left: 16, right: 6),
+                    child: Text(
+                      '\$',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        color: palette.textSecondary,
+                      ),
+                    ),
+                  ),
+                  prefixIconConstraints: const BoxConstraints(),
+                  hintText: '11.000',
+                  hintStyle: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                    color: palette.textSecondary.withValues(alpha: 0.5),
+                  ),
+                  filled: true,
+                  fillColor: palette.background,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 14,
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide(
+                      color: conError ? AppColores.error : palette.grey300,
+                      width: conError ? 1.8 : 1.2,
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide(
+                      color: conError ? AppColores.error : AppColores.primary,
+                      width: 1.8,
                     ),
                   ),
                 ),
-                SizedBox(
-                  width: double.infinity,
-                  child: Text(
-                    'Tipo de vehículo',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 18.sp,
-                      color: palette.textPrimary,
-                    ),
-                  ),
-                ),
-                SizedBox(height: 4.h),
-                SizedBox(
-                  width: double.infinity,
-                  child: Text(
-                    'El precio varía según el vehículo',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: palette.textSecondary,
-                      fontSize: 13.sp,
-                    ),
-                  ),
-                ),
-                SizedBox(height: 18.h),
-                Row(
-                  children: [
-                    for (final tipo in VehicleType.values) ...[
-                      Expanded(
-                        child: _VehiculoCuadro(
-                          tipo: tipo,
-                          precio: widget.vm.previsualizarValor(tipo),
-                          isSelected: _seleccionado == tipo,
-                          onTap: () => _seleccionarTipo(tipo),
+              ),
+              AnimatedSize(
+                duration: const Duration(milliseconds: 200),
+                child: !conError
+                    ? const SizedBox(width: double.infinity)
+                    : Padding(
+                        padding: const EdgeInsets.only(top: 6, left: 4),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.info_outline_rounded,
+                              size: 15,
+                              color: AppColores.error,
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                _error!,
+                                style: const TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColores.error,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      if (tipo != VehicleType.values.last)
-                        SizedBox(width: 12.w),
-                    ],
-                  ],
-                ),
-                SizedBox(height: 18.h),
-                Text(
-                  'Valor del servicio',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14.sp,
-                    color: palette.textPrimary,
-                  ),
-                ),
-                SizedBox(height: 4.h),
-                Text(
-                  'Podés ajustar el monto antes de confirmar',
-                  style: TextStyle(
-                    color: palette.textSecondary,
-                    fontSize: 12.sp,
-                  ),
-                ),
-                SizedBox(height: 10.h),
-                TextField(
-                  controller: _valorController,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: false,
-                    signed: false,
-                  ),
-                  textInputAction: TextInputAction.done,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  onChanged: _onValorChanged,
-                  onSubmitted: (_) => _confirmar(),
-                  style: TextStyle(fontSize: 15.sp, color: palette.textPrimary),
-                  decoration: InputDecoration(
-                    prefixText: '\$ ',
-                    hintText: 'Ej: 11.000',
-                    errorText: _error,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10.r),
-                      borderSide: BorderSide(color: palette.divider),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10.r),
-                      borderSide: BorderSide(color: palette.divider),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10.r),
-                      borderSide: BorderSide(
-                        color: Colores.amarillo,
-                        width: 2.w,
-                      ),
+              ),
+              const SizedBox(height: 18),
+              SizedBox(
+                height: 52,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColores.buttonPrimary,
+                    foregroundColor: Colors.black,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
                     ),
                   ),
-                ),
-                SizedBox(height: 18.h),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colores.amarillo,
-                      foregroundColor: Colors.black,
-                      padding: EdgeInsets.symmetric(vertical: 14.h),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12.r),
-                      ),
-                    ),
-                    onPressed: _confirmar,
-                    child: const Text(
-                      'Confirmar vehículo',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: AppColores.textWhite,
-                      ),
-                    ),
+                  onPressed: _confirmar,
+                  child: const Text(
+                    'Confirmar vehículo',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -290,56 +314,68 @@ class _VehiculoCuadro extends StatelessWidget {
         ? 'assets/img/icono_moto.png'
         : 'assets/img/icono_carro.png';
 
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOutCubic,
-        padding: EdgeInsets.symmetric(vertical: 16.h, horizontal: 10.w),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? Colores.amarillo.withValues(alpha: 0.14)
-              : palette.grey100,
-          borderRadius: BorderRadius.circular(14.r),
-          border: Border.all(
-            color: isSelected ? Colores.amarillo : palette.borderSubtle,
-            width: isSelected ? 2 : 1,
-          ),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: Colores.amarillo.withValues(alpha: 0.3),
-                    blurRadius: 10,
-                    offset: const Offset(0, 3),
-                  ),
-                ]
-              : [],
+    return Material(
+      color: isSelected
+          ? Color.alphaBlend(
+              AppColores.primary.withValues(alpha: 0.12),
+              palette.surface,
+            )
+          : palette.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: BorderSide(
+          color: isSelected ? AppColores.primary : palette.borderSubtle,
+          width: isSelected ? 2 : 1.2,
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Stack(
           children: [
-            Image.asset(vehicleAsset, height: 64.h, fit: BoxFit.contain),
-            SizedBox(height: 10.h),
-            Text(
-              tipo.label,
-              style: TextStyle(
-                fontWeight: FontWeight.w700,
-                fontSize: 15.sp,
-                color: palette.textPrimary,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 18, 10, 14),
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Image.asset(vehicleAsset, height: 58, fit: BoxFit.contain),
+                    const SizedBox(height: 10),
+                    Text(
+                      tipo.label,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                        color: palette.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '\$${formatCurrencyFromRaw(precio)}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 15,
+                        color: isSelected
+                            ? palette.textPrimary
+                            : palette.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-            SizedBox(height: 4.h),
-            Text(
-              '\$${formatCurrencyFromRaw(precio)}',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-                fontSize: 14.sp,
-                color: palette.textPrimary,
+            if (isSelected)
+              const Positioned(
+                top: 10,
+                right: 10,
+                child: Icon(
+                  Icons.check_circle_rounded,
+                  size: 22,
+                  color: AppColores.primary,
+                ),
               ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
           ],
         ),
       ),

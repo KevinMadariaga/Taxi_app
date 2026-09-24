@@ -4,16 +4,13 @@ import '../../../dominio/modelos/crear_solicitud_resultado.dart';
 import 'package:provider/provider.dart';
 
 import 'package:taxi_app/core/app_colores.dart';
-import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/helpers/responsive_helper.dart';
 
 import '../../viewmodels/confirmar_solicitud_viewmodel.dart';
-import 'comentario_sheet.dart';
 import 'tipo_vehiculo_sheet.dart';
 
-/// Fila inferior de acciones: botón "Buscar conductor" y comentario — el
-/// método de pago ya tiene su propia fila completa (`MetodoPagoCard`)
-/// arriba, así que no se repite acá. [onSolicitudCreada] navega a la
+/// Botón "Buscar conductor" a todo el ancho. Pago y nota viven en
+/// `OpcionesViajeRow`, justo arriba. [onSolicitudCreada] navega a la
 /// pantalla de búsqueda — la vista es quien decide a dónde ir, esta fila
 /// solo dispara la creación.
 ///
@@ -33,104 +30,70 @@ class ConfirmarSolicitudSubmitBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final vm = context.watch<ConfirmarSolicitudViewModel>();
-    final buttonHeight = ResponsiveHelper.hp(context, 6.5);
+    final buttonHeight = ResponsiveHelper.hp(context, 6.5).clamp(50.0, 62.0);
 
-    return Row(
-      children: [
-        Expanded(
-          child: SizedBox(
-            height: buttonHeight,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colores.amarillo,
-                foregroundColor: Colors.black87,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(
-                    ResponsiveHelper.wp(context, 2),
+    return SizedBox(
+      width: double.infinity,
+      height: buttonHeight,
+      child: ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColores.buttonPrimary,
+          foregroundColor: Colors.black,
+          disabledBackgroundColor: AppColores.buttonPrimary.withValues(
+            alpha: 0.6,
+          ),
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+        onPressed: vm.isSubmitting
+            ? null
+            : () async {
+                final confirmado = await mostrarTipoVehiculoSheet(context, vm);
+                if (confirmado != true || !context.mounted) return;
+
+                final messenger = ScaffoldMessenger.of(context);
+                final resultado = await vm.crearSolicitud();
+                if (!context.mounted) return;
+
+                switch (resultado) {
+                  case SolicitudCreada(:final solicitudId):
+                    onSolicitudCreada(solicitudId);
+                  case SolicitudActivaExistente(:final solicitudId):
+                    // Antes este caso era indistinguible del anterior:
+                    // se descartaban en silencio el destino, precio,
+                    // vehículo, método de pago y comentario recién
+                    // elegidos, y se navegaba a la espera de un viaje
+                    // distinto sin ninguna explicación.
+                    final continuar = await _confirmarViajeEnCurso(context);
+                    if (continuar == true) {
+                      onSolicitudCreada(solicitudId);
+                    }
+                  case CrearSolicitudFallo(:final motivo):
+                    messenger.showSnackBar(SnackBar(content: Text(motivo)));
+                }
+              },
+        child: vm.isSubmitting
+            ? const SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(
+                  color: Colors.black,
+                  strokeWidth: 2.4,
+                ),
+              )
+            : FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  'Buscar conductor',
+                  style: TextStyle(
+                    fontSize: ResponsiveHelper.sp(context, 16),
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
               ),
-              onPressed: vm.isSubmitting
-                  ? null
-                  : () async {
-                      final confirmado = await mostrarTipoVehiculoSheet(
-                        context,
-                        vm,
-                      );
-                      if (confirmado != true || !context.mounted) return;
-
-                      final messenger = ScaffoldMessenger.of(context);
-                      final resultado = await vm.crearSolicitud();
-                      if (!context.mounted) return;
-
-                      switch (resultado) {
-                        case SolicitudCreada(:final solicitudId):
-                          onSolicitudCreada(solicitudId);
-                        case SolicitudActivaExistente(:final solicitudId):
-                          // Antes este caso era indistinguible del anterior:
-                          // se descartaban en silencio el destino, precio,
-                          // vehículo, método de pago y comentario recién
-                          // elegidos, y se navegaba a la espera de un viaje
-                          // distinto sin ninguna explicación.
-                          final continuar = await _confirmarViajeEnCurso(
-                            context,
-                          );
-                          if (continuar == true) {
-                            onSolicitudCreada(solicitudId);
-                          }
-                        case CrearSolicitudFallo(:final motivo):
-                          messenger.showSnackBar(
-                            SnackBar(content: Text(motivo)),
-                          );
-                      }
-                    },
-              child: vm.isSubmitting
-                  ? SizedBox(
-                      width: ResponsiveHelper.wp(context, 5),
-                      height: ResponsiveHelper.wp(context, 5),
-                      child: const CircularProgressIndicator(
-                        color: Colors.black87,
-                        strokeWidth: 2,
-                      ),
-                    )
-                  : Text(
-                      'Buscar conductor',
-                      style: TextStyle(
-                        fontSize: ResponsiveHelper.sp(context, 16),
-                        fontWeight: FontWeight.w700,
-                        color: AppColores.textWhite,
-                      ),
-                    ),
-            ),
-          ),
-        ),
-        SizedBox(width: ResponsiveHelper.wp(context, 2)),
-        SizedBox(
-          width: buttonHeight,
-          height: buttonHeight,
-          child: Tooltip(
-            message: vm.comentario.isEmpty
-                ? 'Sin comentario'
-                : 'Comentario guardado',
-            child: OutlinedButton(
-              onPressed: () => mostrarComentarioSheet(context, vm),
-              style: OutlinedButton.styleFrom(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(
-                    ResponsiveHelper.wp(context, 2),
-                  ),
-                ),
-                side: BorderSide(color: context.palette.borderSubtle),
-                foregroundColor: context.palette.textPrimary,
-                padding: EdgeInsets.zero,
-              ),
-              child: Icon(
-                vm.comentario.isEmpty ? Icons.comment_outlined : Icons.comment,
-              ),
-            ),
-          ),
-        ),
-      ],
+      ),
     );
   }
 }

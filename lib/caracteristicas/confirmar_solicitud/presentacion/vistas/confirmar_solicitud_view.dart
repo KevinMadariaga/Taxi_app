@@ -5,17 +5,18 @@ import 'package:provider/provider.dart';
 
 import 'package:taxi_app/caracteristicas/seleccion_destino/presentacion/vistas/seleccion_destino_screen.dart';
 import 'package:taxi_app/caracteristicas/seleccion_destino/presentacion/vistas/seleccionar_ubicacion_mapa_view.dart';
-import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/helpers/responsive_helper.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/utils/transicion_pagina.dart';
+import 'package:taxi_app/widgets/ajustes_ui.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/location_model.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/buscando_taxi_view.dart';
 
 import '../viewmodels/confirmar_solicitud_viewmodel.dart';
 import 'widgets/confirmar_solicitud_submit_bar.dart';
 import 'widgets/mapa_ruta_card.dart';
-import 'widgets/metodo_pago_card.dart';
-import 'widgets/ubicacion_info_card.dart';
+import 'widgets/opciones_viaje_row.dart';
+import 'widgets/ruta_paradas_card.dart';
 
 /// Pantalla "Confirmar solicitud": mapa con origen+destino, tarifa, método
 /// de pago y comentario. Único punto de entrada para crear una solicitud de
@@ -148,56 +149,31 @@ class _ConfirmarSolicitudViewState extends State<ConfirmarSolicitudView>
       child: Scaffold(
         resizeToAvoidBottomInset: false,
         extendBodyBehindAppBar: false,
-        appBar: AppBar(
-          backgroundColor: AppColores.primary,
-          foregroundColor: AppColores.textWhite,
-          elevation: 0,
-          centerTitle: true,
-          title: const Text(
-            'Detalle de la solicitud',
-            style: TextStyle(
-              color: AppColores.textWhite,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
+        backgroundColor: context.palette.background,
+        appBar: appBarNeutra(
+          context,
+          titulo: 'Detalle de la solicitud',
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: AppColores.textWhite),
+            tooltip: 'Atrás',
+            icon: const Icon(Icons.arrow_back_rounded),
             onPressed: _handleBackNavigation,
-          ),
-          systemOverlayStyle: const SystemUiOverlayStyle(
-            statusBarColor: AppColores.primary,
-            statusBarIconBrightness: Brightness.dark,
-            statusBarBrightness: Brightness.light,
           ),
         ),
         body: LayoutBuilder(
           builder: (context, constraints) {
-            final resp = ResponsiveHelper.getResponsiveData(context);
-            // Bajado desde 45/33/27: el selector de vehículo (que ocupaba
-            // esta tarjeta) se movió a la modal de "Buscar conductor", así
-            // que la tarjeta de abajo necesita menos alto — el que sobra
-            // se lo queda el mapa.
-            double bottomPct;
-            if (resp.deviceType == DeviceType.mobile) {
-              bottomPct = 38.0;
-            } else if (resp.deviceType == DeviceType.tablet) {
-              bottomPct = 28.0;
-            } else {
-              bottomPct = 23.0;
-            }
-
-            final double bottomHeight = ResponsiveHelper.hp(
-              context,
-              bottomPct,
-            ).clamp(140.0, constraints.maxHeight * 0.65).toDouble();
-
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 SizedBox(height: 8.h),
                 const Expanded(child: _MapaSection()),
-                SizedBox(
-                  height: bottomHeight,
+                // El panel toma el alto de su contenido y el mapa el resto:
+                // con un porcentaje fijo de pantalla la información no
+                // cabía completa en teléfonos chicos. Tope del 65% para
+                // pantallas muy bajas (ahí el panel se desplaza por dentro).
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: constraints.maxHeight * 0.65,
+                  ),
                   child: _BottomContent(
                     onAjustarOrigen: _ajustarOrigen,
                     onAjustarDestino: _ajustarDestino,
@@ -244,53 +220,56 @@ class _BottomContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final vm = context.watch<ConfirmarSolicitudViewModel>();
 
-    return Align(
-      alignment: Alignment.bottomCenter,
+    final palette = context.palette;
+    return Container(
+      decoration: BoxDecoration(
+        color: palette.background,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.10),
+            blurRadius: 20,
+            offset: const Offset(0, -4),
+          ),
+        ],
+      ),
       child: SafeArea(
         top: false,
         child: SingleChildScrollView(
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(
-              ResponsiveHelper.wp(context, 4),
-              ResponsiveHelper.hp(context, 1.2),
-              ResponsiveHelper.wp(context, 4),
-              ResponsiveHelper.hp(context, 1.2),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                UbicacionInfoCard(
-                  header: 'Tu ubicación actual',
-                  value: vm.resolviendoDireccionOrigen
-                      ? 'Buscando ubicación actual...'
-                      : (vm.direccionOrigen ?? vm.origen.title ?? 'Ubicación'),
-                  icon: Icons.place,
-                  iconColor: Colors.blue,
-                  iconBorderColor: Colores.azul,
-                  cardBorderColor: Colors.blue,
-                  cardBorderRadius: ResponsiveHelper.wp(context, 4),
-                  onTap: onAjustarOrigen,
+          padding: EdgeInsets.fromLTRB(
+            ResponsiveHelper.wp(context, 4),
+            12,
+            ResponsiveHelper.wp(context, 4),
+            ResponsiveHelper.hp(context, 1.2),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: palette.grey300,
+                    borderRadius: BorderRadius.circular(99),
+                  ),
                 ),
-                SizedBox(height: ResponsiveHelper.hp(context, 0.6)),
-                UbicacionInfoCard(
-                  header: '¿Adónde va?',
-                  value: vm.destino.title ?? vm.destino.subtitle ?? 'Destino',
-                  icon: Icons.place,
-                  iconColor: Colors.red,
-                  iconBorderColor: Colors.red,
-                  cardBorderColor: Colors.red,
-                  cardBorderRadius: ResponsiveHelper.wp(context, 3),
-                  onTap: onAjustarDestino,
-                ),
-                SizedBox(height: ResponsiveHelper.hp(context, 0.6)),
-                const MetodoPagoCard(),
-                SizedBox(height: ResponsiveHelper.hp(context, 0.8)),
-                ConfirmarSolicitudSubmitBar(
-                  onSolicitudCreada: onSolicitudCreada,
-                ),
-              ],
-            ),
+              ),
+              RutaParadasCard(
+                origen: vm.resolviendoDireccionOrigen
+                    ? 'Buscando tu ubicación…'
+                    : (vm.direccionOrigen ?? vm.origen.title ?? 'Ubicación'),
+                destino: vm.destino.title ?? vm.destino.subtitle ?? 'Destino',
+                onEditarOrigen: onAjustarOrigen,
+                onEditarDestino: onAjustarDestino,
+              ),
+              const SizedBox(height: 10),
+              const OpcionesViajeRow(),
+              const SizedBox(height: 12),
+              ConfirmarSolicitudSubmitBar(onSolicitudCreada: onSolicitudCreada),
+            ],
           ),
         ),
       ),

@@ -1,96 +1,68 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
+import 'package:taxi_app/widgets/ajustes_ui.dart';
 
 import '../../viewmodels/confirmar_solicitud_viewmodel.dart';
 
 Future<void> mostrarMetodoPagoSheet(
   BuildContext context,
   ConfirmarSolicitudViewModel vm,
-) async {
-  await showModalBottomSheet<void>(
+) {
+  return showModalBottomSheet<void>(
     context: context,
-    backgroundColor: Colors.transparent,
+    showDragHandle: true,
+    backgroundColor: context.palette.surface,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+    ),
     builder: (ctx) {
-      final media = MediaQuery.of(ctx);
-      final bottomGap = media.viewPadding.bottom + 12;
+      void elegir(String metodo) {
+        vm.setMetodoPago(metodo);
+        Navigator.of(ctx).pop();
+      }
 
-      return Padding(
-        padding: EdgeInsets.fromLTRB(12.w, 0, 12.w, bottomGap),
-        child: Material(
-          color: context.palette.surface,
-          borderRadius: BorderRadius.circular(20.r),
-          clipBehavior: Clip.antiAlias,
-          child: SafeArea(
-            top: false,
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(20.w, 12.h, 20.w, 20.h),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 40.w,
-                    height: 4.h,
-                    margin: EdgeInsets.only(bottom: 16.h),
-                    decoration: BoxDecoration(
-                      color: Colors.black12,
-                      borderRadius: BorderRadius.circular(2.r),
-                    ),
-                  ),
-                  SizedBox(
-                    width: double.infinity,
-                    child: Text(
-                      'Método de pago',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 18.sp,
-                        color: context.palette.textPrimary,
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: 4.h),
-                  SizedBox(
-                    width: double.infinity,
-                    child: Text(
-                      'Seleccionado: ${vm.metodoPago}',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: context.palette.textSecondary,
-                        fontSize: 13.sp,
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: 18.h),
-                  _MetodoPagoOpcion(
-                    icono: const Icon(Icons.payments_outlined, size: 26),
-                    label: 'Efectivo',
-                    isSelected: vm.metodoPago == 'Efectivo',
-                    onTap: () {
-                      vm.setMetodoPago('Efectivo');
-                      Navigator.of(ctx).pop();
-                    },
-                  ),
-                  SizedBox(height: 12.h),
-                  _MetodoPagoOpcion(
-                    icono: Image.asset(
-                      'assets/img/nequi.png',
-                      width: 26.w,
-                      height: 26.h,
-                      fit: BoxFit.contain,
-                    ),
-                    label: 'Nequi',
-                    isSelected: vm.metodoPago == 'Nequi',
-                    onTap: () {
-                      vm.setMetodoPago('Nequi');
-                      Navigator.of(ctx).pop();
-                    },
-                  ),
-                ],
+      return SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const _TituloHoja(
+                titulo: '¿Cómo vas a pagar?',
+                subtitulo: 'Le pagas directamente al conductor al terminar.',
               ),
-            ),
+              const SizedBox(height: 18),
+              _OpcionPago(
+                icono: const Icon(
+                  Icons.payments_rounded,
+                  color: AppColores.success,
+                  size: 24,
+                ),
+                fondoIcono: AppColores.success.withValues(alpha: 0.14),
+                titulo: 'Efectivo',
+                descripcion: 'Pagas en efectivo al llegar',
+                seleccionado: vm.metodoPago == 'Efectivo',
+                onTap: () => elegir('Efectivo'),
+              ),
+              const SizedBox(height: 10),
+              _OpcionPago(
+                icono: Image.asset(
+                  'assets/img/nequi.png',
+                  width: 26,
+                  height: 26,
+                  fit: BoxFit.contain,
+                ),
+                // Logo con navy sólido: fondo blanco fijo en los dos temas.
+                fondoIcono: Colors.white,
+                titulo: 'Nequi',
+                descripcion: 'Transfieres desde tu app de Nequi',
+                seleccionado: vm.metodoPago == 'Nequi',
+                onTap: () => elegir('Nequi'),
+              ),
+            ],
           ),
         ),
       );
@@ -98,57 +70,123 @@ Future<void> mostrarMetodoPagoSheet(
   );
 }
 
-class _MetodoPagoOpcion extends StatelessWidget {
-  const _MetodoPagoOpcion({
+class _TituloHoja extends StatelessWidget {
+  const _TituloHoja({required this.titulo, required this.subtitulo});
+
+  final String titulo;
+  final String subtitulo;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          titulo,
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w800,
+            color: palette.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          subtitulo,
+          style: TextStyle(fontSize: 13.5, color: palette.textSecondary),
+        ),
+      ],
+    );
+  }
+}
+
+class _OpcionPago extends StatelessWidget {
+  const _OpcionPago({
     required this.icono,
-    required this.label,
-    required this.isSelected,
+    required this.fondoIcono,
+    required this.titulo,
+    required this.descripcion,
+    required this.seleccionado,
     required this.onTap,
   });
 
   final Widget icono;
-  final String label;
-  final bool isSelected;
+  final Color fondoIcono;
+  final String titulo;
+  final String descripcion;
+  final bool seleccionado;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOutCubic,
-        width: double.infinity,
-        padding: EdgeInsets.symmetric(vertical: 14.h, horizontal: 16.w),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? AppColores.primary.withValues(alpha: 0.14)
-              : context.palette.background,
-          borderRadius: BorderRadius.circular(14.r),
-          border: Border.all(
-            color: isSelected ? AppColores.primary : context.palette.divider,
-            width: isSelected ? 2 : 1,
-          ),
+    final palette = context.palette;
+    return Material(
+      color: seleccionado
+          ? Color.alphaBlend(
+              AppColores.primary.withValues(alpha: 0.12),
+              palette.surface,
+            )
+          : palette.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: BorderSide(
+          color: seleccionado ? AppColores.primary : palette.borderSubtle,
+          width: seleccionado ? 1.8 : 1.2,
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            icono,
-            SizedBox(width: 10.w),
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontWeight: FontWeight.w700,
-                fontSize: 15.sp,
-                color: context.palette.textPrimary,
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: fondoIcono,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: icono,
               ),
-            ),
-            if (isSelected) ...[
-              SizedBox(width: 10.w),
-              Icon(Icons.check_circle, color: AppColores.primary, size: 20.sp),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      titulo,
+                      style: TextStyle(
+                        fontSize: 15.5,
+                        fontWeight: FontWeight.w800,
+                        color: palette.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      descripcion,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: palette.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 180),
+                child: Icon(
+                  seleccionado
+                      ? Icons.radio_button_checked_rounded
+                      : Icons.radio_button_off_rounded,
+                  key: ValueKey(seleccionado),
+                  color: seleccionado ? acentoMarca(context) : palette.grey400,
+                ),
+              ),
             ],
-          ],
+          ),
         ),
       ),
     );
