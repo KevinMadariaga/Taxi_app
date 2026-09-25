@@ -105,7 +105,7 @@
     "semantic_hash": "a225a382d14d7b16b6f602a5c1d49331"
   },
   "lib/caracteristicas/autenticacion/datos/fuentes/client_auth_firebase_datasource.dart": {
-    "mtime": 1788276368.4981244,
+    "mtime": 1790282533.7814517,
     "ast_hash": "d566d1bc50cafb371e4a9e937a765623",
     "semantic_hash": ""
   },
@@ -150,13 +150,13 @@
     "semantic_hash": "bb4620fff380885b0124a4c1d474e1dc"
   },
   "lib/caracteristicas/autenticacion/dominio/casos_uso/sign_in_apple_client_usecase.dart": {
-    "mtime": 1788276402.9209943,
-    "ast_hash": "770cfab1296216d2a877c0fd9fbbe75e",
+    "mtime": 1790282665.1480222,
+    "ast_hash": "a733dc3fd0dfe82274cfde39e9f4ecbd",
     "semantic_hash": ""
   },
   "lib/caracteristicas/autenticacion/dominio/casos_uso/sign_in_google_client_usecase.dart": {
-    "mtime": 1788276398.0149386,
-    "ast_hash": "08530fff06335468a7676ffa3c808162",
+    "mtime": 1790282665.1481092,
+    "ast_hash": "b144a1f92f9b9d72922ba2de8c4eb015",
     "semantic_hash": ""
   },
   "lib/caracteristicas/autenticacion/dominio/entidades/auth_identity_entity.dart": {
@@ -165,9 +165,9 @@
     "semantic_hash": "550300a4d90a91d31d25932171585f2c"
   },
   "lib/caracteristicas/autenticacion/dominio/entidades/client_user_entity.dart": {
-    "mtime": 1780082461.7794135,
-    "ast_hash": "25cc6461f60806e8a5e661fcd9c58c10",
-    "semantic_hash": "25cc6461f60806e8a5e661fcd9c58c10"
+    "mtime": 1790282665.1477401,
+    "ast_hash": "ae216e2d7a0f6d9786e39e10a6880218",
+    "semantic_hash": ""
   },
   "lib/caracteristicas/autenticacion/dominio/modelos/auth_flow_result.dart": {
     "mtime": 1780082461.7786155,
@@ -180,8 +180,8 @@
     "semantic_hash": ""
   },
   "lib/caracteristicas/autenticacion/presentacion/controladores/complete_profile_controller.dart": {
-    "mtime": 1788537770.7320414,
-    "ast_hash": "83f3915d8816c885889fa2ded411d97c",
+    "mtime": 1790282665.1485658,
+    "ast_hash": "44e50bfcad6fb51b8ba4d68fd7af34ff",
     "semantic_hash": ""
   },
   "lib/caracteristicas/autenticacion/presentacion/controladores/home_auth_controller.dart": {
@@ -190,13 +190,13 @@
     "semantic_hash": ""
   },
   "lib/caracteristicas/autenticacion/presentacion/vistas/complete_profile_page.dart": {
-    "mtime": 1788707094.3883054,
-    "ast_hash": "d67c2047944ee8a4996eb81d69f89928",
+    "mtime": 1790282875.0386772,
+    "ast_hash": "5ce607d7fd7a19270162bdce52d911f3",
     "semantic_hash": ""
   },
   "lib/caracteristicas/autenticacion/presentacion/vistas/home_screen.dart": {
-    "mtime": 1788664342.939998,
-    "ast_hash": "2fb11dc164ac60c81cfb64e6d417e506",
+    "mtime": 1790280822.4708345,
+    "ast_hash": "69ee2be0bfe520e0d469ba77bf93b01c",
     "semantic_hash": ""
   },
   "lib/core/app_colores.dart": {
@@ -260,8 +260,8 @@
     "semantic_hash": ""
   },
   "lib/core/services/auth_service.dart": {
-    "mtime": 1786132934.6786,
-    "ast_hash": "c1a5c102897df2c420998ab858b20c09",
+    "mtime": 1790282682.8096178,
+    "ast_hash": "36ed4c86da5a98723728993b77bc8c24",
     "semantic_hash": ""
   },
   "lib/core/services/background_tracking_service.dart": {
@@ -325,8 +325,8 @@
     "semantic_hash": ""
   },
   "lib/core/services/solicitud_firestore_datasource.dart": {
-    "mtime": 1789871196.4751348,
-    "ast_hash": "f6542a520d5dd6e54374f1abc1915adf",
+    "mtime": 1790304978.007806,
+    "ast_hash": "eedd24ea6656638c36a04df038a55de7",
     "semantic_hash": ""
   },
   "lib/core/services/soporte_chat_service.dart": {
@@ -385,13 +385,13 @@
     "semantic_hash": ""
   },
   "lib/features/admin/admin_configuracion_screen.dart": {
-    "mtime": 1788664948.5505178,
-    "ast_hash": "765f8866334e186d4377d6857b7dded1",
+    "mtime": 1790305003.8974633,
+    "ast_hash": "ea8bf4af4618b89205633fcab95883b3",
     "semantic_hash": ""
   },
   "lib/features/admin/admin_home_screen.dart": {
-    "mtime": 1790264656.7175255,
-    "ast_hash": "137624154a449cc75a8a2d68dfeb72e6",
+    "mtime": 1790305003.8978274,
+    "ast_hash": "7e26d8cf47df699d36fb7653edcd9008",
     "semantic_hash": ""
   },
   "lib/features/client/data/firebaseDB.dart": {
@@ -415,18 +415,18 @@
     "semantic_hash": "2ef116133ab753f1e68a5268466ebc17"
   },
   "lib/features/phone_auth/screens/admin_hub_screen.dart": {
-    "mtime": 1788707267.1211476,
-    "ast_hash": "3ffd692d8027ba03c7c8a41978acc54f",
+    "mtime": 1790305003.8981316,
+    "ast_hash": "f04df7f802a3a57a3cf01d87ca9aca0d",
     "semantic_hash": ""
   },
   "lib/features/phone_auth/screens/soporte_chat_detalle_admin_screen.dart": {
-    "mtime": 1788707280.0717146,
-    "ast_hash": "027f6baf9da8e958663cdb27a61838e0",
+    "mtime": 1790305003.8984077,
+    "ast_hash": "0bb818fe85d6ae0f0e94cae7d1bb038b",
     "semantic_hash": ""
   },
   "lib/features/phone_auth/services/user_data_service.dart": {
-    "mtime": 1788537035.4274163,
-    "ast_hash": "c6364554ec1aa7ae9235acdb75344a7a",
+    "mtime": 1790304978.0083742,
+    "ast_hash": "5a759bbbf1895a852f430a367f059b1a",
     "semantic_hash": ""
   },
   "lib/features/resumen_viaje/controllers/resumen_viaje_controller.dart": {
@@ -505,8 +505,8 @@
     "semantic_hash": ""
   },
   "lib/features/trip_tracking_cliente/widgets/trip_details_sheet.dart": {
-    "mtime": 1789519893.5824158,
-    "ast_hash": "be2022c48e912aa2f8333c73dd9c1219",
+    "mtime": 1790304978.0085833,
+    "ast_hash": "222999f9a03620eb66efe506801f8b38",
     "semantic_hash": ""
   },
   "lib/features/trip_tracking_cliente/widgets/waiting_driver_modal.dart": {
@@ -520,7 +520,7 @@
     "semantic_hash": "35bd085c5b625e0d599f8e6dcdcd7061"
   },
   "lib/main.dart": {
-    "mtime": 1789872058.7517562,
+    "mtime": 1790285987.2283356,
     "ast_hash": "fdce8e7392890b1fd4c93b71c593d210",
     "semantic_hash": ""
   },
@@ -565,8 +565,8 @@
     "semantic_hash": ""
   },
   "lib/screens/usuario_cliente/presentacion/view/InicioClienteView.dart": {
-    "mtime": 1789520675.247855,
-    "ast_hash": "16b7595bff07d99228286f7b841f73b2",
+    "mtime": 1790283777.606198,
+    "ast_hash": "998838aab24d7ef9de25cb908ddeafcc",
     "semantic_hash": ""
   },
   "lib/screens/usuario_cliente/presentacion/view/MapaPreviewView.dart": {
@@ -580,43 +580,43 @@
     "semantic_hash": "3294689e85043890aba0fd987cc0a1c8"
   },
   "lib/screens/usuario_cliente/presentacion/view/ayuda/cambiar_destino_view.dart": {
-    "mtime": 1788723410.7835436,
-    "ast_hash": "ad9f6b4b38fdd28374f0eb3d9b8419f6",
+    "mtime": 1790284885.9096403,
+    "ast_hash": "e17fc0617a1aed2f20e09ab80c89d5a7",
     "semantic_hash": ""
   },
   "lib/screens/usuario_cliente/presentacion/view/ayuda/estado_solicitud_view.dart": {
-    "mtime": 1788707308.458138,
-    "ast_hash": "557e246a3f19c467d61727404e8a6c51",
+    "mtime": 1790284885.9099245,
+    "ast_hash": "ca8057c54da774423d8e2439956d7389",
     "semantic_hash": ""
   },
   "lib/screens/usuario_cliente/presentacion/view/ayuda/metodo_pago_view.dart": {
-    "mtime": 1788707313.4271786,
-    "ast_hash": "d6cdaa2f92ed225548d9514ce80473b9",
+    "mtime": 1790284885.910056,
+    "ast_hash": "35992a2e98199c09f34f28b0ef901bf2",
     "semantic_hash": ""
   },
   "lib/screens/usuario_cliente/presentacion/view/ayuda/problemas_conductor_view.dart": {
-    "mtime": 1788707318.549486,
-    "ast_hash": "79483385364390acf935f5a306f80f5b",
+    "mtime": 1790284885.9102218,
+    "ast_hash": "26083e4f0bdfd8d2a6592f221cb726e7",
     "semantic_hash": ""
   },
   "lib/screens/usuario_cliente/presentacion/view/ayuda_view.dart": {
-    "mtime": 1788707339.2715154,
-    "ast_hash": "2993d20999489e944165d0d39c354b1a",
+    "mtime": 1790284662.0800717,
+    "ast_hash": "a245bc4fbf8ee1d90d78ac81f6ff3239",
     "semantic_hash": ""
   },
   "lib/screens/usuario_cliente/presentacion/view/buscando_taxi_view.dart": {
-    "mtime": 1789877019.9913025,
+    "mtime": 1790287061.279857,
     "ast_hash": "ae09da24b916165c534e1d2c47195084",
     "semantic_hash": ""
   },
   "lib/screens/usuario_cliente/presentacion/view/configuracion_aplicacion_view.dart": {
-    "mtime": 1790263817.2340932,
-    "ast_hash": "f65c649ad217ce90d5464715d3640159",
+    "mtime": 1790283931.7954123,
+    "ast_hash": "9a810853cb4275e2ab50b60ed12a2bd2",
     "semantic_hash": ""
   },
   "lib/screens/usuario_cliente/presentacion/view/historial_viaje_cliente.dart": {
-    "mtime": 1788664948.5631661,
-    "ast_hash": "815555c809d698ebc191f08fafde54cd",
+    "mtime": 1790284809.5788589,
+    "ast_hash": "b8b5b2b2aab8f237ae570dc60e2a302d",
     "semantic_hash": ""
   },
   "lib/screens/usuario_cliente/presentacion/view/home_cliente_view.dart": {
@@ -625,23 +625,23 @@
     "semantic_hash": "db9c3ff0ec88aa54f214673127310838"
   },
   "lib/screens/usuario_cliente/presentacion/view/notificaciones_view.dart": {
-    "mtime": 1788707361.4043558,
-    "ast_hash": "442e245500e72e0dd7df187a5b02811f",
+    "mtime": 1790284758.4075813,
+    "ast_hash": "2192af07b8153bb18f1c310c8a864d58",
     "semantic_hash": ""
   },
   "lib/screens/usuario_cliente/presentacion/view/seguridad_view.dart": {
-    "mtime": 1788707348.4422839,
-    "ast_hash": "97375e80881c3c475643eb83b7abcb93",
+    "mtime": 1790284724.6746566,
+    "ast_hash": "812fcb4f8dc02fda80815e13168829f0",
     "semantic_hash": ""
   },
   "lib/screens/usuario_cliente/presentacion/view/soporte_chat_screen.dart": {
-    "mtime": 1788707365.7210314,
-    "ast_hash": "527228fe2a4e8aa235db392c3deb9eed",
+    "mtime": 1790284904.0046513,
+    "ast_hash": "c9cef6820b81dc51576e2e4427b822da",
     "semantic_hash": ""
   },
   "lib/screens/usuario_cliente/presentacion/view/soporte_view.dart": {
-    "mtime": 1788707356.5680296,
-    "ast_hash": "9fa0237a98690d58871810334ac8d2fa",
+    "mtime": 1790284693.1714659,
+    "ast_hash": "8ab17914aa0dc9beff8660a5df789ac7",
     "semantic_hash": ""
   },
   "lib/screens/usuario_cliente/presentacion/view/widgets/bienvenida_dialog.dart": {
@@ -675,53 +675,53 @@
     "semantic_hash": ""
   },
   "lib/screens/usuario_conductor/presentacion/view/InicioConductorView.dart": {
-    "mtime": 1789519521.0384147,
-    "ast_hash": "91647abe2eb376a2fc981eadc1e30f81",
+    "mtime": 1790305003.8990674,
+    "ast_hash": "7bb67d75cc0e7bda1ae1c5a960684933",
     "semantic_hash": ""
   },
   "lib/screens/usuario_conductor/presentacion/view/activacion_servicio_view.dart": {
-    "mtime": 1788537098.5554507,
-    "ast_hash": "5a4b61d5da9fcfb74bb4a4e824b22753",
+    "mtime": 1790304978.0095983,
+    "ast_hash": "4b89e938c2c976fb39690a165432de61",
     "semantic_hash": ""
   },
   "lib/screens/usuario_conductor/presentacion/view/ayuda_conductor_view.dart": {
-    "mtime": 1788707445.1771271,
-    "ast_hash": "ace2287b347ae00f5b3fc9e4c46800a7",
+    "mtime": 1790284682.3158507,
+    "ast_hash": "0d20950625fcc0abaa159f9cbc9c4b59",
     "semantic_hash": ""
   },
   "lib/screens/usuario_conductor/presentacion/view/cambiar_vehiculo_view.dart": {
-    "mtime": 1788664948.5659013,
-    "ast_hash": "4057a1582b9759897d940c0eec618b55",
+    "mtime": 1790304978.009802,
+    "ast_hash": "9fd14ea6ec047fd7e4a1c00e20687cf3",
     "semantic_hash": ""
   },
   "lib/screens/usuario_conductor/presentacion/view/comentarios_conductor_view.dart": {
-    "mtime": 1788664985.3816478,
-    "ast_hash": "303fc26df186731ca526da474f508819",
+    "mtime": 1790304996.2349994,
+    "ast_hash": "1f7d5750ef22da76780d4cb40635f423",
     "semantic_hash": ""
   },
   "lib/screens/usuario_conductor/presentacion/view/completar_registro_conductor_view.dart": {
-    "mtime": 1788664948.566957,
-    "ast_hash": "2adfefb0b560de9da08b9949110d8007",
+    "mtime": 1790304978.0100167,
+    "ast_hash": "fe139bb043ed833ada88118b01ba6182",
     "semantic_hash": ""
   },
   "lib/screens/usuario_conductor/presentacion/view/historial_detalle_conductor.dart": {
-    "mtime": 1788664979.200045,
-    "ast_hash": "21853aa2bee168b88889304984b2dc14",
+    "mtime": 1790284858.1372774,
+    "ast_hash": "865414013575b3f925fc80e50522db16",
     "semantic_hash": ""
   },
   "lib/screens/usuario_conductor/presentacion/view/historial_viaje_conductor.dart": {
-    "mtime": 1788664948.5689797,
-    "ast_hash": "e971c086044322e9154ef7a43e63fed4",
+    "mtime": 1790284829.911732,
+    "ast_hash": "3785cf55b57f2b57a8ffd073373573b1",
     "semantic_hash": ""
   },
   "lib/screens/usuario_conductor/presentacion/view/membresia_detalle_view.dart": {
-    "mtime": 1788664985.3834934,
-    "ast_hash": "46e2f7d34ea092b647e9efc15e0fe81c",
+    "mtime": 1790304978.0101933,
+    "ast_hash": "90b03886fe8ccd70493ffceb3bd15fbc",
     "semantic_hash": ""
   },
   "lib/screens/usuario_conductor/presentacion/view/notificaciones_conductor_view.dart": {
-    "mtime": 1788707449.485512,
-    "ast_hash": "7e7a5bf2e6076e258dc86212192e1ca5",
+    "mtime": 1790284758.3282056,
+    "ast_hash": "2b66842cd78b9a12cc3bb2ee1e0f83a5",
     "semantic_hash": ""
   },
   "lib/screens/usuario_conductor/presentacion/view/resumen_conductor_view.dart": {
@@ -730,24 +730,24 @@
     "semantic_hash": "45fb094020aaae9b898e25fc08509cdc"
   },
   "lib/screens/usuario_conductor/presentacion/view/seguridad_conductor_view.dart": {
-    "mtime": 1788707457.8460748,
-    "ast_hash": "0761e46b4a379b739a103c59daf236c2",
+    "mtime": 1790284682.3199382,
+    "ast_hash": "b15ce3ca9f5c7d980cd0137d98c17fe0",
     "semantic_hash": ""
   },
   "lib/screens/usuario_conductor/presentacion/view/soporte_conductor_view.dart": {
-    "mtime": 1788707466.894111,
-    "ast_hash": "5b6f4d5d0600e06520204cd3a25d1e65",
+    "mtime": 1790284682.318035,
+    "ast_hash": "23d7fb570c119b8fb74e4448868a86d6",
     "semantic_hash": ""
   },
   "lib/screens/usuario_conductor/presentacion/viewmodels/InicioConductorViewModel.dart": {
-    "mtime": 1790265253.3117528,
-    "ast_hash": "a72a916c552454c05d1f1fb24fc5d294",
+    "mtime": 1790305003.8995306,
+    "ast_hash": "0d98b226141060362e27675f82c00e65",
     "semantic_hash": ""
   },
   "lib/screens/usuario_conductor/presentacion/viewmodels/comentarios_conductor_viewmodel.dart": {
-    "mtime": 1786058001.7142224,
-    "ast_hash": "f45e48e044457251604a5ecfd5e5b940",
-    "semantic_hash": "f45e48e044457251604a5ecfd5e5b940"
+    "mtime": 1790304996.2352467,
+    "ast_hash": "af5deff155c99850a6a0225329142abd",
+    "semantic_hash": ""
   },
   "lib/screens/usuario_conductor/presentacion/viewmodels/historial_conductor_viewmodel.dart": {
     "mtime": 1788314218.0810976,
@@ -775,8 +775,8 @@
     "semantic_hash": "66c7b87f765e113368dde5afd33ef25b"
   },
   "lib/widgets/historial/historial_widgets.dart": {
-    "mtime": 1788664380.2036395,
-    "ast_hash": "ef8d24fca31fc91d66815a5ccc6ac56a",
+    "mtime": 1790284791.2589936,
+    "ast_hash": "c89b2bc775ccfb55885c3de4a42b19dc",
     "semantic_hash": ""
   },
   "lib/widgets/intermediate_transition_view.dart": {
@@ -1135,8 +1135,8 @@
     "semantic_hash": "6d75431dc21756981b53a7494c836311"
   },
   "pubspec.yaml": {
-    "mtime": 1790263498.0627227,
-    "ast_hash": "ce81c2dc61e5033652ec98bf73be501e",
+    "mtime": 1790286154.1918573,
+    "ast_hash": "4c3d49deb291e8a1ea2b6e83b3bbe03a",
     "semantic_hash": ""
   },
   "web/index.html": {
@@ -1720,7 +1720,7 @@
     "semantic_hash": ""
   },
   "lib/caracteristicas/autenticacion/dominio/modelos/auth_cancelled_exception.dart": {
-    "mtime": 1786058000.986588,
+    "mtime": 1790282533.784053,
     "ast_hash": "6b2902af551bc65ae61daaae8dc99d33",
     "semantic_hash": ""
   },
@@ -1795,43 +1795,33 @@
     "semantic_hash": ""
   },
   "lib/caracteristicas/confirmar_solicitud/presentacion/vistas/confirmar_solicitud_view.dart": {
-    "mtime": 1788707167.1016293,
-    "ast_hash": "8f49d3f8eea7f2512bd3de4723846644",
+    "mtime": 1790285944.6477504,
+    "ast_hash": "3514dd257a690ebff9929da8dc47a86c",
     "semantic_hash": ""
   },
   "lib/caracteristicas/confirmar_solicitud/presentacion/vistas/widgets/comentario_sheet.dart": {
-    "mtime": 1788666028.3368347,
-    "ast_hash": "98e4eb88fa022a185872644efec01aee",
+    "mtime": 1790286042.9390488,
+    "ast_hash": "88910340ef2f1f8ddb7538a8664d3246",
     "semantic_hash": ""
   },
   "lib/caracteristicas/confirmar_solicitud/presentacion/vistas/widgets/confirmar_solicitud_submit_bar.dart": {
-    "mtime": 1789519546.381287,
-    "ast_hash": "d72219128ad3d1706af1e1d149c89db3",
+    "mtime": 1790286042.93921,
+    "ast_hash": "a6376cbacfc5fe069f4df6397bfa6ed3",
     "semantic_hash": ""
   },
   "lib/caracteristicas/confirmar_solicitud/presentacion/vistas/widgets/mapa_ruta_card.dart": {
-    "mtime": 1788664051.3289435,
-    "ast_hash": "1741b34071af83443c540a5ccad51fa3",
-    "semantic_hash": ""
-  },
-  "lib/caracteristicas/confirmar_solicitud/presentacion/vistas/widgets/metodo_pago_card.dart": {
-    "mtime": 1788665653.3693209,
-    "ast_hash": "fb11cb60370db9528c16cf34fe8d143e",
+    "mtime": 1790286709.1096807,
+    "ast_hash": "421c9f1427ef1d59391e8ba6a71d231d",
     "semantic_hash": ""
   },
   "lib/caracteristicas/confirmar_solicitud/presentacion/vistas/widgets/metodo_pago_sheet.dart": {
-    "mtime": 1788664051.327797,
-    "ast_hash": "d0a035f57865292a1a094b6a4d05abf8",
+    "mtime": 1790286043.0133061,
+    "ast_hash": "89892d52a20b0143a55e28eed92397ac",
     "semantic_hash": ""
   },
   "lib/caracteristicas/confirmar_solicitud/presentacion/vistas/widgets/tipo_vehiculo_sheet.dart": {
-    "mtime": 1789856959.6891084,
-    "ast_hash": "8260ba6df205feb6d309df856aa44048",
-    "semantic_hash": ""
-  },
-  "lib/caracteristicas/confirmar_solicitud/presentacion/vistas/widgets/ubicacion_info_card.dart": {
-    "mtime": 1788724016.1211183,
-    "ast_hash": "d11f3ac6bd3d0d2e634097fdf598e0da",
+    "mtime": 1790286535.6697516,
+    "ast_hash": "42f661c3fc7eb7f070502c97bbc5d57d",
     "semantic_hash": ""
   },
   "lib/caracteristicas/seleccion_destino/datos/repositorios/geocodificacion_repository_impl.dart": {
@@ -1850,7 +1840,7 @@
     "semantic_hash": ""
   },
   "lib/caracteristicas/seleccion_destino/datos/repositorios/ubicaciones_repository_impl.dart": {
-    "mtime": 1788664084.164202,
+    "mtime": 1790285433.0392034,
     "ast_hash": "a0f91d11b92acef3afc603160b7394d2",
     "semantic_hash": ""
   },
@@ -1935,13 +1925,13 @@
     "semantic_hash": ""
   },
   "lib/caracteristicas/seleccion_destino/presentacion/vistas/seleccion_destino_screen.dart": {
-    "mtime": 1789519205.7323554,
-    "ast_hash": "5b0be92dc66467e442d7337c4e39669b",
+    "mtime": 1790285416.7455673,
+    "ast_hash": "ea5bf283d97afcccc852906a776c3183",
     "semantic_hash": ""
   },
   "lib/caracteristicas/seleccion_destino/presentacion/vistas/seleccionar_ubicacion_mapa_view.dart": {
-    "mtime": 1788724128.2077422,
-    "ast_hash": "e821ad9dbe623400c222f2157e5c6fd5",
+    "mtime": 1790285416.746427,
+    "ast_hash": "a3989fbcc924c66756c079032273394c",
     "semantic_hash": ""
   },
   "lib/caracteristicas/seleccion_destino/presentacion/vistas/widgets/favoritos_bottom_sheet.dart": {
@@ -1995,18 +1985,18 @@
     "semantic_hash": ""
   },
   "lib/caracteristicas/viaje_cliente/presentacion/viewmodels/viaje_cliente_viewmodel.dart": {
-    "mtime": 1788726402.907519,
-    "ast_hash": "1201417ba156263e65f872f24e0f552f",
+    "mtime": 1790304978.0064228,
+    "ast_hash": "8e95915047423e969426584e3e376c72",
     "semantic_hash": ""
   },
   "lib/caracteristicas/viaje_cliente/presentacion/vistas/viaje_cliente_screen.dart": {
-    "mtime": 1789520111.2472107,
-    "ast_hash": "fbe45c1f917b050b9352e3b42a75ab1f",
+    "mtime": 1790304978.0066853,
+    "ast_hash": "794a2823079b3f0583b3e8178138414f",
     "semantic_hash": ""
   },
   "lib/caracteristicas/viaje_cliente/presentacion/widgets/trip_info_card/trip_info_card.dart": {
-    "mtime": 1788664051.3213365,
-    "ast_hash": "6433b01a3bbbab27c9ce984057fcac3e",
+    "mtime": 1790304978.0068617,
+    "ast_hash": "41ecf2a89f5f0efb496c25881b0fb9b2",
     "semantic_hash": ""
   },
   "lib/caracteristicas/viaje_cliente/presentacion/widgets/trip_info_card/widgets/codigo_verificacion_banner.dart": {
@@ -2015,8 +2005,8 @@
     "semantic_hash": ""
   },
   "lib/caracteristicas/viaje_cliente/presentacion/widgets/trip_info_card/widgets/conductor_vehiculo_info.dart": {
-    "mtime": 1788664216.5731516,
-    "ast_hash": "1eb89c4e17de7a4ff1130d3b0f208196",
+    "mtime": 1790304978.0070326,
+    "ast_hash": "cfb03dc08e6749370e2463588cd2ef6c",
     "semantic_hash": ""
   },
   "lib/caracteristicas/viaje_compartido/datos/fuentes/ruta_datasource.dart": {
@@ -2025,8 +2015,8 @@
     "semantic_hash": ""
   },
   "lib/caracteristicas/viaje_compartido/datos/modelos/viaje_model.dart": {
-    "mtime": 1788187884.6396248,
-    "ast_hash": "2cdeff594d14e271488c964ede6ed2de",
+    "mtime": 1790304978.007198,
+    "ast_hash": "d958fd1a74c3e689aa9f59444f2162ee",
     "semantic_hash": ""
   },
   "lib/caracteristicas/viaje_compartido/datos/repositorios/viaje_repository_impl.dart": {
@@ -2045,8 +2035,8 @@
     "semantic_hash": ""
   },
   "lib/caracteristicas/viaje_compartido/dominio/entidades/participante_viaje_entity.dart": {
-    "mtime": 1785773632.639919,
-    "ast_hash": "10b5cdc2c37ec665f97c89c1e2cd97da",
+    "mtime": 1790304978.007354,
+    "ast_hash": "af8d3e621b8b7c4cd3f1b3bdc4caef3c",
     "semantic_hash": ""
   },
   "lib/caracteristicas/viaje_compartido/dominio/entidades/viaje_entity.dart": {
@@ -2115,8 +2105,8 @@
     "semantic_hash": ""
   },
   "lib/caracteristicas/viaje_conductor/presentacion/viewmodels/viaje_conductor_viewmodel.dart": {
-    "mtime": 1789871167.44842,
-    "ast_hash": "e0f912083f05204ce0974a22178b8d30",
+    "mtime": 1790304978.0075958,
+    "ast_hash": "cf239d6ba7835250afdfead170a09dd5",
     "semantic_hash": ""
   },
   "lib/caracteristicas/viaje_conductor/presentacion/vistas/viaje_conductor_screen.dart": {
@@ -2195,8 +2185,8 @@
     "semantic_hash": ""
   },
   "lib/core/utils/proyeccion_mercator.dart": {
-    "mtime": 1789570983.9744062,
-    "ast_hash": "6865c8976bea2ef6f38ed9d1a05c9209",
+    "mtime": 1790287061.3024457,
+    "ast_hash": "21ba0ebf65080287f710196a9a07819f",
     "semantic_hash": ""
   },
   "lib/data/models/solicitud_item.dart": {
@@ -2210,18 +2200,18 @@
     "semantic_hash": ""
   },
   "lib/screens/perfil/editar_perfil.dart": {
-    "mtime": 1788723438.862759,
-    "ast_hash": "f05ea4ef06bd8eca8a7357656d2ebe7d",
+    "mtime": 1790304978.0087855,
+    "ast_hash": "371b933ce7a4eb0252c1bf5a8591e72f",
     "semantic_hash": ""
   },
   "lib/screens/perfil/informacion_perfil_view.dart": {
-    "mtime": 1788723307.0567515,
-    "ast_hash": "84ae2a61a05f638e9bb272dd572ded6a",
+    "mtime": 1790304978.0089562,
+    "ast_hash": "0d1a695692393e8cbe07753dd5aa9140",
     "semantic_hash": ""
   },
   "lib/screens/perfil/perfil.dart": {
-    "mtime": 1788722637.6798644,
-    "ast_hash": "45c70ab178ee6ae56e5857cf10f28e7c",
+    "mtime": 1790304978.009138,
+    "ast_hash": "8034d6a3edff95935f3de7960e8e2717",
     "semantic_hash": ""
   },
   "lib/screens/usuario_cliente/presentacion/model/ubicacion_resultado.dart": {
@@ -2295,8 +2285,8 @@
     "semantic_hash": ""
   },
   "rules-tests/colecciones.test.js": {
-    "mtime": 1789609932.6031294,
-    "ast_hash": "e239d75cb8f15c608fcb515eaab4afd0",
+    "mtime": 1790282723.8956573,
+    "ast_hash": "371571727aeac2e9c5cb419d08945d9f",
     "semantic_hash": ""
   },
   "rules-tests/helpers.js": {
@@ -2325,8 +2315,8 @@
     "semantic_hash": ""
   },
   "test/comentario_sheet_test.dart": {
-    "mtime": 1789877051.9605174,
-    "ast_hash": "835ecfe6fe3a1f962d89c504dfceb7a4",
+    "mtime": 1790286551.905064,
+    "ast_hash": "223bbe1dd8f77278338b608645b60eb0",
     "semantic_hash": ""
   },
   "test/esquema_solicitud_contrato_test.dart": {
@@ -2335,8 +2325,8 @@
     "semantic_hash": ""
   },
   "test/inicio_conductor_viewmodel_test.dart": {
-    "mtime": 1789877051.961919,
-    "ast_hash": "a5e91f5ce7a6743e7729bd18167f87cf",
+    "mtime": 1790305003.9011345,
+    "ast_hash": "d5e88f53bf8275330e6cbb77094c059f",
     "semantic_hash": ""
   },
   "test/initial_screen_resolver_test.dart": {
@@ -2535,13 +2525,13 @@
     "semantic_hash": ""
   },
   "lib/widgets/confirmar_dialog.dart": {
-    "mtime": 1788374191.4333887,
-    "ast_hash": "4801a83b78dc502be0f51ee17a64f27b",
+    "mtime": 1790305003.9000974,
+    "ast_hash": "8ab040e98b740a0e36817f2908f0ae58",
     "semantic_hash": ""
   },
   "lib/widgets/dialogo_dias_membresia.dart": {
-    "mtime": 1790264696.8328707,
-    "ast_hash": "3439538f18edd7de79a322d64e9027cc",
+    "mtime": 1790305003.9003794,
+    "ast_hash": "4585ca2dc6b5a8084cdeea0c6d97d29a",
     "semantic_hash": ""
   },
   "lib/widgets/elegir_origen_imagen_sheet.dart": {
@@ -2697,6 +2687,96 @@
   "assets/img/Ride_icon.png": {
     "mtime": 1782601848.1244488,
     "ast_hash": "519dab312a69704c2823e752392cc728",
+    "semantic_hash": ""
+  },
+  "lib/caracteristicas/autenticacion/dominio/validar_perfil_cliente.dart": {
+    "mtime": 1790281244.7359917,
+    "ast_hash": "d24166bc954fb357a3cc99a2d2e1d061",
+    "semantic_hash": ""
+  },
+  "lib/caracteristicas/confirmar_solicitud/presentacion/vistas/widgets/opciones_viaje_row.dart": {
+    "mtime": 1790285685.75443,
+    "ast_hash": "cc84a80568d373ad0e1f86e229797e96",
+    "semantic_hash": ""
+  },
+  "lib/caracteristicas/confirmar_solicitud/presentacion/vistas/widgets/ruta_paradas_card.dart": {
+    "mtime": 1790285730.694101,
+    "ast_hash": "87586df77a9ff27b72d9ea6405a8426a",
+    "semantic_hash": ""
+  },
+  "lib/core/validators/vehiculo_validator.dart": {
+    "mtime": 1790304978.0079515,
+    "ast_hash": "f266833c6d062c6ff4e5933bfad7ed28",
+    "semantic_hash": ""
+  },
+  "lib/widgets/ajustes_ui.dart": {
+    "mtime": 1790305003.8998153,
+    "ast_hash": "a097d99561661f7ce9670cbb30fb09d8",
+    "semantic_hash": ""
+  },
+  "lib/widgets/campos_modelo_color.dart": {
+    "mtime": 1790304978.0105002,
+    "ast_hash": "bc9813b3e3df819bb4d673bd889a67de",
+    "semantic_hash": ""
+  },
+  "test/admin_pantallas_test.dart": {
+    "mtime": 1790305003.9118583,
+    "ast_hash": "366cc1e1832515d6e81b3994e0944290",
+    "semantic_hash": ""
+  },
+  "test/comentarios_conductor_test.dart": {
+    "mtime": 1790304996.2354987,
+    "ast_hash": "caa3b0b5268803b2c5eb2f5f7dc01865",
+    "semantic_hash": ""
+  },
+  "test/complete_profile_page_test.dart": {
+    "mtime": 1790282257.8582263,
+    "ast_hash": "3630f8322672859cc9094ae18ae877e5",
+    "semantic_hash": ""
+  },
+  "test/confirmacion_inferior_test.dart": {
+    "mtime": 1790305003.9008212,
+    "ast_hash": "924a84c232bb98057fc22b4b9797492e",
+    "semantic_hash": ""
+  },
+  "test/mensaje_activacion_whatsapp_test.dart": {
+    "mtime": 1790304978.0108936,
+    "ast_hash": "3ebb2715e8ad87eb0958860549392375",
+    "semantic_hash": ""
+  },
+  "test/pantallas_cuenta_test.dart": {
+    "mtime": 1790304978.0110457,
+    "ast_hash": "214ce98aa30448697e7484bd98adeb14",
+    "semantic_hash": ""
+  },
+  "test/perfil_completo_flujo_test.dart": {
+    "mtime": 1790282706.5380316,
+    "ast_hash": "626e70a59a9d3b11802a48c8d50571d0",
+    "semantic_hash": ""
+  },
+  "test/perfil_page_test.dart": {
+    "mtime": 1790283805.454738,
+    "ast_hash": "8679a8d30ebc4b4969040fbb2ed1197b",
+    "semantic_hash": ""
+  },
+  "test/proyeccion_mercator_rumbo_test.dart": {
+    "mtime": 1790287061.3032386,
+    "ast_hash": "7b85b5549c27598c27344872ff578e31",
+    "semantic_hash": ""
+  },
+  "test/ruta_paradas_card_test.dart": {
+    "mtime": 1790285709.8204837,
+    "ast_hash": "363c8b71e619e92aa474ec6971f418da",
+    "semantic_hash": ""
+  },
+  "test/validar_perfil_cliente_test.dart": {
+    "mtime": 1790281388.7383597,
+    "ast_hash": "2f3bc698159ec96777ac9ac682d0b681",
+    "semantic_hash": ""
+  },
+  "test/vehiculo_validator_test.dart": {
+    "mtime": 1790304978.0111935,
+    "ast_hash": "4a24aeb786002727d9294f73c7c53ba7",
     "semantic_hash": ""
   }
 }

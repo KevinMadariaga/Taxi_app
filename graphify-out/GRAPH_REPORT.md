@@ -1,16 +1,16 @@
 # Graph Report - Taxi_app  (2026-09-24)
 
 ## Corpus Check
-- 419 files · ~583,262 words
+- 435 files · ~597,630 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 6176 nodes · 8441 edges · 399 communities (296 shown, 103 thin omitted)
+- 6507 nodes · 8969 edges · 409 communities (308 shown, 101 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 41 edges (avg confidence: 0.79)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `d1e7c16f`
+- Built from commit: `45bceb63`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -408,13 +408,23 @@
 - package:taxi_app/caracteristicas/viaje_compartido/dominio/espera_countdown.dart
 - double?
 - Widget
+- CompleteClientProfileUseCase
+- cliente_actual.dart
+- vehiculo_validator.dart
+- CustomPainter
+- GlobalKey
+- SeleccionUbicacionResult
+- seguridad_conductor_view.dart
+- soporte_conductor_view.dart
+- package:flutter_screenutil/flutter_screenutil.dart
+- info_recogida_pago_row_test.dart
 
 ## God Nodes (most connected - your core abstractions)
 1. `taxi_app (pubspec manifest)` - 46 edges
 2. `CORE DIRECTIVE: PREMIUM MOBILE APP IMAGE DIRECTION` - 39 edges
 3. `Win32Window` - 22 edges
-4. `ClientAuthRepository` - 18 edges
-5. `ConfirmarSolicitudViewModel` - 16 edges
+4. `ClientAuthRepository` - 20 edges
+5. `ConfirmarSolicitudViewModel` - 18 edges
 6. `CLAUDE.md — Taxi Ya` - 16 edges
 7. `Designing with Sleek` - 13 edges
 8. `Taxi Ya` - 13 edges
@@ -430,8 +440,8 @@
   linux/flutter/CMakeLists.txt → windows/flutter/CMakeLists.txt
 - `linux/runner/CMakeLists.txt Runner Target` --semantically_similar_to--> `windows/runner/CMakeLists.txt Runner Target`  [INFERRED] [semantically similar]
   linux/runner/CMakeLists.txt → windows/runner/CMakeLists.txt
-- `FakeClientAuthRepository` --implements--> `ClientAuthRepository`  [EXTRACTED]
-  test/test_helpers/fake_client_auth_repository.dart → lib/caracteristicas/autenticacion/dominio/repositorios/client_auth_repository.dart
+- `_RepoSinUsuario` --implements--> `ClientAuthRepository`  [EXTRACTED]
+  test/complete_profile_page_test.dart → lib/caracteristicas/autenticacion/dominio/repositorios/client_auth_repository.dart
 
 ## Import Cycles
 - None detected.
@@ -449,7 +459,7 @@
 - **Maps and geolocation feature group** — pubspec_google_maps_flutter, pubspec_google_maps_flutter_android, pubspec_google_maps_flutter_platform_interface, pubspec_geolocator, pubspec_geocoding [INFERRED 0.85]
 - **Client authentication providers (Google, Apple, phone via Firebase Auth)** — pubspec_firebase_auth, pubspec_google_sign_in, pubspec_sign_in_with_apple [INFERRED 0.85]
 
-## Communities (399 total, 103 thin omitted)
+## Communities (409 total, 101 thin omitted)
 
 ### Community 0 - "Driver Home ViewModel"
 Cohesion: 0.02
@@ -461,11 +471,11 @@ Nodes (35): _abrirCodigoVerificacion, build, _cerrarWaitingSheet, createState, d
 
 ### Community 2 - "Client Trip ViewModel"
 Cohesion: 0.03
-Nodes (69): _actualizarDistanciaLiviana, _actualizarNotificacionProgreso, _bindViaje, calificacionConductor, _cancelarViaje, chat, _checkProximityNotification, clienteId (+61 more)
+Nodes (70): _actualizarDistanciaLiviana, _actualizarNotificacionProgreso, _bindViaje, calificacionConductor, _cancelarViaje, chat, _checkProximityNotification, clienteId (+62 more)
 
 ### Community 3 - "Destination Selection Screen"
 Cohesion: 0.05
-Nodes (40): _AccionesSection, build, _cerrarTeclado, _confirmarUbicacionYNavegar, _conGuardaDeSeleccion, controller, createState, currentLocation (+32 more)
+Nodes (41): _AccionesSection, build, _cerrarTeclado, _ComoFunciona, _confirmarUbicacionYNavegar, _conGuardaDeSeleccion, controller, createState (+33 more)
 
 ### Community 4 - "Driver Trip ViewModel"
 Cohesion: 0.02
@@ -488,40 +498,40 @@ Cohesion: 0.04
 Nodes (49): ../../datos/repositorios/historial_destinos_repository_impl.dart, ../../datos/repositorios/lugares_repository_impl.dart, ../../datos/repositorios/ubicaciones_repository_impl.dart, ../../dominio/casos_uso/eliminar_favorito_usecase.dart, ../../dominio/casos_uso/extraer_ubicacion_desde_texto_usecase.dart, ../../dominio/casos_uso/guardar_favorito_usecase.dart, ../../dominio/casos_uso/obtener_favoritos_usecase.dart, ../../dominio/casos_uso/obtener_historial_destinos_usecase.dart (+41 more)
 
 ### Community 9 - "Trip Status UI Widgets"
-Cohesion: 0.03
-Nodes (62): build, distanceText, EtaDistanciaRow, etaText, expanded, showLabel, AppThemeConfig, _build (+54 more)
+Cohesion: 0.05
+Nodes (41): build, distanceText, EtaDistanciaRow, etaText, expanded, showLabel, build, SinConexionOverlay (+33 more)
 
 ### Community 10 - "Driver Home Screen"
 Cohesion: 0.03
-Nodes (60): _abrirContraofertaModal, _backgroundedAt, _bootstrapConductorLocationFlow, build, _centerPreviewOnConductorToClient, _closePreview, createState, currentLocationNotifier (+52 more)
+Nodes (58): _abrirContraofertaModal, _backgroundedAt, _bootstrapConductorLocationFlow, _centerPreviewOnConductorToClient, _closePreview, createState, currentLocationNotifier, _dialogMembresiaVisible (+50 more)
 
 ### Community 11 - "Destination Search UseCases"
-Cohesion: 0.12
-Nodes (14): BuscarDestinosUseCase, _buscarGuardadas, call, _estaDentroDeOcana, _lugares, ocanaCenter, ocanaRadioMetros, _sinFallar (+6 more)
+Cohesion: 0.10
+Nodes (19): LugaresRepositoryImpl, BuscarDestinosUseCase, _buscarGuardadas, call, _estaDentroDeOcana, _lugares, ocanaCenter, ocanaRadioMetros (+11 more)
 
 ### Community 12 - "Mobile Image Direction Skill"
 Cohesion: 0.06
 Nodes (34): 10. DEVICE MOCKUP FRAME RULE, 11. ONBOARDING FLOW RULE, 12. FIRST SCREEN CLEANLINESS RULE, 13. SAFE AREA AND SYSTEM REGION RULE, 14. NAVIGATION RULE, 15. CLEAN LAYOUT RULE, 16. CREATIVE IMAGE DIRECTION RULE, 17. BACKGROUND TEXTURE AND SURFACE RULE (+26 more)
 
 ### Community 13 - "Location Entities"
-Cohesion: 0.15
-Nodes (13): build, _buscando, createState, _error, mostrarPegarUbicacionModal, of, _pegar, _PegarUbicacionSheet (+5 more)
+Cohesion: 0.14
+Nodes (14): SeleccionDestinoViewModel, build, _buscando, createState, _error, mostrarPegarUbicacionModal, of, _pegar (+6 more)
 
 ### Community 14 - "Driver Earnings History Detail"
 Cohesion: 0.04
-Nodes (50): _amberDark, build, _buildTurnoCard, _ChartCard, child, color, conductorId, createState (+42 more)
+Nodes (51): _amberDark, build, _buildTurnoCard, child, color, conductorId, createState, dayCounts (+43 more)
 
 ### Community 15 - "Driver Trip ViewModel Tests"
 Cohesion: 0.05
 Nodes (37): _FakeCodigoRepository, _FakeViajeRepository, RutaDatasource, package:taxi_app/caracteristicas/viaje_conductor/datos/fuentes/conductor_perfil_datasource.dart, actualizarEstado, actualizarInfoConductor, almacenado, _Bitacora (+29 more)
 
 ### Community 16 - "Complete Profile Page"
-Cohesion: 0.04
-Nodes (51): CompleteClientProfileUseCase, GetClientUserUseCase, _apellidoController, _apellidoFocusNode, _AvatarPicker, build, _buildBottomBar, _buildForm (+43 more)
+Cohesion: 0.03
+Nodes (73): activo, _alCambiarFoco, _alEscribir, _Aparecer, _apellidoController, _AvatarPicker, _buildBottomBar, _buildScroll (+65 more)
 
 ### Community 17 - "Admin Home Dashboard"
-Cohesion: 0.04
-Nodes (55): activa, _AdminBellIcon, _AdminBellIconState, AdminHomeScreen, _AdminHomeScreenState, adminId, _aprobar, _aprobarMembresia (+47 more)
+Cohesion: 0.03
+Nodes (62): activa, _AdminBellIcon, _AdminBellIconState, AdminHomeScreen, _AdminHomeScreenState, adminId, _aprobar, _aprobarMembresia (+54 more)
 
 ### Community 18 - "Driver Movement Simulator"
 Cohesion: 0.04
@@ -529,15 +539,15 @@ Nodes (50): _activePathIndex, _activePathPoints, _buildRemainingRoutePoints, _co
 
 ### Community 19 - "Trip Summary View"
 Cohesion: 0.09
-Nodes (23): ../controllers/resumen_viaje_controller.dart, ResumenViajeController, build, createState, _currency, _fecha, initState, isCliente (+15 more)
+Nodes (24): ../controllers/resumen_viaje_controller.dart, ResumenViajeController, build, createState, _currency, _fecha, initState, isCliente (+16 more)
 
 ### Community 20 - "Session Helper"
-Cohesion: 0.06
-Nodes (32): _activeSolicitudController, activeSolicitudStream, _cachedNameController, cachedNameStream, clearActiveSolicitud, clearActiveSolicitudAndNotify, clearActiveSolicitudNotify, clearActiveSolicitudScreen (+24 more)
+Cohesion: 0.05
+Nodes (43): _activeSolicitudController, activeSolicitudStream, _cachedNameController, cachedNameStream, clearActiveSolicitud, clearActiveSolicitudAndNotify, clearActiveSolicitudNotify, clearActiveSolicitudScreen (+35 more)
 
 ### Community 21 - "Client Home ViewModel"
 Cohesion: 0.04
-Nodes (53): _authSub, _cachedNameSub, _cargarClienteDesdeCache, _cargarFavoritos, cargarFavoritosUnaVez, cargarUbicacionActual, _clientId, _clientName (+45 more)
+Nodes (54): _authSub, _cachedNameSub, _cargarClienteDesdeCache, _cargarFavoritos, cargarFavoritosUnaVez, cargarUbicacionActual, _clientId, _clientName (+46 more)
 
 ### Community 22 - "Map Preview ViewModel"
 Cohesion: 0.15
@@ -560,8 +570,8 @@ Cohesion: 0.05
 Nodes (48): analysis_options.yaml Lint Config, animated_snack_bar, awesome_snackbar_content, cached_network_image, cloud_firestore, cloud_functions, connectivity_plus, connectivity_plus_platform_interface (+40 more)
 
 ### Community 27 - "Route & Geocoding Repositories"
-Cohesion: 0.08
-Nodes (23): ../../dominio/entidades/ruta_resultado.dart, ../../dominio/repositorios/ruta_repository.dart, ../entidades/ruta_resultado.dart, _fallbackMatematico, _interpolar, _mapService, RutaRepositoryImpl, trazar (+15 more)
+Cohesion: 0.15
+Nodes (12): ../../dominio/repositorios/geocodificacion_repository.dart, direccionDesde, _formatoCoordenadas, GeocodificacionRepositoryImpl, call, ObtenerDireccionDesdeCoordenadasUseCase, _repository, direccionDesde (+4 more)
 
 ### Community 28 - "Pending Requests Controller"
 Cohesion: 0.06
@@ -569,7 +579,7 @@ Nodes (35): _buildPendingSolicitudItem, _cancelarAvisosDe, clear, _clientePorSol
 
 ### Community 29 - "App Color Palette"
 Cohesion: 0.04
-Nodes (50): accentOrange, amarillo, AppColores, azul, background, blanco, borderSubtle, brand200 (+42 more)
+Nodes (49): accentOrange, amarillo, AppColores, azul, background, blanco, borderSubtle, brand200 (+41 more)
 
 ### Community 30 - "Earnings Aggregation ViewModel"
 Cohesion: 0.07
@@ -577,7 +587,7 @@ Nodes (29): computeAggregation, computeWeekStarts, findWeekIndexForDate, formatE
 
 ### Community 31 - "Transition Animation View"
 Cohesion: 0.05
-Nodes (42): CustomPainter, accentColor, build, cerrarRutasSobre, _CheckPainter, _checkProgress, _circleScale, clearStackOnNext (+34 more)
+Nodes (39): accentColor, build, cerrarRutasSobre, _checkProgress, _circleScale, clearStackOnNext, color, createState (+31 more)
 
 ### Community 32 - "Google Map Widget"
 Cohesion: 0.06
@@ -588,32 +598,32 @@ Cohesion: 0.09
 Nodes (21): SolicitudItem, build, expanded, isLoading, onAccept, onCancel, onClose, _pickupText (+13 more)
 
 ### Community 34 - "Driver Home Navigation"
-Cohesion: 0.11
+Cohesion: 0.10
 Nodes (18): InicioConductorNavigation, irAAyuda, irAComentarios, irAConfiguracion, irAHistorialConductor, irANotificaciones, irAPerfilConductor, irARutaConductor (+10 more)
 
 ### Community 35 - "Edit Profile Screen"
-Cohesion: 0.06
-Nodes (32): apellidoController, build, createState, dispose, esConductor, _faceDetectionService, _fieldDecoration, _getUid (+24 more)
+Cohesion: 0.04
+Nodes (51): apellidoController, build, _Campo, _color, colorController, controller, createState, dispose (+43 more)
 
 ### Community 36 - "Driver Trip History"
-Cohesion: 0.06
-Nodes (40): historial_detalle_conductor.dart, _BottomNavBar, _CarouselSection, _FavoritoItem, _FavoritosSection, _HeaderSection, _HomeClienteMap, _LoadersOverlay (+32 more)
+Cohesion: 0.04
+Nodes (51): historial_detalle_conductor.dart, _Avatar, _AvisoPendientes, _BadgeDeshabilitado, _ClienteCard, _ConductorCard, _EmptyTile, _ListaClientes (+43 more)
 
 ### Community 37 - "Change Vehicle Screen"
-Cohesion: 0.06
-Nodes (33): _activando, _activarVehiculo, _Badge, build, _cargando, _cargarDatos, color, createState (+25 more)
+Cohesion: 0.04
+Nodes (45): _activando, _activarVehiculo, _Badge, _barraBotones, build, _cambiarTipo, CambiarVehiculoView, _CambiarVehiculoViewState (+37 more)
 
 ### Community 38 - "Profile Screen"
-Cohesion: 0.07
-Nodes (29): _auth, _buildCambiarVehiculoCard, _buildVolverClienteCard, _cachedImageFile, _cachedVehicleFile, _cacheFileForUid, _cambiarRol, _cargarDatos (+21 more)
+Cohesion: 0.05
+Nodes (42): _abrirCambiarVehiculo, archivo, _auth, _Avatar, avatarSize, build, _cachedImageFile, _cachedVehicleFile (+34 more)
 
 ### Community 39 - "Home Login Screen"
-Cohesion: 0.06
-Nodes (38): SignInGoogleClientUseCase, build, createState, enabled, _error, _ErrorBanner, filled, _Hero (+30 more)
+Cohesion: 0.08
+Nodes (26): fake_client_auth_repository.dart, SignInGoogleClientUseCase, build, createState, enabled, _error, _ErrorBanner, filled (+18 more)
 
 ### Community 40 - "Trip Details Sheet"
-Cohesion: 0.07
-Nodes (29): build, calificacion, color, _currency, direccionDestino, direccionRecoger, _DireccionRow, _Estrellas (+21 more)
+Cohesion: 0.05
+Nodes (36): build, calificacion, color, _currency, descripcion, descripcionVehiculo, direccionDestino, direccionRecoger (+28 more)
 
 ### Community 41 - "History Widgets"
 Cohesion: 0.07
@@ -625,7 +635,7 @@ Nodes (30): FlutterLocalNotificationsPlugin, _adminChannelId, _adminChannelName,
 
 ### Community 43 - "Auth Adapter & App Bootstrap"
 Cohesion: 0.06
-Nodes (32): fake_client_auth_repository.dart, anterior, _authAdapter, contains, _darkSystemOverlayStyle, detalle, _ErrorArranqueApp, _esErrorBenignoMapas (+24 more)
+Nodes (33): LegacyAuthRepository, AppAuthAdapter, ClientAuthRepositoryImpl, ClientAuthRepository, _navegarTrasLogin, anterior, _authAdapter, build (+25 more)
 
 ### Community 44 - "Request Preview Map"
 Cohesion: 0.07
@@ -633,15 +643,15 @@ Nodes (29): boxHeight, boxWidth, build, child, _clienteIconSize, clientLocation,
 
 ### Community 45 - "Custom Button Widget"
 Cohesion: 0.07
-Nodes (28): RideWidgetExtensionLiveActivity, WidgetConfiguration, build, icono, isSelected, label, _MetodoPagoOpcion, mostrarMetodoPagoSheet (+20 more)
+Nodes (27): Color, RideWidgetExtensionLiveActivity, WidgetConfiguration, build, descripcion, fondoIcono, icono, mostrarMetodoPagoSheet (+19 more)
 
 ### Community 46 - "iOS HIG Patterns Reference"
 Cohesion: 0.07
 Nodes (26): Accessibility, Adaptive Layouts, Color System, Custom Font with Dynamic Type, Dynamic Type Support, Empty States, Error Handling UI, Error States (+18 more)
 
 ### Community 47 - "Profile Image Upload & Crop"
-Cohesion: 0.11
-Nodes (17): dart:typed_data, FirebaseStorage, ClientProfileImageDataSource, _compressToWebP, _maxBytes, _qualities, _sizes, _storage (+9 more)
+Cohesion: 0.10
+Nodes (19): dart:typed_data, FirebaseStorage, ClientProfileImageDataSource, _compressToWebP, _maxBytes, _qualities, _sizes, _storage (+11 more)
 
 ### Community 48 - "Linux Plugin Registrant"
 Cohesion: 0.10
@@ -652,12 +662,12 @@ Cohesion: 0.08
 Nodes (24): build, CambiarDestinoView, _CambiarDestinoViewState, _cargandoUbicacion, _centrarEnUbicacionActual, _confirmar, createState, destinoInicial (+16 more)
 
 ### Community 50 - "Client Header & Price Widgets"
-Cohesion: 0.06
-Nodes (29): Color, CrossAxisAlignment, build, cardBorderColor, cardBorderRadius, header, icon, iconBackgroundColor (+21 more)
+Cohesion: 0.11
+Nodes (17): CrossAxisAlignment, alignment, build, compact, _formatCurrency, icon, label, _PrecioColumna (+9 more)
 
 ### Community 51 - "Admin Hub Screen"
 Cohesion: 0.05
-Nodes (37): accentColor, _BadgeTab, child, _ContenidoCentrado, count, createState, _detalleRow, dispose (+29 more)
+Nodes (39): accentColor, AdminHubScreen, _AdminHubScreenState, _BadgeTab, child, _ContenidoCentrado, count, createState (+31 more)
 
 ### Community 52 - "User Data Firestore Service"
 Cohesion: 0.04
@@ -668,24 +678,24 @@ Cohesion: 0.40
 Nodes (4): authUid, build, HomeClienteView, package:taxi_app/screens/usuario_cliente/presentacion/view/InicioClienteView.dart
 
 ### Community 54 - "Service Activation Payment"
-Cohesion: 0.07
-Nodes (27): abrirRutaHacia, NavegacionExternaDatasource, ArrivalConfirmationSheet, build, mostrar, build, _confirmarLlamada, createState (+19 more)
+Cohesion: 0.06
+Nodes (36): _abrirWhatsapp, ActivacionServicioView, _ActivacionServicioViewState, build, campo, _cargar, _copiar, createState (+28 more)
 
 ### Community 55 - "Screen State Classes"
 Cohesion: 0.07
-Nodes (46): ConfirmarSolicitudView, _ConfirmarSolicitudViewState, SeleccionDestinoScreen, _SeleccionDestinoScreenState, ViajeClienteScreen, _ViajeClienteScreenState, TripInfoCard, _TripInfoCardState (+38 more)
+Nodes (50): _Sacudir, _SacudirState, ConfirmarSolicitudView, _ConfirmarSolicitudViewState, SeleccionDestinoScreen, _SeleccionDestinoScreenState, _EtiquetaFavoritoDialog, _EtiquetaFavoritoDialogState (+42 more)
 
 ### Community 56 - "Trip State UseCases"
 Cohesion: 0.10
-Nodes (21): GenerarCodigoVerificacionUseCase, _actualizarEstado, call, ConfirmarVoyEnCaminoUseCase, ActualizarEstadoViajeUseCase, _actualizarEstado, call, FinalizarViajeUseCase (+13 more)
+Nodes (20): _actualizarEstado, call, ConfirmarVoyEnCaminoUseCase, ActualizarEstadoViajeUseCase, _actualizarEstado, call, FinalizarViajeUseCase, _actualizarEstado (+12 more)
 
 ### Community 57 - "Splash Screen"
-Cohesion: 0.08
-Nodes (25): build, createState, dispose, _entrada, _fetchMinimumRequiredVersion, _handleNavigation, _hasNavigated, initState (+17 more)
+Cohesion: 0.09
+Nodes (23): build, createState, dispose, _entrada, _fetchMinimumRequiredVersion, _handleNavigation, _hasNavigated, initState (+15 more)
 
 ### Community 58 - "Request Schema Contract Test"
-Cohesion: 0.08
-Nodes (23): FakeFirebaseFirestore, ClienteActual, fotoUrl, id, nombre, package:taxi_app/caracteristicas/confirmar_solicitud/datos/repositorios/solicitud_repository_impl.dart, package:taxi_app/caracteristicas/confirmar_solicitud/dominio/casos_uso/crear_solicitud_usecase.dart, package:taxi_app/caracteristicas/confirmar_solicitud/dominio/entidades/cliente_actual.dart (+15 more)
+Cohesion: 0.11
+Nodes (18): package:taxi_app/caracteristicas/confirmar_solicitud/datos/repositorios/solicitud_repository_impl.dart, package:taxi_app/caracteristicas/confirmar_solicitud/dominio/casos_uso/crear_solicitud_usecase.dart, package:taxi_app/caracteristicas/confirmar_solicitud/dominio/entidades/cliente_actual.dart, package:taxi_app/caracteristicas/confirmar_solicitud/dominio/modelos/crear_solicitud_resultado.dart, package:taxi_app/caracteristicas/confirmar_solicitud/dominio/repositorios/cliente_repository.dart, package:taxi_app/caracteristicas/seleccion_destino/dominio/entidades/seleccion_ubicacion_result.dart, package:taxi_app/caracteristicas/viaje_compartido/datos/modelos/viaje_model.dart, package:taxi_app/features/trip_tracking_cliente/models/solicitud_model.dart (+10 more)
 
 ### Community 59 - "Support Notification Service"
 Cohesion: 0.05
@@ -696,12 +706,12 @@ Cohesion: 0.07
 Nodes (27): int?, appendPendingConductorLocation, CachedRouteData, clearPendingConductorLocations, clearSolicitudData, distanceMeters, etaSeconds, fromMap (+19 more)
 
 ### Community 61 - "GPS Tracking Service"
-Cohesion: 0.07
-Nodes (26): AndroidNotificationChannel, AndroidFlutterLocalNotificationsPlugin, calcularDistancia, channel, detenerTracking, dispose, enviarUbicacion, _firebaseService (+18 more)
+Cohesion: 0.06
+Nodes (33): AndroidNotificationChannel, AndroidFlutterLocalNotificationsPlugin, calcularDistancia, channel, detenerTracking, dispose, enviarUbicacion, _firebaseService (+25 more)
 
 ### Community 62 - "Client Auth Datasource"
-Cohesion: 0.11
-Nodes (17): ConnectivityPlatform, dart:async, contains, esErrorDeConexion, texto, package:connectivity_plus_platform_interface/connectivity_plus_platform_interface.dart, package:taxi_app/core/services/conectividad_service.dart, Stream (+9 more)
+Cohesion: 0.09
+Nodes (21): Connectivity, ConnectivityPlatform, ConectividadService, _connectivity, hayConexion, instance, _sinNinguna, package:connectivity_plus/connectivity_plus.dart (+13 more)
 
 ### Community 63 - "Route Result & Preview Card"
 Cohesion: 0.10
@@ -715,16 +725,16 @@ Nodes (25): {
 }, cancelWorkerSecret, { defineSecret }, ESTADO_MENSAJES, ESTADO_MENSAJES_CONDUCTOR, ESTADOS_BUSCANDO, extractConductorPoint(), extractLatLng() (+17 more)
 
 ### Community 65 - "Map Location Picker View"
-Cohesion: 0.05
-Nodes (47): ../../datos/repositorios/geocodificacion_repository_impl.dart, ../../dominio/casos_uso/obtener_direccion_desde_coordenadas_usecase.dart, ../../dominio/entidades/seleccion_ubicacion_result.dart, _actualizarDireccion, _center, confirmar, _contenidoVisible, _debounceIdle (+39 more)
+Cohesion: 0.09
+Nodes (26): ../../dominio/entidades/seleccion_ubicacion_result.dart, GoogleMapController?, SeleccionarUbicacionMapaViewModel, _alturaTotal, build, compact, _ContenidoInferior, createState (+18 more)
 
 ### Community 66 - "Ride Button Styles"
-Cohesion: 0.25
-Nodes (7): build, canStartTrip, DriverWaitingClientModal, _format, isLoading, onStartTrip, remainingSeconds
+Cohesion: 0.13
+Nodes (13): build, canStartTrip, DriverWaitingClientModal, _format, isLoading, onStartTrip, remainingSeconds, AccionesSolicitudButtons (+5 more)
 
 ### Community 67 - "App Update Service"
 Cohesion: 0.05
-Nodes (44): _androidId, canSkip, checkForUpdate, errorMessage, _fallbackStoreUrl, hasUpdate, installedVersion, _iOSAppStoreId (+36 more)
+Nodes (43): _androidId, canSkip, checkForUpdate, errorMessage, _fallbackStoreUrl, hasUpdate, installedVersion, _iOSAppStoreId (+35 more)
 
 ### Community 68 - "Project README"
 Cohesion: 0.08
@@ -736,7 +746,7 @@ Nodes (22): Alert Dialog, Animated Content, Animated Visibility, Animations, Bas
 
 ### Community 70 - "Counteroffers Modal"
 Cohesion: 0.08
-Nodes (23): ContraofertaItem, asInt, buf, build, _buildEstrellas, color, _ContraofertaCard, ContraofertasModalContent (+15 more)
+Nodes (25): BuscandoTaxiViewModel, ContraofertaItem, asInt, buf, build, _buildEstrellas, color, _ContraofertaCard (+17 more)
 
 ### Community 71 - "Chat Controller"
 Cohesion: 0.09
@@ -747,16 +757,16 @@ Cohesion: 0.09
 Nodes (22): cloud_firestore, cloud_functions, connectivity_plus, file_selector_macos, firebase_app_check, firebase_auth, firebase_core, firebase_crashlytics (+14 more)
 
 ### Community 73 - "Admin Settings Screen"
-Cohesion: 0.09
-Nodes (22): AdminConfiguracionScreen, _AdminConfiguracionScreenState, adminId, _AdminInfo, build, _busy, _cargar, _cerrarSesion (+14 more)
+Cohesion: 0.11
+Nodes (18): AdminConfiguracionScreen, _AdminConfiguracionScreenState, adminId, _AdminInfo, build, _busy, _cargar, _cerrarSesion (+10 more)
 
 ### Community 74 - "Social Sign-In UseCases"
-Cohesion: 0.08
-Nodes (25): call, _repository, _appleService, call, _repository, SignInAppleClientUseCase, call, _repository (+17 more)
+Cohesion: 0.10
+Nodes (22): _appleService, call, _repository, SignInAppleClientUseCase, call, _repository, _authService, clearError (+14 more)
 
 ### Community 75 - "Auth Session Service"
-Cohesion: 0.18
-Nodes (10): AuthService, clearPersistedSessionAndCaches, clearSession, getCurrentUser, getUserRole, isUserAuthenticated, loginWithEmailAndPassword, logout (+2 more)
+Cohesion: 0.12
+Nodes (16): clearPersistedSessionAndCaches, clearSession, getCurrentUser, getUserRole, isUserAuthenticated, loginWithEmailAndPassword, logout, marcarPerfilCompleto (+8 more)
 
 ### Community 76 - "Route Cache Service"
 Cohesion: 0.08
@@ -767,21 +777,20 @@ Cohesion: 0.05
 Nodes (39): FirebaseMessaging, _atenderRetiro, _authStateSub, _chatsAbiertos, clave, clienteId, data, desvincularTokenAlCerrarSesion (+31 more)
 
 ### Community 78 - "Help & FAQ Views"
-Cohesion: 0.09
-Nodes (23): FocusNode, distanciaKm, puntos, RutaResultado, AyudaView, _AyudaViewState, build, createState (+15 more)
+Cohesion: 0.05
+Nodes (35): distanciaKm, puntos, RutaResultado, build, createState, dispose, pregunta, PreguntaFrecuente (+27 more)
 
 ### Community 79 - "Auth Adapter"
 Cohesion: 0.09
-Nodes (22): class AppAuthAdapter extends, LegacyAuthRepository, AppAuthAdapter, _clientRepo, completeClientProfile, ensureClientUserForGoogle, getClientUserById, isDisabled (+14 more)
+Nodes (20): class AppAuthAdapter extends, _clientRepo, completeClientProfile, ensureClientUserForGoogle, getClientUserById, isDisabled, LegacyAuthRepository, loginWithEmail (+12 more)
 
 ### Community 80 - "Complete Profile Controller"
-Cohesion: 0.07
-Nodes (29): ClientUserEntity? get, ImagePicker, _authService, _completeClientProfileUseCase, _currentUser, dispose, _disposed, _errorMessage (+21 more)
+Cohesion: 0.05
+Nodes (43): ClientUserEntity? get, FaceDetectionService get, _authService, avanzar, camposValidos, _completeClientProfileUseCase, _currentUser, _detector (+35 more)
 
 ### Community 81 - "Phone OTP Auth Repository"
-Cohesion: 0.04
-Nodes (42): casos_uso/calcular_tarifa_base_usecase.dart, DateTime? ahora,
-  int, esNoche, hora, max, maximo, minimo, null (+34 more)
+Cohesion: 0.09
+Nodes (22): activa, AdminUserBucket, clasificarUsuario, coincideBusqueda, conAcento, false, membresiaActiva, nombreCompleto (+14 more)
 
 ### Community 82 - "iOS Navigation Reference"
 Cohesion: 0.09
@@ -792,8 +801,8 @@ Cohesion: 0.06
 Nodes (31): AppPalette get, BuildContext, AppPalette, background, borderSubtle, cardBackground, copyWith, dark (+23 more)
 
 ### Community 84 - "Client Home Navigation"
-Cohesion: 0.10
-Nodes (19): InicioClienteNavigation, irAAyuda, irAConfiguracion, irADestinoSeleccion, irAHistorial, irAMapaPreview, irAMapaPreviewFavoritoCasa, irANotificaciones (+11 more)
+Cohesion: 0.11
+Nodes (16): InicioClienteNavigation, irAAyuda, irAConfiguracion, irADestinoSeleccion, irAHistorial, irAMapaPreview, irAMapaPreviewFavoritoCasa, irANotificaciones (+8 more)
 
 ### Community 85 - "Map Location Picker ViewModel"
 Cohesion: 0.07
@@ -801,15 +810,15 @@ Nodes (29): package:taxi_app/caracteristicas/viaje_conductor/datos/fuentes/drive
 
 ### Community 86 - "Trip Info Card"
 Cohesion: 0.04
-Nodes (47): AnimationController, ChangeNotifier, CompleteProfileController, SeleccionDestinoViewModel, ViajeClienteViewModel, build, codigoVerificacion, createState (+39 more)
+Nodes (47): Animation, AnimationController, build, codigoVerificacion, createState, dispose, initState, onCancel (+39 more)
 
 ### Community 87 - "Request List Item"
 Cohesion: 0.08
 Nodes (23): GeoPoint, _asMap, clienteFoto, clienteId, comentarioCliente, destinoTitle, direccion, distanciaKm (+15 more)
 
 ### Community 88 - "Driver Registration Form"
-Cohesion: 0.08
-Nodes (23): ImageSource, build, _cargarDatosCliente, createState, _cropper, dispose, _elegirFuenteImagen, _fotoExistenteUrl (+15 more)
+Cohesion: 0.05
+Nodes (42): ImagePicker, ImageSource, build, _campoPlaca, _cargarDatosCliente, _colorController, CompletarRegistroConductorView, _CompletarRegistroConductorViewState (+34 more)
 
 ### Community 89 - "Feedback Suggestion Modal"
 Cohesion: 0.10
@@ -833,11 +842,11 @@ Nodes (19): compressProfilePhoto, compressVehiclePhoto, _Dimensions, height, Ima
 
 ### Community 94 - "App Settings View"
 Cohesion: 0.08
-Nodes (28): ThemeController, _abrirDocumentosLegales, actual, _appVersion, asset, build, _cerrarSesion, ConfiguracionAplicacionView (+20 more)
+Nodes (28): ThemeController, actual, _appVersion, asset, build, _cerrarSesion, ConfiguracionAplicacionView, _ConfiguracionAplicacionViewState (+20 more)
 
 ### Community 95 - "Notifications Screen"
-Cohesion: 0.10
-Nodes (20): build, _chat, createState, _hasPermission, initState, _kChat, _kPromos, _kSistema (+12 more)
+Cohesion: 0.06
+Nodes (35): acento, acentoMarca, appBarNeutra, automaticallyImplyLeading, BarraAccionInferior, build, cargando, children (+27 more)
 
 ### Community 96 - "Support Chat Screen"
 Cohesion: 0.10
@@ -845,19 +854,19 @@ Nodes (21): build, _cargarNombreDesdeFirestore, _clienteRepository, createState,
 
 ### Community 97 - "Driver Trip Card"
 Cohesion: 0.07
-Nodes (27): build, _cargarIconos, _carIcon, _clienteIcon, clientLocation, _controller, createState, destinoLocation (+19 more)
+Nodes (29): BitmapDescriptor?, build, _cargarIconos, _carIcon, _clienteIcon, clientLocation, _controller, createState (+21 more)
 
 ### Community 98 - "Phone Login ViewModel"
-Cohesion: 0.11
-Nodes (17): package:fake_cloud_firestore/fake_cloud_firestore.dart, package:firebase_auth_mocks/firebase_auth_mocks.dart, package:flutter_test/flutter_test.dart, package:taxi_app/caracteristicas/autenticacion/datos/fuentes/client_user_firestore_datasource.dart, package:taxi_app/caracteristicas/confirmar_solicitud/datos/repositorios/cliente_repository_impl.dart, package:taxi_app/caracteristicas/seleccion_destino/datos/repositorios/ubicaciones_repository_impl.dart, package:taxi_app/core/services/favoritos_service.dart, main (+9 more)
+Cohesion: 0.25
+Nodes (7): package:taxi_app/caracteristicas/seleccion_destino/datos/repositorios/ubicaciones_repository_impl.dart, package:taxi_app/core/services/favoritos_service.dart, auth, main, _punto, _repo, _uid
 
 ### Community 99 - "Request Status Stepper View"
-Cohesion: 0.11
-Nodes (17): actual, build, cancelado, completado, descripcion, estado, EstadoSolicitudView, _EstadoTerminal (+9 more)
+Cohesion: 0.06
+Nodes (32): actual, build, cancelado, completado, descripcion, estado, EstadoSolicitudView, _EstadoTerminal (+24 more)
 
 ### Community 100 - "Profile Info View"
 Cohesion: 0.09
-Nodes (21): IconData get, build, createState, data, esConductor, foto, _future, icon (+13 more)
+Nodes (22): IconData get, build, color, createState, data, esConductor, foto, _future (+14 more)
 
 ### Community 101 - "Fake Client Auth Repository"
 Cohesion: 0.17
@@ -880,8 +889,8 @@ Cohesion: 0.11
 Nodes (17): checkLocationPermission, hasAllPermissions, hasBackgroundLocationPermission, hasLocationPermission, hasNotificationPermission, isLocationServiceEnabled, _isPermissionRequestInProgress, openSettings (+9 more)
 
 ### Community 106 - "Map And Route Adapter"
-Cohesion: 0.08
-Nodes (25): distanciaRuta, etaDesdeDistancia, formatearDistancia, formatearEta, _mapService, obtenerRuta, calcularDistanciaPolyline, calcularTiempoEstimado (+17 more)
+Cohesion: 0.11
+Nodes (17): calcularDistanciaPolyline, calcularTiempoEstimado, cameraToBoundsFromMarkers, cameraToBoundsFromPoints, cameraToPosition, computeBoundsFromPoints, createMarker, createPolyline (+9 more)
 
 ### Community 107 - "App Update Gate"
 Cohesion: 0.13
@@ -892,8 +901,8 @@ Cohesion: 0.11
 Nodes (19): build, createState, dispose, _expiryTimer, _focusNode, initState, _scrollCtrl, _scrollToBottom (+11 more)
 
 ### Community 109 - "Trip Rating Section"
-Cohesion: 0.10
-Nodes (20): GlobalKey, appNavigatorKey, build, calificacion, CalificacionSection, _CalificacionSectionState, _comentarioCtrl, comentarioInicial (+12 more)
+Cohesion: 0.11
+Nodes (18): FocusNode, build, calificacion, CalificacionSection, _CalificacionSectionState, _comentarioCtrl, comentarioInicial, createState (+10 more)
 
 ### Community 110 - "Trip Request Model"
 Cohesion: 0.11
@@ -920,32 +929,32 @@ Cohesion: 0.16
 Nodes (13): Point, Size, wchar_t, Scale(), Create, Destroy, Win32Window::Win32Window(), WindowClassRegistrar (+5 more)
 
 ### Community 116 - "Background GPS Tracking"
-Cohesion: 0.08
-Nodes (23): @pragma, dart:developer, configure, initializeBackgroundService, isRunning, onIosBackground, onStart, service (+15 more)
+Cohesion: 0.13
+Nodes (15): @pragma, dart:developer, configure, initializeBackgroundService, isRunning, onIosBackground, onStart, service (+7 more)
 
 ### Community 117 - "Driver Location Datasource"
 Cohesion: 0.15
 Nodes (12): detener, dispose, DriverUbicacionDatasource, enviando, enviarPuntoSimulado, enviarUbicacionActual, _firebaseService, iniciarEnvio (+4 more)
 
 ### Community 118 - "Client Auth Repository Contract"
-Cohesion: 0.18
-Nodes (10): completeClientProfile, ensureClientUserForGoogle, getClientUserById, isDisabled, loginWithEmail, logout, resolveUserRole, signInWithGoogle (+2 more)
+Cohesion: 0.17
+Nodes (11): completeClientProfile, ensureClientUserForGoogle, getClientUserById, isDisabled, loginWithEmail, logout, resolveUserRole, signInWithGoogle (+3 more)
 
 ### Community 119 - "App Route Definitions"
 Cohesion: 0.11
 Nodes (17): adminHome, AppRoutes, ayudaCambiarDestino, ayudaEstadoSolicitud, ayudaMetodoPago, ayudaProblemasConductor, login, onGenerateRoute (+9 more)
 
 ### Community 120 - "Payment Method View"
-Cohesion: 0.12
-Nodes (17): asset, build, createState, _guardando, _guardar, icon, initState, label (+9 more)
+Cohesion: 0.08
+Nodes (25): apellido, CampoPerfil, digits, ErrorCampo, errores, invalidos, lista, mensaje (+17 more)
 
 ### Community 121 - "Map Preview Screen"
 Cohesion: 0.13
 Nodes (15): build, _buildBottomBar, createState, direccion, initState, location, MapaPreviewView, _MapaPreviewViewState (+7 more)
 
 ### Community 122 - "Taxi Search ViewModel Test"
-Cohesion: 0.11
-Nodes (17): BuscandoTaxiViewModel, package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/buscando_taxi_viewmodel.dart, avisarProponerOferta, avisarProponerOfertaCount, conductoresController, _conductoresStream, conectadosController, _conectadosStream (+9 more)
+Cohesion: 0.09
+Nodes (20): dart:async, contains, esErrorDeConexion, texto, package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/buscando_taxi_viewmodel.dart, StreamController, avisarProponerOferta, avisarProponerOfertaCount (+12 more)
 
 ### Community 123 - "Android Navigation Reference"
 Cohesion: 0.10
@@ -956,8 +965,8 @@ Cohesion: 0.09
 Nodes (22): applyLocalContraoferta, calculateBearing, clearPreviewAndRoutes, _distanceKm, extraMarkers, _fetchGen, fetchRouteOSRM, getCameraPerspectiveForPreview (+14 more)
 
 ### Community 125 - "Membership Detail View"
-Cohesion: 0.14
-Nodes (13): Future, build, createState, data, _DetalleTile, _fecha, _future, icon (+5 more)
+Cohesion: 0.17
+Nodes (12): Future, build, createState, _fallbackDestino, _historial, HistorialCliente, HistorialClienteState, _HistorialViajeCardSkeleton (+4 more)
 
 ### Community 126 - "Location Service"
 Cohesion: 0.12
@@ -972,24 +981,24 @@ Cohesion: 0.22
 Nodes (8): DartProject, HWND, LPARAM, LRESULT, UINT, WPARAM, FlutterWindow::FlutterWindow(), MessageHandler
 
 ### Community 129 - "Client User Firestore Datasource"
-Cohesion: 0.22
-Nodes (8): ClientUserFirestoreDataSource, completeProfile, ensureForGoogle, _firestore, getById, isDisabled, resolveRole, package:taxi_app/caracteristicas/autenticacion/datos/modelos/client_user_model.dart
+Cohesion: 0.09
+Nodes (22): ../../datos/repositorios/geocodificacion_repository_impl.dart, ../../dominio/casos_uso/obtener_direccion_desde_coordenadas_usecase.dart, _actualizarDireccion, _center, confirmar, _contenidoVisible, _debounceIdle, _direccion (+14 more)
 
 ### Community 130 - "Remote Config Service"
 Cohesion: 0.11
 Nodes (17): FirebaseRemoteConfig, AppRemoteConfigService, _configured, _ensureConfigured, fetchLatestVersion, fetchMinimumRequiredVersion, fetchStaticMapsApiKey, _fetchString (+9 more)
 
 ### Community 131 - "Client Auth Repository Impl"
-Cohesion: 0.08
-Nodes (22): _authDataSource, completeClientProfile, ensureClientUserForGoogle, getClientUserById, _imageDataSource, isDisabled, _legacyAuthRepository, loginWithEmail (+14 more)
+Cohesion: 0.12
+Nodes (16): _authDataSource, completeClientProfile, ensureClientUserForGoogle, getClientUserById, _imageDataSource, isDisabled, _legacyAuthRepository, loginWithEmail (+8 more)
 
 ### Community 132 - "Firebase Trip Service"
-Cohesion: 0.09
-Nodes (21): actualizarEstado, actualizarInfoConductor, cancelar, _datasource, watchViaje, actualizarEstadoViaje, actualizarUbicacionConductorEnSolicitud, cancelarViaje (+13 more)
+Cohesion: 0.14
+Nodes (13): actualizarEstadoViaje, actualizarUbicacionConductorEnSolicitud, cancelarViaje, escucharEstadoViaje, escucharUbicacionConductor, escucharUbicacionConductorEnSolicitud, finalizarViaje, _firestoreOverride (+5 more)
 
 ### Community 133 - "Places Search Repository"
-Cohesion: 0.14
-Nodes (12): ../../../dominio/entidades/ubicacion_entity.dart, ../../dominio/repositorios/lugares_repository.dart, buscar, detalle, LugaresRepositoryImpl, _service, buscar, detalle (+4 more)
+Cohesion: 0.25
+Nodes (7): ../../../dominio/entidades/ubicacion_entity.dart, ../../dominio/repositorios/lugares_repository.dart, buscar, detalle, _service, PlacesSearchService, package:taxi_app/core/services/places_search_service.dart
 
 ### Community 134 - "Account Deletion Screen"
 Cohesion: 0.11
@@ -1000,8 +1009,8 @@ Cohesion: 0.18
 Nodes (10): bool get, codigo, copyWith, generado, generadoEn, intentosFallidos, vacio, validado (+2 more)
 
 ### Community 136 - "Pickup Verification Tests"
-Cohesion: 0.11
-Nodes (19): ../../../dominio/casos_uso/buscar_destinos_usecase.dart, etiqueta_favorito_dialog.dart, _Agregar, build, cargarFavoritos, context, direccion, _eliminar (+11 more)
+Cohesion: 0.12
+Nodes (18): ../../../dominio/casos_uso/buscar_destinos_usecase.dart, etiqueta_favorito_dialog.dart, _Agregar, build, cargarFavoritos, context, direccion, _eliminar (+10 more)
 
 ### Community 138 - "Chat Screen"
 Cohesion: 0.10
@@ -1036,8 +1045,8 @@ Cohesion: 0.11
 Nodes (17): Color Roles Usage, Color System, Custom Color Scheme, Custom Fonts, Custom Shape Usage, Dynamic Color (Material You), Elevation and Shadows, Extended Colors (+9 more)
 
 ### Community 146 - "Saved Locations Favorites"
-Cohesion: 0.22
-Nodes (8): ../../dominio/repositorios/ubicaciones_repository.dart, _auth, eliminarFavorito, _favoritos, guardarFavorito, _mapDoc, _porFechaDesc, todasLasGuardadas
+Cohesion: 0.11
+Nodes (16): ../../dominio/repositorios/ubicaciones_repository.dart, _auth, eliminarFavorito, _favoritos, guardarFavorito, _mapDoc, _porFechaDesc, todasLasGuardadas (+8 more)
 
 ### Community 147 - "Driver Problem Report View"
 Cohesion: 0.13
@@ -1048,24 +1057,24 @@ Cohesion: 0.15
 Nodes (17): RECT, unique_ptr, FlutterWindow, flutter_controller_, OnCreate, OnDestroy, project_, DartProject (+9 more)
 
 ### Community 149 - "Create Trip Request UseCase"
-Cohesion: 0.10
-Nodes (20): ../entidades/solicitud_borrador.dart, SolicitudRepositoryImpl, call, _clienteRepository, _coordsText, CrearSolicitudUseCase, _esEtiquetaGenerica, _etiquetasGenericasOrigen (+12 more)
+Cohesion: 0.11
+Nodes (17): ../entidades/solicitud_borrador.dart, call, _clienteRepository, _coordsText, CrearSolicitudUseCase, _esEtiquetaGenerica, _etiquetasGenericasOrigen, _friendlyDesdePlacemark (+9 more)
 
 ### Community 150 - "iOS Scene Delegate"
-Cohesion: 0.24
-Nodes (7): FlutterEngine, SceneDelegate, UIResponder, UIScene, UISceneSession, UIWindow, UIWindowSceneDelegate
+Cohesion: 0.26
+Nodes (6): SceneDelegate, UIResponder, UIScene, UISceneSession, UIWindow, UIWindowSceneDelegate
 
 ### Community 151 - "Request State Machine"
 Cohesion: 0.15
 Nodes (12): asignado, buscando, cancelado, completado, enCamino, enEspera, enRuta, isSesionActiva (+4 more)
 
 ### Community 152 - "Trip Tracking Firestore Service"
-Cohesion: 0.13
-Nodes (14): actualizarDestino, actualizarEstadoSolicitud, actualizarMetodoPago, actualizarUbicacionConductorEnSolicitud, cancelarSolicitud, eliminarSolicitud, getSolicitudOnce, guardarRutaPersistida (+6 more)
+Cohesion: 0.09
+Nodes (22): actualizarEstado, actualizarInfoConductor, cancelar, _datasource, watchViaje, SolicitudFirestoreDatasource, actualizarDestino, actualizarEstadoSolicitud (+14 more)
 
 ### Community 153 - "Verification Code Repository"
-Cohesion: 0.05
-Nodes (39): class, ../entidades/codigo_verificacion_entity.dart, ../fuentes/codigo_verificacion_firestore_datasource.dart, CodigoVerificacionFirestoreDatasource, CodigoVerificacionRepositoryImpl, _datasource, guardarCodigo, incrementarIntentoFallido (+31 more)
+Cohesion: 0.04
+Nodes (45): class, dart:math, ../entidades/codigo_verificacion_entity.dart, ../fuentes/codigo_verificacion_firestore_datasource.dart, CodigoVerificacionFirestoreDatasource, CodigoVerificacionRepositoryImpl, _datasource, guardarCodigo (+37 more)
 
 ### Community 154 - "Destination Search Tests"
 Cohesion: 0.11
@@ -1076,8 +1085,8 @@ Cohesion: 0.18
 Nodes (7): MainActivity, TaskRemovedWatcherService, Bundle, FlutterActivity, IBinder, Intent, Service
 
 ### Community 156 - "Route Map Card"
-Cohesion: 0.11
-Nodes (18): BitmapDescriptor?, GoogleMapController?, _bearingNotifier, _boundsPadding, build, _cargarIconos, _carIcon, _controller (+10 more)
+Cohesion: 0.06
+Nodes (34): _aplicarRumbo, _bearingNotifier, _boundsPadding, _brujulaSub, build, _cargarIconos, _carIcon, _centro (+26 more)
 
 ### Community 157 - "Cloud Functions Package Config"
 Cohesion: 0.17
@@ -1100,12 +1109,12 @@ Cohesion: 0.18
 Nodes (10): File, apellido, call, CompleteClientProfileParams, email, nombre, profileImageFile, _repository (+2 more)
 
 ### Community 162 - "Solicitud Firestore Datasource"
-Cohesion: 0.25
-Nodes (7): actualizarEstado, actualizarInfoConductor, eliminarSolicitud, _firestoreOverride, marcarCancelada, ref, watch
+Cohesion: 0.12
+Nodes (14): FirebaseHelper, initializeFirebase, actualizarEstado, actualizarInfoConductor, eliminarSolicitud, _firestoreOverride, marcarCancelada, ref (+6 more)
 
 ### Community 163 - "Client Profile Repository"
-Cohesion: 0.11
-Nodes (17): ../../dominio/repositorios/cliente_repository.dart, FirebaseAuth, _auth, _firestore, _firstNonEmpty, obtenerActual, _resolverFoto, _resolverNombre (+9 more)
+Cohesion: 0.10
+Nodes (20): build, ComentariosConductorView, _ComentariosConductorViewState, createState, detalle, dispose, _Estado, _Estrellas (+12 more)
 
 ### Community 164 - "Chat Message Model"
 Cohesion: 0.18
@@ -1116,12 +1125,12 @@ Cohesion: 0.10
 Nodes (20): build, _confirmar, createState, dispose, _error, initState, _isFormatting, isSelected (+12 more)
 
 ### Community 166 - "Trip Progress Widgets"
-Cohesion: 0.07
-Nodes (24): Animation, IconData?, animation, BarraProgresoDireccional, build, circleSize, destinoIcon, isMoto (+16 more)
+Cohesion: 0.11
+Nodes (16): IconData?, badgeCount, build, icon, isLoading, onPressed, pastel, RidePillButton (+8 more)
 
 ### Community 167 - "Driver Comments ViewModel"
-Cohesion: 0.18
-Nodes (10): _buildItem, ComentariosConductorViewModel, comment, conductorId, createdAt, DriverCommentItem, _extractComment, _extractCommentDate (+2 more)
+Cohesion: 0.09
+Nodes (22): build, createState, CuentaDeshabilitadaPage, _CuentaDeshabilitadaPageState, initState, _buildItem, comment, conductorId (+14 more)
 
 ### Community 168 - "Driver Trip History ViewModel"
 Cohesion: 0.11
@@ -1144,24 +1153,24 @@ Cohesion: 0.20
 Nodes (9): carro,, int get, basePriceDia, basePriceNoche, costoPorKm, firestoreKey, label, moto (+1 more)
 
 ### Community 173 - "Map Marker Icons"
-Cohesion: 0.12
-Nodes (17): build, _chat, createState, _hasPermission, initState, _kChat, _kSistema, _kSolicitudes (+9 more)
+Cohesion: 0.11
+Nodes (16): AppBar, build, NotificacionesConductorView, package:taxi_app/core/theme/theme_controller.dart, package:taxi_app/screens/perfil/editar_perfil.dart, package:taxi_app/screens/perfil/informacion_perfil_view.dart, package:taxi_app/screens/usuario_cliente/presentacion/view/configuracion_aplicacion_view.dart, package:taxi_app/screens/usuario_cliente/presentacion/view/notificaciones_view.dart (+8 more)
 
 ### Community 174 - "Favorites Use Cases"
 Cohesion: 0.13
 Nodes (14): UbicacionesRepositoryImpl, call, EliminarFavoritoUseCase, _repository, call, GuardarFavoritoUseCase, _repository, call (+6 more)
 
 ### Community 175 - "Client User Entity"
-Cohesion: 0.20
-Nodes (9): apellido, createdAt, email, fotoUrl, id, isProfileComplete, nombre, rol (+1 more)
+Cohesion: 0.18
+Nodes (10): apellido, createdAt, email, fotoUrl, id, isProfileComplete, nombre, perfilCompleto (+2 more)
 
 ### Community 176 - "App Constants Config"
 Cohesion: 0.18
 Nodes (10): androidPackageId, AppConstants, appTitle, iosAppStoreId, phoneAuthTestMode, splashDuration, splashMessage, staticMapsApiKey (+2 more)
 
 ### Community 177 - "Trip Tracking Repository"
-Cohesion: 0.12
-Nodes (16): FirebaseHelper, initializeFirebase, ErrorReporter, report, conductorUbicacionStream, estadoSolicitudStream, getCliente, getClienteUbicacion (+8 more)
+Cohesion: 0.07
+Nodes (24): enviarReporteConductor, enviarReporteDeConductor, instance, marcarVisto, ReportesService, watchNoVistosCount, watchReportes, ErrorReporter (+16 more)
 
 ### Community 178 - "Update Trip State UseCase"
 Cohesion: 0.12
@@ -1172,20 +1181,20 @@ Cohesion: 0.18
 Nodes (10): DateTime, AdminModel, fechaRegistro, foto, fromFirestore, gremio, gremioFoto, nombre (+2 more)
 
 ### Community 180 - "Trip Participant Entity"
-Cohesion: 0.12
-Nodes (15): calificacion, direccion, fotoUrl, fotoVehiculoUrl, id, nombre, ParticipanteViajeEntity, placaVehiculo (+7 more)
+Cohesion: 0.11
+Nodes (17): calificacion, colorVehiculo, direccion, fotoUrl, fotoVehiculoUrl, id, modeloVehiculo, nombre (+9 more)
 
 ### Community 181 - "Request Repository And Fare"
-Cohesion: 0.12
-Nodes (14): ../../dominio/entidades/cliente_actual.dart, ../../dominio/repositorios/solicitud_repository.dart, buscarActivaDeCliente, crear, _estadosActivos, _firestore, CalcularTarifaBaseUseCase, call (+6 more)
+Cohesion: 0.18
+Nodes (10): ../../dominio/entidades/cliente_actual.dart, ../../dominio/repositorios/solicitud_repository.dart, buscarActivaDeCliente, crear, _estadosActivos, _firestore, SolicitudRepositoryImpl, SolicitudRepositoryImpl (+2 more)
 
 ### Community 182 - "Windows Window Message Handler"
 Cohesion: 0.26
 Nodes (13): HWND, LPARAM, LRESULT, UINT, WPARAM, EnableFullDpiSupportIfAvailable(), GetHandle, GetThisFromHandle (+5 more)
 
 ### Community 183 - "Client Home Navigation Actions"
-Cohesion: 0.12
-Nodes (16): _irAMapPreview, _openChat, _openChat, _navigateFromMessage, build, build, _manejarTapNotificacion, build (+8 more)
+Cohesion: 0.11
+Nodes (18): _irAMapPreview, _openChat, _openChat, _navigateFromMessage, build, build, _manejarTapNotificacion, _abrirConfiguracion (+10 more)
 
 ### Community 184 - "Splash And Error Reporting"
 Cohesion: 0.22
@@ -1196,24 +1205,24 @@ Cohesion: 0.47
 Nodes (8): asegurar_gitignore(), aviso(), error(), info(), ok(), requiere(), init.sh script, titulo()
 
 ### Community 186 - "Apple Sign-In Service"
-Cohesion: 0.10
-Nodes (19): GoogleSignIn, _auth, ClientAuthFirebaseDataSource, _esCancelacionDelUsuario, _googleSignIn, _mapGoogleSignInError, signInWithGoogle, updateDisplayName (+11 more)
+Cohesion: 0.07
+Nodes (27): ../../dominio/repositorios/cliente_repository.dart, FirebaseAuth, GoogleSignIn, _auth, ClientAuthFirebaseDataSource, _esCancelacionDelUsuario, _googleSignIn, _mapGoogleSignInError (+19 more)
 
 ### Community 187 - "Text Location And Name Parsing"
-Cohesion: 0.11
-Nodes (16): _atReg, call, _extraerDeGoogleMapsUrl, _extraerDePar, ExtraerUbicacionDesdeTextoUseCase, _latLngReg, _seguirLinkCorto, _urlReg (+8 more)
+Cohesion: 0.20
+Nodes (9): _atReg, call, _extraerDeGoogleMapsUrl, _extraerDePar, ExtraerUbicacionDesdeTextoUseCase, _latLngReg, _seguirLinkCorto, _urlReg (+1 more)
 
 ### Community 188 - "Project Brain Doc"
 Cohesion: 0.14
 Nodes (13): Colecciones Firestore, Contra-ofertas (multi-conductor), Convenciones, Estructura `lib/`, Filtrado por tipo de vehículo, Flujo de autenticación, Flujo de solicitud — archivos clave, Máquina de estados — `SolicitudEstado` (+5 more)
 
 ### Community 189 - "Driver Safety Contacts"
-Cohesion: 0.12
-Nodes (15): package:taxi_app/caracteristicas/autenticacion/dominio/casos_uso/complete_client_profile_usecase.dart, completeClientProfile, completeClientProfileLlamado, ensureClientUserForGoogle, _existing, getClientUserById, isDisabled, loginWithEmail (+7 more)
+Cohesion: 0.13
+Nodes (14): completeClientProfile, completeClientProfileLlamado, ensureClientUserForGoogle, _existing, getClientUserById, isDisabled, loginWithEmail, logout (+6 more)
 
 ### Community 190 - "iOS App Delegate"
-Cohesion: 0.29
-Nodes (6): Any, Data, Error, AppDelegate, Bool, UIApplication
+Cohesion: 0.25
+Nodes (7): Any, Data, FlutterEngine, AppDelegate, Bool, _Error, UIApplication
 
 ### Community 191 - "App ViewModels"
 Cohesion: 0.24
@@ -1228,12 +1237,12 @@ Cohesion: 0.14
 Nodes (13): buscar, formattedAddress, _functions, location, mainText, name, obtenerDetalles, PlaceDetails (+5 more)
 
 ### Community 194 - "AppDelegate.swift"
-Cohesion: 0.38
-Nodes (4): Flutter, GoogleMaps, UIKit, UserNotifications
+Cohesion: 0.32
+Nodes (5): Flutter, GoogleMaps, UIKit, UserNotifications, XCTest
 
 ### Community 195 - "Client User Model"
-Cohesion: 0.09
-Nodes (22): ClientUserModel, fromFirestore, toFirestore, ClientUserEntity, AuthFlowDestination, AuthFlowResult, destination, user (+14 more)
+Cohesion: 0.08
+Nodes (22): ClientUserModel, call, _repository, ClientUserEntity, AuthFlowDestination, AuthFlowResult, destination, user (+14 more)
 
 ### Community 196 - "Request Preview Model"
 Cohesion: 0.14
@@ -1244,24 +1253,24 @@ Cohesion: 0.29
 Nodes (6): AuthIdentityEntity, displayName, email, phoneNumber, photoUrl, uid
 
 ### Community 198 - "Chat Firestore Datasource"
-Cohesion: 0.18
-Nodes (9): FirebaseFirestore, ConductorPerfilDatasource, _firestore, watch, _firestoreOverride, markMessageRead, messagesRef, sendMessage (+1 more)
+Cohesion: 0.07
+Nodes (28): FirebaseFirestore, ClientUserFirestoreDataSource, completeProfile, ensureForGoogle, _firestore, getById, isDisabled, resolveRole (+20 more)
 
 ### Community 199 - "Destination History Storage"
 Cohesion: 0.18
 Nodes (10): dart:convert, ../../dominio/repositorios/historial_destinos_repository.dart, _auth, _decode, _encode, _key, _maxEntradas, _mismaUbicacion (+2 more)
 
 ### Community 200 - "External Navigation & Panic Button"
-Cohesion: 0.15
-Nodes (13): build, _CambiarOfertaDialog, _CambiarOfertaDialogState, _confirmar, _controller, createState, dispose, _error (+5 more)
+Cohesion: 0.11
+Nodes (17): AppThemeConfig, _build, darkTheme, lightTheme, build, _confirmar, _controller, createState (+9 more)
 
 ### Community 201 - "Android Release Signing Config"
 Cohesion: 0.33
 Nodes (5): hasReleaseSigningConfig(), String, resolveStoreFile(), Boolean, java
 
 ### Community 202 - "FlutterMacOS"
-Cohesion: 0.47
-Nodes (3): Cocoa, FlutterMacOS, XCTest
+Cohesion: 0.24
+Nodes (5): Cocoa, FlutterMacOS, RunnerTests, RunnerTests, XCTestCase
 
 ### Community 203 - "macOS App Delegate"
 Cohesion: 0.47
@@ -1272,16 +1281,16 @@ Cohesion: 0.33
 Nodes (5): FlutterPluginRegistry, FlutterViewController, RegisterGeneratedPlugins(), MainFlutterWindow, NSWindow
 
 ### Community 205 - "Request Draft Models"
-Cohesion: 0.14
-Nodes (12): comentario, destino, metodoPago, origen, SolicitudBorrador, tipoVehiculo, valorServicio, LocationModel (+4 more)
+Cohesion: 0.20
+Nodes (9): comentario, destino, metodoPago, origen, SolicitudBorrador, tipoVehiculo, valorServicio, LocationModel (+1 more)
 
 ### Community 206 - "Country Model"
-Cohesion: 0.15
-Nodes (11): dart:io, FaceDetector, _detector, dispose, FaceDetectionService, hasFace, cropProfileImage, cropVehicleImage (+3 more)
+Cohesion: 0.14
+Nodes (12): dart:io, FaceDetector, _detector, dispose, FaceDetectionService, hasFace, cropProfileImage, cropVehicleImage (+4 more)
 
 ### Community 207 - "Confirm Request Widgets"
-Cohesion: 0.14
-Nodes (17): comentario_sheet.dart, ../../../dominio/modelos/crear_solicitud_resultado.dart, ConfirmarSolicitudViewModel, _BottomContent, build, build, ConfirmarSolicitudSubmitBar, _confirmarViajeEnCurso (+9 more)
+Cohesion: 0.22
+Nodes (8): ../../../dominio/modelos/crear_solicitud_resultado.dart, build, ConfirmarSolicitudSubmitBar, _confirmarViajeEnCurso, onSolicitudCreada, tipo_vehiculo_sheet.dart, ValueChanged, ../../viewmodels/confirmar_solicitud_viewmodel.dart
 
 ### Community 208 - "Firebase Options"
 Cohesion: 0.15
@@ -1292,16 +1301,16 @@ Cohesion: 0.60
 Nodes (6): linux/CMakeLists.txt Build Config, linux/flutter/CMakeLists.txt Flutter Library Rules, linux/runner/CMakeLists.txt Runner Target, windows/CMakeLists.txt Build Config, windows/flutter/CMakeLists.txt Flutter Library Rules, windows/runner/CMakeLists.txt Runner Target
 
 ### Community 210 - "Client Screen Widget Tests"
-Cohesion: 0.14
-Nodes (13): package:flutter_screenutil/flutter_screenutil.dart, package:taxi_app/caracteristicas/confirmar_solicitud/presentacion/viewmodels/confirmar_solicitud_viewmodel.dart, package:taxi_app/caracteristicas/confirmar_solicitud/presentacion/vistas/widgets/comentario_sheet.dart, package:taxi_app/screens/usuario_cliente/presentacion/view/historial_viaje_cliente.dart, buildVm, main, montar, punto (+5 more)
+Cohesion: 0.08
+Nodes (22): CalcularTarifaBaseUseCase, call, buscarActivaDeCliente, crear, SolicitudRepository, package:taxi_app/caracteristicas/confirmar_solicitud/dominio/validar_valor_servicio.dart, package:taxi_app/caracteristicas/confirmar_solicitud/presentacion/viewmodels/confirmar_solicitud_viewmodel.dart, package:taxi_app/caracteristicas/confirmar_solicitud/presentacion/vistas/widgets/comentario_sheet.dart (+14 more)
 
 ### Community 211 - "Android Cancel Trip Worker"
 Cohesion: 0.40
 Nodes (3): CancelSolicitudWorker, CoroutineWorker, Result
 
 ### Community 213 - "RunnerTests"
-Cohesion: 0.40
-Nodes (3): RunnerTests, RunnerTests, XCTestCase
+Cohesion: 0.10
+Nodes (20): ayuda, build, _Campo, CamposModeloColor, capitalizacion, colorController, controller, enabled (+12 more)
 
 ### Community 214 - "Client Trip Screen"
 Cohesion: 0.04
@@ -1312,12 +1321,12 @@ Cohesion: 0.15
 Nodes (13): _aplicarSugerencia, build, _ComentarioSheet, _ComentarioSheetState, _controller, createState, dispose, _draft (+5 more)
 
 ### Community 216 - "Driver Vehicle Info Widget"
-Cohesion: 0.07
-Nodes (24): avatarRadius, build, calificacion, ConductorVehiculoInfo, fotoConductorUrl, fotoVehiculoUrl, _iniciales, isMoto (+16 more)
+Cohesion: 0.09
+Nodes (20): avatarRadius, build, calificacion, ConductorVehiculoInfo, descripcionVehiculo, fotoConductorUrl, fotoVehiculoUrl, _iniciales (+12 more)
 
 ### Community 217 - "Client Safety Contacts"
-Cohesion: 0.08
-Nodes (25): UserDataService, build, _cargarContactos, createState, _emergencyContacts, _guardarContactos, initState, _openSupportChat (+17 more)
+Cohesion: 0.07
+Nodes (30): UserDataService, _agregarContacto, build, _cargarContactos, createState, _emergencyContacts, _guardarContactos, initState (+22 more)
 
 ### Community 218 - "Location Info Card"
 Cohesion: 0.23
@@ -1380,32 +1389,32 @@ Cohesion: 0.10
 Nodes (19): 1. Add Dependencies, 1. Define ARB Files, 2. Enable Code Generation, 2. Generate Localization Classes, 3. Consume Localized Strings, 3. Create Configuration File, 4. Configure the App Entry Point, Advanced Formatting (+11 more)
 
 ### Community 287 - "Mercator Map Projection"
-Cohesion: 0.10
-Nodes (19): dart:ui, _buildCircularIcon, dot, fromAsset, fromIcon, fromNetworkPhoto, MarkerIconHelper, _opaqueBounds (+11 more)
+Cohesion: 0.17
+Nodes (11): bearingDegrees, boundsZoom, boundsZoomRotado, diferenciaAngular, _latRad, pixelOffset, project, ProyeccionMercator (+3 more)
 
 ### Community 288 - "Auth ViewModel"
 Cohesion: 0.15
 Nodes (12): _authRepository, AuthViewModel, clearAuthenticated, _email, _errorMessage, _isAuthenticated, _isLoading, login (+4 more)
 
 ### Community 289 - "Photo Flip Preview"
-Cohesion: 0.18
-Nodes (11): build, _confirm, createState, _flipped, FlipPreviewView, _FlipPreviewViewState, imageFile, _saving (+3 more)
+Cohesion: 0.10
+Nodes (19): _azul, build, color, destino, etiqueta, lineaAbajo, lineaArriba, _LineaPunteada (+11 more)
 
 ### Community 290 - "Driver Home ViewModel Test"
-Cohesion: 0.18
-Nodes (10): Duration, package:taxi_app/screens/usuario_conductor/presentacion/viewmodels/InicioConductorViewModel.dart, StateError, test_helpers/inicio_conductor_fakes.dart, _buildVm, deadline, main, _pumpUntil (+2 more)
+Cohesion: 0.10
+Nodes (20): Duration, MembresiaInactivaException, package:fake_cloud_firestore/fake_cloud_firestore.dart, package:firebase_auth_mocks/firebase_auth_mocks.dart, package:taxi_app/caracteristicas/autenticacion/datos/fuentes/client_user_firestore_datasource.dart, package:taxi_app/caracteristicas/confirmar_solicitud/datos/repositorios/cliente_repository_impl.dart, package:taxi_app/screens/usuario_conductor/presentacion/viewmodels/InicioConductorViewModel.dart, StateError (+12 more)
 
 ### Community 291 - "Firestore Rules Tests"
 Cohesion: 0.41
 Nodes (8): aqui, como(), comoAnonimo(), crearEntorno(), REGLAS, sembrar(), sembrarActores(), solicitud()
 
 ### Community 292 - "Verification Code Sheet"
-Cohesion: 0.18
-Nodes (11): build, CodigoVerificacionSheet, _CodigoVerificacionSheetState, _controller, createState, dispose, _error, mostrar (+3 more)
+Cohesion: 0.06
+Nodes (34): build, _controller, createState, dispose, etiquetaInicial, _etiquetasSugeridas, initState, mostrarEtiquetaFavoritoDialog (+26 more)
 
 ### Community 293 - "Client Trip History"
 Cohesion: 0.17
-Nodes (10): LatLng?, direccion, position, SeleccionUbicacionResult, direccion, id, location, nombre (+2 more)
+Nodes (10): LatLng?, position, subtitle, title, direccion, id, location, nombre (+2 more)
 
 ### Community 294 - "Widget Testing Skill"
 Cohesion: 0.20
@@ -1424,28 +1433,29 @@ Cohesion: 0.33
 Nodes (5): ../entidades/cliente_actual.dart, ClienteRepositoryImpl, ClienteRepository, obtenerActual, _FakeClienteRepository
 
 ### Community 298 - "Verification Code Datasource"
-Cohesion: 0.22
-Nodes (8): _firestoreOverride, _fromMap, guardarCodigo, incrementarIntentoFallido, marcarValidado, obtenerCodigo, _ref, watchCodigo
+Cohesion: 0.12
+Nodes (16): _activeSolicitudNotificationShown, _authService, _buildScreenForActiveSolicitud, conductorInProgressForEstado, determineInitialScreen, _findActiveSolicitudByField, _findActiveSolicitudIdForUser, _getAuthenticatedUserScreen (+8 more)
 
 ### Community 299 - "Route Datasource & ETA"
-Cohesion: 0.18
-Nodes (11): build, _controller, createState, dispose, _EtiquetaFavoritoDialog, _EtiquetaFavoritoDialogState, etiquetaInicial, _etiquetasSugeridas (+3 more)
+Cohesion: 0.12
+Nodes (15): casos_uso/calcular_tarifa_base_usecase.dart, DateTime? ahora,
+  int, esNoche, hora, max, maximo, minimo, null (+7 more)
 
 ### Community 300 - "Info/Map Split Layout"
-Cohesion: 0.11
-Nodes (16): _ajusteAlto, _ajusteBajo, _alturaAlta, _alturaBaja, forHeight, InfoMapSplit, of, bearingDegrees (+8 more)
+Cohesion: 0.20
+Nodes (9): _ajusteAlto, _ajusteBajo, _alturaAlta, _alturaBaja, forHeight, InfoMapSplit, of, static const double (+1 more)
 
 ### Community 301 - "Flutter Networking Skill"
 Cohesion: 0.22
 Nodes (8): Background Parsing, Configuration & Permissions, Contents, Examples, High-Fidelity Implementation: Fetching and Parsing in the Background, Implementing Flutter Networking, Request Execution & Response Handling, Workflow: Executing Network Operations
 
 ### Community 302 - "Driver Reports Service"
-Cohesion: 0.22
-Nodes (8): enviarReporteConductor, enviarReporteDeConductor, instance, marcarVisto, ReportesService, watchNoVistosCount, watchReportes, static final ReportesService
+Cohesion: 0.14
+Nodes (12): package:taxi_app/caracteristicas/autenticacion/dominio/casos_uso/complete_client_profile_usecase.dart, package:taxi_app/caracteristicas/autenticacion/dominio/casos_uso/get_client_user_usecase.dart, package:taxi_app/caracteristicas/autenticacion/presentacion/vistas/complete_profile_page.dart, package:taxi_app/core/app_tamano.dart, package:taxi_app/core/theme/app_theme.dart, _app, getClientUserById, main (+4 more)
 
 ### Community 303 - "Heading-Oriented Map Tests"
-Cohesion: 0.13
-Nodes (13): dart:math, call, _random, _repository, package:taxi_app/core/utils/proyeccion_mercator.dart, Random, cos, driver (+5 more)
+Cohesion: 0.18
+Nodes (9): package:taxi_app/core/utils/proyeccion_mercator.dart, cos, driver, _enPantalla, main, o, rumbos, sin (+1 more)
 
 ### Community 304 - "Device QA Agent Guide"
 Cohesion: 0.25
@@ -1460,8 +1470,8 @@ Cohesion: 0.17
 Nodes (10): package:taxi_app/widgets/intermediate_transition_view.dart, abrirDialogo, cerrarDialogo, ctxPropio, main, montar, nav, pushPagina (+2 more)
 
 ### Community 307 - "Core Services Barrel"
-Cohesion: 0.29
-Nodes (6): package:taxi_app/core/services/app_remote_config_service.dart, package:taxi_app/core/services/auth_service.dart, package:taxi_app/core/services/background_tracking_service.dart, package:taxi_app/core/services/firebase_service.dart, package:taxi_app/core/services/route_cache_service.dart, package:taxi_app/core/services/tracking_service.dart
+Cohesion: 0.18
+Nodes (10): comentario_sheet.dart, atenuado, build, etiqueta, icono, onTap, OpcionesViajeRow, _Pastilla (+2 more)
 
 ### Community 308 - "Play Store Mapping Upload Doc"
 Cohesion: 0.25
@@ -1476,12 +1486,12 @@ Cohesion: 0.18
 Nodes (9): IntentDescription, ConfigurationAppIntent, LocalizedStringResource, String, RideWidgetExtensionBundle, Widget, WidgetBundle, WidgetConfigurationIntent (+1 more)
 
 ### Community 311 - "Verification Code Repository"
-Cohesion: 0.18
-Nodes (10): _actualizar, AvisosSolicitudStore, _clave, limpiar, _maxEntradas, mostrados, olvidar, registrar (+2 more)
+Cohesion: 0.20
+Nodes (9): _actualizar, AvisosSolicitudStore, _clave, limpiar, _maxEntradas, mostrados, olvidar, registrar (+1 more)
 
 ### Community 312 - "Legacy Auth Repository"
-Cohesion: 0.20
-Nodes (10): build, _controller, createState, _DialogoDiasMembresia, _DialogoDiasMembresiaState, _diasSugeridos, dispose, _elegirDias (+2 more)
+Cohesion: 0.18
+Nodes (10): FakeFirebaseFirestore, db, ds, ensureClientUserForGoogle, login, main, noSuchMethod, _Repo (+2 more)
 
 ### Community 313 - "Create Solicitud Result Types"
 Cohesion: 0.43
@@ -1543,9 +1553,13 @@ Nodes (4): 2. PLATFORM MODE RULE, Android-native premium, Cross-platform premium
 Cohesion: 0.50
 Nodes (4): 37. EXAMPLE INTERPRETATIONS, Example 1, Example 2, Example 3
 
+### Community 328 - "Page Transition Animation"
+Cohesion: 0.20
+Nodes (9): dart:ui, _buildCircularIcon, dot, fromAsset, fromIcon, fromNetworkPhoto, MarkerIconHelper, _opaqueBounds (+1 more)
+
 ### Community 329 - "Initial Screen Resolver Test"
 Cohesion: 0.22
-Nodes (8): Connectivity, ConectividadService, _connectivity, hayConexion, instance, _sinNinguna, package:connectivity_plus/connectivity_plus.dart, static final ConectividadService
+Nodes (8): ../entidades/ruta_resultado.dart, RutaRepositoryImpl, call, _repository, TrazarRutaUseCase, RutaRepository, trazar, ../repositorios/ruta_repository.dart
 
 ### Community 330 - "Location Publish Helper"
 Cohesion: 0.40
@@ -1557,19 +1571,19 @@ Nodes (8): copyWith, direccion, id, nombre, placeId, position, tipo, UbicacionEn
 
 ### Community 334 - "Admin Home Screen"
 Cohesion: 0.22
-Nodes (8): eliminarFavorito, _favoritosRef, FavoritosService, _fs, getFavoritos, guardarFavorito, instance, static final FavoritosService
+Nodes (8): abrirRutaHacia, NavegacionExternaDatasource, build, _confirmarLlamada, createState, PanicButtonFab, _PanicButtonFabState, package:url_launcher/url_launcher.dart
 
 ### Community 380 - "package:taxi_app/core/services/notificacion_servicio.dart"
-Cohesion: 0.22
-Nodes (7): package:taxi_app/core/services/fcm_service.dart, package:taxi_app/core/services/notificacion_servicio.dart, package:taxi_app/core/utils/notificacion_clave.dart, package:taxi_app/screens/usuario_conductor/presentacion/controllers/pending_solicitudes_controller.dart, main, vectores, main
+Cohesion: 0.13
+Nodes (13): package:taxi_app/core/services/app_remote_config_service.dart, package:taxi_app/core/services/auth_service.dart, package:taxi_app/core/services/background_tracking_service.dart, package:taxi_app/core/services/fcm_service.dart, package:taxi_app/core/services/firebase_service.dart, package:taxi_app/core/services/notificacion_servicio.dart, package:taxi_app/core/services/route_cache_service.dart, package:taxi_app/core/services/tracking_service.dart (+5 more)
 
 ### Community 381 - "Senior — revisor de código Flutter senior-level"
 Cohesion: 0.25
 Nodes (7): 0. Contexto del proyecto — leelo primero, 1. Qué mirás en cada revisión (orden de prioridad), 2. Bugs recurrentes de Flutter — caza específica, 3. Herramientas de análisis — cómo las usás vos, 4. Autoría — por qué antes de tocar código ajeno, 5. Cómo reportás, Senior — revisor de código Flutter senior-level
 
 ### Community 382 - "package:geolocator/geolocator.dart"
-Cohesion: 0.25
-Nodes (7): TrackingService, package:geolocator/geolocator.dart, Position?, fakePosition, FakeTrackingService, obtenerUbicacionActual, position
+Cohesion: 0.22
+Nodes (8): distanciaRuta, etaDesdeDistancia, formatearDistancia, formatearEta, _mapService, obtenerRuta, MapService, package:taxi_app/features/trip_tracking_cliente/services/map_service.dart
 
 ### Community 383 - "moneda_format.dart"
 Cohesion: 0.25
@@ -1584,16 +1598,16 @@ Cohesion: 0.33
 Nodes (5): package:fake_async/fake_async.dart, package:taxi_app/features/trip_tracking_cliente/controllers/conductor_movement_simulator.dart, package:taxi_app/features/trip_tracking_cliente/services/trip_route_math_service.dart, main, _mathService
 
 ### Community 386 - "historial_conductor_filtro_test.dart"
-Cohesion: 0.33
-Nodes (5): package:taxi_app/screens/usuario_conductor/presentacion/viewmodels/historial_conductor_viewmodel.dart, main, utc, _viaje, vm
+Cohesion: 0.07
+Nodes (21): package:flutter_test/flutter_test.dart, package:taxi_app/caracteristicas/autenticacion/dominio/validar_perfil_cliente.dart, package:taxi_app/caracteristicas/viaje_compartido/dominio/espera_countdown.dart, package:taxi_app/core/services/initial_screen_resolver.dart, package:taxi_app/features/admin/admin_usuario_filtros.dart, package:taxi_app/screens/usuario_conductor/presentacion/view/activacion_servicio_view.dart, package:taxi_app/screens/usuario_conductor/presentacion/viewmodels/comentarios_conductor_viewmodel.dart, package:taxi_app/screens/usuario_conductor/presentacion/viewmodels/historial_conductor_viewmodel.dart (+13 more)
 
 ### Community 387 - "storage.test.js"
 Cohesion: 0.33
 Nodes (3): aqui, IMG, REGLAS
 
 ### Community 388 - "package:geocoding/geocoding.dart"
-Cohesion: 0.40
-Nodes (4): ../../dominio/repositorios/geocodificacion_repository.dart, direccionDesde, _formatoCoordenadas, package:geocoding/geocoding.dart
+Cohesion: 0.22
+Nodes (8): bearingDegrees, distanceMeters, formatDistanceMeters, lerpAngle, loadMarkerIcon, MapHelper, routeDistanceMeters, package:flutter/widgets.dart
 
 ### Community 389 - "espera_countdown.dart"
 Cohesion: 0.40
@@ -1601,40 +1615,84 @@ Nodes (4): segundosRestantesEspera, total, transcurrido, required DateTime ahora
   int
 
 ### Community 390 - "static const List"
-Cohesion: 0.40
-Nodes (4): googleMapJson, MapStyle, staticMapsQueryParams, static const List
+Cohesion: 0.22
+Nodes (7): _lettersAndSpaces, NameValidator, validateRequired, _digitsOnly, PhoneValidator, validateTenDigits, static final RegExp
 
 ### Community 391 - "validar_valor_servicio_dominio_test.dart"
-Cohesion: 0.40
-Nodes (4): package:taxi_app/caracteristicas/confirmar_solicitud/dominio/validar_valor_servicio.dart, dia, main, noche
+Cohesion: 0.25
+Nodes (8): ChangeNotifier, CompleteProfileController, ViajeClienteViewModel, ViajeConductorViewModel, InicioClienteViewModel, ComentariosConductorViewModel, HistorialConductorViewModel, InicioConductorViewmodel
 
 ### Community 392 - "package:taxi_app/core/services/services.dart"
-Cohesion: 0.40
-Nodes (4): package:taxi_app/core/services/map_service_adapter.dart, package:taxi_app/core/services/services.dart, package:taxi_app/core/services/ubicacion_servicio.dart, main
+Cohesion: 0.15
+Nodes (11): ../../dominio/entidades/ruta_resultado.dart, ../../dominio/repositorios/ruta_repository.dart, _fallbackMatematico, _interpolar, _mapService, trazar, package:taxi_app/core/helpers/map_helper.dart, package:taxi_app/core/services/map_service_adapter.dart (+3 more)
 
 ### Community 393 - "RideWidgetExtension"
 Cohesion: 0.67
 Nodes (3): RideWidgetExtension, String, WidgetConfiguration
 
+### Community 394 - "package:taxi_app/caracteristicas/viaje_compartido/dominio/espera_countdown.dart"
+Cohesion: 0.25
+Nodes (8): ConfirmarSolicitudViewModel, _BottomContent, build, _fitBounds, MapaRutaCard, _MapaRutaCardState, _puntosRuta, _rumboObjetivo
+
+### Community 399 - "CompleteClientProfileUseCase"
+Cohesion: 0.50
+Nodes (5): CompleteClientProfileUseCase, GetClientUserUseCase, build, CompleteProfilePage, _CompleteProfilePageState
+
+### Community 400 - "cliente_actual.dart"
+Cohesion: 0.40
+Nodes (4): ClienteActual, fotoUrl, id, nombre
+
+### Community 401 - "vehiculo_validator.dart"
+Cohesion: 0.40
+Nodes (4): color, descripcion, modelo, VehiculoValidator
+
+### Community 402 - "CustomPainter"
+Cohesion: 0.50
+Nodes (4): CustomPainter, _PunteadaPainter, _CheckPainter, _RipplePainter
+
+### Community 403 - "GlobalKey"
+Cohesion: 0.50
+Nodes (3): GlobalKey, appNavigatorKey, NavigatorState
+
+### Community 404 - "SeleccionUbicacionResult"
+Cohesion: 0.50
+Nodes (3): direccion, position, SeleccionUbicacionResult
+
+### Community 405 - "seguridad_conductor_view.dart"
+Cohesion: 0.50
+Nodes (3): build, SeguridadConductorView, package:taxi_app/screens/usuario_cliente/presentacion/view/seguridad_view.dart
+
+### Community 406 - "soporte_conductor_view.dart"
+Cohesion: 0.50
+Nodes (3): build, SoporteConductorView, package:taxi_app/screens/usuario_cliente/presentacion/view/soporte_view.dart
+
+### Community 407 - "package:flutter_screenutil/flutter_screenutil.dart"
+Cohesion: 0.50
+Nodes (3): package:flutter_screenutil/flutter_screenutil.dart, package:taxi_app/screens/usuario_cliente/presentacion/view/historial_viaje_cliente.dart, main
+
+### Community 408 - "info_recogida_pago_row_test.dart"
+Cohesion: 0.50
+Nodes (3): package:taxi_app/widgets/preview_solicitud/widgets/info_recogida_pago_row.dart, main, pump
+
 ## Knowledge Gaps
-- **4334 isolated node(s):** `copy-mapping.sh script`, `{ onDocumentUpdated, onDocumentCreated, onDocumentWritten }`, `{ initializeApp }`, `{ getFirestore, Timestamp, FieldValue }`, `{ getMessaging }` (+4329 more)
+- **4594 isolated node(s):** `copy-mapping.sh script`, `{ onDocumentUpdated, onDocumentCreated, onDocumentWritten }`, `{ initializeApp }`, `{ getFirestore, Timestamp, FieldValue }`, `{ getMessaging }` (+4589 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **103 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **101 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `RideWidgetExtension` connect `RideWidgetExtension` to `Custom Button Widget`, `App ViewModels`?**
-  _High betweenness centrality (0.004) - this node is a cross-community bridge._
-- **Why does `RideWidgetExtensionLiveActivity` connect `Custom Button Widget` to `Location Info Card`?**
-  _High betweenness centrality (0.003) - this node is a cross-community bridge._
-- **Why does `ClientAuthRepository` connect `Auth Adapter` to `Auth ViewModel`, `Client Profile UseCases`, `Fake Client Auth Repository`, `Home Login Screen`, `Social Sign-In UseCases`, `Auth Adapter & App Bootstrap`, `Client Auth Repository Contract`?**
-  _High betweenness centrality (0.003) - this node is a cross-community bridge._
+- **Why does `_Error` connect `iOS App Delegate` to `Driver Trip History`, `RunnerTests`?**
+  _High betweenness centrality (0.044) - this node is a cross-community bridge._
+- **Why does `AppDelegate` connect `iOS App Delegate` to `AppDelegate.swift`, `macOS App Delegate`?**
+  _High betweenness centrality (0.043) - this node is a cross-community bridge._
+- **Why does `FlutterWindow` connect `Win32 Window Base Class` to `Windows Flutter Window`, `macOS Flutter Window`?**
+  _High betweenness centrality (0.035) - this node is a cross-community bridge._
 - **What connects `copy-mapping.sh script`, `{ onDocumentUpdated, onDocumentCreated, onDocumentWritten }`, `{ initializeApp }` to the rest of the system?**
-  _4334 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _4594 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Driver Home ViewModel` be split into smaller, more focused modules?**
   _Cohesion score 0.023529411764705882 - nodes in this community are weakly interconnected._
 - **Should `Driver Trip Screen` be split into smaller, more focused modules?**
   _Cohesion score 0.05555555555555555 - nodes in this community are weakly interconnected._
 - **Should `Client Trip ViewModel` be split into smaller, more focused modules?**
-  _Cohesion score 0.02857142857142857 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.028169014084507043 - nodes in this community are weakly interconnected._

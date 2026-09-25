@@ -397,5 +397,15 @@
   "395": "generated_plugin_registrant.h",
   "396": "double?",
   "397": "Widget",
-  "398": "generated_plugin_registrant.h"
+  "398": "generated_plugin_registrant.h",
+  "399": "CompleteClientProfileUseCase",
+  "400": "cliente_actual.dart",
+  "401": "vehiculo_validator.dart",
+  "402": "CustomPainter",
+  "403": "GlobalKey",
+  "404": "SeleccionUbicacionResult",
+  "405": "seguridad_conductor_view.dart",
+  "406": "soporte_conductor_view.dart",
+  "407": "package:flutter_screenutil/flutter_screenutil.dart",
+  "408": "info_recogida_pago_row_test.dart"
 }
