@@ -173,7 +173,6 @@ class _CambiarOfertaDialogState extends State<_CambiarOfertaDialog> {
               CustomButton(
                 text: 'Cambiar oferta',
                 color: AppColores.buttonPrimary,
-                textColor: AppColores.textWhite,
                 height: 48.h,
                 fontSize: 15.sp,
                 onPressed: _confirmar,

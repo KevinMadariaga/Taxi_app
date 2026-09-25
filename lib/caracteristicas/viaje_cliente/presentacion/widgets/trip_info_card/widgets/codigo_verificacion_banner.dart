@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:taxi_app/caracteristicas/verificacion_recogida/dominio/entidades/codigo_verificacion_entity.dart';
 import 'package:taxi_app/core/app_colores.dart';
+import 'package:taxi_app/core/theme/app_palette.dart';
 
 /// Muestra el código de 4 dígitos que el conductor generó al llegar —
 /// visible desde que se genera hasta que se valida (el conductor lo pide
@@ -36,18 +37,18 @@ class CodigoVerificacionBanner extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: AppColores.brand50,
+        color: context.palette.brandChipBackground,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
         children: [
-          const Expanded(
+          Expanded(
             child: Text(
               'Código PIN de esta solicitud',
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: AppColores.brand900,
+                color: context.palette.brandChipText,
               ),
             ),
           ),

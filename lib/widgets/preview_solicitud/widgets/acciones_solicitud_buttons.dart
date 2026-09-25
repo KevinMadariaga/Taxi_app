@@ -25,7 +25,6 @@ class AccionesSolicitudButtons extends StatelessWidget {
     return CustomButton(
       text: 'Aceptar',
       color: AppColores.buttonPrimary,
-      textColor: AppColores.textWhite,
       isLoading: isAcceptLoading,
       onPressed: isAcceptLoading ? null : onAccept,
       width: double.infinity,

@@ -132,7 +132,7 @@ class _MapaPreviewViewState extends State<MapaPreviewView> {
         appBar: AppBar(
           title: const Text('Mapa del destino'),
           backgroundColor: AppColores.primary,
-          foregroundColor: AppColores.textWhite,
+          foregroundColor: AppColores.ink900,
           elevation: 0,
         ),
         backgroundColor: context.palette.surface,

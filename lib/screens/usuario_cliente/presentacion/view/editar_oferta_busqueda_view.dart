@@ -8,6 +8,8 @@ import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/helpers/map_helper.dart';
 import 'package:taxi_app/core/modelos/vehicle_type.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/buscando_taxi_viewmodel.dart';
+import 'package:taxi_app/core/app_tamano.dart';
+import 'package:taxi_app/widgets/ajustes_ui.dart';
 import 'package:taxi_app/widgets/boton.dart';
 
 /// Pantalla propia (no bottom sheet) para editar la oferta de una búsqueda en
@@ -175,26 +177,13 @@ class _EditarOfertaBusquedaViewState extends State<EditarOfertaBusquedaView> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: context.palette.background,
-      appBar: AppBar(
-        backgroundColor: AppColores.primary,
-        foregroundColor: AppColores.textWhite,
-        elevation: 0,
-        centerTitle: true,
+      appBar: appBarNeutra(
+        context,
+        titulo: 'Editar oferta',
         leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new_rounded,
-            size: 20,
-            color: AppColores.textWhite,
-          ),
+          tooltip: 'Atrás',
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
           onPressed: () => Navigator.of(context).pop(false),
-        ),
-        title: Text(
-          'Editar oferta',
-          style: TextStyle(
-            fontSize: 17.sp,
-            fontWeight: FontWeight.w700,
-            color: AppColores.textWhite,
-          ),
         ),
       ),
       body: SafeArea(
@@ -206,7 +195,11 @@ class _EditarOfertaBusquedaViewState extends State<EditarOfertaBusquedaView> {
             children: [
               Text(
                 '¿Cuánto ofreces por el servicio?',
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16.sp),
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16.sp,
+                  color: context.palette.textPrimary,
+                ),
               ),
               SizedBox(height: 10.h),
               TextField(
@@ -227,12 +220,26 @@ class _EditarOfertaBusquedaViewState extends State<EditarOfertaBusquedaView> {
                   if (_error != null) setState(() => _error = null);
                 },
                 onSubmitted: (_) => _guardar(),
+                style: TextStyle(
+                  fontSize: 18.sp,
+                  fontWeight: FontWeight.w700,
+                  color: context.palette.textPrimary,
+                ),
+                // Bordes, relleno y radios del tema (`inputDecorationTheme`),
+                // que ya se adaptan a claro/oscuro; solo se engrosa el foco.
                 decoration: InputDecoration(
                   prefixText: '\$ ',
+                  prefixStyle: TextStyle(
+                    fontSize: 18.sp,
+                    fontWeight: FontWeight.w700,
+                    color: context.palette.textPrimary,
+                  ),
                   hintText: 'Ej: 11.000',
+                  hintStyle: TextStyle(color: context.palette.textSecondary),
                   errorText: _error,
-                  border: const OutlineInputBorder(),
+                  errorStyle: TextStyle(color: context.palette.errorText),
                   focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppTamano.radiusMD),
                     borderSide: BorderSide(
                       color: AppColores.primary,
                       width: 2.w,
@@ -246,9 +253,16 @@ class _EditarOfertaBusquedaViewState extends State<EditarOfertaBusquedaView> {
                 runSpacing: 6,
                 children: _buildSuggestions().map((value) {
                   return ActionChip(
+                    backgroundColor: context.palette.surface,
+                    side: BorderSide(color: context.palette.borderSubtle),
+                    shape: const StadiumBorder(),
                     label: Text(
                       '\$${_formatCurrency(value)}',
-                      style: TextStyle(fontSize: 13.sp),
+                      style: TextStyle(
+                        fontSize: 13.sp,
+                        fontWeight: FontWeight.w600,
+                        color: context.palette.textPrimary,
+                      ),
                     ),
                     onPressed: () => _aplicarValor(_formatCurrency(value)),
                   );
@@ -257,11 +271,15 @@ class _EditarOfertaBusquedaViewState extends State<EditarOfertaBusquedaView> {
               SizedBox(height: 28.h),
               Text(
                 'Tipo de vehículo',
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16.sp),
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16.sp,
+                  color: context.palette.textPrimary,
+                ),
               ),
               SizedBox(height: 4.h),
               Text(
-                'Elegí el vehículo con el que querés viajar',
+                'Elige el vehículo con el que quieres viajar',
                 style: TextStyle(
                   fontSize: 12.5.sp,
                   color: context.palette.textSecondary,

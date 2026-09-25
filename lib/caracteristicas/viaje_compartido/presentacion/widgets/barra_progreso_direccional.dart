@@ -66,7 +66,8 @@ class BarraProgresoDireccional extends StatelessWidget {
                   isMoto
                       ? Icons.two_wheeler_rounded
                       : Icons.directions_car_filled_rounded,
-                  color: AppColores.textWhite,
+                  // Oscuro: blanco sobre brand400 queda en 1.8:1.
+                  color: AppColores.ink900,
                   size: vehicleIconSize,
                 ),
               ),

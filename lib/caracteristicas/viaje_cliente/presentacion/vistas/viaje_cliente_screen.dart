@@ -661,13 +661,13 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen>
             if (_vm.viaje?.estado != SolicitudEstado.enRuta) ...[
               const Divider(height: 1),
               ListTile(
-                leading: const Icon(
+                leading: Icon(
                   Icons.close_rounded,
-                  color: AppColores.error,
+                  color: context.palette.errorText,
                 ),
-                title: const Text(
+                title: Text(
                   'Cancelar viaje',
-                  style: TextStyle(color: AppColores.error),
+                  style: TextStyle(color: context.palette.errorText),
                 ),
                 onTap: () {
                   Navigator.of(sheetContext).pop();
@@ -899,7 +899,9 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen>
                         if (_vm.isLoading)
                           Positioned.fill(
                             child: Container(
-                              color: Colors.white.withValues(alpha: 0.6),
+                              color: context.palette.background.withValues(
+                                alpha: 0.6,
+                              ),
                               child: const Center(
                                 child: CircularProgressIndicator(),
                               ),

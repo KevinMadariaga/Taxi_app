@@ -25,9 +25,9 @@ class _PanicButtonFabState extends State<PanicButtonFab> {
                 color: AppColores.error.withValues(alpha: 0.12),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.phone_in_talk_rounded,
-                color: AppColores.error,
+                color: context.palette.errorText,
                 size: 22,
               ),
             ),
@@ -55,6 +55,7 @@ class _PanicButtonFabState extends State<PanicButtonFab> {
           FilledButton(
             style: FilledButton.styleFrom(
               backgroundColor: AppColores.error,
+              foregroundColor: AppColores.textWhite,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),

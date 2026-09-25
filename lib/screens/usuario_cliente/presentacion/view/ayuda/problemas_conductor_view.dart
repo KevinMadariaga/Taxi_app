@@ -112,7 +112,7 @@ class _ProblemasConductorViewState extends State<ProblemasConductorView> {
                   onPressed: () => Navigator.of(ctx).pop(),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColores.buttonPrimary,
-                    foregroundColor: AppColores.textWhite,
+                    foregroundColor: AppColores.ink900,
                     minimumSize: const Size.fromHeight(48),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),

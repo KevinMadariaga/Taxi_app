@@ -49,9 +49,9 @@ class ArrivalConfirmationSheet extends StatelessWidget {
               ),
             ),
           ),
-          const Icon(
+          Icon(
             Icons.my_location_rounded,
-            color: AppColores.success,
+            color: context.palette.successText,
             size: 36,
           ),
           const SizedBox(height: 10),

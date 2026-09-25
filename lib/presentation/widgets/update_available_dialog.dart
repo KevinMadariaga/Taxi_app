@@ -66,7 +66,7 @@ class UpdateAvailableDialog extends StatelessWidget {
             Text(
               'Hay una nueva versión de la app con mejoras de rendimiento, estabilidad y seguridad.',
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: const Color(0xFF4A5668),
+                color: context.palette.textSecondary,
                 height: 1.4,
               ),
             ),
@@ -75,7 +75,7 @@ class UpdateAvailableDialog extends StatelessWidget {
               Text(
                 'Versión disponible: ${result.storeVersion}',
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: const Color(0xFF5F6E84),
+                  color: context.palette.textSecondary,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -86,7 +86,7 @@ class UpdateAvailableDialog extends StatelessWidget {
               Text(
                 'Esta actualización es obligatoria para continuar (mínimo ${result.minimumRequiredVersion}).',
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: const Color(0xFFB42318),
+                  color: context.palette.errorText,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -101,7 +101,10 @@ class UpdateAvailableDialog extends StatelessWidget {
                           Navigator.of(context).pop(UpdateDialogAction.later),
                       style: OutlinedButton.styleFrom(
                         minimumSize: const Size.fromHeight(48),
-                        side: const BorderSide(color: Color(0xFFD0D7E2)),
+                        // Sin esto toma `colorScheme.primary` (ámbar):
+                        // 1.96:1 sobre blanco en modo claro.
+                        foregroundColor: context.palette.textPrimary,
+                        side: BorderSide(color: context.palette.borderSubtle),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14),
                         ),
@@ -117,7 +120,7 @@ class UpdateAvailableDialog extends StatelessWidget {
                     style: FilledButton.styleFrom(
                       minimumSize: const Size.fromHeight(48),
                       backgroundColor: AppColores.primary,
-                      foregroundColor: context.palette.textPrimary,
+                      foregroundColor: AppColores.ink900,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14),
                       ),

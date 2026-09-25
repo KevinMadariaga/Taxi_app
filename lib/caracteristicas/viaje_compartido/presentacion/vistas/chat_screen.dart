@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/services/fcm_service.dart';
+import 'package:taxi_app/widgets/ajustes_ui.dart';
 
 import '../controladores/chat_controller.dart';
 
@@ -133,113 +134,218 @@ class _ChatScreenState extends State<ChatScreen> {
         if (context.mounted) Navigator.of(context).pop();
       },
       child: Scaffold(
-        appBar: AppBar(
-          title: Text(widget.title),
-          centerTitle: true,
-          backgroundColor: AppColores.primary,
-          foregroundColor: AppColores.textWhite,
-        ),
+        backgroundColor: context.palette.background,
+        appBar: appBarNeutra(context, titulo: widget.title),
         body: Column(
           children: [
             Expanded(
-              child: ListView.builder(
-                controller: _scrollController,
-                itemCount: messages.length,
-                itemBuilder: (context, index) {
-                  final msg = messages[index];
-                  final mine = msg.senderId == widget.currentUserId;
-                  // Leído por la otra persona: cualquier entrada en `readBy`
-                  // que no sea la del propio remitente y esté en `true`.
-                  final leido =
-                      mine &&
-                      msg.readBy.entries.any(
-                        (e) => e.key != msg.senderId && e.value == true,
-                      );
-
-                  return Align(
-                    alignment: mine
-                        ? Alignment.centerRight
-                        : Alignment.centerLeft,
-                    child: Container(
-                      margin: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 5,
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 9,
-                      ),
-                      decoration: BoxDecoration(
-                        color: mine
-                            ? AppColores.primary
-                            : context.palette.grey200,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            msg.texto,
-                            style: TextStyle(
-                              color: context.palette.textPrimary,
-                            ),
-                          ),
-                          if (mine) ...[
-                            const SizedBox(height: 3),
-                            Icon(
-                              leido ? Icons.done_all : Icons.done,
-                              size: 15,
-                              color: leido
-                                  ? AppColores.secondary
-                                  : context.palette.textSecondary,
-                            ),
-                          ],
-                        ],
-                      ),
+              child: messages.isEmpty
+                  ? _ChatVacio(otherPartyLabel: widget.otherPartyLabel)
+                  : ListView.builder(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      itemCount: messages.length,
+                      itemBuilder: (context, index) {
+                        final msg = messages[index];
+                        final mine = msg.senderId == widget.currentUserId;
+                        // Leído por la otra persona: cualquier entrada en
+                        // `readBy` que no sea la del propio remitente y esté
+                        // en `true`.
+                        final leido =
+                            mine &&
+                            msg.readBy.entries.any(
+                              (e) => e.key != msg.senderId && e.value == true,
+                            );
+                        return _Burbuja(
+                          texto: msg.texto,
+                          hora: msg.timestamp,
+                          mine: mine,
+                          leido: leido,
+                        );
+                      },
                     ),
-                  );
-                },
-              ),
             ),
-            SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _textController,
-                        focusNode: _focusNode,
-                        textInputAction: TextInputAction.send,
-                        onSubmitted: (_) => _send(),
-                        decoration: InputDecoration(
-                          hintText: 'Escribe un mensaje...',
-                          hintStyle: TextStyle(
-                            color: context.palette.textSecondary,
-                          ),
-                          filled: true,
-                          fillColor: context.palette.grey100,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide.none,
+            Container(
+              decoration: BoxDecoration(
+                color: context.palette.surface,
+                border: Border(
+                  top: BorderSide(color: context.palette.borderSubtle),
+                ),
+              ),
+              child: SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _textController,
+                          focusNode: _focusNode,
+                          textInputAction: TextInputAction.send,
+                          textCapitalization: TextCapitalization.sentences,
+                          onSubmitted: (_) => _send(),
+                          style: TextStyle(color: context.palette.textPrimary),
+                          decoration: InputDecoration(
+                            hintText: 'Escribe un mensaje...',
+                            hintStyle: TextStyle(
+                              color: context.palette.textSecondary,
+                            ),
+                            filled: true,
+                            fillColor: context.palette.grey100,
+                            isDense: true,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(24),
+                              borderSide: BorderSide.none,
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(24),
+                              borderSide: BorderSide.none,
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(24),
+                              borderSide: const BorderSide(
+                                color: AppColores.primary,
+                                width: 1.5,
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      onPressed: _send,
-                      style: IconButton.styleFrom(
-                        backgroundColor: AppColores.buttonPrimary,
-                        foregroundColor: AppColores.textWhite,
+                      const SizedBox(width: 6),
+                      IconButton(
+                        tooltip: 'Enviar',
+                        onPressed: _send,
+                        style: IconButton.styleFrom(
+                          backgroundColor: AppColores.buttonPrimary,
+                          foregroundColor: colorContenidoSobre(
+                            AppColores.buttonPrimary,
+                          ),
+                        ),
+                        icon: const Icon(Icons.send_rounded),
                       ),
-                      icon: const Icon(Icons.send),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Burbuja de mensaje. La propia va sobre el ámbar de marca, así que su texto
+/// y sus íconos son oscuros fijos (`colorContenidoSobre`): con
+/// `palette.textPrimary`, en modo oscuro el texto casi blanco quedaba en
+/// 1.65:1 sobre el ámbar. La ajena usa la paleta del tema.
+class _Burbuja extends StatelessWidget {
+  const _Burbuja({
+    required this.texto,
+    required this.hora,
+    required this.mine,
+    required this.leido,
+  });
+
+  final String texto;
+  final DateTime? hora;
+  final bool mine;
+  final bool leido;
+
+  /// Azul de "leído" oscurecido para que se distinga sobre el ámbar (4.4:1;
+  /// el azul de marca queda en 3.1:1).
+  static const _azulLeido = Color(0xFF0B4F9C);
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final fondo = mine ? AppColores.primary : palette.grey200;
+    final colorTexto = mine
+        ? colorContenidoSobre(AppColores.primary)
+        : palette.textPrimary;
+    final colorMeta = mine ? AppColores.ink700 : palette.textSecondary;
+    final hora = this.hora;
+
+    return Align(
+      alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.sizeOf(context).width * 0.78,
+        ),
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          padding: const EdgeInsets.fromLTRB(12, 8, 10, 6),
+          decoration: BoxDecoration(
+            color: fondo,
+            borderRadius: BorderRadius.only(
+              topLeft: const Radius.circular(16),
+              topRight: const Radius.circular(16),
+              bottomLeft: Radius.circular(mine ? 16 : 4),
+              bottomRight: Radius.circular(mine ? 4 : 16),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(texto, style: TextStyle(color: colorTexto, fontSize: 15)),
+              const SizedBox(height: 3),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (hora != null)
+                    Text(
+                      '${hora.hour.toString().padLeft(2, '0')}:'
+                      '${hora.minute.toString().padLeft(2, '0')}',
+                      style: TextStyle(color: colorMeta, fontSize: 11),
+                    ),
+                  if (mine) ...[
+                    const SizedBox(width: 4),
+                    Icon(
+                      leido ? Icons.done_all : Icons.done,
+                      size: 15,
+                      color: leido ? _azulLeido : colorMeta,
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ChatVacio extends StatelessWidget {
+  const _ChatVacio({required this.otherPartyLabel});
+
+  final String otherPartyLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.chat_bubble_outline_rounded,
+              size: 40,
+              color: palette.textSecondary,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Aún no hay mensajes.\nEscríbele al $otherPartyLabel.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: palette.textSecondary, fontSize: 14),
             ),
           ],
         ),

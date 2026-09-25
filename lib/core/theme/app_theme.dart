@@ -23,7 +23,7 @@ class AppThemeConfig {
             error: AppColores.error,
             surface: p.surface,
             onSurface: p.textPrimary,
-            onPrimary: AppColores.textWhite,
+            onPrimary: AppColores.ink900,
             outline: p.divider,
             surfaceContainerHighest: p.cardBackground,
           )
@@ -33,7 +33,7 @@ class AppThemeConfig {
             error: AppColores.error,
             surface: p.surface,
             onSurface: p.textPrimary,
-            onPrimary: AppColores.textWhite,
+            onPrimary: AppColores.ink900,
             outline: p.divider,
             surfaceContainerHighest: p.cardBackground,
           );
@@ -52,14 +52,20 @@ class AppThemeConfig {
       // de color entre temas.
       appBarTheme: AppBarTheme(
         backgroundColor: AppColores.primary,
-        foregroundColor: AppColores.textWhite,
+        // Contenido oscuro sobre el ámbar: blanco quedaba en 1.8:1.
+        foregroundColor: AppColores.ink900,
         elevation: 0,
         centerTitle: true,
-        iconTheme: const IconThemeData(color: AppColores.textWhite),
+        // Sin `iconTheme` a propósito: si se fija acá, le gana al
+        // `foregroundColor` de cada AppBar y la flecha "atrás" de las AppBar
+        // neutras (`appBarNeutra`, fondo `palette.background`) salía blanca
+        // sobre blanco en modo claro. Sin él, los íconos toman el
+        // `foregroundColor` de la AppBar: oscuro en las de marca (el de
+        // arriba), `palette.textPrimary` en las neutras.
         titleTextStyle: TextStyle(
           fontSize: AppTamano.title,
           fontWeight: FontWeight.bold,
-          color: AppColores.textWhite,
+          color: AppColores.ink900,
         ),
         systemOverlayStyle: const SystemUiOverlayStyle(
           statusBarColor: AppColores.primary,
@@ -80,9 +86,12 @@ class AppThemeConfig {
           color: p.textPrimary,
         ),
         bodyMedium: TextStyle(fontSize: AppTamano.body, color: p.textSecondary),
+        // Lo usan de base chips y botones de texto: blanco fijo dejaba las
+        // etiquetas de los chips blancas sobre fondo claro en modo claro.
+        // Los botones igual pintan con su `foregroundColor`.
         labelLarge: TextStyle(
           fontSize: AppTamano.subtitle,
-          color: AppColores.textWhite,
+          color: p.textPrimary,
         ),
       ),
 
@@ -90,7 +99,7 @@ class AppThemeConfig {
         style: ElevatedButton.styleFrom(
           minimumSize: Size(double.infinity, AppTamano.buttonHeight),
           backgroundColor: AppColores.buttonPrimary,
-          foregroundColor: AppColores.textWhite,
+          foregroundColor: colorContenidoSobre(AppColores.buttonPrimary),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppTamano.radiusMD),
           ),

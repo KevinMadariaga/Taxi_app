@@ -93,7 +93,7 @@ class TripDetailsSheet extends StatelessWidget {
                         ? const Icon(
                             Icons.person,
                             size: 32,
-                            color: Colors.white,
+                            color: AppColores.ink900,
                           )
                         : null,
                   ),
@@ -146,14 +146,14 @@ class TripDetailsSheet extends StatelessWidget {
               const SizedBox(height: 14),
               _DireccionRow(
                 icon: Icons.my_location,
-                color: AppColores.success,
+                color: context.palette.successText,
                 label: labelRecoger,
                 value: direccionRecoger.isEmpty ? '—' : direccionRecoger,
               ),
               const SizedBox(height: 12),
               _DireccionRow(
                 icon: Icons.location_on,
-                color: AppColores.error,
+                color: context.palette.errorText,
                 label: 'Destino',
                 value: direccionDestino.isEmpty ? '—' : direccionDestino,
               ),
@@ -396,9 +396,9 @@ class _MetodoPagoChip extends StatelessWidget {
     Widget icono;
     String label;
     if (lower.contains('efectivo') || lower.contains('cash')) {
-      icono = const Icon(
+      icono = Icon(
         Icons.payments_rounded,
-        color: AppColores.success,
+        color: context.palette.successText,
         size: 22,
       );
       label = 'Efectivo';
@@ -415,9 +415,9 @@ class _MetodoPagoChip extends StatelessWidget {
       );
       label = 'Nequi';
     } else if (lower.contains('transfer') || lower.contains('banco')) {
-      icono = const Icon(
+      icono = Icon(
         Icons.account_balance,
-        color: AppColores.secondary,
+        color: context.palette.infoText,
         size: 22,
       );
       label = 'Transferencia';

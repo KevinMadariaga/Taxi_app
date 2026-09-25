@@ -50,10 +50,10 @@ class DriverWaitingClientModal extends StatelessWidget {
             if (!canStartTrip) ...[
               Text(
                 _format(remainingSeconds),
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 32,
                   fontWeight: FontWeight.w800,
-                  color: AppColores.buttonChat,
+                  color: context.palette.infoText,
                 ),
               ),
               const SizedBox(height: 4),
@@ -76,7 +76,9 @@ class DriverWaitingClientModal extends StatelessWidget {
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size.fromHeight(52),
                   backgroundColor: AppColores.buttonPrimary,
-                  foregroundColor: context.palette.textPrimary,
+                  // Fijo oscuro: `palette.textPrimary` en modo oscuro es casi
+                  // blanco y sobre el ámbar quedaba en 1.6:1.
+                  foregroundColor: AppColores.ink900,
                   disabledBackgroundColor: context.palette.grey300,
                   disabledForegroundColor: context.palette.textSecondary,
                   shape: RoundedRectangleBorder(
@@ -89,7 +91,7 @@ class DriverWaitingClientModal extends StatelessWidget {
                         height: 20,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: context.palette.textPrimary,
+                          color: AppColores.ink900,
                         ),
                       )
                     : const Text(

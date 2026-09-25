@@ -336,19 +336,19 @@ class _PanelConfirmacion extends StatelessWidget {
                 onPressed: (!habilitado || guardando) ? null : onConfirmar,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColores.buttonPrimary,
-                  foregroundColor: AppColores.textWhite,
+                  foregroundColor: AppColores.ink900,
                   minimumSize: const Size.fromHeight(52),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),
                 ),
                 child: guardando
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 22,
                         height: 22,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: AppColores.textWhite,
+                          color: context.palette.textPrimary,
                         ),
                       )
                     : const Text(

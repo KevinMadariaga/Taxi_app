@@ -32,7 +32,13 @@ class RidePrimaryButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final disabled = onPressed == null || isLoading;
     final palette = context.palette;
-    const contentColor = AppColores.textWhite;
+    // `pastel` va sobre brand400 (ámbar): blanco ahí queda en 1.8:1, así que
+    // el contenido pasa a oscuro. El sólido brand700 sí aguanta blanco (5.2:1).
+    final contentColor = pastel ? AppColores.ink900 : AppColores.textWhite;
+    // Texto/ícono/spinner llevan color explícito, que pisa el
+    // `foregroundColor` del estilo: sin esto, deshabilitado (o cargando)
+    // quedaba blanco sobre `ink200` — ~1.2:1 en modo claro.
+    final contenido = disabled ? palette.ink500 : contentColor;
     return SizedBox(
       width: double.infinity,
       height: 52,
@@ -70,14 +76,14 @@ class RidePrimaryButton extends StatelessWidget {
                 height: 20,
                 child: CircularProgressIndicator(
                   strokeWidth: 2.2,
-                  color: contentColor,
+                  color: contenido,
                 ),
               )
             : Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   if (icon != null) ...[
-                    Icon(icon, size: 18, color: contentColor),
+                    Icon(icon, size: 18, color: contenido),
                     const SizedBox(width: 8),
                   ],
                   // `Flexible` (no `Expanded`): un label corto se queda a su
@@ -94,7 +100,7 @@ class RidePrimaryButton extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
-                        color: contentColor,
+                        color: contenido,
                       ),
                     ),
                   ),
@@ -160,7 +166,7 @@ class RideSecondaryButton extends StatelessWidget {
                               minHeight: 14,
                             ),
                             decoration: const BoxDecoration(
-                              color: Colors.red,
+                              color: AppColores.error,
                               shape: BoxShape.circle,
                             ),
                             child: Text(

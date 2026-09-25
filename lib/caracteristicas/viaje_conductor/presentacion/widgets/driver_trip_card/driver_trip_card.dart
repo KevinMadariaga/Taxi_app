@@ -4,7 +4,6 @@ import 'package:taxi_app/caracteristicas/viaje_compartido/presentacion/utils/tri
 import 'package:taxi_app/caracteristicas/viaje_compartido/presentacion/widgets/barra_progreso_direccional.dart';
 import 'package:taxi_app/caracteristicas/viaje_compartido/presentacion/widgets/eta_distancia_row.dart';
 import 'package:taxi_app/caracteristicas/viaje_conductor/presentacion/viewmodels/viaje_conductor_viewmodel.dart';
-import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/constants/solicitud_estado.dart';
 import 'package:taxi_app/core/theme/ride_button_styles.dart';
@@ -108,7 +107,9 @@ class _DriverTripCardState extends State<DriverTripCard>
       // empezada.
       final dentroDeRango = vm.puedeTerminarViaje;
       return (
-        label: dentroDeRango ? 'Terminar viaje' : 'Acércate para terminar el viaje',
+        label: dentroDeRango
+            ? 'Terminar viaje'
+            : 'Acércate para terminar el viaje',
         icon: Icons.flag_rounded,
         onTap: dentroDeRango ? widget.onTerminarViaje : null,
         pastel: false,
@@ -194,17 +195,17 @@ class _DriverTripCardState extends State<DriverTripCard>
                       vertical: 8,
                     ),
                     decoration: BoxDecoration(
-                      color: AppColores.brand50,
+                      color: context.palette.brandChipBackground,
                       borderRadius: BorderRadius.circular(999),
                     ),
                     child: Text(
                       _titulo(vm),
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
                         height: 1.1,
-                        color: AppColores.brand900,
+                        color: context.palette.brandChipText,
                       ),
                     ),
                   ),

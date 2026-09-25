@@ -22,6 +22,7 @@ import 'package:taxi_app/core/theme/map_style.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/ubicacion_resultado.dart';
 import 'package:taxi_app/screens/perfil/perfil.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
+import 'package:taxi_app/widgets/ajustes_ui.dart';
 import 'package:taxi_app/widgets/confirmar_dialog.dart';
 import 'package:taxi_app/features/resumen_viaje/services/resumen_viaje_firestore_service.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/ResumenClienteView.dart';
@@ -814,9 +815,9 @@ class _InicioClienteViewState extends State<InicioClienteView>
                     color: AppColores.primary.withValues(alpha: 0.18),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.campaign_rounded,
-                    color: Color(0xFFB38F00),
+                    color: acentoMarca(context),
                     size: 34,
                   ),
                 ),
@@ -857,7 +858,9 @@ class _InicioClienteViewState extends State<InicioClienteView>
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF25D366),
-                      foregroundColor: Colors.white,
+                      foregroundColor: colorContenidoSobre(
+                        const Color(0xFF25D366),
+                      ),
                       minimumSize: const Size.fromHeight(52),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16.r),
@@ -1002,10 +1005,10 @@ class _UbicacionOkBanner extends StatelessWidget {
                         color: AppColores.success.withValues(alpha: 0.15),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.check_rounded,
                         size: 16,
-                        color: AppColores.success,
+                        color: context.palette.successText,
                       ),
                     ),
                     SizedBox(width: 10.w),
@@ -1205,10 +1208,10 @@ class _HomeClienteMap extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.location_on,
                       size: 12,
-                      color: AppColores.primary,
+                      color: acentoMarca(context),
                     ),
                     SizedBox(width: 4.w),
                     Text(
@@ -1449,10 +1452,10 @@ class _SearchBox extends StatelessWidget {
                   color: AppColores.primary.withValues(alpha: 0.16),
                   borderRadius: BorderRadius.circular(13.r),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.search_rounded,
                   size: 24,
-                  color: Color(0xFFB38F00),
+                  color: acentoMarca(context),
                 ),
               ),
               SizedBox(width: 12.w),
@@ -1605,7 +1608,7 @@ class _FavoritoItem extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(icon, size: 15, color: AppColores.primary),
+                Icon(icon, size: 15, color: acentoMarca(context)),
                 SizedBox(width: 6.w),
                 Text(
                   label,
@@ -1677,7 +1680,7 @@ class _SugerenciaItem extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 15, color: AppColores.primary),
+              Icon(icon, size: 15, color: acentoMarca(context)),
               SizedBox(width: 6.w),
               Text(
                 label,
@@ -1771,7 +1774,10 @@ class _CarouselSection extends StatelessWidget {
                                 Icon(
                                   item['icon'] as IconData,
                                   size: 30,
-                                  color: context.palette.textPrimary.withValues(
+                                  // Fijo oscuro: es el fondo ámbar, no el
+                                  // del tema (en modo oscuro
+                                  // `palette.textPrimary` es casi blanco).
+                                  color: AppColores.ink900.withValues(
                                     alpha: 0.85,
                                   ),
                                 ),
@@ -1782,7 +1788,7 @@ class _CarouselSection extends StatelessWidget {
                                   style: const TextStyle(
                                     fontSize: 15,
                                     fontWeight: FontWeight.w700,
-                                    color: AppColores.textWhite,
+                                    color: AppColores.ink900,
                                   ),
                                 ),
                                 const SizedBox(height: 4),
@@ -1791,7 +1797,7 @@ class _CarouselSection extends StatelessWidget {
                                   textAlign: TextAlign.center,
                                   style: const TextStyle(
                                     fontSize: 12,
-                                    color: AppColores.textWhiteMuted,
+                                    color: AppColores.ink700,
                                   ),
                                 ),
                               ],
@@ -1838,7 +1844,8 @@ class _BottomNavBar extends StatelessWidget {
         backgroundColor: context.palette.surface,
         elevation: 0,
         type: BottomNavigationBarType.fixed,
-        selectedItemColor: AppColores.primary,
+        // Ámbar puro sobre la superficie clara queda en 1.8:1.
+        selectedItemColor: acentoMarca(context),
         unselectedItemColor: context.palette.textSecondary,
         currentIndex: selectedIndex,
         onTap: onTap,

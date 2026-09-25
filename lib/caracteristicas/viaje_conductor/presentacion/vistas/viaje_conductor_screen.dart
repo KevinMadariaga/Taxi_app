@@ -429,7 +429,11 @@ class _ViajeConductorScreenState extends State<ViajeConductorScreen>
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('El cliente cambió el método de pago a "$nuevo".'),
+          content: Text(
+            'El cliente cambió el método de pago a "$nuevo".',
+            // Texto oscuro: blanco sobre el ámbar queda en 1.8:1.
+            style: const TextStyle(color: AppColores.ink900),
+          ),
           backgroundColor: AppColores.primary,
           behavior: SnackBarBehavior.floating,
           duration: const Duration(seconds: 5),
@@ -526,7 +530,9 @@ class _ViajeConductorScreenState extends State<ViajeConductorScreen>
                         if (_vm.isLoading)
                           Positioned.fill(
                             child: Container(
-                              color: Colors.white.withValues(alpha: 0.6),
+                              color: context.palette.background.withValues(
+                                alpha: 0.6,
+                              ),
                               child: const Center(
                                 child: CircularProgressIndicator(),
                               ),

@@ -38,6 +38,16 @@ class CustomButton extends StatelessWidget {
     final textFontSize = fontSize ?? buttonHeight * 0.4;
 
     final isDisabled = onPressed == null || isLoading;
+    final fondo = isDisabled
+        ? context.palette.grey400
+        : (color ?? AppColores.buttonPrimary);
+    // Sin `textColor`, el contenido se elige según el fondo: antes era blanco
+    // siempre, y sobre el ámbar por defecto (o el gris claro de deshabilitado
+    // en modo claro) quedaba por debajo de 2:1. Deshabilitado el fondo es
+    // siempre el gris, así que ahí manda el fondo y no el `textColor`.
+    final contenido = isDisabled
+        ? colorContenidoSobre(fondo)
+        : (textColor ?? colorContenidoSobre(fondo));
 
     return SizedBox(
       width: buttonWidth,
@@ -45,9 +55,7 @@ class CustomButton extends StatelessWidget {
       child: ElevatedButton(
         onPressed: isDisabled ? null : onPressed,
         style: ElevatedButton.styleFrom(
-          backgroundColor: isDisabled
-              ? context.palette.grey400
-              : (color ?? AppColores.buttonPrimary),
+          backgroundColor: fondo,
           disabledBackgroundColor: context.palette.grey400,
           side: borderColor != null ? BorderSide(color: borderColor!) : null,
           shape: RoundedRectangleBorder(
@@ -55,14 +63,12 @@ class CustomButton extends StatelessWidget {
           ),
         ),
         child: isLoading
-            ? const Center(
+            ? Center(
                 child: SizedBox(
                   width: 22,
                   height: 22,
                   child: CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      AppColores.textWhite,
-                    ),
+                    valueColor: AlwaysStoppedAnimation<Color>(contenido),
                     strokeWidth: 2,
                   ),
                 ),
@@ -80,7 +86,7 @@ class CustomButton extends StatelessWidget {
                       softWrap: false,
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        color: textColor ?? AppColores.textWhite,
+                        color: contenido,
                         fontSize: textFontSize,
                         fontWeight: FontWeight.bold,
                       ),

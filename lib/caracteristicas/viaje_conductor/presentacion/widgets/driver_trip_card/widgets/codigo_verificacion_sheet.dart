@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'package:taxi_app/caracteristicas/verificacion_recogida/dominio/casos_uso/validar_codigo_verificacion_usecase.dart';
-import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/widgets/boton.dart';
 
@@ -171,7 +170,10 @@ class _CodigoVerificacionSheetState extends State<CodigoVerificacionSheet> {
               const SizedBox(height: 8),
               Text(
                 _error!,
-                style: const TextStyle(color: AppColores.error, fontSize: 13),
+                style: TextStyle(
+                  color: context.palette.errorText,
+                  fontSize: 13,
+                ),
               ),
             ],
             const SizedBox(height: 18),

@@ -237,7 +237,7 @@ class _ContraofertaCard extends StatelessWidget {
                   child: _OfertaButton(
                     label: 'Aceptar',
                     color: AppColores.buttonPrimary,
-                    textColor: AppColores.textWhite,
+                    textColor: AppColores.ink900,
                     isLoading: isResponding,
                     onTap: onAceptar,
                   ),

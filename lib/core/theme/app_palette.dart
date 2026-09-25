@@ -32,6 +32,12 @@ class AppPalette extends ThemeExtension<AppPalette> {
     required this.ink500,
     required this.ink700,
     required this.ink900,
+    required this.successText,
+    required this.errorText,
+    required this.dangerText,
+    required this.infoText,
+    required this.brandChipBackground,
+    required this.brandChipText,
   });
 
   final Color background;
@@ -54,6 +60,19 @@ class AppPalette extends ThemeExtension<AppPalette> {
   final Color ink500;
   final Color ink700;
   final Color ink900;
+
+  // Colores de estado/marca usados como TEXTO o ÍCONO sobre superficies. En
+  // claro son los mismos de `AppColores`; en oscuro se aclaran, porque los de
+  // marca (verde 2E7D32, rojo D32F2F, azul 0A66C2) quedan en ~3:1 sobre
+  // `cardBackground` oscuro — por debajo de 4.5:1 (WCAG AA para texto).
+  // Como FONDO con texto blanco (botones, snackbars) se sigue usando
+  // `AppColores` directo: ahí el contraste ya cumple en ambos temas.
+  final Color successText;
+  final Color errorText;
+  final Color dangerText;
+  final Color infoText;
+  final Color brandChipBackground;
+  final Color brandChipText;
 
   /// Idéntica a los valores actuales de `AppColores` — el modo claro no
   /// cambia de aspecto con la migración a `ThemeExtension`.
@@ -78,6 +97,12 @@ class AppPalette extends ThemeExtension<AppPalette> {
     ink500: AppColores.ink500,
     ink700: AppColores.ink700,
     ink900: AppColores.ink900,
+    successText: AppColores.success,
+    errorText: AppColores.error,
+    dangerText: AppColores.danger,
+    infoText: AppColores.secondary,
+    brandChipBackground: AppColores.brand50,
+    brandChipText: AppColores.brand900,
   );
 
   static const AppPalette dark = AppPalette(
@@ -101,6 +126,12 @@ class AppPalette extends ThemeExtension<AppPalette> {
     ink500: Color(0xFF9098A3),
     ink700: Color(0xFFD3D7DC),
     ink900: Color(0xFFF5F6F8),
+    successText: Color(0xFF66BB6A),
+    errorText: Color(0xFFFF6B6B),
+    dangerText: Color(0xFFFF6B6B),
+    infoText: Color(0xFF64B5F6),
+    brandChipBackground: Color(0xFF3A2414),
+    brandChipText: AppColores.brand200,
   );
 
   @override
@@ -125,6 +156,12 @@ class AppPalette extends ThemeExtension<AppPalette> {
     Color? ink500,
     Color? ink700,
     Color? ink900,
+    Color? successText,
+    Color? errorText,
+    Color? dangerText,
+    Color? infoText,
+    Color? brandChipBackground,
+    Color? brandChipText,
   }) {
     return AppPalette(
       background: background ?? this.background,
@@ -147,6 +184,12 @@ class AppPalette extends ThemeExtension<AppPalette> {
       ink500: ink500 ?? this.ink500,
       ink700: ink700 ?? this.ink700,
       ink900: ink900 ?? this.ink900,
+      successText: successText ?? this.successText,
+      errorText: errorText ?? this.errorText,
+      dangerText: dangerText ?? this.dangerText,
+      infoText: infoText ?? this.infoText,
+      brandChipBackground: brandChipBackground ?? this.brandChipBackground,
+      brandChipText: brandChipText ?? this.brandChipText,
     );
   }
 
@@ -174,9 +217,27 @@ class AppPalette extends ThemeExtension<AppPalette> {
       ink500: Color.lerp(ink500, other.ink500, t)!,
       ink700: Color.lerp(ink700, other.ink700, t)!,
       ink900: Color.lerp(ink900, other.ink900, t)!,
+      successText: Color.lerp(successText, other.successText, t)!,
+      errorText: Color.lerp(errorText, other.errorText, t)!,
+      dangerText: Color.lerp(dangerText, other.dangerText, t)!,
+      infoText: Color.lerp(infoText, other.infoText, t)!,
+      brandChipBackground: Color.lerp(
+        brandChipBackground,
+        other.brandChipBackground,
+        t,
+      )!,
+      brandChipText: Color.lerp(brandChipText, other.brandChipText, t)!,
     );
   }
 }
+
+/// Color de texto/ícono legible sobre un fondo sólido: oscuro sobre fondos
+/// claros (el ámbar de marca, grises claros), blanco sobre oscuros. Blanco
+/// sobre el ámbar queda en 1.8:1; `ink900` en 10:1.
+Color colorContenidoSobre(Color fondo) =>
+    ThemeData.estimateBrightnessForColor(fondo) == Brightness.light
+    ? AppColores.ink900
+    : AppColores.textWhite;
 
 /// Acceso corto a la paleta activa: `context.palette.surface` en vez de
 /// `Theme.of(context).extension<AppPalette>()!.surface`. Cae a [AppPalette.light]

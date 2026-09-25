@@ -4,7 +4,6 @@ import 'package:taxi_app/caracteristicas/viaje_cliente/presentacion/viewmodels/v
 import 'package:taxi_app/caracteristicas/viaje_compartido/presentacion/widgets/barra_progreso_direccional.dart';
 import 'package:taxi_app/caracteristicas/viaje_compartido/presentacion/utils/trip_card_metrics.dart';
 import 'package:taxi_app/caracteristicas/viaje_compartido/presentacion/widgets/eta_distancia_row.dart';
-import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/constants/solicitud_estado.dart';
 import 'package:taxi_app/core/theme/ride_button_styles.dart';
@@ -137,18 +136,18 @@ class _TripInfoCardState extends State<TripInfoCard>
                       vertical: 8,
                     ),
                     decoration: BoxDecoration(
-                      color: AppColores.brand50,
+                      color: context.palette.brandChipBackground,
                       borderRadius: BorderRadius.circular(999),
                     ),
                     child: Text(
                       _titulo(vm),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
                         height: 1.1,
-                        color: AppColores.brand900,
+                        color: context.palette.brandChipText,
                       ),
                     ),
                   ),
@@ -189,9 +188,9 @@ class _TripInfoCardState extends State<TripInfoCard>
                     child: OutlinedButton.icon(
                       onPressed: widget.onEmergency,
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColores.danger,
-                        side: const BorderSide(
-                          color: AppColores.danger,
+                        foregroundColor: context.palette.dangerText,
+                        side: BorderSide(
+                          color: context.palette.dangerText,
                           width: 1.2,
                         ),
                         padding: const EdgeInsets.symmetric(vertical: 11),
@@ -199,17 +198,17 @@ class _TripInfoCardState extends State<TripInfoCard>
                           borderRadius: BorderRadius.circular(14),
                         ),
                       ),
-                      icon: const Icon(
+                      icon: Icon(
                         Icons.emergency_rounded,
                         size: 18,
-                        color: AppColores.danger,
+                        color: context.palette.dangerText,
                       ),
-                      label: const Text(
+                      label: Text(
                         'Llamar emergencia',
                         style: TextStyle(
                           fontWeight: FontWeight.w700,
                           fontSize: 13,
-                          color: AppColores.danger,
+                          color: context.palette.dangerText,
                         ),
                       ),
                     ),

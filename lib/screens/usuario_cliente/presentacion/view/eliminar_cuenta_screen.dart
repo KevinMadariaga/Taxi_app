@@ -188,14 +188,14 @@ class _EliminarCuentaScreenState extends State<EliminarCuentaScreen> {
       appBar: AppBar(
         elevation: 0,
         backgroundColor: AppColores.primary,
-        foregroundColor: AppColores.textWhite,
+        foregroundColor: AppColores.ink900,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColores.textWhite),
+          icon: const Icon(Icons.arrow_back, color: AppColores.ink900),
           onPressed: _isDeleting ? null : () => Navigator.of(context).pop(),
         ),
         title: const Text(
           'Eliminar cuenta',
-          style: TextStyle(color: AppColores.textWhite),
+          style: TextStyle(color: AppColores.ink900),
         ),
         centerTitle: true,
       ),
@@ -237,7 +237,7 @@ class _EliminarCuentaScreenState extends State<EliminarCuentaScreen> {
             const SizedBox(height: 16),
             Text(
               'Sin embargo, se conservará un registro de las infracciones en las que pudieras haber incurrido. La solicitud para eliminar tu cuenta tendrá efecto inmediato y es irreversible. Asegúrate de querer eliminar tu cuenta antes de hacerlo.',
-              style: TextStyle(fontSize: 15, color: AppColores.error),
+              style: TextStyle(fontSize: 15, color: context.palette.errorText),
             ),
             const SizedBox(height: 24),
             TextField(
@@ -288,7 +288,7 @@ class _EliminarCuentaScreenState extends State<EliminarCuentaScreen> {
                 onPressed: _canDelete ? _eliminarCuenta : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColores.buttonPrimary,
-                  foregroundColor: Colors.white,
+                  foregroundColor: AppColores.ink900,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   elevation: 0,
                   shape: RoundedRectangleBorder(

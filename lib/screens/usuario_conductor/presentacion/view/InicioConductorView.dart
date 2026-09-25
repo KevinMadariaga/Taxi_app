@@ -1032,6 +1032,11 @@ class _InicioConductorState extends State<InicioConductor>
                                       backgroundColor: connected
                                           ? AppColores.buttonPrimary
                                           : context.palette.grey400,
+                                      foregroundColor: colorContenidoSobre(
+                                        connected
+                                            ? AppColores.buttonPrimary
+                                            : context.palette.grey400,
+                                      ),
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(
                                           8.r,
@@ -1044,7 +1049,9 @@ class _InicioConductorState extends State<InicioConductor>
                                             height: 18.h,
                                             child: CircularProgressIndicator(
                                               strokeWidth: 2,
-                                              color: AppColores.textWhite,
+                                              color: colorContenidoSobre(
+                                                context.palette.grey400,
+                                              ),
                                             ),
                                           )
                                         : Icon(
@@ -1470,7 +1477,7 @@ class _InicioConductorState extends State<InicioConductor>
               child: Icon(
                 Icons.location_on_rounded,
                 size: 38,
-                color: context.palette.textPrimary,
+                color: AppColores.ink900,
               ),
             ),
             SizedBox(height: 16.h),
@@ -1528,7 +1535,7 @@ class _InicioConductorState extends State<InicioConductor>
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColores.buttonPrimary,
-                    foregroundColor: context.palette.textPrimary,
+                    foregroundColor: AppColores.ink900,
                     minimumSize: const Size.fromHeight(48),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(15.r),
@@ -1589,7 +1596,7 @@ class _InicioConductorState extends State<InicioConductor>
               child: Icon(
                 Icons.location_off_rounded,
                 size: 38,
-                color: context.palette.textPrimary,
+                color: AppColores.ink900,
               ),
             ),
             SizedBox(height: 16.h),
@@ -1623,7 +1630,7 @@ class _InicioConductorState extends State<InicioConductor>
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColores.buttonPrimary,
-                foregroundColor: context.palette.textPrimary,
+                foregroundColor: AppColores.ink900,
                 minimumSize: const Size.fromHeight(48),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(15.r),
@@ -1691,7 +1698,7 @@ class _InicioConductorState extends State<InicioConductor>
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColores.buttonPrimary,
-                foregroundColor: context.palette.textPrimary,
+                foregroundColor: AppColores.ink900,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12.r),
                 ),
@@ -2279,7 +2286,7 @@ class _InicioConductorState extends State<InicioConductor>
                         backgroundColor: submitting
                             ? context.palette.grey400
                             : AppColores.buttonPrimary,
-                        foregroundColor: AppColores.textWhite,
+                        foregroundColor: AppColores.ink900,
                         minimumSize: const Size.fromHeight(48),
                       ),
                       onPressed: submitting

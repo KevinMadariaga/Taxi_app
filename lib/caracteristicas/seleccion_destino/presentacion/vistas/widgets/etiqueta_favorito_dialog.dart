@@ -118,7 +118,6 @@ class _EtiquetaFavoritoDialogState extends State<_EtiquetaFavoritoDialog> {
               child: CustomButton(
                 text: 'Guardar',
                 color: AppColores.buttonPrimary,
-                textColor: AppColores.textWhite,
                 height: 44,
                 fontSize: 14,
                 onPressed: _nombreFinal == null

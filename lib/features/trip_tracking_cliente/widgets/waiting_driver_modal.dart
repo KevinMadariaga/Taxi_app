@@ -50,10 +50,10 @@ class WaitingDriverModal extends StatelessWidget {
               builder: (context, value, _) {
                 return Text(
                   _format(value),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 32,
                     fontWeight: FontWeight.w800,
-                    color: AppColores.buttonChat,
+                    color: context.palette.infoText,
                   ),
                 );
               },
@@ -73,7 +73,7 @@ class WaitingDriverModal extends StatelessWidget {
                 onPressed: isUpdating ? null : onVoyEnCamino,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColores.buttonPrimary,
-                  foregroundColor: context.palette.textPrimary,
+                  foregroundColor: AppColores.ink900,
                   minimumSize: const Size.fromHeight(52),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),

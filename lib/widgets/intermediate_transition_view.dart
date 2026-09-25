@@ -273,6 +273,9 @@ class _IntermediateTransitionViewState extends State<IntermediateTransitionView>
   Widget build(BuildContext context) {
     final isTablet = MediaQuery.of(context).size.width >= 1000;
     final accent = widget.accentColor;
+    // Check/ícono legible sobre cualquier acento: blanco sobre el ámbar por
+    // defecto quedaba en 1.8:1.
+    final sobreAcento = colorContenidoSobre(accent);
 
     final contenido = Scaffold(
       backgroundColor: context.palette.background,
@@ -325,13 +328,13 @@ class _IntermediateTransitionViewState extends State<IntermediateTransitionView>
                                     builder: (_, _) => CustomPaint(
                                       painter: _CheckPainter(
                                         progress: _checkProgress.value,
-                                        color: Colors.white,
+                                        color: sobreAcento,
                                       ),
                                     ),
                                   )
                                 : Icon(
                                     widget.icon,
-                                    color: Colors.white,
+                                    color: sobreAcento,
                                     size: 44,
                                   ),
                           ),
