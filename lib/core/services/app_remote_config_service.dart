@@ -2,7 +2,12 @@ import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:flutter/foundation.dart';
 
 class AppRemoteConfigService {
-  AppRemoteConfigService._();
+  AppRemoteConfigService._([FirebaseRemoteConfig? remoteConfig])
+    : _remoteConfig = remoteConfig ?? FirebaseRemoteConfig.instance;
+
+  @visibleForTesting
+  factory AppRemoteConfigService.paraPruebas(FirebaseRemoteConfig rc) =>
+      AppRemoteConfigService._(rc);
 
   static final AppRemoteConfigService instance = AppRemoteConfigService._();
 
@@ -17,17 +22,31 @@ class AppRemoteConfigService {
   /// `static_maps_api_key`.
   static const String staticMapsApiKeyKey = 'static_maps_api_key';
 
-  final FirebaseRemoteConfig _remoteConfig = FirebaseRemoteConfig.instance;
+  final FirebaseRemoteConfig _remoteConfig;
 
-  bool _configured = false;
+  Future<void>? _configuracion;
+
+  /// Fetch en curso, compartido. El splash, `AppUpdateGate` y los mapas piden
+  /// valores casi a la vez al arrancar; cada uno lanzaba su propio
+  /// `fetchAndActivate()` y en iOS el SDK cancela los que se pisan
+  /// (`[firebase_remote_config/unknown] cancelled`). Si el cancelado era el de
+  /// `minimum_required_version`, ese arranque se saltaba la actualización
+  /// obligatoria.
+  Future<void>? _fetchEnCurso;
 
   // Memoiza el Future para que los widgets del mapa (que pueden reconstruirse
   // seguido) no disparen un fetch nuevo cada vez — se resuelve una sola vez
   // por sesión de la app.
   Future<String>? _staticMapsKeyFuture;
 
-  Future<void> _ensureConfigured() async {
-    if (_configured) return;
+  Future<void> _ensureConfigured() {
+    return _configuracion ??= _configurar().catchError((Object e) {
+      _configuracion = null; // reintentar en la próxima lectura
+      throw e;
+    });
+  }
+
+  Future<void> _configurar() async {
     await _remoteConfig.setConfigSettings(
       RemoteConfigSettings(
         fetchTimeout: const Duration(seconds: 10),
@@ -41,7 +60,13 @@ class AppRemoteConfigService {
       latestVersionKey: '',
       staticMapsApiKeyKey: '',
     });
-    _configured = true;
+  }
+
+  Future<void> _fetchCompartido() {
+    return _fetchEnCurso ??= _remoteConfig
+        .fetchAndActivate()
+        .then<void>((_) {})
+        .whenComplete(() => _fetchEnCurso = null);
   }
 
   Future<String?> fetchMinimumRequiredVersion() async {
@@ -73,7 +98,14 @@ class AppRemoteConfigService {
   Future<String?> _fetchString(String key) async {
     try {
       await _ensureConfigured();
-      await _remoteConfig.fetchAndActivate();
+      await _fetchCompartido();
+    } catch (error) {
+      // Sin red o fetch cancelado: se sigue con el último valor activado,
+      // que el SDK persiste entre sesiones. Devolver null acá hacía que un
+      // solo fetch fallido dejara pasar una versión por debajo de la mínima.
+      debugPrint('[RemoteConfig] Fetch falló, uso el último valor: $error');
+    }
+    try {
       final value = _remoteConfig.getString(key).trim();
       return value.isEmpty ? null : value;
     } catch (error) {
