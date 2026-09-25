@@ -68,3 +68,12 @@ android/build/reports/
 # `npm install` en su carpeta — ver rules-tests/README.md y functions/package.json.
 /functions/node_modules/
 /rules-tests/node_modules/
+
+# Graphify: caché y snapshots fechados se regeneran con `graphify update .`;
+# solo se versionan los reportes (GRAPH_REPORT.md, graph-summary.md, graph.*).
+/graphify-out/cache/
+/graphify-out/20*/
+/graphify-out/.graphify_*
+
+# Salida de copy-mapping.sh
+/mapping-v*.txt

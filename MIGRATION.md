@@ -1,5 +1,10 @@
 # Migración: centralizar servicios en `lib/core/services`
 
+> **Documento histórico (marzo 2026).** Varios archivos citados abajo ya no existen
+> (`chat_service_adapter.dart`, `google_sign_in_service.dart`,
+> `ruta_cliente_viewmodel.dart`). Solo queda `map_service_adapter.dart` como shim.
+> La estructura vigente está en `CLAUDE.md`.
+
 Fecha: 19 de marzo de 2026
 
 Resumen

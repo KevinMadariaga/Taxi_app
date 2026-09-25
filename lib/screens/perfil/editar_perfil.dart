@@ -206,6 +206,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
         }
       });
     } catch (e) {
+      if (!mounted) return;
       AnimatedSnackBar.material(
         'Error seleccionando imagen: $e',
         type: AnimatedSnackBarType.error,
