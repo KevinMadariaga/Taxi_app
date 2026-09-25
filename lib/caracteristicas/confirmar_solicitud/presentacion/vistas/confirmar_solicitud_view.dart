@@ -10,7 +10,7 @@ import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/utils/transicion_pagina.dart';
 import 'package:taxi_app/widgets/ajustes_ui.dart';
 import 'package:taxi_app/core/modelos/location_model.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/view/buscando_taxi_view.dart';
+import 'package:taxi_app/core/constants/rutas_app.dart';
 
 import '../viewmodels/confirmar_solicitud_viewmodel.dart';
 import 'widgets/confirmar_solicitud_submit_bar.dart';
@@ -132,13 +132,12 @@ class _ConfirmarSolicitudViewState extends State<ConfirmarSolicitudView>
   }
 
   void _onSolicitudCreada(String solicitudId) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => BuscandoTaxiView(
-          solicitudId: solicitudId,
-          initialClientLocation: _vm.origen.position,
-        ),
-      ),
+    Navigator.of(context).pushNamed(
+      RutasApp.buscandoTaxi,
+      arguments: {
+        'solicitudId': solicitudId,
+        'initialClientLocation': _vm.origen.position,
+      },
     );
   }
 

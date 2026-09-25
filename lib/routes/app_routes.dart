@@ -5,6 +5,11 @@ import 'package:taxi_app/presentation/screens/splash/splash_view.dart';
 import 'package:taxi_app/presentation/viewmodels/splash/splash_viewmodel.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/presentacion/vistas/home_screen.dart';
 import 'package:taxi_app/core/constants/rutas_app.dart';
+import 'package:taxi_app/core/utils/transicion_pagina.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/view/home_cliente_view.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/view/buscando_taxi_view.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/view/ResumenClienteView.dart';
+import 'package:taxi_app/screens/usuario_conductor/presentacion/view/resumen_conductor_view.dart';
 import 'package:taxi_app/features/admin/admin_home_screen.dart';
 import 'package:taxi_app/features/phone_auth/screens/admin_hub_screen.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioConductorView.dart';
@@ -47,6 +52,37 @@ class AppRoutes {
           settings: settings,
           builder: (_) => InicioConductor(
             mostrarBienvenida: args['mostrarBienvenida'] == true,
+          ),
+        );
+      case RutasApp.clienteInicio:
+        final authUid = args['authUid'] as String?;
+        if (args['transicionInicio'] == true) {
+          return transicionInicioCliente(HomeClienteView(authUid: authUid));
+        }
+        return MaterialPageRoute(
+          settings: settings,
+          builder: (_) => HomeClienteView(authUid: authUid),
+        );
+      case RutasApp.buscandoTaxi:
+        return MaterialPageRoute(
+          settings: settings,
+          builder: (_) => BuscandoTaxiView(
+            solicitudId: args['solicitudId'] as String?,
+            initialClientLocation: args['initialClientLocation'] as LatLng?,
+          ),
+        );
+      case RutasApp.resumenCliente:
+        return MaterialPageRoute(
+          settings: settings,
+          builder: (_) => ResumenClienteView(
+            solicitudId: (args['solicitudId'] ?? '').toString(),
+          ),
+        );
+      case RutasApp.resumenConductor:
+        return MaterialPageRoute(
+          settings: settings,
+          builder: (_) => ResumenConductorView(
+            solicitudId: (args['solicitudId'] ?? '').toString(),
           ),
         );
       case RutasApp.ayudaEstadoSolicitud:

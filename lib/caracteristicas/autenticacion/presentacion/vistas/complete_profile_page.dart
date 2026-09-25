@@ -12,7 +12,7 @@ import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/helpers/responsive_helper.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/presentacion/controladores/complete_profile_controller.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/view/home_cliente_view.dart';
+import 'package:taxi_app/core/constants/rutas_app.dart';
 import 'package:taxi_app/widgets/intermediate_transition_view.dart';
 
 /// Registro / completar perfil del cliente (Google / Apple), en tres pasos:
@@ -601,7 +601,8 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
         icon: Icons.how_to_reg_rounded,
         delay: const Duration(milliseconds: 2200),
         clearStackOnNext: true,
-        nextBuilder: (_) => HomeClienteView(authUid: widget.uid),
+        nextRouteName: RutasApp.clienteInicio,
+        nextArguments: {'authUid': widget.uid},
       ),
     );
   }

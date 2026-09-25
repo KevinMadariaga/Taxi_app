@@ -93,4 +93,50 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
     expect(find.text('siguiente'), findsOneWidget);
   });
+
+  // `caracteristicas/` navega a pantallas legacy por nombre (RutasApp) para
+  // no importarlas: la ruta debe recibir sus argumentos y, con
+  // clearStackOnNext, quedar como única ruta (igual que con nextBuilder).
+  testWidgets('nextRouteName navega por nombre con argumentos y limpia pila', (
+    tester,
+  ) async {
+    Object? argsRecibidos;
+    await tester.pumpWidget(
+      MaterialApp(
+        onGenerateRoute: (settings) {
+          argsRecibidos = settings.arguments;
+          return MaterialPageRoute(
+            settings: settings,
+            builder: (_) => Scaffold(body: Text('ruta ${settings.name}')),
+          );
+        },
+        home: Builder(
+          builder: (ctx) => ElevatedButton(
+            onPressed: () => navigateWithIntermediateLoader(
+              context: ctx,
+              nextRouteName: '/resumen',
+              nextArguments: const {'solicitudId': 'abc'},
+              delay: const Duration(milliseconds: 300),
+              title: 'Viaje finalizado',
+              subtitle: 'Preparando el resumen...',
+              icon: Icons.flag_rounded,
+              clearStackOnNext: true,
+            ),
+            child: const Text('go'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('go'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(find.text('ruta /resumen'), findsOneWidget);
+    expect(argsRecibidos, {'solicitudId': 'abc'});
+    expect(
+      Navigator.of(tester.element(find.text('ruta /resumen'))).canPop(),
+      isFalse,
+    );
+  });
 }

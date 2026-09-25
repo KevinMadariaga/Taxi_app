@@ -25,7 +25,10 @@ void cerrarRutasSobre(BuildContext context) {
   ).popUntil((route) => route == propia || route.isFirst);
 }
 
-/// Muestra la pantalla de transición y, tras [delay], navega a [nextBuilder].
+/// Muestra la pantalla de transición y, tras [delay], navega a [nextBuilder]
+/// o a la ruta con nombre [nextRouteName] (con [nextArguments]); se pasa uno
+/// de los dos. La ruta con nombre deja a `caracteristicas/` navegar a
+/// pantallas legacy sin importarlas.
 ///
 /// El future que devuelve es el de `pushReplacement`, o sea el `popped` de la
 /// pantalla de transición: completa cuando esa ruta sale de la pila, lo que
@@ -34,7 +37,9 @@ void cerrarRutasSobre(BuildContext context) {
 /// después.
 Future<void> navigateWithIntermediateLoader({
   required BuildContext context,
-  required WidgetBuilder nextBuilder,
+  WidgetBuilder? nextBuilder,
+  String? nextRouteName,
+  Object? nextArguments,
   Duration delay = const Duration(seconds: 2),
   String title = 'Conductor encontrado',
   String subtitle = 'Preparando tu ruta y detalles del viaje...',
@@ -44,12 +49,18 @@ Future<void> navigateWithIntermediateLoader({
   bool drawCheck = true,
   VoidCallback? onAfterDelay,
 }) {
+  assert(
+    (nextBuilder == null) != (nextRouteName == null),
+    'Pasar nextBuilder o nextRouteName, exactamente uno',
+  );
   return Navigator.of(context).pushReplacement(
     PageRouteBuilder(
       transitionDuration: const Duration(milliseconds: 300),
       reverseTransitionDuration: const Duration(milliseconds: 200),
       pageBuilder: (_, _, _) => IntermediateTransitionView(
         nextBuilder: nextBuilder,
+        nextRouteName: nextRouteName,
+        nextArguments: nextArguments,
         delay: delay,
         title: title,
         subtitle: subtitle,
@@ -117,6 +128,10 @@ class IntermediateTransitionView extends StatefulWidget {
   /// Null cuando se usa como overlay (`showIntermediateTransitionOverlay`):
   /// al vencer `delay` se hace `pop` en vez de navegar a una pantalla nueva.
   final WidgetBuilder? nextBuilder;
+
+  /// Alternativa a [nextBuilder]: ruta con nombre de `RutasApp`.
+  final String? nextRouteName;
+  final Object? nextArguments;
   final Duration delay;
   final String title;
   final String subtitle;
@@ -129,6 +144,8 @@ class IntermediateTransitionView extends StatefulWidget {
   const IntermediateTransitionView({
     super.key,
     this.nextBuilder,
+    this.nextRouteName,
+    this.nextArguments,
     required this.delay,
     required this.title,
     required this.subtitle,
@@ -211,6 +228,23 @@ class _IntermediateTransitionViewState extends State<IntermediateTransitionView>
   void _goNext() {
     if (!mounted) return;
     final nextBuilder = widget.nextBuilder;
+    final nextRouteName = widget.nextRouteName;
+    if (nextRouteName != null) {
+      final nav = Navigator.of(context);
+      if (widget.clearStackOnNext) {
+        nav.pushNamedAndRemoveUntil(
+          nextRouteName,
+          (route) => false,
+          arguments: widget.nextArguments,
+        );
+      } else {
+        nav.pushReplacementNamed(
+          nextRouteName,
+          arguments: widget.nextArguments,
+        );
+      }
+      return;
+    }
     if (nextBuilder == null) {
       Navigator.of(context).pop();
       return;

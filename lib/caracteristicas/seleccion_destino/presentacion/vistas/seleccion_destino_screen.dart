@@ -11,7 +11,7 @@ import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
 import 'package:taxi_app/core/modelos/location_model.dart';
 import 'package:taxi_app/caracteristicas/confirmar_solicitud/presentacion/vistas/confirmar_solicitud_view.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/view/home_cliente_view.dart';
+import 'package:taxi_app/core/constants/rutas_app.dart';
 import 'package:taxi_app/widgets/boton.dart';
 
 import '../../dominio/entidades/ubicacion_entity.dart';
@@ -259,9 +259,7 @@ class _SeleccionDestinoScreenState extends State<SeleccionDestinoScreen> {
       navigator.pop();
       return false;
     }
-    navigator.pushReplacement(
-      MaterialPageRoute(builder: (_) => const HomeClienteView()),
-    );
+    navigator.pushReplacementNamed(RutasApp.clienteInicio);
     return false;
   }
 

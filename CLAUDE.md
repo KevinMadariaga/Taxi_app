@@ -58,7 +58,7 @@ View → ViewModel/Controller → UseCase/Repository/Service → Firebase → no
   `caracteristicas/viaje_conductor/` y `caracteristicas/viaje_cliente/`.
 - **`widgets/`** — Componentes UI reutilizables globales.
 - **`core/helpers/`** — Firebase init, permisos, sesión, mapas, responsive (no existe `lib/helper/`).
-- **`routes/`** — `AppRoutes.onGenerateRoute` e `InitialScreenResolver` (cold-start). Los nombres de ruta viven en `core/constants/rutas_app.dart` (`RutasApp`) para que `core` navegue sin importar pantallas. `core/` nunca importa capas superiores: lo verifica `test/arquitectura_capas_test.dart`.
+- **`routes/`** — `AppRoutes.onGenerateRoute` e `InitialScreenResolver` (cold-start). Los nombres de ruta viven en `core/constants/rutas_app.dart` (`RutasApp`) para que `core` navegue sin importar pantallas. `core/` nunca importa capas superiores, y ni `caracteristicas/` ni `widgets/` importan `screens/`: para ir a una pantalla legacy se usa `pushNamed(RutasApp.x)` o `navigateWithIntermediateLoader(nextRouteName: ...)`. Lo verifica `test/arquitectura_capas_test.dart`.
 
 ### Gestión de estado
 

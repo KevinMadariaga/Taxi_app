@@ -31,8 +31,7 @@ import 'package:taxi_app/core/services/route_cache_service.dart';
 import 'package:taxi_app/features/driver_trip/widgets/driver_waiting_client_modal.dart';
 import 'package:taxi_app/features/trip_tracking_cliente/widgets/panic_button_fab.dart';
 import 'package:taxi_app/features/trip_tracking_cliente/widgets/trip_details_sheet.dart';
-import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioConductorView.dart';
-import 'package:taxi_app/screens/usuario_conductor/presentacion/view/resumen_conductor_view.dart';
+import 'package:taxi_app/core/constants/rutas_app.dart';
 import 'package:taxi_app/widgets/intermediate_transition_view.dart';
 import 'package:taxi_app/widgets/preview_solicitud/widgets/mapa_previsualizacion_solicitud.dart';
 
@@ -303,7 +302,8 @@ class _ViajeConductorScreenState extends State<ViajeConductorScreen>
       if (estado == SolicitudEstado.completado) {
         await navigateWithIntermediateLoader(
           context: context,
-          nextBuilder: (_) => ResumenConductorView(solicitudId: widget.viajeId),
+          nextRouteName: RutasApp.resumenConductor,
+          nextArguments: {'solicitudId': widget.viajeId},
           title: 'Viaje finalizado',
           subtitle: 'Preparando el resumen del viaje...',
           icon: Icons.flag_rounded,
@@ -315,7 +315,7 @@ class _ViajeConductorScreenState extends State<ViajeConductorScreen>
 
       await navigateWithIntermediateLoader(
         context: context,
-        nextBuilder: (_) => const InicioConductor(),
+        nextRouteName: RutasApp.conductorInicio,
         title: 'Solicitud cancelada',
         subtitle: _vm.mensajeSalida ?? 'El servicio fue cancelado.',
         icon: Icons.close_rounded,

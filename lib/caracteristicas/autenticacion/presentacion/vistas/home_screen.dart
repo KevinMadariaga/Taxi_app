@@ -4,15 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
-import 'package:taxi_app/core/utils/transicion_pagina.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/modelos/auth_flow_result.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/repositorios/client_auth_repository.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/presentacion/controladores/home_auth_controller.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/casos_uso/sign_in_google_client_usecase.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/presentacion/vistas/complete_profile_page.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/presentacion/vistas/cuenta_deshabilitada_page.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/view/home_cliente_view.dart';
-import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioConductorView.dart';
 import 'package:taxi_app/core/constants/rutas_app.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
 
@@ -154,16 +151,16 @@ class _HomeViewState extends State<HomeView> {
       return;
     }
     if (rol == 'conductor') {
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const InicioConductor()),
-        (route) => false,
-      );
+      Navigator.of(
+        context,
+      ).pushNamedAndRemoveUntil(RutasApp.conductorInicio, (route) => false);
       return;
     }
 
-    Navigator.of(context).pushAndRemoveUntil(
-      transicionInicioCliente(HomeClienteView(authUid: result.user.id)),
+    Navigator.of(context).pushNamedAndRemoveUntil(
+      RutasApp.clienteInicio,
       (route) => false,
+      arguments: {'authUid': result.user.id, 'transicionInicio': true},
     );
   }
 

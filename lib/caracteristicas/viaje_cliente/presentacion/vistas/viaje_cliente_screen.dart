@@ -31,8 +31,6 @@ import 'package:taxi_app/features/trip_tracking_cliente/widgets/panic_button_fab
 import 'package:taxi_app/features/trip_tracking_cliente/widgets/trip_details_sheet.dart';
 import 'package:taxi_app/features/trip_tracking_cliente/widgets/waiting_driver_modal.dart';
 import 'package:taxi_app/core/constants/rutas_app.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/view/ResumenClienteView.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/view/home_cliente_view.dart';
 import 'package:taxi_app/widgets/intermediate_transition_view.dart';
 
 /// LA pantalla del cliente: reemplaza `TripTrackingScreen`
@@ -399,7 +397,8 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen>
       if (estado == SolicitudEstado.completado) {
         await navigateWithIntermediateLoader(
           context: context,
-          nextBuilder: (_) => ResumenClienteView(solicitudId: widget.viajeId),
+          nextRouteName: RutasApp.resumenCliente,
+          nextArguments: {'solicitudId': widget.viajeId},
           title: 'Viaje finalizado',
           subtitle: 'Preparando el resumen de tu viaje...',
           icon: Icons.flag_rounded,
@@ -411,7 +410,7 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen>
 
       await navigateWithIntermediateLoader(
         context: context,
-        nextBuilder: (_) => const HomeClienteView(),
+        nextRouteName: RutasApp.clienteInicio,
         title: 'Solicitud cancelada',
         subtitle: estado == SolicitudEstado.sinRespuesta
             ? 'El conductor no recibió confirmación a tiempo.'
