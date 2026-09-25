@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:flutter_compass/flutter_compass.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
@@ -23,12 +22,12 @@ import '../../viewmodels/confirmar_solicitud_viewmodel.dart';
 /// Encuadra la cámara automáticamente para que los dos marcadores queden
 /// visibles sin que el usuario tenga que mover el mapa con gestos.
 ///
-/// Después del encuadre, el mapa se orienta con la brújula del teléfono y
-/// con perspectiva (inclinado): lo que el cliente tiene enfrente queda
-/// arriba en pantalla, así no tiene que girar el teléfono ni deducir hacia
-/// dónde va su calle. Sin sensor de brújula se orienta en la dirección
-/// origen → destino. Tocar y arrastrar el mapa suelta el seguimiento; el
-/// botón "Orientar" lo retoma y el de brújula vuelve a norte arriba.
+/// Después del encuadre, el mapa se orienta en la dirección origen → destino
+/// y con perspectiva (inclinado), así el recorrido se lee "hacia arriba".
+/// Tocar y arrastrar el mapa suelta el seguimiento; el botón "Orientar" lo
+/// retoma y el de brújula vuelve a norte arriba. (Antes seguía la brújula
+/// del teléfono con `flutter_compass`; se retiró para no cargar la app con
+/// un plugin y un stream de sensor más.)
 class MapaRutaCard extends StatefulWidget {
   const MapaRutaCard({super.key});
 
@@ -49,21 +48,10 @@ class _MapaRutaCardState extends State<MapaRutaCard> {
   /// brújula, igual que en `viaje_cliente_screen.dart`.
   final ValueNotifier<double> _bearingNotifier = ValueNotifier<double>(0);
 
-  // ── Brújula + perspectiva ─────────────────────────────────────────────
+  // ── Perspectiva orientada a la ruta ───────────────────────────────────
   static const double _inclinacion = 45;
 
-  /// Cambios menores a esto no mueven la cámara (el sensor tiembla).
-  static const double _umbralGrados = 4;
-
-  /// Como mucho una animación de cámara cada este tiempo: el sensor emite
-  /// decenas de eventos por segundo.
-  static const Duration _intervaloMinimo = Duration(milliseconds: 350);
-
   final ValueNotifier<bool> _siguiendo = ValueNotifier<bool>(true);
-  StreamSubscription<CompassEvent>? _brujulaSub;
-  double? _rumboSensor;
-  double? _ultimoRumboAplicado;
-  DateTime _ultimaAnimacion = DateTime.fromMillisecondsSinceEpoch(0);
   bool _vistaLista = false;
   Set<Polyline>? _polylinesVistas;
   Offset? _inicioToque;
@@ -72,27 +60,10 @@ class _MapaRutaCardState extends State<MapaRutaCard> {
   void initState() {
     super.initState();
     _cargarIconos();
-    _brujulaSub = FlutterCompass.events?.listen(
-      _onBrujula,
-      // Equipo sin magnetómetro o canal no disponible: se queda la
-      // orientación por la ruta (ver `_rumboObjetivo`).
-      onError: (Object _) {},
-    );
   }
 
-  void _onBrujula(CompassEvent e) {
-    final h = e.heading;
-    if (h == null) return;
-    _rumboSensor = (h + 360) % 360;
-    // Con otra pantalla encima (buscando conductor) no hay nada que mover.
-    if (!(ModalRoute.of(context)?.isCurrent ?? true)) return;
-    _aplicarRumbo();
-  }
-
-  /// Rumbo a mostrar arriba: el de la brújula; sin sensor, la dirección
-  /// de la ruta (origen → destino).
+  /// Rumbo a mostrar arriba: la dirección de la ruta (origen → destino).
   double _rumboObjetivo() {
-    if (_rumboSensor != null) return _rumboSensor!;
     final vm = context.read<ConfirmarSolicitudViewModel>();
     return ProyeccionMercator.bearingDegrees(
       vm.origen.position,
@@ -143,27 +114,16 @@ class _MapaRutaCardState extends State<MapaRutaCard> {
     );
   }
 
-  Future<void> _aplicarRumbo({bool forzar = false}) async {
+  Future<void> _aplicarRumbo() async {
     final controller = _controller;
     if (!mounted || !_vistaLista || !_siguiendo.value || controller == null) {
       return;
     }
     final rumbo = _rumboObjetivo();
-    final ahora = DateTime.now();
-    if (!forzar) {
-      final previo = _ultimoRumboAplicado;
-      if (previo != null &&
-          ProyeccionMercator.diferenciaAngular(rumbo, previo) < _umbralGrados) {
-        return;
-      }
-      if (ahora.difference(_ultimaAnimacion) < _intervaloMinimo) return;
-    }
     final puntos = _puntosRuta();
     final centro = _centro(puntos);
     final zoom = _zoomPara(rumbo, puntos, centro);
     if (zoom == null) return;
-    _ultimoRumboAplicado = rumbo;
-    _ultimaAnimacion = ahora;
     try {
       await controller.animateCamera(
         CameraUpdate.newCameraPosition(
@@ -179,19 +139,18 @@ class _MapaRutaCardState extends State<MapaRutaCard> {
       // Mapa remontado (cambió origen/destino) mientras animaba: el
       // controller viejo ya no sirve y el nuevo rehace la vista.
       if (identical(_controller, controller)) {
-        ErrorReporter.report(e, st, reason: 'mapa_ruta_card: brujula');
+        ErrorReporter.report(e, st, reason: 'mapa_ruta_card: orientar');
       }
     }
   }
 
-  /// Centro del recorrido y primera vista con perspectiva. Sin brújula ni
-  /// seguimiento, queda el encuadre norte-arriba de siempre.
+  /// Centro del recorrido y primera vista con perspectiva. Sin seguimiento,
+  /// queda el encuadre norte-arriba de siempre.
   Future<void> _iniciarVista() async {
     if (!mounted) return;
     _vistaLista = true;
-    _ultimoRumboAplicado = null;
     if (_siguiendo.value) {
-      await _aplicarRumbo(forzar: true);
+      await _aplicarRumbo();
     } else {
       await _fitBounds();
     }
@@ -200,14 +159,11 @@ class _MapaRutaCardState extends State<MapaRutaCard> {
   void _pausarSeguimiento() {
     if (!_siguiendo.value) return;
     _siguiendo.value = false;
-    _brujulaSub?.pause();
   }
 
   void _reanudarSeguimiento() {
     _siguiendo.value = true;
-    if (_brujulaSub?.isPaused ?? false) _brujulaSub!.resume();
-    _ultimoRumboAplicado = null;
-    unawaited(_aplicarRumbo(forzar: true));
+    unawaited(_aplicarRumbo());
   }
 
   // `MarkerIconHelper.fromAsset` (a diferencia de `BitmapDescriptor.asset`)
@@ -313,7 +269,6 @@ class _MapaRutaCardState extends State<MapaRutaCard> {
     // doble dispose y, tras un remonte por la `ValueKey`, se ejecutaba además
     // sobre un controller que ya no era el vigente.
     _controller = null;
-    _brujulaSub?.cancel();
     _siguiendo.dispose();
     _bearingNotifier.dispose();
     super.dispose();
@@ -345,7 +300,7 @@ class _MapaRutaCardState extends State<MapaRutaCard> {
           _polylinesVistas = data.polylines;
           if (_vistaLista && _siguiendo.value) {
             WidgetsBinding.instance.addPostFrameCallback(
-              (_) => _aplicarRumbo(forzar: true),
+              (_) => _aplicarRumbo(),
             );
           }
         }
@@ -474,10 +429,8 @@ class _MapaRutaCardState extends State<MapaRutaCard> {
                     builder: (context, siguiendo, _) => AnimatedOpacity(
                       opacity: siguiendo ? 1 : 0,
                       duration: const Duration(milliseconds: 200),
-                      child: _ChipOrientacion(
-                        texto: _rumboSensor != null
-                            ? 'Orientado a tu vista'
-                            : 'Orientado hacia tu destino',
+                      child: const _ChipOrientacion(
+                        texto: 'Orientado hacia tu destino',
                       ),
                     ),
                   ),
@@ -492,7 +445,7 @@ class _MapaRutaCardState extends State<MapaRutaCard> {
                       return FloatingActionButton(
                         heroTag: 'orientarMapaRuta',
                         mini: true,
-                        tooltip: 'Orientar a mi vista',
+                        tooltip: 'Orientar hacia el destino',
                         backgroundColor: AppColores.buttonPrimary,
                         foregroundColor: Colors.black,
                         onPressed: _reanudarSeguimiento,

@@ -3,14 +3,6 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:taxi_app/core/utils/proyeccion_mercator.dart';
 
 void main() {
-  test('diferenciaAngular toma el camino corto', () {
-    expect(ProyeccionMercator.diferenciaAngular(359, 1), 2);
-    expect(ProyeccionMercator.diferenciaAngular(1, 359), 2);
-    expect(ProyeccionMercator.diferenciaAngular(90, 270), 180);
-    expect(ProyeccionMercator.diferenciaAngular(10, 10), 0);
-    expect(ProyeccionMercator.diferenciaAngular(-10, 350), 0);
-  });
-
   test('bearingDegrees: norte 0°, este ~90°', () {
     const a = LatLng(8.24, -73.35);
     expect(

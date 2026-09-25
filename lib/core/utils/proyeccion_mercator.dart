@@ -61,14 +61,6 @@ class ProyeccionMercator {
     return (bearing + 360) % 360;
   }
 
-  /// Diferencia más corta entre dos rumbos, en grados (0–180): de 359° a 1°
-  /// son 2°, no 358°. Para decidir si un cambio de brújula merece mover la
-  /// cámara.
-  static double diferenciaAngular(double a, double b) {
-    final d = ((a - b) % 360 + 360) % 360;
-    return d > 180 ? 360 - d : d;
-  }
-
   /// Ángulo (radianes) al que hay que rotar el mapa para que [rumboGrados]
   /// quede apuntando hacia ARRIBA en pantalla. Es `-rumbo`: rotar el mapa en
   /// sentido contrario al rumbo deja ese rumbo vertical.
