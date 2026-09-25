@@ -12,8 +12,8 @@ import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
 import 'package:taxi_app/core/utils/marker_icon_helper.dart';
 import 'package:taxi_app/core/utils/proyeccion_mercator.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/model/location_model.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/model/vehicle_type.dart';
+import 'package:taxi_app/core/modelos/location_model.dart';
+import 'package:taxi_app/core/modelos/vehicle_type.dart';
 import 'package:taxi_app/widgets/MapaGoogle.dart';
 
 import '../../viewmodels/confirmar_solicitud_viewmodel.dart';

@@ -16,7 +16,7 @@ import 'package:taxi_app/core/helpers/responsive_helper.dart';
 import 'package:taxi_app/core/validators/vehiculo_validator.dart';
 import 'package:taxi_app/widgets/ajustes_ui.dart';
 import 'package:taxi_app/widgets/campos_modelo_color.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/model/vehicle_type.dart';
+import 'package:taxi_app/core/modelos/vehicle_type.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioConductorView.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
 

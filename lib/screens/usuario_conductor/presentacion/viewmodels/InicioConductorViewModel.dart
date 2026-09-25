@@ -6,7 +6,7 @@ import 'package:taxi_app/data/models/solicitud_item.dart';
 import 'package:taxi_app/core/helpers/map_helper.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodels/preview_solicitud.dart';
+import 'package:taxi_app/data/models/preview_solicitud.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/controllers/preview_route_controller.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/controllers/conductor_profile_controller.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/controllers/pending_solicitudes_controller.dart';

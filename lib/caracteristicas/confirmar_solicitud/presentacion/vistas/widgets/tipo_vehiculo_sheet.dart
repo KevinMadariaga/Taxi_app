@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/model/vehicle_type.dart';
+import 'package:taxi_app/core/modelos/vehicle_type.dart';
 
 import 'package:taxi_app/core/utils/moneda_format.dart';
 import '../../viewmodels/confirmar_solicitud_viewmodel.dart';

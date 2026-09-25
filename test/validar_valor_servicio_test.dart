@@ -6,8 +6,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:taxi_app/caracteristicas/confirmar_solicitud/presentacion/viewmodels/confirmar_solicitud_viewmodel.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/model/location_model.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/model/vehicle_type.dart';
+import 'package:taxi_app/core/modelos/location_model.dart';
+import 'package:taxi_app/core/modelos/vehicle_type.dart';
 
 import 'test_helpers/firebase_test_setup.dart';
 

@@ -32,8 +32,8 @@ import 'package:taxi_app/core/constants/estado_contraoferta.dart';
 import 'package:taxi_app/core/constants/solicitud_estado.dart';
 import 'package:taxi_app/data/models/solicitud_item.dart';
 import 'package:taxi_app/features/trip_tracking_cliente/models/solicitud_model.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/model/location_model.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/model/vehicle_type.dart';
+import 'package:taxi_app/core/modelos/location_model.dart';
+import 'package:taxi_app/core/modelos/vehicle_type.dart';
 
 void main() {
   late FakeFirebaseFirestore firestore;

@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:taxi_app/caracteristicas/confirmar_solicitud/dominio/validar_valor_servicio.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/model/vehicle_type.dart';
+import 'package:taxi_app/core/modelos/vehicle_type.dart';
 
 /// Las funciones puras de `dominio/validar_valor_servicio.dart`, con `ahora`
 /// inyectable — acá se fija el corte diurno/nocturno y el techo, que antes

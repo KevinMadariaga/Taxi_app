@@ -4,7 +4,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
-import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodels/preview_solicitud.dart';
+import 'package:taxi_app/data/models/preview_solicitud.dart';
 
 import 'widgets/acciones_solicitud_buttons.dart';
 import 'widgets/cliente_header_row.dart';

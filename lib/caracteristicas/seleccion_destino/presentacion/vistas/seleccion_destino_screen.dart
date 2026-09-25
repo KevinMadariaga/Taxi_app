@@ -9,7 +9,7 @@ import 'package:provider/provider.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/model/location_model.dart';
+import 'package:taxi_app/core/modelos/location_model.dart';
 import 'package:taxi_app/caracteristicas/confirmar_solicitud/presentacion/vistas/confirmar_solicitud_view.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/home_cliente_view.dart';
 import 'package:taxi_app/widgets/boton.dart';

@@ -30,8 +30,8 @@ View → ViewModel/Controller → UseCase/Repository/Service → Firebase → no
 
 ### Capas activas
 
-- **`core/`** — Infraestructura transversal: constantes, tema, auth adapter, servicios (FCM, tracking, notificaciones, remote config, ubicación).
-- **`data/`** — Legacy: solo `solicitud_repository.dart` (clase concreta) y `models/solicitud_item.dart`. No existe `lib/domain/`: los contratos y casos de uso viven en `caracteristicas/*/dominio/` (ej. `ClientAuthRepository`).
+- **`core/`** — Infraestructura transversal: constantes, tema, auth adapter, servicios (FCM, tracking, notificaciones, remote config, ubicación), y `core/modelos/` con los modelos compartidos entre `caracteristicas/` y `screens/` (`VehicleType`, `LocationModel`). Los modelos que se comparten nunca van dentro de `screens/`.
+- **`data/`** — Legacy: `solicitud_repository.dart` (clase concreta), `models/solicitud_item.dart` y `models/preview_solicitud.dart`. No existe `lib/domain/`: los contratos y casos de uso viven en `caracteristicas/*/dominio/` (ej. `ClientAuthRepository`).
 - **`presentation/`** — Pantallas nuevas: splash, login, complete profile. ViewModels con Provider.
 - **`caracteristicas/`** — Patrón oficial (ver más abajo). Incluye **las dos pantallas
   de viaje activo**, que son las vivas:

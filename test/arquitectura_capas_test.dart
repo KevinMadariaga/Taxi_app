@@ -7,21 +7,45 @@ import 'package:taxi_app/features/phone_auth/screens/admin_hub_screen.dart';
 import 'package:taxi_app/routes/app_routes.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioConductorView.dart';
 
+/// Imports de [carpeta] que cumplen [patron] (relativo a `package:taxi_app/`).
+List<String> importsProhibidos(String carpeta, String patron) {
+  final prohibido = RegExp(
+    "^import 'package:taxi_app/$patron",
+    multiLine: true,
+  );
+  final violaciones = <String>[];
+  for (final f in Directory(carpeta).listSync(recursive: true)) {
+    if (f is! File || !f.path.endsWith('.dart')) continue;
+    for (final m in prohibido.allMatches(f.readAsStringSync())) {
+      violaciones.add('${f.path}: ${m.group(0)}');
+    }
+  }
+  return violaciones;
+}
+
 void main() {
   test('core no importa capas superiores (pantallas, features, rutas)', () {
-    final prohibido = RegExp(
-      r"^import 'package:taxi_app/"
-      r"(caracteristicas|features|screens|presentation|routes|widgets)/",
-      multiLine: true,
+    expect(
+      importsProhibidos(
+        'lib/core',
+        '(caracteristicas|features|screens|presentation|routes|widgets)/',
+      ),
+      isEmpty,
     );
-    final violaciones = <String>[];
-    for (final f in Directory('lib/core').listSync(recursive: true)) {
-      if (f is! File || !f.path.endsWith('.dart')) continue;
-      for (final m in prohibido.allMatches(f.readAsStringSync())) {
-        violaciones.add('${f.path}: ${m.group(0)}');
-      }
-    }
-    expect(violaciones, isEmpty);
+  });
+
+  test('widgets globales no dependen de pantallas legacy', () {
+    expect(importsProhibidos('lib/widgets', 'screens/'), isEmpty);
+  });
+
+  test('caracteristicas no toma modelos ni viewmodels de screens/', () {
+    expect(
+      importsProhibidos(
+        'lib/caracteristicas',
+        r'screens/[^\x27]*/(model|viewmodels)/',
+      ),
+      isEmpty,
+    );
   });
 
   group('rutas con nombre que usa FcmService', () {

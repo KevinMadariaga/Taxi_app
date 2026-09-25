@@ -11,7 +11,7 @@ import 'package:taxi_app/caracteristicas/seleccion_destino/presentacion/vistas/w
 import 'package:taxi_app/core/helpers/permisos_helper.dart';
 import 'package:taxi_app/core/services/app_remote_config_service.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/navigation/inicio_cliente_navigation.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/model/location_model.dart';
+import 'package:taxi_app/core/modelos/location_model.dart';
 import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../viewmodels/inicio_cliente_viewmodel.dart';

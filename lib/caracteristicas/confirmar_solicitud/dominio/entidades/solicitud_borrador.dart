@@ -1,5 +1,5 @@
-import 'package:taxi_app/screens/usuario_cliente/presentacion/model/location_model.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/model/vehicle_type.dart';
+import 'package:taxi_app/core/modelos/location_model.dart';
+import 'package:taxi_app/core/modelos/vehicle_type.dart';
 
 /// Snapshot inmutable de lo que el cliente confirmó en pantalla, listo para
 /// que [CrearSolicitudUseCase] lo procese. El ViewModel arma uno de estos a

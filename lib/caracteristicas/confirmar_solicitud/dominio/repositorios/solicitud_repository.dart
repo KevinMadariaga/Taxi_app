@@ -1,5 +1,5 @@
-import 'package:taxi_app/screens/usuario_cliente/presentacion/model/location_model.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/model/vehicle_type.dart';
+import 'package:taxi_app/core/modelos/location_model.dart';
+import 'package:taxi_app/core/modelos/vehicle_type.dart';
 
 import '../entidades/cliente_actual.dart';
 

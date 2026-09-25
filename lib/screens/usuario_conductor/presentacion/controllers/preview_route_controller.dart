@@ -11,7 +11,7 @@ import 'package:taxi_app/core/helpers/map_helper.dart';
 import 'package:taxi_app/core/services/map_service_adapter.dart';
 import 'package:taxi_app/core/services/tracking_service.dart';
 import 'package:taxi_app/data/models/solicitud_item.dart';
-import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodels/preview_solicitud.dart';
+import 'package:taxi_app/data/models/preview_solicitud.dart';
 
 /// Preview de una solicitud seleccionada + su ruta en el mapa.
 ///

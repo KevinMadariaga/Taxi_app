@@ -15,7 +15,7 @@ import 'package:taxi_app/core/utils/notificacion_clave.dart';
 import 'package:taxi_app/core/helpers/map_helper.dart';
 import 'package:taxi_app/caracteristicas/confirmar_solicitud/dominio/validar_valor_servicio.dart'
     as dominio;
-import 'package:taxi_app/screens/usuario_cliente/presentacion/model/vehicle_type.dart';
+import 'package:taxi_app/core/modelos/vehicle_type.dart';
 
 /// Hitos del contador de búsqueda que la vista tiene que atender.
 ///

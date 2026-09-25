@@ -11,7 +11,7 @@ import 'package:taxi_app/core/services/image_cropper_service.dart';
 import 'package:taxi_app/core/services/image_processing_service.dart';
 import 'package:taxi_app/core/services/image_upload_service.dart';
 import 'package:taxi_app/features/phone_auth/services/user_data_service.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/model/vehicle_type.dart';
+import 'package:taxi_app/core/modelos/vehicle_type.dart';
 import 'package:taxi_app/core/helpers/responsive_helper.dart';
 import 'package:taxi_app/core/validators/vehiculo_validator.dart';
 import 'package:taxi_app/widgets/ajustes_ui.dart';

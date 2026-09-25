@@ -6,7 +6,7 @@ import 'package:taxi_app/caracteristicas/confirmar_solicitud/dominio/casos_uso/c
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/helpers/map_helper.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/model/vehicle_type.dart';
+import 'package:taxi_app/core/modelos/vehicle_type.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/viewmodels/buscando_taxi_viewmodel.dart';
 import 'package:taxi_app/widgets/boton.dart';
 

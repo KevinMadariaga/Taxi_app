@@ -8,8 +8,8 @@ import 'package:taxi_app/caracteristicas/seleccion_destino/datos/repositorios/ge
 import 'package:taxi_app/caracteristicas/seleccion_destino/dominio/casos_uso/obtener_direccion_desde_coordenadas_usecase.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/model/location_model.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/model/vehicle_type.dart';
+import 'package:taxi_app/core/modelos/location_model.dart';
+import 'package:taxi_app/core/modelos/vehicle_type.dart';
 
 import '../../datos/repositorios/cliente_repository_impl.dart';
 import '../../datos/repositorios/ruta_repository_impl.dart';

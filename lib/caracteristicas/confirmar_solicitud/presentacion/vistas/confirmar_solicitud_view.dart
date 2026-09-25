@@ -9,7 +9,7 @@ import 'package:taxi_app/core/helpers/responsive_helper.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/utils/transicion_pagina.dart';
 import 'package:taxi_app/widgets/ajustes_ui.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/model/location_model.dart';
+import 'package:taxi_app/core/modelos/location_model.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/buscando_taxi_view.dart';
 
 import '../viewmodels/confirmar_solicitud_viewmodel.dart';

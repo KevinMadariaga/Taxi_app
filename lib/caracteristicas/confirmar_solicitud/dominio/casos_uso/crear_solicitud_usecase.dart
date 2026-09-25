@@ -3,7 +3,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import 'package:taxi_app/core/utils/direccion_format.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/model/location_model.dart';
+import 'package:taxi_app/core/modelos/location_model.dart';
 
 import '../entidades/solicitud_borrador.dart';
 import '../modelos/crear_solicitud_resultado.dart';

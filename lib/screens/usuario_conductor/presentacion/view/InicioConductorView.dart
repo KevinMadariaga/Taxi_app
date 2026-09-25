@@ -13,7 +13,7 @@ import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/theme/map_style.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/navigation/inicio_conductor_navigation.dart';
-import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodels/preview_solicitud.dart';
+import 'package:taxi_app/data/models/preview_solicitud.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodels/InicioConductorViewModel.dart';
 import 'package:provider/provider.dart';
 import 'package:taxi_app/core/services/services.dart';

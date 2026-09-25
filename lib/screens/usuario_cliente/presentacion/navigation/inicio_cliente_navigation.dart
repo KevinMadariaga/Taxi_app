@@ -3,7 +3,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:taxi_app/caracteristicas/confirmar_solicitud/presentacion/vistas/confirmar_solicitud_view.dart';
 import 'package:taxi_app/caracteristicas/seleccion_destino/presentacion/vistas/seleccion_destino_screen.dart';
 import 'package:taxi_app/core/utils/transicion_pagina.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/model/location_model.dart';
+import 'package:taxi_app/core/modelos/location_model.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/MapaPreviewView.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/ayuda_view.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/configuracion_aplicacion_view.dart';

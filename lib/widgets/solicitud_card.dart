@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/data/models/solicitud_item.dart';
-import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodels/preview_solicitud.dart';
+import 'package:taxi_app/data/models/preview_solicitud.dart';
 
 class SolicitudCard extends StatelessWidget {
   final SolicitudItem solicitud;

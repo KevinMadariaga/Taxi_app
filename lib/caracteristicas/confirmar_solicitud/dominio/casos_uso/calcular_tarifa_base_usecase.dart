@@ -1,4 +1,4 @@
-import 'package:taxi_app/screens/usuario_cliente/presentacion/model/vehicle_type.dart';
+import 'package:taxi_app/core/modelos/vehicle_type.dart';
 
 /// Tarifa sugerida: base fija según el tipo de vehículo y la hora del día
 /// (nocturno 18:00–06:00 cobra más) + costo variable por kilómetro de la

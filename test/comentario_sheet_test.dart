@@ -23,8 +23,8 @@ import 'package:taxi_app/caracteristicas/confirmar_solicitud/presentacion/viewmo
 import 'package:taxi_app/caracteristicas/confirmar_solicitud/presentacion/vistas/widgets/comentario_sheet.dart';
 import 'package:taxi_app/caracteristicas/confirmar_solicitud/presentacion/vistas/widgets/metodo_pago_sheet.dart';
 import 'package:taxi_app/caracteristicas/confirmar_solicitud/presentacion/vistas/widgets/tipo_vehiculo_sheet.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/model/vehicle_type.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/model/location_model.dart';
+import 'package:taxi_app/core/modelos/vehicle_type.dart';
+import 'package:taxi_app/core/modelos/location_model.dart';
 
 import 'test_helpers/firebase_test_setup.dart';
 

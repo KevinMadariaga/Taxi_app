@@ -12,7 +12,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:taxi_app/data/models/solicitud_item.dart';
-import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodels/preview_solicitud.dart';
+import 'package:taxi_app/data/models/preview_solicitud.dart';
 import 'package:taxi_app/widgets/preview_solicitud/preview_solicitud_card.dart';
 import 'package:taxi_app/widgets/preview_solicitud/widgets/acciones_solicitud_buttons.dart';
 import 'package:taxi_app/widgets/preview_solicitud/widgets/mapa_interactivo_previsualizacion_solicitud.dart';
