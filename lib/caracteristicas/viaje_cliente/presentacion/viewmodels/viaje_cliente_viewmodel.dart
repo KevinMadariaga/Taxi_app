@@ -18,6 +18,7 @@ import 'package:taxi_app/core/services/notificacion_servicio.dart';
 import 'package:taxi_app/features/trip_tracking_cliente/controllers/conductor_movement_simulator.dart';
 import 'package:taxi_app/features/trip_tracking_cliente/services/local_cache_service.dart';
 import 'package:taxi_app/features/trip_tracking_cliente/services/trip_route_math_service.dart';
+import 'package:taxi_app/core/validators/vehiculo_validator.dart';
 
 /// LA clase del cliente: reemplaza `TripTrackingViewModel`
 /// (`asignado`→`en camino`) y `RutaClienteDestinoViewModel`
@@ -194,6 +195,10 @@ class ViajeClienteViewModel extends ChangeNotifier {
   String get conductorFotoUrl => viaje?.conductor.fotoUrl ?? '';
   String get vehiculoFotoUrl => viaje?.conductor.fotoVehiculoUrl ?? '';
   String get placaVehiculo => viaje?.conductor.placaVehiculo ?? '';
+  String get descripcionVehiculo => VehiculoValidator.descripcion(
+    viaje?.conductor.modeloVehiculo,
+    viaje?.conductor.colorVehiculo,
+  );
   double get calificacionConductor => viaje?.conductor.calificacion ?? 0;
   bool get isMoto => viaje?.isMoto ?? false;
 

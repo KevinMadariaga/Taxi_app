@@ -161,6 +161,7 @@ class _TripInfoCardState extends State<TripInfoCard>
                   fotoConductorUrl: vm.conductorFotoUrl,
                   fotoVehiculoUrl: vm.vehiculoFotoUrl,
                   placa: vm.placaVehiculo,
+                  descripcionVehiculo: vm.descripcionVehiculo,
                   calificacion: vm.calificacionConductor,
                   isMoto: vm.isMoto,
                   avatarRadius: m.avatarRadius,

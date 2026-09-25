@@ -126,10 +126,17 @@ class UserDataService {
     required String tipo,
     required String foto,
     required String placa,
+    required String modelo,
+    required String color,
   }) async {
     await _firestore.collection('usuarios').doc(uid).set({
       'vehiculos': {
-        tipo: {'foto': foto, 'placa': placa},
+        tipo: {
+          'foto': foto,
+          'placa': placa,
+          'modelo': modelo.trim(),
+          'color': color.trim(),
+        },
       },
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
@@ -137,19 +144,31 @@ class UserDataService {
 
   /// Guarda foto + placa de un tipo de vehículo Y lo activa (campos raíz
   /// `tipoVehiculo`/`fotoVehiculo`/`placa`, leídos por el resto de la app).
+  /// Además del mapa por tipo, copia los datos a la raíz (`fotoVehiculo`,
+  /// `placa`, `modeloVehiculo`, `colorVehiculo`): es lo que lee el payload
+  /// del conductor al aceptar un viaje y lo que ve el pasajero.
   Future<void> activarVehiculo({
     required String uid,
     required String tipo,
     required String foto,
     required String placa,
+    required String modelo,
+    required String color,
   }) async {
     await _firestore.collection('usuarios').doc(uid).set({
       'vehiculos': {
-        tipo: {'foto': foto, 'placa': placa},
+        tipo: {
+          'foto': foto,
+          'placa': placa,
+          'modelo': modelo.trim(),
+          'color': color.trim(),
+        },
       },
       'tipoVehiculo': tipo,
       'fotoVehiculo': foto,
       'placa': placa,
+      'modeloVehiculo': modelo.trim(),
+      'colorVehiculo': color.trim(),
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
@@ -222,12 +241,26 @@ class UserDataService {
     required String fotoVehiculo,
     required String placa,
     required String tipoVehiculo,
+    required String modelo,
+    required String color,
   }) async {
+    final placaUp = placa.toUpperCase();
     await _firestore.collection('usuarios').doc(uid).set({
       'foto': foto,
       'fotoVehiculo': fotoVehiculo,
-      'placa': placa.toUpperCase(),
+      'placa': placaUp,
       'tipoVehiculo': tipoVehiculo,
+      'modeloVehiculo': modelo.trim(),
+      'colorVehiculo': color.trim(),
+      // También en el mapa por tipo que usa "Mis vehículos".
+      'vehiculos': {
+        tipoVehiculo: {
+          'foto': fotoVehiculo,
+          'placa': placaUp,
+          'modelo': modelo.trim(),
+          'color': color.trim(),
+        },
+      },
       'rol': 'conductor',
       'solicitudConductor': true,
       'servicioActivo': false,

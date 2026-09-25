@@ -383,7 +383,13 @@ class ViajeConductorViewModel extends ChangeNotifier {
           ? nombreAhora
           : '$nombreAhora $apellidoAhora';
     }
-    for (final key in const ['foto', 'placa', 'fotoVehiculo']) {
+    for (final key in const [
+      'foto',
+      'placa',
+      'fotoVehiculo',
+      'modeloVehiculo',
+      'colorVehiculo',
+    ]) {
       final antesVal = texto(antes, key);
       final ahoraVal = texto(ahora, key);
       if (ahoraVal.isNotEmpty && ahoraVal != antesVal) {

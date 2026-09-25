@@ -14,6 +14,8 @@ class ParticipanteViajeEntity {
     required this.totalCalificaciones,
     required this.direccion,
     required this.ubicacion,
+    this.modeloVehiculo = '',
+    this.colorVehiculo = '',
   });
 
   final String id;
@@ -25,6 +27,10 @@ class ParticipanteViajeEntity {
   final int totalCalificaciones;
   final String direccion;
   final LatLng? ubicacion;
+
+  /// Con qué reconoce el pasajero el vehículo, además de la placa.
+  final String modeloVehiculo;
+  final String colorVehiculo;
 
   bool get tieneUbicacion => ubicacion != null;
   bool get tieneFoto => fotoUrl.isNotEmpty;

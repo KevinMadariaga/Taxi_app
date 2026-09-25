@@ -19,6 +19,7 @@ import 'package:taxi_app/screens/usuario_conductor/presentacion/view/cambiar_veh
 import 'package:taxi_app/screens/perfil/informacion_perfil_view.dart';
 import 'package:taxi_app/screens/perfil/editar_perfil.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
+import 'package:taxi_app/core/validators/vehiculo_validator.dart';
 import 'package:taxi_app/widgets/ajustes_ui.dart';
 
 class PaginaPerfilUsuario extends StatefulWidget {
@@ -288,6 +289,12 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
     final placaController = TextEditingController(
       text: userData?['placa'] ?? '',
     );
+    final modeloController = TextEditingController(
+      text: (userData?['modeloVehiculo'] ?? '').toString(),
+    );
+    final colorController = TextEditingController(
+      text: (userData?['colorVehiculo'] ?? '').toString(),
+    );
     final esConductor = widget.tipoUsuario == 'conductor';
 
     Navigator.of(context).push(
@@ -297,6 +304,13 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
           apellidoController: apellidoController,
           telefonoController: telefonoController,
           placaController: placaController,
+          modeloController: modeloController,
+          colorController: colorController,
+          tipoVehiculo:
+              (userData?['tipoVehiculo'] ?? '').toString().toLowerCase() ==
+                  'moto'
+              ? 'moto'
+              : 'carro',
           esConductor: esConductor,
           selectedImage: _cachedImageFile,
           selectedVehicleImage: _cachedVehicleFile,
@@ -447,7 +461,6 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
                           _EncabezadoPerfil(
                             nombre: _nombreVisible,
                             esConductor: esVistaConductor,
-                            placa: (userData?['placa'] ?? '').toString(),
                             imagenLocal: _cachedImageFile,
                             fotoUrl:
                                 (userData?['foto'] ??
@@ -551,12 +564,20 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
       _ => 'Sin definir',
     };
     final placa = (userData?['placa'] ?? '').toString().trim().toUpperCase();
+    final detalle = [
+      tipoLabel,
+      VehiculoValidator.descripcion(
+        userData?['modeloVehiculo']?.toString(),
+        userData?['colorVehiculo']?.toString(),
+      ),
+      placa,
+    ].where((p) => p.isNotEmpty).join(' · ');
     return FilaOpcion(
       icono: tipo == 'moto'
           ? Icons.two_wheeler_rounded
           : Icons.directions_car_outlined,
       titulo: 'Cambiar de vehículo',
-      subtitulo: placa.isEmpty ? tipoLabel : '$tipoLabel · $placa',
+      subtitulo: detalle,
       onTap: _guardando ? null : _abrirCambiarVehiculo,
     );
   }
@@ -568,7 +589,6 @@ class _EncabezadoPerfil extends StatelessWidget {
   const _EncabezadoPerfil({
     required this.nombre,
     required this.esConductor,
-    required this.placa,
     required this.imagenLocal,
     required this.fotoUrl,
     required this.avatarSize,
@@ -576,7 +596,6 @@ class _EncabezadoPerfil extends StatelessWidget {
 
   final String nombre;
   final bool esConductor;
-  final String placa;
   final File? imagenLocal;
   final String fotoUrl;
   final double avatarSize;
@@ -614,11 +633,6 @@ class _EncabezadoPerfil extends StatelessWidget {
                     : Icons.person_rounded,
                 texto: esConductor ? 'Conductor' : 'Pasajero',
               ),
-              if (esConductor && placa.trim().isNotEmpty)
-                _Chip(
-                  icono: Icons.pin_outlined,
-                  texto: placa.trim().toUpperCase(),
-                ),
             ],
           ),
         ],

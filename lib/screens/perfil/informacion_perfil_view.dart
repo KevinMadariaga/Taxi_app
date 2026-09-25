@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/helpers/responsive_helper.dart';
+import 'package:taxi_app/core/validators/vehiculo_validator.dart';
 import 'package:taxi_app/features/phone_auth/services/user_data_service.dart';
 import 'package:taxi_app/widgets/ajustes_ui.dart';
 
@@ -83,6 +84,11 @@ class _InformacionPerfilContent extends StatelessWidget {
     return fallback;
   }
 
+  static String _primero(Object? a, Object? b) {
+    final x = (a ?? '').toString().trim();
+    return x.isNotEmpty ? x : (b ?? '').toString().trim();
+  }
+
   List<_Vehiculo> _vehiculos() {
     final result = <_Vehiculo>[];
     final raw = data['vehiculos'];
@@ -92,9 +98,26 @@ class _InformacionPerfilContent extends StatelessWidget {
         if (v is Map) {
           final foto = (v['foto'] ?? '').toString();
           final placa = (v['placa'] ?? '').toString();
+          final tipo = entry.key.toString();
+          // El vehículo en uso puede tener modelo/color solo en la raíz
+          // (lo escribe el registro de conductor).
+          final enUso =
+              tipo == (data['tipoVehiculo'] ?? '').toString().toLowerCase();
           if (foto.isNotEmpty || placa.isNotEmpty) {
             result.add(
-              _Vehiculo(tipo: entry.key.toString(), foto: foto, placa: placa),
+              _Vehiculo(
+                tipo: tipo,
+                foto: foto,
+                placa: placa,
+                modelo: _primero(
+                  v['modelo'],
+                  enUso ? data['modeloVehiculo'] : null,
+                ),
+                color: _primero(
+                  v['color'],
+                  enUso ? data['colorVehiculo'] : null,
+                ),
+              ),
             );
           }
         }
@@ -106,7 +129,15 @@ class _InformacionPerfilContent extends StatelessWidget {
       final placa = (data['placa'] ?? '').toString();
       final tipo = (data['tipoVehiculo'] ?? '').toString();
       if (foto.isNotEmpty || placa.isNotEmpty) {
-        result.add(_Vehiculo(tipo: tipo, foto: foto, placa: placa));
+        result.add(
+          _Vehiculo(
+            tipo: tipo,
+            foto: foto,
+            placa: placa,
+            modelo: (data['modeloVehiculo'] ?? '').toString(),
+            color: (data['colorVehiculo'] ?? '').toString(),
+          ),
+        );
       }
     }
     return result;
@@ -268,10 +299,14 @@ class _Vehiculo {
     required this.tipo,
     required this.foto,
     required this.placa,
+    this.modelo = '',
+    this.color = '',
   });
   final String tipo;
   final String foto;
   final String placa;
+  final String modelo;
+  final String color;
 
   String get tipoLabel {
     final t = tipo.toLowerCase();
@@ -349,15 +384,38 @@ class _VehiculoCard extends StatelessWidget {
               children: [
                 Icon(vehiculo.icon, color: acentoMarca(context), size: 22),
                 const SizedBox(width: 10),
-                Text(
-                  vehiculo.tipoLabel,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 15,
-                    color: context.palette.textPrimary,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        vehiculo.tipoLabel,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 15,
+                          color: context.palette.textPrimary,
+                        ),
+                      ),
+                      if (VehiculoValidator.descripcion(
+                        vehiculo.modelo,
+                        vehiculo.color,
+                      ).isNotEmpty)
+                        Text(
+                          VehiculoValidator.descripcion(
+                            vehiculo.modelo,
+                            vehiculo.color,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: context.palette.textSecondary,
+                          ),
+                        ),
+                    ],
                   ),
                 ),
-                const Spacer(),
+                const SizedBox(width: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 10,

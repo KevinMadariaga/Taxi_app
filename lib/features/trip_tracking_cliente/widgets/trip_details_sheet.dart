@@ -21,6 +21,7 @@ class TripDetailsSheet extends StatelessWidget {
     required this.direccionDestino,
     required this.valorServicio,
     required this.metodoPago,
+    this.descripcionVehiculo = '',
     this.labelRecoger = 'Recoger en',
     this.mostrarVehiculo = true,
     this.mostrarCalificacion = true,
@@ -33,6 +34,9 @@ class TripDetailsSheet extends StatelessWidget {
   final int totalCalificaciones;
   final String fotoVehiculo;
   final String placa;
+
+  /// "Chevrolet Spark · Blanco" (vacío si el conductor no lo registró).
+  final String descripcionVehiculo;
   final String direccionRecoger;
   final String direccionDestino;
   final double valorServicio;
@@ -129,7 +133,11 @@ class TripDetailsSheet extends StatelessWidget {
                   ),
                   if (mostrarVehiculo) ...[
                     const SizedBox(width: 10),
-                    _VehiculoChip(foto: fotoVehiculo, placa: placa),
+                    _VehiculoChip(
+                      foto: fotoVehiculo,
+                      placa: placa,
+                      descripcion: descripcionVehiculo,
+                    ),
                   ],
                 ],
               ),
@@ -246,9 +254,14 @@ class _Estrellas extends StatelessWidget {
 }
 
 class _VehiculoChip extends StatelessWidget {
-  const _VehiculoChip({required this.foto, required this.placa});
+  const _VehiculoChip({
+    required this.foto,
+    required this.placa,
+    this.descripcion = '',
+  });
   final String foto;
   final String placa;
+  final String descripcion;
 
   @override
   Widget build(BuildContext context) {
@@ -297,6 +310,22 @@ class _VehiculoChip extends StatelessWidget {
             ),
           ),
         ],
+        if (descripcion.isNotEmpty)
+          SizedBox(
+            width: 96,
+            child: Text(
+              descripcion,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11.5,
+                height: 1.2,
+                fontWeight: FontWeight.w600,
+                color: context.palette.textSecondary,
+              ),
+            ),
+          ),
       ],
     );
   }

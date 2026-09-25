@@ -11,7 +11,10 @@ import 'package:taxi_app/screens/usuario_cliente/presentacion/view/configuracion
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/notificaciones_view.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/seguridad_view.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/soporte_view.dart';
+import 'package:taxi_app/screens/usuario_conductor/presentacion/view/activacion_servicio_view.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/ayuda_conductor_view.dart';
+import 'package:taxi_app/screens/usuario_conductor/presentacion/view/cambiar_vehiculo_view.dart';
+import 'package:taxi_app/screens/usuario_conductor/presentacion/view/membresia_detalle_view.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/completar_registro_conductor_view.dart';
 
 import 'test_helpers/firebase_test_setup.dart';
@@ -118,6 +121,76 @@ void main() {
       expect(find.text('Notificaciones'), findsOneWidget);
     });
 
+    testWidgets('mis vehículos valida en línea ($modo)', (tester) async {
+      await _montar(tester, tema, const CambiarVehiculoView());
+      expect(find.text('Mis vehículos'), findsOneWidget);
+      expect(find.text('Carro'), findsOneWidget);
+      expect(find.text('Moto'), findsOneWidget);
+
+      await tester.tap(find.text('Usar carro'));
+      await tester.pumpAndSettle();
+      expect(find.text('Agrega la foto de tu carro.'), findsOneWidget);
+      expect(find.text('Escribe la placa de tu carro.'), findsOneWidget);
+
+      await tester.tap(find.text('Moto'));
+      await tester.pumpAndSettle();
+      expect(find.text('Placa de la moto'), findsOneWidget);
+      expect(find.text('Agrega la foto de tu carro.'), findsNothing);
+    });
+
+    testWidgets('mi membresía cargando ($modo)', (tester) async {
+      await _montar(
+        tester,
+        tema,
+        const MembresiaDetalleView(uid: 'u1'),
+        esperar: false,
+      );
+      expect(find.text('Mi membresía'), findsOneWidget);
+    });
+
+    testWidgets('activación del servicio ($modo)', (tester) async {
+      await _montar(
+        tester,
+        tema,
+        const ActivacionServicioView(),
+        esperar: false,
+      );
+      expect(find.text('Activa tu servicio'), findsOneWidget);
+      expect(find.text('REQUISITOS'), findsOneWidget);
+      expect(find.text('Documentos al día'), findsOneWidget);
+      await tester.scrollUntilVisible(find.text('Bancolombia'), 200);
+      expect(find.text('Un administrador lo revisa'), findsOneWidget);
+      expect(find.text('Enviar comprobante por WhatsApp'), findsOneWidget);
+    });
+
+    testWidgets('bienvenida del conductor ($modo)', (tester) async {
+      var volvio = false;
+      await _montar(
+        tester,
+        tema,
+        Builder(
+          builder: (ctx) => Scaffold(
+            body: TextButton(
+              onPressed: () => mostrarBienvenidaConductorDialog(
+                ctx,
+                onVolverCliente: () => volvio = true,
+              ),
+              child: const Text('abrir'),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('abrir'));
+      await tester.pumpAndSettle();
+      expect(find.text('Bienvenido a Ride'), findsOneWidget);
+      expect(find.text('Activar servicio'), findsOneWidget);
+      expect(find.text('Envía el comprobante'), findsOneWidget);
+      await tester.ensureVisible(find.text('Volver a ser cliente'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Volver a ser cliente'));
+      expect(volvio, isTrue);
+    });
+
     // Carga sus datos de Firestore, que en tests no responde: se verifica
     // el estado de carga (AppBar neutra + spinner).
     testWidgets('información del perfil cargando ($modo)', (tester) async {
@@ -139,8 +212,24 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Agrega la foto de tu vehículo.'), findsOneWidget);
       expect(find.text('Escribe la placa de tu vehículo.'), findsOneWidget);
+      expect(
+        find.text('Escribe la marca y el modelo de tu carro.'),
+        findsOneWidget,
+      );
+      expect(find.text('Indica el color de tu carro.'), findsOneWidget);
 
-      await tester.enterText(find.byType(TextField), 'abc-12');
+      // Tocar un color rápido lo llena y quita el error.
+      await tester.scrollUntilVisible(
+        find.text('Blanco'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Blanco'));
+      await tester.pumpAndSettle();
+      expect(find.text('Indica el color de tu carro.'), findsNothing);
+
+      await tester.enterText(find.byType(TextField).first, 'abc-12');
       await tester.pumpAndSettle();
       expect(find.text('ABC12'), findsOneWidget);
       expect(find.text('Escribe la placa de tu vehículo.'), findsNothing);

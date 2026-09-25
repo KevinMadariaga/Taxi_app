@@ -558,6 +558,7 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen>
         totalCalificaciones: _vm.viaje?.conductor.totalCalificaciones ?? 0,
         fotoVehiculo: _vm.vehiculoFotoUrl,
         placa: _vm.placaVehiculo,
+        descripcionVehiculo: _vm.descripcionVehiculo,
         direccionRecoger: _vm.viaje?.cliente.direccion ?? '',
         direccionDestino: _vm.viaje?.destino.direccion ?? '',
         valorServicio: _vm.viaje?.valorServicio ?? 0,

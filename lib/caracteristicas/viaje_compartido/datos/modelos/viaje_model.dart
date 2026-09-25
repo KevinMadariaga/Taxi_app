@@ -106,6 +106,8 @@ class ViajeModel {
       fotoUrl: foto.toString(),
       fotoVehiculoUrl: fotoVehiculo.toString(),
       placaVehiculo: placaVehiculo.toString(),
+      modeloVehiculo: (data['modeloVehiculo'] ?? '').toString(),
+      colorVehiculo: (data['colorVehiculo'] ?? '').toString(),
       calificacion:
           _toDoubleOrNull(
             data['calificacionPromedio'] ??

@@ -16,6 +16,7 @@ class ConductorVehiculoInfo extends StatelessWidget {
     required this.fotoVehiculoUrl,
     required this.placa,
     required this.calificacion,
+    this.descripcionVehiculo = '',
     this.isMoto = false,
     this.avatarRadius = 36,
     this.vehiculoWidth = 84,
@@ -27,6 +28,10 @@ class ConductorVehiculoInfo extends StatelessWidget {
   final String? fotoVehiculoUrl;
   final String? placa;
   final double calificacion;
+
+  /// "Chevrolet Spark · Blanco": con la placa, lo que usa el pasajero para
+  /// reconocer el vehículo que lo recoge.
+  final String descripcionVehiculo;
   final bool isMoto;
 
   /// Medidas escaladas por `TripCardMetrics` según el alto de pantalla —
@@ -166,6 +171,22 @@ class ConductorVehiculoInfo extends StatelessWidget {
                 ),
               ),
             ],
+            if (descripcionVehiculo.isNotEmpty)
+              SizedBox(
+                width: vehiculoWidth + 24,
+                child: Text(
+                  descripcionVehiculo,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    height: 1.2,
+                    fontWeight: FontWeight.w600,
+                    color: context.palette.textSecondary,
+                  ),
+                ),
+              ),
           ],
         ),
       ],

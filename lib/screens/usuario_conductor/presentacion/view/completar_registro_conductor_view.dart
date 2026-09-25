@@ -13,7 +13,9 @@ import 'package:taxi_app/core/services/image_cropper_service.dart';
 import 'package:taxi_app/core/services/image_upload_service.dart';
 import 'package:taxi_app/features/phone_auth/services/user_data_service.dart';
 import 'package:taxi_app/core/helpers/responsive_helper.dart';
+import 'package:taxi_app/core/validators/vehiculo_validator.dart';
 import 'package:taxi_app/widgets/ajustes_ui.dart';
+import 'package:taxi_app/widgets/campos_modelo_color.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/vehicle_type.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioConductorView.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
@@ -36,6 +38,8 @@ class _CompletarRegistroConductorViewState
   final ImageCropperService _cropper = const ImageCropperService();
   late final ImageUploadService _imageUploadService = ImageUploadService();
   final TextEditingController _placaController = TextEditingController();
+  final TextEditingController _modeloController = TextEditingController();
+  final TextEditingController _colorController = TextEditingController();
 
   XFile? _fotoVehiculo;
   String? _fotoExistenteUrl;
@@ -44,6 +48,8 @@ class _CompletarRegistroConductorViewState
   bool _guardando = false;
   String? _errorFoto;
   String? _errorPlaca;
+  String? _errorModelo;
+  String? _errorColor;
 
   @override
   void initState() {
@@ -62,6 +68,8 @@ class _CompletarRegistroConductorViewState
         _fotoVehiculoExistenteUrl = (data['fotoVehiculo'] ?? '').toString();
         final placa = (data['placa'] ?? '').toString();
         if (placa.isNotEmpty) _placaController.text = placa;
+        _modeloController.text = (data['modeloVehiculo'] ?? '').toString();
+        _colorController.text = (data['colorVehiculo'] ?? '').toString();
         final tipo = (data['tipoVehiculo'] ?? '').toString().toLowerCase();
         if (tipo == 'moto') {
           _tipoVehiculo = VehicleType.moto;
@@ -77,6 +85,8 @@ class _CompletarRegistroConductorViewState
   @override
   void dispose() {
     _placaController.dispose();
+    _modeloController.dispose();
+    _colorController.dispose();
     super.dispose();
   }
 
@@ -160,8 +170,17 @@ class _CompletarRegistroConductorViewState
           : placa.length < 5
           ? 'La placa parece incompleta (ej. ABC123).'
           : null;
+      final tipo = _tipoVehiculo.label.toLowerCase();
+      _errorModelo = VehiculoValidator.modelo(
+        _modeloController.text,
+        tipo: tipo,
+      );
+      _errorColor = VehiculoValidator.color(_colorController.text, tipo: tipo);
     });
-    if (_errorFoto != null || _errorPlaca != null) {
+    if (_errorFoto != null ||
+        _errorPlaca != null ||
+        _errorModelo != null ||
+        _errorColor != null) {
       HapticFeedback.mediumImpact();
       return;
     }
@@ -185,6 +204,8 @@ class _CompletarRegistroConductorViewState
         fotoVehiculo: vehUrl,
         placa: placa,
         tipoVehiculo: _tipoVehiculo.firestoreKey,
+        modelo: _modeloController.text,
+        color: _colorController.text,
       );
 
       // El push al admin ya no lo manda el cliente (auditoría de seguridad:
@@ -612,6 +633,19 @@ class _CompletarRegistroConductorViewState
                   ),
                   _campoPlaca(),
                   _error(_errorPlaca),
+                  const SizedBox(height: 26),
+                  CamposModeloColor(
+                    modeloController: _modeloController,
+                    colorController: _colorController,
+                    tipo: _tipoVehiculo.label.toLowerCase(),
+                    errorModelo: _errorModelo,
+                    errorColor: _errorColor,
+                    enabled: !_guardando,
+                    onChanged: () => setState(() {
+                      _errorModelo = null;
+                      _errorColor = null;
+                    }),
+                  ),
                 ],
               ),
             ),

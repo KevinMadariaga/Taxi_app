@@ -2,7 +2,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
+import 'package:taxi_app/core/helpers/responsive_helper.dart';
 import 'package:taxi_app/features/phone_auth/services/user_data_service.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/view/soporte_chat_screen.dart';
+import 'package:taxi_app/widgets/ajustes_ui.dart';
 
 /// Detalle de la membresía del conductor. Se abre al tocar la tarjeta
 /// "Estás activo" en el perfil del conductor.
@@ -36,11 +39,7 @@ class _MembresiaDetalleViewState extends State<MembresiaDetalleView> {
         if (snapshot.connectionState != ConnectionState.done) {
           return Scaffold(
             backgroundColor: context.palette.background,
-            appBar: AppBar(
-              title: const Text('Detalle de membresía'),
-              backgroundColor: AppColores.primary,
-              foregroundColor: AppColores.textWhite,
-            ),
+            appBar: appBarNeutra(context, titulo: 'Mi membresía'),
             body: const Center(child: CircularProgressIndicator()),
           );
         }
@@ -66,127 +65,193 @@ class _MembresiaDetalleContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     final activa =
         (data['membresia'] ?? '').toString().toLowerCase() == 'activa';
-    final dias = data['membresiaDias'];
+    final dias = int.tryParse('${data['membresiaDias'] ?? ''}');
     final inicio = data['membresiaInicio'];
     final vence = data['membresiaVence'];
 
-    int? diasRestantes;
+    int? restantes;
     if (vence is Timestamp) {
-      diasRestantes = vence.toDate().difference(DateTime.now()).inDays;
-      if (diasRestantes < 0) diasRestantes = 0;
+      restantes = vence
+          .toDate()
+          .difference(DateTime.now())
+          .inDays
+          .clamp(0, 9999);
     }
-
+    final progreso = activa && dias != null && dias > 0 && restantes != null
+        ? (restantes / dias).clamp(0.0, 1.0)
+        : null;
     final color = activa ? AppColores.success : AppColores.error;
+    final resp = ResponsiveHelper.getResponsiveData(context);
+    final horizontal = resp.deviceType == DeviceType.mobile
+        ? resp.screenWidth * 0.05
+        : 32.0;
 
     return Scaffold(
-      backgroundColor: context.palette.background,
-      appBar: AppBar(
-        title: const Text('Detalle de membresía'),
-        backgroundColor: AppColores.primary,
-        foregroundColor: AppColores.textWhite,
-      ),
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 520),
-            child: ListView(
-              padding: const EdgeInsets.all(20),
-              children: [
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Column(
-                    children: [
-                      Icon(
-                        activa ? Icons.verified : Icons.cancel,
-                        color: color,
-                        size: 48,
+      backgroundColor: palette.background,
+      appBar: appBarNeutra(context, titulo: 'Mi membresía'),
+      body: ListView(
+        padding: EdgeInsets.fromLTRB(horizontal, 8, horizontal, 28),
+        children: [
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 600),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Color.alphaBlend(
+                        color.withValues(alpha: 0.10),
+                        palette.surface,
                       ),
-                      const SizedBox(height: 10),
-                      Text(
-                        activa ? 'Estás activo' : 'No estás activo',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: color,
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: color.withValues(alpha: 0.35)),
+                    ),
+                    child: Column(
+                      children: [
+                        Container(
+                          width: 64,
+                          height: 64,
+                          decoration: BoxDecoration(
+                            color: color.withValues(alpha: 0.16),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            activa
+                                ? Icons.workspace_premium_rounded
+                                : Icons.lock_clock_outlined,
+                            color: color,
+                            size: 34,
+                          ),
                         ),
+                        const SizedBox(height: 12),
+                        Text(
+                          activa ? 'Membresía activa' : 'Membresía inactiva',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            color: palette.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          activa
+                              ? 'Puedes recibir y aceptar viajes.'
+                              : 'No puedes aceptar viajes hasta activarla.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 13.5,
+                            color: palette.textSecondary,
+                          ),
+                        ),
+                        if (activa && restantes != null) ...[
+                          const SizedBox(height: 18),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.baseline,
+                            textBaseline: TextBaseline.alphabetic,
+                            children: [
+                              Text(
+                                '$restantes',
+                                style: TextStyle(
+                                  fontSize: 40,
+                                  fontWeight: FontWeight.w900,
+                                  height: 1,
+                                  color: palette.textPrimary,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                restantes == 1
+                                    ? 'día restante'
+                                    : 'días restantes',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: palette.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                        if (progreso != null) ...[
+                          const SizedBox(height: 14),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(99),
+                            child: LinearProgressIndicator(
+                              value: progreso,
+                              minHeight: 8,
+                              backgroundColor: color.withValues(alpha: 0.18),
+                              color: color,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+                  SeccionAgrupada(
+                    titulo: 'Detalles',
+                    children: [
+                      FilaDato(
+                        icono: Icons.timelapse_rounded,
+                        etiqueta: 'Plan contratado',
+                        valor: dias != null ? '$dias días' : '—',
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        activa
-                            ? 'Tu membresía está activa.'
-                            : 'Activa tu membresía para recibir viajes.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: context.palette.textSecondary),
+                      FilaDato(
+                        icono: Icons.event_available_outlined,
+                        etiqueta: 'Inicio',
+                        valor: _fecha(inicio),
+                      ),
+                      FilaDato(
+                        icono: Icons.event_busy_outlined,
+                        etiqueta: 'Vence',
+                        valor: _fecha(vence),
                       ),
                     ],
                   ),
-                ),
-                const SizedBox(height: 16),
-                _DetalleTile(
-                  icon: Icons.timelapse,
-                  titulo: 'Días contratados',
-                  valor: dias != null ? '$dias días' : '—',
-                ),
-                _DetalleTile(
-                  icon: Icons.event_available,
-                  titulo: 'Inicio',
-                  valor: _fecha(inicio),
-                ),
-                _DetalleTile(
-                  icon: Icons.event_busy,
-                  titulo: 'Vence',
-                  valor: _fecha(vence),
-                ),
-                _DetalleTile(
-                  icon: Icons.hourglass_bottom,
-                  titulo: 'Días restantes',
-                  valor: activa && diasRestantes != null
-                      ? '$diasRestantes días'
-                      : '—',
-                ),
-              ],
+                  if (!activa) ...[
+                    const SizedBox(height: 18),
+                    SeccionAgrupada(
+                      titulo: '¿Cómo la activo?',
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
+                          child: Text(
+                            'Un administrador revisa tu registro y activa tu '
+                            'membresía por los días acordados. Escríbenos si '
+                            'ya pagaste o tienes dudas.',
+                            style: TextStyle(
+                              fontSize: 13.5,
+                              height: 1.4,
+                              color: palette.textSecondary,
+                            ),
+                          ),
+                        ),
+                        FilaOpcion(
+                          icono: Icons.support_agent_rounded,
+                          titulo: 'Hablar con soporte',
+                          destacado: true,
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const SoporteChatScreen(
+                                userType: 'conductor',
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _DetalleTile extends StatelessWidget {
-  const _DetalleTile({
-    required this.icon,
-    required this.titulo,
-    required this.valor,
-  });
-
-  final IconData icon;
-  final String titulo;
-  final String valor;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: ListTile(
-        leading: Icon(icon, color: AppColores.primary),
-        title: Text(
-          titulo,
-          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-        ),
-        trailing: Text(
-          valor,
-          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-        ),
+        ],
       ),
     );
   }

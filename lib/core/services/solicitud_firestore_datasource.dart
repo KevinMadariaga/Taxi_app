@@ -122,7 +122,7 @@ class SolicitudFirestoreDatasource {
     await ref(solicitudId).delete();
   }
 
-  /// Actualiza solo `conductor.*` (nombre/foto/placa/fotoVehiculo) sin tocar
+  /// Actualiza solo `conductor.*` (nombre/foto/placa/fotoVehiculo/modelo/color) sin tocar
   /// `estado` — a diferencia de `actualizarEstado`, que siempre lo escribe.
   /// Usado para propagar un cambio de perfil del conductor hecho a mitad de
   /// viaje. Las reglas de Firestore permiten esta escritura al conductor

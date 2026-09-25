@@ -8,6 +8,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:taxi_app/core/helpers/responsive_helper.dart';
 import 'package:taxi_app/widgets/ajustes_ui.dart';
+import 'package:taxi_app/widgets/campos_modelo_color.dart';
 import 'package:taxi_app/widgets/flip_preview_view.dart';
 import 'package:taxi_app/widgets/elegir_origen_imagen_sheet.dart';
 
@@ -23,6 +24,13 @@ class EditarPerfilScreen extends StatefulWidget {
   final TextEditingController apellidoController;
   final TextEditingController telefonoController;
   final TextEditingController placaController;
+
+  /// Modelo y color del vehículo en uso (solo conductor).
+  final TextEditingController? modeloController;
+  final TextEditingController? colorController;
+
+  /// 'carro' / 'moto': a qué entrada de `vehiculos` se copian los cambios.
+  final String tipoVehiculo;
   final bool esConductor;
   final File? selectedImage;
   final File? selectedVehicleImage;
@@ -36,6 +44,9 @@ class EditarPerfilScreen extends StatefulWidget {
     required this.apellidoController,
     required this.telefonoController,
     required this.placaController,
+    this.modeloController,
+    this.colorController,
+    this.tipoVehiculo = 'carro',
     required this.esConductor,
     this.selectedImage,
     this.selectedVehicleImage,
@@ -56,7 +67,10 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
     final telefonoChanged =
         widget.telefonoController.text.trim() != _origTelefono;
     final placaChanged =
-        widget.esConductor && widget.placaController.text.trim() != _origPlaca;
+        widget.esConductor &&
+        (widget.placaController.text.trim() != _origPlaca ||
+            _modelo.text.trim() != _origModelo ||
+            _color.text.trim() != _origColor);
     final imageChanged = _imageChangedByUser;
     final vehicleChanged = widget.esConductor && _vehicleChangedByUser;
     return nombreChanged ||
@@ -77,6 +91,14 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
   late final String _origApellido;
   late final String _origTelefono;
   late final String _origPlaca;
+  late final String _origModelo;
+  late final String _origColor;
+
+  // Si el llamador no los pasa, controllers propios (y se liberan aquí).
+  late final TextEditingController _modelo =
+      widget.modeloController ?? TextEditingController();
+  late final TextEditingController _color =
+      widget.colorController ?? TextEditingController();
   final ImagePicker _picker = ImagePicker();
   final ImageCropperService _imageCropperService = const ImageCropperService();
   final ImageProcessingService _imageProcessingService =
@@ -92,11 +114,15 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
     _origApellido = widget.apellidoController.text.trim();
     _origTelefono = widget.telefonoController.text.trim();
     _origPlaca = widget.placaController.text.trim();
+    _origModelo = _modelo.text.trim();
+    _origColor = _color.text.trim();
   }
 
   @override
   void dispose() {
     _faceDetectionService.dispose();
+    if (widget.modeloController == null) _modelo.dispose();
+    if (widget.colorController == null) _color.dispose();
     super.dispose();
   }
 
@@ -275,14 +301,28 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
       datos['nombre'] = widget.nombreController.text.trim();
       datos['apellido'] = widget.apellidoController.text.trim();
       datos['telefono'] = widget.telefonoController.text.trim();
-      if (widget.esConductor) {
-        datos['placa'] = widget.placaController.text.trim();
-      }
       if (imageUrl != null) {
         datos['foto'] = imageUrl;
       }
-      if (vehicleUrl != null) {
-        datos['fotoVehiculo'] = vehicleUrl;
+      if (widget.esConductor) {
+        final placa = widget.placaController.text.trim().toUpperCase();
+        final modelo = _modelo.text.trim();
+        final color = _color.text.trim();
+        datos['placa'] = placa;
+        datos['modeloVehiculo'] = modelo;
+        datos['colorVehiculo'] = color;
+        if (vehicleUrl != null) datos['fotoVehiculo'] = vehicleUrl;
+        // Misma info en la entrada del vehículo en uso de `vehiculos`: es lo
+        // que carga "Mis vehículos" (antes solo se tocaba la raíz y esa
+        // pantalla seguía mostrando la placa vieja).
+        datos['vehiculos'] = {
+          widget.tipoVehiculo: {
+            'placa': placa,
+            'modelo': modelo,
+            'color': color,
+            'foto': ?vehicleUrl,
+          },
+        };
       }
       await widget.onSave(datos);
       if (!mounted) return;
@@ -471,6 +511,18 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                                 nuevo.copyWith(text: nuevo.text.toUpperCase()),
                           ),
                         ],
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
+                        child: CamposModeloColor(
+                          modeloController: _modelo,
+                          colorController: _color,
+                          tipo: widget.tipoVehiculo == 'moto'
+                              ? 'moto'
+                              : 'carro',
+                          enabled: !_isUploading,
+                          onChanged: () => setState(() {}),
+                        ),
                       ),
                       Padding(
                         padding: const EdgeInsets.fromLTRB(14, 4, 14, 14),
