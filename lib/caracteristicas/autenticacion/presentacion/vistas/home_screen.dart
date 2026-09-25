@@ -10,10 +10,10 @@ import 'package:taxi_app/caracteristicas/autenticacion/dominio/repositorios/clie
 import 'package:taxi_app/caracteristicas/autenticacion/presentacion/controladores/home_auth_controller.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/casos_uso/sign_in_google_client_usecase.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/presentacion/vistas/complete_profile_page.dart';
-import 'package:taxi_app/core/widgets/cuenta_deshabilitada_page.dart';
+import 'package:taxi_app/caracteristicas/autenticacion/presentacion/vistas/cuenta_deshabilitada_page.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/home_cliente_view.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioConductorView.dart';
-import 'package:taxi_app/routes/app_routes.dart';
+import 'package:taxi_app/core/constants/rutas_app.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
 
 /// Pantalla de inicio de sesión del cliente.
@@ -147,7 +147,7 @@ class _HomeViewState extends State<HomeView> {
 
     if (rol == 'administrador') {
       Navigator.of(context).pushNamedAndRemoveUntil(
-        AppRoutes.adminHome,
+        RutasApp.adminHome,
         (route) => false,
         arguments: {'adminId': result.user.id},
       );

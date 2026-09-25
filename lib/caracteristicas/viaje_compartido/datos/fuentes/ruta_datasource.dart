@@ -1,6 +1,6 @@
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
-import 'package:taxi_app/features/trip_tracking_cliente/services/map_service.dart'
+import 'package:taxi_app/core/services/map_service.dart'
     as feature_map;
 
 /// Envoltorio delgado sobre `feature_map.MapService` (ganador de la

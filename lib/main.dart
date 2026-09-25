@@ -20,6 +20,7 @@ import 'package:taxi_app/caracteristicas/autenticacion/dominio/casos_uso/sign_in
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/casos_uso/sign_in_apple_client_usecase.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/casos_uso/get_client_user_usecase.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/dominio/casos_uso/complete_client_profile_usecase.dart';
+import 'package:taxi_app/core/constants/rutas_app.dart';
 import 'package:taxi_app/routes/app_routes.dart';
 import 'package:taxi_app/presentation/widgets/app_update_gate.dart';
 import 'package:taxi_app/core/widgets/conectividad_gate.dart';
@@ -363,7 +364,7 @@ class MyApp extends StatelessWidget {
                 darkTheme: AppThemeConfig.darkTheme,
                 themeMode: themeController.themeMode,
                 navigatorKey: appNavigatorKey,
-                initialRoute: AppRoutes.splash,
+                initialRoute: RutasApp.splash,
                 onGenerateRoute: AppRoutes.onGenerateRoute,
                 builder: (context, child) {
                   final isDark =

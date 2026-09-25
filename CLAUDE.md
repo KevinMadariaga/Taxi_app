@@ -31,8 +31,7 @@ View → ViewModel/Controller → UseCase/Repository/Service → Firebase → no
 ### Capas activas
 
 - **`core/`** — Infraestructura transversal: constantes, tema, auth adapter, servicios (FCM, tracking, notificaciones, remote config, ubicación).
-- **`domain/`** — Entidades, contratos de repositorio (`ClientAuthRepository`, `AuthRepository`) y casos de uso.
-- **`data/`** — Implementaciones concretas de repositorios y datasources (Firebase).
+- **`data/`** — Legacy: solo `solicitud_repository.dart` (clase concreta) y `models/solicitud_item.dart`. No existe `lib/domain/`: los contratos y casos de uso viven en `caracteristicas/*/dominio/` (ej. `ClientAuthRepository`).
 - **`presentation/`** — Pantallas nuevas: splash, login, complete profile. ViewModels con Provider.
 - **`caracteristicas/`** — Patrón oficial (ver más abajo). Incluye **las dos pantallas
   de viaje activo**, que son las vivas:
@@ -50,7 +49,7 @@ View → ViewModel/Controller → UseCase/Repository/Service → Firebase → no
     views/controllers/viewmodels se eliminaron por código muerto; solo quedan
     widgets, modelos y servicios que `caracteristicas/viaje_*` sigue usando
     (`trip_details_sheet`, `panic_button_fab`, `waiting_driver_modal`,
-    `driver_waiting_client_modal`, `map_service`, `local_cache_service`,
+    `driver_waiting_client_modal`, `local_cache_service`,
     `trip_route_math_service`, `solicitud_model`, `usuario_model`…).
     No agregar pantallas nuevas ahí.
 - **`screens/`** — Flujos legacy aún productivos: `usuario_cliente/` y `usuario_conductor/`
@@ -58,8 +57,8 @@ View → ViewModel/Controller → UseCase/Repository/Service → Firebase → no
   (`RutaDestinoView`, `RutaClienteDestinoView`) se eliminaron: las reemplazan
   `caracteristicas/viaje_conductor/` y `caracteristicas/viaje_cliente/`.
 - **`widgets/`** — Componentes UI reutilizables globales.
-- **`helper/`** — Firebase init, permisos, sesión, mapas.
-- **`routes/`** — `AppRoutes` con `onGenerateRoute`.
+- **`core/helpers/`** — Firebase init, permisos, sesión, mapas, responsive (no existe `lib/helper/`).
+- **`routes/`** — `AppRoutes.onGenerateRoute` e `InitialScreenResolver` (cold-start). Los nombres de ruta viven en `core/constants/rutas_app.dart` (`RutasApp`) para que `core` navegue sin importar pantallas. `core/` nunca importa capas superiores: lo verifica `test/arquitectura_capas_test.dart`.
 
 ### Gestión de estado
 
@@ -122,7 +121,7 @@ Punto de entrada de auth: `lib/core/auth/app_auth_adapter.dart` implementa `Clie
 Los tres roles se leen del **mismo campo**: `usuarios/{uid}.rol` (o `role`; `tipoUsuario` es fallback legacy solo para conductor/cliente). No hay una colección aparte que determine quién es admin — decisión explícita para que el valor que se ve en Firestore console sea literalmente el que decide la pantalla, sin dos fuentes que puedan desalinearse (ver hallazgo del 2026-09-02 más abajo).
 
 - `firestore.rules` → `isAdminRole()` lee `usuarios/{request.auth.uid}.rol in ['admin','administrador']`.
-- `lib/core/services/initial_screen_resolver.dart` (cold-start) y `lib/caracteristicas/autenticacion/presentacion/vistas/home_screen.dart` (login interactivo) enrutan con la misma lectura.
+- `lib/routes/initial_screen_resolver.dart` (cold-start) y `lib/caracteristicas/autenticacion/presentacion/vistas/home_screen.dart` (login interactivo) enrutan con la misma lectura.
 
 **Para dar de alta un admin**: en Firestore console, editar `usuarios/{uid}.rol` a `'admin'` (o `'administrador'`) para esa cuenta. No hace falta crear ningún otro documento — la colección `administradores` es legacy (ver tabla de colecciones) y no se lee para esto.
 

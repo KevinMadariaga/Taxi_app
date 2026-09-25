@@ -4,52 +4,59 @@ import 'package:provider/provider.dart';
 import 'package:taxi_app/presentation/screens/splash/splash_view.dart';
 import 'package:taxi_app/presentation/viewmodels/splash/splash_viewmodel.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/presentacion/vistas/home_screen.dart';
+import 'package:taxi_app/core/constants/rutas_app.dart';
 import 'package:taxi_app/features/admin/admin_home_screen.dart';
+import 'package:taxi_app/features/phone_auth/screens/admin_hub_screen.dart';
+import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioConductorView.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/ayuda/estado_solicitud_view.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/ayuda/cambiar_destino_view.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/ayuda/problemas_conductor_view.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/ayuda/metodo_pago_view.dart';
 
+/// Construye las rutas; los nombres viven en [RutasApp].
 class AppRoutes {
-  static const String splash = '/';
-  static const String login = '/login';
-  static const String adminHome = '/admin-home';
-
-  // Pantallas de la sección "Ayuda" del cliente.
-  static const String ayudaEstadoSolicitud = '/ayuda/estado-solicitud';
-  static const String ayudaCambiarDestino = '/ayuda/cambiar-destino';
-  static const String ayudaProblemasConductor = '/ayuda/problemas-conductor';
-  static const String ayudaMetodoPago = '/ayuda/metodo-pago';
-
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
     final args = settings.arguments is Map
         ? (settings.arguments as Map).cast<String, dynamic>()
         : const <String, dynamic>{};
 
     switch (settings.name) {
-      case splash:
+      case RutasApp.splash:
         return MaterialPageRoute(
           builder: (_) => ChangeNotifierProvider(
             create: (_) => SplashViewModel(),
             child: const SplashView(),
           ),
         );
-      case login:
+      case RutasApp.login:
         return MaterialPageRoute(builder: (_) => const HomeView());
-      case adminHome:
+      case RutasApp.adminHome:
         return MaterialPageRoute(
           settings: settings,
           builder: (_) =>
               AdminHomeScreen(adminId: (args['adminId'] ?? '').toString()),
         );
-      case ayudaEstadoSolicitud:
+      case RutasApp.adminHub:
+        final tab = args['initialTab'];
+        return MaterialPageRoute(
+          settings: settings,
+          builder: (_) => AdminHubScreen(initialTab: tab is int ? tab : 0),
+        );
+      case RutasApp.conductorInicio:
+        return MaterialPageRoute(
+          settings: settings,
+          builder: (_) => InicioConductor(
+            mostrarBienvenida: args['mostrarBienvenida'] == true,
+          ),
+        );
+      case RutasApp.ayudaEstadoSolicitud:
         return MaterialPageRoute(
           settings: settings,
           builder: (_) => EstadoSolicitudView(
             solicitudId: (args['solicitudId'] ?? '').toString(),
           ),
         );
-      case ayudaCambiarDestino:
+      case RutasApp.ayudaCambiarDestino:
         final lat = args['lat'];
         final lng = args['lng'];
         return MaterialPageRoute(
@@ -62,7 +69,7 @@ class AppRoutes {
             direccionInicial: (args['direccion'] ?? '').toString(),
           ),
         );
-      case ayudaProblemasConductor:
+      case RutasApp.ayudaProblemasConductor:
         return MaterialPageRoute(
           settings: settings,
           builder: (_) => ProblemasConductorView(
@@ -70,7 +77,7 @@ class AppRoutes {
             nombreConductor: (args['nombreConductor'] ?? '').toString(),
           ),
         );
-      case ayudaMetodoPago:
+      case RutasApp.ayudaMetodoPago:
         return MaterialPageRoute(
           settings: settings,
           builder: (_) => MetodoPagoView(

@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:taxi_app/features/trip_tracking_cliente/services/map_service.dart'
+import 'package:taxi_app/core/services/map_service.dart'
     as feature_map;
 
 /// Compatibility adapter that exposes the legacy `MapService` API while

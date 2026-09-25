@@ -3,7 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/services/auth_service.dart';
-import 'package:taxi_app/routes/app_routes.dart';
+import 'package:taxi_app/core/constants/rutas_app.dart';
 import 'package:taxi_app/widgets/ajustes_ui.dart';
 import 'package:taxi_app/widgets/confirmar_dialog.dart';
 
@@ -84,7 +84,7 @@ class _AdminConfiguracionScreenState extends State<AdminConfiguracionScreen> {
     // (el panel de admin escucha reportes, emergencias y chats de soporte).
     Navigator.of(
       context,
-    ).pushNamedAndRemoveUntil(AppRoutes.login, (route) => false);
+    ).pushNamedAndRemoveUntil(RutasApp.login, (route) => false);
 
     // Sin `context` de acá en adelante: este State ya fue desmontado.
     await AuthService().logout();

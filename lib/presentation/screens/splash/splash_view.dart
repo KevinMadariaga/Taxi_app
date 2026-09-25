@@ -5,10 +5,10 @@ import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/constants/app_constants.dart';
 import 'package:taxi_app/presentation/viewmodels/splash/splash_viewmodel.dart';
 import 'package:taxi_app/presentation/widgets/update_available_dialog.dart';
-import 'package:taxi_app/routes/app_routes.dart';
+import 'package:taxi_app/core/constants/rutas_app.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/presentacion/vistas/home_screen.dart';
 import 'package:taxi_app/core/services/services.dart';
-import 'package:taxi_app/core/services/initial_screen_resolver.dart';
+import 'package:taxi_app/routes/initial_screen_resolver.dart';
 
 class SplashView extends StatefulWidget {
   const SplashView({super.key});
@@ -171,7 +171,7 @@ class _SplashViewState extends State<SplashView> with TickerProviderStateMixin {
     if (!mounted) return;
 
     if (next is HomeView) {
-      Navigator.of(context).pushReplacementNamed(AppRoutes.login);
+      Navigator.of(context).pushReplacementNamed(RutasApp.login);
       return;
     }
 

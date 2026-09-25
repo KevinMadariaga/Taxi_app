@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:taxi_app/core/constants/solicitud_estado.dart';
-import 'package:taxi_app/core/services/initial_screen_resolver.dart';
+import 'package:taxi_app/routes/initial_screen_resolver.dart';
 
 void main() {
   group('InitialScreenResolver.conductorInProgressForEstado', () {

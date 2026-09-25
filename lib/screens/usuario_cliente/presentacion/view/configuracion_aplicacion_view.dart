@@ -6,7 +6,7 @@ import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/theme/theme_controller.dart';
 import 'package:taxi_app/core/helpers/responsive_helper.dart';
 import 'package:taxi_app/widgets/ajustes_ui.dart';
-import 'package:taxi_app/routes/app_routes.dart';
+import 'package:taxi_app/core/constants/rutas_app.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/eliminar_cuenta_screen.dart';
 import 'package:taxi_app/core/services/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -98,7 +98,7 @@ class _ConfiguracionAplicacionViewState
     // token FCM.
     Navigator.of(
       context,
-    ).pushNamedAndRemoveUntil(AppRoutes.login, (route) => false);
+    ).pushNamedAndRemoveUntil(RutasApp.login, (route) => false);
 
     // Sin `context` de acá en adelante: este State ya fue desmontado.
     await AuthService().logout();

@@ -1850,6 +1850,8 @@ class _InicioConductorState extends State<InicioConductor>
       }
     }
 
+    if (!mounted) return;
+
     // Si llegamos con GPS activo, limpiar indicador y snackbar anterior.
     if (_gpsPromptShown) {
       _gpsPromptShown = false;
@@ -2308,7 +2310,7 @@ class _InicioConductorState extends State<InicioConductor>
                                   nuevoValor: valor,
                                 );
                                 vm.applyLocalContraoferta(valor);
-                                if (!mounted) return;
+                                if (!mounted || !ctx.mounted) return;
                                 Navigator.of(ctx).pop();
                                 _mostrarConfirmacionContraoferta(
                                   vm,

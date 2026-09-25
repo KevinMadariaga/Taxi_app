@@ -30,7 +30,7 @@ import 'package:taxi_app/core/utils/marker_icon_helper.dart';
 import 'package:taxi_app/features/trip_tracking_cliente/widgets/panic_button_fab.dart';
 import 'package:taxi_app/features/trip_tracking_cliente/widgets/trip_details_sheet.dart';
 import 'package:taxi_app/features/trip_tracking_cliente/widgets/waiting_driver_modal.dart';
-import 'package:taxi_app/routes/app_routes.dart';
+import 'package:taxi_app/core/constants/rutas_app.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/ResumenClienteView.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/home_cliente_view.dart';
 import 'package:taxi_app/widgets/intermediate_transition_view.dart';
@@ -570,7 +570,7 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen>
   /// Mismas 4 opciones que el `_MenuAyudaSheet` legacy de
   /// `trip_tracking_screen.dart` (estado de la solicitud, método de pago,
   /// problemas con el conductor, cancelar) — reutiliza las mismas rutas
-  /// nombradas (`AppRoutes.ayuda*`), más "Ver detalles" que no estaba en el
+  /// nombradas (`RutasApp.ayuda*`), más "Ver detalles" que no estaba en el
   /// menú original pero es una entrada rápida útil acá.
   void _openAyuda() {
     showModalBottomSheet(
@@ -604,7 +604,7 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen>
               onTap: () {
                 Navigator.of(sheetContext).pop();
                 Navigator.of(context).pushNamed(
-                  AppRoutes.ayudaEstadoSolicitud,
+                  RutasApp.ayudaEstadoSolicitud,
                   arguments: {'solicitudId': widget.viajeId},
                 );
               },
@@ -619,7 +619,7 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen>
               onTap: () {
                 Navigator.of(sheetContext).pop();
                 Navigator.of(context).pushNamed(
-                  AppRoutes.ayudaMetodoPago,
+                  RutasApp.ayudaMetodoPago,
                   arguments: {
                     'solicitudId': widget.viajeId,
                     'metodoActual': _vm.viaje?.metodoPago ?? '',
@@ -637,7 +637,7 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen>
               onTap: () {
                 Navigator.of(sheetContext).pop();
                 Navigator.of(context).pushNamed(
-                  AppRoutes.ayudaProblemasConductor,
+                  RutasApp.ayudaProblemasConductor,
                   arguments: {
                     'solicitudId': widget.viajeId,
                     'nombreConductor': _vm.conductorNombre,

@@ -8,7 +8,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:taxi_app/core/helpers/session_helper.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/presentacion/vistas/home_screen.dart';
 import 'package:taxi_app/caracteristicas/autenticacion/presentacion/vistas/complete_profile_page.dart';
-import 'package:taxi_app/core/widgets/cuenta_deshabilitada_page.dart';
+import 'package:taxi_app/caracteristicas/autenticacion/presentacion/vistas/cuenta_deshabilitada_page.dart';
 import 'package:taxi_app/features/admin/admin_home_screen.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/home_cliente_view.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/InicioConductorView.dart';
