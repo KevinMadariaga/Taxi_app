@@ -6,7 +6,31 @@ class DriverCommentItem {
   final String comment;
   final DateTime createdAt;
 
-  const DriverCommentItem({required this.comment, required this.createdAt});
+  /// Estrellas que dejó el cliente con el comentario (0 si no hay).
+  final double estrellas;
+
+  /// Solo el primer nombre: suficiente para reconocer el viaje sin exponer
+  /// el nombre completo del pasajero.
+  final String nombreCliente;
+
+  const DriverCommentItem({
+    required this.comment,
+    required this.createdAt,
+    this.estrellas = 0,
+    this.nombreCliente = '',
+  });
+}
+
+/// Promedio de estrellas y cantidad de comentarios, para el encabezado.
+({double promedio, int total}) resumenComentarios(
+  List<DriverCommentItem> items,
+) {
+  final conEstrellas = items.where((i) => i.estrellas > 0).toList();
+  final promedio = conEstrellas.isEmpty
+      ? 0.0
+      : conEstrellas.map((i) => i.estrellas).reduce((a, b) => a + b) /
+            conEstrellas.length;
+  return (promedio: promedio, total: items.length);
 }
 
 class ComentariosConductorViewModel extends ChangeNotifier {
@@ -39,6 +63,8 @@ class ComentariosConductorViewModel extends ChangeNotifier {
     return DriverCommentItem(
       comment: comment,
       createdAt: _extractCommentDate(data),
+      estrellas: _extractEstrellas(data),
+      nombreCliente: _primerNombreCliente(data),
     );
   }
 
@@ -96,9 +122,27 @@ class ComentariosConductorViewModel extends ChangeNotifier {
     return DateTime.fromMillisecondsSinceEpoch(0);
   }
 
+  double _extractEstrellas(Map<String, dynamic> data) {
+    final raw = data['calificacion'] ?? data['rating'];
+    final valor = raw is num
+        ? raw.toDouble()
+        : raw is Map
+        ? double.tryParse('${raw['valor'] ?? raw['estrellas'] ?? ''}') ?? 0
+        : double.tryParse('${raw ?? ''}') ?? 0;
+    return valor.clamp(0, 5).toDouble();
+  }
+
+  String _primerNombreCliente(Map<String, dynamic> data) {
+    final cliente = data['cliente'];
+    if (cliente is! Map) return '';
+    final nombre = (cliente['nombre'] ?? cliente['name'] ?? '').toString();
+    final partes = nombre.trim().split(RegExp(r'\s+'));
+    return partes.isEmpty ? '' : partes.first;
+  }
+
   String formatDate(DateTime date) {
     final day = date.day.toString().padLeft(2, '0');
     final month = date.month.toString().padLeft(2, '0');
-    return '$day/$month';
+    return '$day/$month/${date.year}';
   }
 }
