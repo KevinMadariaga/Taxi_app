@@ -50,4 +50,35 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Perfil actualizado'), findsNothing);
   });
+
+  testWidgets('aviso de advertencia con acción "Activar"', (tester) async {
+    var activado = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData(extensions: const [AppPalette.dark]),
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () => mostrarAvisoAdvertencia(
+                context,
+                titulo: 'Activa tu membresía',
+                mensaje: 'La necesitas para aceptar viajes.',
+                accion: 'Activar',
+                onAccion: () => activado = true,
+              ),
+              child: const Text('aceptar'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('aceptar'));
+    await tester.pumpAndSettle();
+    expect(find.text('Activa tu membresía'), findsOneWidget);
+
+    await tester.tap(find.text('Activar'));
+    await tester.pumpAndSettle();
+    expect(activado, isTrue);
+    expect(find.text('Activa tu membresía'), findsNothing);
+  });
 }

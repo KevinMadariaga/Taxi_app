@@ -4,6 +4,8 @@ import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/services/auth_service.dart';
 import 'package:taxi_app/routes/app_routes.dart';
+import 'package:taxi_app/widgets/ajustes_ui.dart';
+import 'package:taxi_app/widgets/confirmar_dialog.dart';
 
 /// Configuración del administrador: foto, nombre y cerrar sesión.
 /// Los datos se leen de `administradores/{uid}` con respaldo en `usuarios/{uid}`.
@@ -63,22 +65,13 @@ class _AdminConfiguracionScreenState extends State<AdminConfiguracionScreen> {
   Future<void> _cerrarSesion() async {
     if (_busy) return;
 
-    final confirmar = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Cerrar sesión'),
-        content: const Text('¿Quieres cerrar sesión?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Aceptar'),
-          ),
-        ],
-      ),
+    final confirmar = await mostrarConfirmacion(
+      context,
+      titulo: 'Cerrar sesión',
+      mensaje: '¿Quieres cerrar sesión en esta cuenta de administrador?',
+      accion: 'Cerrar sesión',
+      peligro: true,
+      icono: Icons.logout_rounded,
     );
 
     if (confirmar != true || !mounted) return;
@@ -99,89 +92,88 @@ class _AdminConfiguracionScreenState extends State<AdminConfiguracionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Scaffold(
-      backgroundColor: context.palette.background,
-      appBar: AppBar(
-        title: const Text('Configuración'),
-        backgroundColor: AppColores.primary,
-        foregroundColor: AppColores.textWhite,
-      ),
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 520),
-            child: FutureBuilder<_AdminInfo>(
-              future: _future,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                final info =
-                    snapshot.data ??
-                    const _AdminInfo(
-                      nombre: 'Administrador',
-                      foto: '',
-                      correo: '',
-                      gremio: '',
-                    );
+      backgroundColor: palette.background,
+      appBar: appBarNeutra(context, titulo: 'Configuración'),
+      body: FutureBuilder<_AdminInfo>(
+        future: _future,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final info =
+              snapshot.data ??
+              const _AdminInfo(
+                nombre: 'Administrador',
+                foto: '',
+                correo: '',
+                gremio: '',
+              );
 
-                return Padding(
-                  padding: const EdgeInsets.all(20),
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+            children: [
+              Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 600),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const SizedBox(height: 8),
                       _PerfilCard(info: info),
-                      const SizedBox(height: 16),
-                      _InfoTile(
-                        icon: Icons.shield_outlined,
-                        titulo: 'Rol',
-                        valor: 'Administrador',
-                      ),
-                      if (info.correo.isNotEmpty)
-                        _InfoTile(
-                          icon: Icons.email_outlined,
-                          titulo: 'Correo',
-                          valor: info.correo,
-                        ),
-                      if (info.gremio.isNotEmpty)
-                        _InfoTile(
-                          icon: Icons.groups_outlined,
-                          titulo: 'Gremio',
-                          valor: info.gremio,
-                        ),
-                      const Spacer(),
-                      ElevatedButton.icon(
-                        onPressed: _busy ? null : _cerrarSesion,
-                        icon: _busy
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    AppColores.textWhite,
-                                  ),
-                                ),
-                              )
-                            : const Icon(Icons.logout),
-                        label: const Text('Cerrar sesión'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColores.buttonCancel,
-                          foregroundColor: AppColores.textWhite,
-                          minimumSize: const Size.fromHeight(52),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
+                      const SizedBox(height: 24),
+                      SeccionAgrupada(
+                        titulo: 'Cuenta',
+                        children: [
+                          const FilaDato(
+                            icono: Icons.shield_outlined,
+                            etiqueta: 'Rol',
+                            valor: 'Administrador',
                           ),
-                        ),
+                          if (info.correo.isNotEmpty)
+                            FilaDato(
+                              icono: Icons.alternate_email_rounded,
+                              etiqueta: 'Correo',
+                              valor: info.correo,
+                            ),
+                          if (info.gremio.isNotEmpty)
+                            FilaDato(
+                              icono: Icons.groups_outlined,
+                              etiqueta: 'Gremio',
+                              valor: info.gremio,
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 18),
+                      SeccionAgrupada(
+                        titulo: 'Sesión',
+                        children: [
+                          FilaOpcion(
+                            icono: Icons.logout_rounded,
+                            titulo: _busy
+                                ? 'Cerrando sesión…'
+                                : 'Cerrar sesión',
+                            peligro: true,
+                            trailing: _busy
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : null,
+                            onTap: _busy ? null : _cerrarSesion,
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                );
-              },
-            ),
-          ),
-        ),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -206,79 +198,80 @@ class _PerfilCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
-        child: Column(
-          children: [
-            CircleAvatar(
-              radius: 56,
-              backgroundColor: context.palette.grey200,
+    final palette = context.palette;
+    final px = (104 * MediaQuery.devicePixelRatioOf(context)).round();
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(3),
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [AppColores.brand400, AppColores.brand500],
+            ),
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: palette.background,
+            ),
+            child: CircleAvatar(
+              radius: 52,
+              backgroundColor: palette.grey200,
               backgroundImage: info.foto.isNotEmpty
-                  ? NetworkImage(info.foto)
+                  ? ResizeImage(NetworkImage(info.foto), width: px, height: px)
                   : null,
               child: info.foto.isEmpty
-                  ? const Icon(Icons.admin_panel_settings, size: 52)
+                  ? Icon(
+                      Icons.admin_panel_settings_rounded,
+                      size: 48,
+                      color: palette.textSecondary,
+                    )
                   : null,
             ),
-            const SizedBox(height: 14),
-            Text(
-              info.nombre,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: context.palette.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 14),
+        Text(
+          info.nombre,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 21,
+            fontWeight: FontWeight.w800,
+            color: palette.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: AppColores.primary.withValues(alpha: 0.16),
+            borderRadius: BorderRadius.circular(99),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.verified_user_rounded,
+                size: 15,
+                color: acentoMarca(context),
               ),
-            ),
-            const SizedBox(height: 6),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              decoration: BoxDecoration(
-                color: AppColores.primary.withValues(alpha: 0.20),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
+              const SizedBox(width: 6),
+              Text(
                 'Administrador',
                 style: TextStyle(
+                  fontSize: 12.5,
                   fontWeight: FontWeight.w700,
-                  color: context.palette.textPrimary,
+                  color: palette.textPrimary,
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
-    );
-  }
-}
-
-class _InfoTile extends StatelessWidget {
-  const _InfoTile({
-    required this.icon,
-    required this.titulo,
-    required this.valor,
-  });
-  final IconData icon;
-  final String titulo;
-  final String valor;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: ListTile(
-        leading: Icon(icon, color: AppColores.primary),
-        title: Text(
-          titulo,
-          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-        ),
-        subtitle: Text(valor, style: const TextStyle(fontSize: 14)),
-      ),
+      ],
     );
   }
 }

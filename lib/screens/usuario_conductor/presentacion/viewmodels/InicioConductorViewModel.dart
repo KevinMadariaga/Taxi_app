@@ -17,6 +17,14 @@ import 'package:taxi_app/core/constants/estado_contraoferta.dart';
 import 'package:taxi_app/core/constants/solicitud_estado.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
 
+/// El conductor intentó aceptar un viaje sin membresía vigente. Es un
+/// `StateError` para que los `catch` existentes lo sigan atrapando; la
+/// vista lo distingue para ofrecer "Activar" en el aviso.
+class MembresiaInactivaException extends StateError {
+  MembresiaInactivaException()
+    : super('Tu membresía no está activa. Actívala para aceptar viajes.');
+}
+
 class InicioConductorViewmodel extends ChangeNotifier {
   InicioConductorViewmodel({
     FirebaseFirestore? firestore,
@@ -481,9 +489,7 @@ class InicioConductorViewmodel extends ChangeNotifier {
       final vencida =
           vence is Timestamp && vence.toDate().isBefore(DateTime.now());
       if (!membresiaActiva || vencida) {
-        throw StateError(
-          'Tu membresía no está activa. Actívala para aceptar viajes.',
-        );
+        throw MembresiaInactivaException();
       }
 
       final snap = await tx.get(ref);
@@ -680,6 +686,9 @@ class InicioConductorViewmodel extends ChangeNotifier {
       'nombre': _resolverNombreConductor(doc),
       if ((foto ?? '').trim().isNotEmpty) 'foto': foto,
       'placa': placa,
+      // Para que el pasajero reconozca el vehículo (además de la placa).
+      'modeloVehiculo': _firstNonEmptyDoc(doc, const ['modeloVehiculo']) ?? '',
+      'colorVehiculo': _firstNonEmptyDoc(doc, const ['colorVehiculo']) ?? '',
       if (currentLocation != null) 'lat': currentLocation!.latitude,
       if (currentLocation != null) 'lng': currentLocation!.longitude,
       if ((fotoVehiculo ?? '').trim().isNotEmpty)

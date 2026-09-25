@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/services/soporte_chat_service.dart';
+import 'package:taxi_app/widgets/ajustes_ui.dart';
 
 class SoporteChatDetalleAdminScreen extends StatefulWidget {
   const SoporteChatDetalleAdminScreen({
@@ -87,12 +88,7 @@ class _SoporteChatDetalleAdminScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.userName),
-        backgroundColor: AppColores.primary,
-        foregroundColor: AppColores.textWhite,
-        elevation: 0,
-      ),
+      appBar: appBarNeutra(context, titulo: widget.userName),
       backgroundColor: context.palette.background,
       body: Column(
         children: [
@@ -157,7 +153,7 @@ class _SoporteChatDetalleAdminScreenState
                         : CrossAxisAlignment.start;
                     final bg = esAdmin
                         ? AppColores.primary.withValues(alpha: 0.22)
-                        : context.palette.grey200;
+                        : context.palette.surface;
 
                     return Column(
                       crossAxisAlignment: align,
@@ -173,7 +169,18 @@ class _SoporteChatDetalleAdminScreenState
                           ),
                           decoration: BoxDecoration(
                             color: bg,
-                            borderRadius: BorderRadius.circular(14),
+                            // Esquina "pegada" del lado de quien habla.
+                            borderRadius: BorderRadius.only(
+                              topLeft: const Radius.circular(18),
+                              topRight: const Radius.circular(18),
+                              bottomLeft: Radius.circular(esAdmin ? 18 : 4),
+                              bottomRight: Radius.circular(esAdmin ? 4 : 18),
+                            ),
+                            border: esAdmin
+                                ? null
+                                : Border.all(
+                                    color: context.palette.borderSubtle,
+                                  ),
                           ),
                           child: Column(
                             crossAxisAlignment: esAdmin
@@ -189,7 +196,14 @@ class _SoporteChatDetalleAdminScreenState
                                     color: context.palette.textSecondary,
                                   ),
                                 ),
-                              Text(texto),
+                              Text(
+                                texto,
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  height: 1.35,
+                                  color: context.palette.textPrimary,
+                                ),
+                              ),
                               Text(
                                 hora,
                                 style: TextStyle(
@@ -247,10 +261,19 @@ class _SoporteChatDetalleAdminScreenState
                       decoration: InputDecoration(
                         hintText: 'Responder a ${widget.userName}...',
                         filled: true,
-                        fillColor: context.palette.grey100,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
+                        fillColor: context.palette.surface,
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(22),
+                          borderSide: BorderSide(
+                            color: context.palette.borderSubtle,
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(22),
+                          borderSide: const BorderSide(
+                            color: AppColores.primary,
+                            width: 1.6,
+                          ),
                         ),
                         isDense: true,
                         contentPadding: const EdgeInsets.symmetric(
@@ -263,11 +286,13 @@ class _SoporteChatDetalleAdminScreenState
                   const SizedBox(width: 8),
                   IconButton(
                     onPressed: _send,
+                    tooltip: 'Enviar',
                     style: IconButton.styleFrom(
                       backgroundColor: AppColores.buttonPrimary,
-                      foregroundColor: context.palette.textPrimary,
+                      foregroundColor: Colors.black,
+                      fixedSize: const Size(46, 46),
                     ),
-                    icon: const Icon(Icons.send),
+                    icon: const Icon(Icons.send_rounded),
                   ),
                 ],
               ),

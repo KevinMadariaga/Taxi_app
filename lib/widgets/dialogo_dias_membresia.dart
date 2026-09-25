@@ -128,32 +128,20 @@ class _DialogoDiasMembresiaState extends State<_DialogoDiasMembresia> {
                 ),
               ),
               const SizedBox(height: 16),
-              Wrap(
-                alignment: WrapAlignment.center,
-                spacing: 8,
-                runSpacing: 8,
-                children: _diasSugeridos.map((dias) {
-                  final seleccionado = _controller.text.trim() == '$dias';
-                  return ChoiceChip(
-                    avatar: Icon(
-                      Icons.event_available_rounded,
-                      size: 18,
-                      color: seleccionado
-                          ? AppColores.primary
-                          : palette.textSecondary,
+              Row(
+                children: [
+                  for (var i = 0; i < _diasSugeridos.length; i++) ...[
+                    if (i > 0) const SizedBox(width: 8),
+                    Expanded(
+                      child: _CuadroDias(
+                        dias: _diasSugeridos[i],
+                        seleccionado:
+                            _controller.text.trim() == '${_diasSugeridos[i]}',
+                        onTap: () => _elegirDias(_diasSugeridos[i]),
+                      ),
                     ),
-                    showCheckmark: false,
-                    label: Text('$dias días'),
-                    selected: seleccionado,
-                    onSelected: (_) => _elegirDias(dias),
-                    selectedColor: AppColores.primary.withValues(alpha: 0.2),
-                    side: BorderSide(
-                      color: seleccionado
-                          ? AppColores.primary
-                          : palette.borderSubtle,
-                    ),
-                  );
-                }).toList(),
+                  ],
+                ],
               ),
               const SizedBox(height: 24),
               Row(
@@ -161,14 +149,14 @@ class _DialogoDiasMembresiaState extends State<_DialogoDiasMembresia> {
                   Expanded(
                     child: CustomButton(
                       text: 'Cancelar',
-                      icon: const Icon(
+                      icon: Icon(
                         Icons.close_rounded,
-                        color: AppColores.primary,
+                        color: context.palette.textPrimary,
                         size: 20,
                       ),
                       color: palette.surface,
-                      textColor: AppColores.primary,
-                      borderColor: AppColores.primary,
+                      textColor: context.palette.textPrimary,
+                      borderColor: context.palette.grey300,
                       height: 48,
                       fontSize: 15,
                       onPressed: () => Navigator.pop(context),
@@ -180,11 +168,11 @@ class _DialogoDiasMembresiaState extends State<_DialogoDiasMembresia> {
                       text: 'Aprobar',
                       icon: const Icon(
                         Icons.check_circle_rounded,
-                        color: AppColores.textWhite,
+                        color: Colors.black,
                         size: 20,
                       ),
                       color: AppColores.buttonPrimary,
-                      textColor: AppColores.textWhite,
+                      textColor: Colors.black,
                       height: 48,
                       fontSize: 15,
                       onPressed: diasValidos
@@ -198,6 +186,76 @@ class _DialogoDiasMembresiaState extends State<_DialogoDiasMembresia> {
                 ],
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Opción rápida de días: cuadros iguales en fila. Seleccionado = relleno
+/// ámbar con texto negro (contraste alto en claro y en oscuro); el resto,
+/// fondo y texto del tema.
+class _CuadroDias extends StatelessWidget {
+  const _CuadroDias({
+    required this.dias,
+    required this.seleccionado,
+    required this.onTap,
+  });
+
+  final int dias;
+  final bool seleccionado;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final colorTexto = seleccionado ? Colors.black : palette.textPrimary;
+    return Semantics(
+      button: true,
+      selected: seleccionado,
+      label: '$dias días',
+      child: Material(
+        color: seleccionado ? AppColores.primary : palette.background,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: BorderSide(
+            color: seleccionado ? AppColores.primary : palette.grey300,
+            width: seleccionado ? 2 : 1.2,
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    '$dias',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                      height: 1.1,
+                      color: colorTexto,
+                    ),
+                  ),
+                ),
+                Text(
+                  'días',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: seleccionado
+                        ? Colors.black87
+                        : palette.textSecondary,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

@@ -10,6 +10,7 @@ import 'package:taxi_app/core/services/soporte_chat_service.dart';
 import 'package:taxi_app/core/services/sugerencias_service.dart';
 
 import 'soporte_chat_detalle_admin_screen.dart';
+import 'package:taxi_app/widgets/ajustes_ui.dart';
 
 /// Ancho máximo del contenido en tablet/desktop, centrado — mismo criterio
 /// que `AdminHomeScreen`, para que el panel se vea coherente en toda la app
@@ -61,64 +62,26 @@ class _AdminHubScreenState extends State<AdminHubScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final resp = ResponsiveHelper.getResponsiveData(context);
-    final isCompact = resp.deviceType == DeviceType.mobile;
-
     return DefaultTabController(
       length: 3,
       initialIndex: widget.initialTab.clamp(0, 2),
       child: Scaffold(
         backgroundColor: context.palette.background,
-        appBar: AppBar(
-          backgroundColor: AppColores.primary,
-          foregroundColor: AppColores.textWhite,
-          elevation: 0,
-          title: Text(
-            'Gestión',
-            style: TextStyle(
-              fontWeight: FontWeight.w800,
-              fontSize: ResponsiveHelper.sp(context, isCompact ? 18 : 20),
-            ),
-          ),
+        appBar: appBarNeutra(
+          context,
+          titulo: 'Gestión',
           bottom: PreferredSize(
-            // `hp(context, 6.2)` puro rompía en landscape de iPhone: con la
-            // altura de pantalla ahí (~375-430dp), 6.2% da ~23-27px — no
-            // entra un `TabBar` (necesita ~46-48px) y encima ese ancho
-            // clasifica como "no compacto", pidiendo fuente más grande
-            // todavía. `clamp` fija un piso/techo absolutos en vez de
-            // depender solo del porcentaje.
+            // Piso de 48 px: en landscape de iPhone el porcentaje de alto
+            // daba ~23-27 px y el `TabBar` no entraba.
             preferredSize: Size.fromHeight(
               ResponsiveHelper.hp(context, 6.2).clamp(48.0, 64.0),
             ),
-            child: Container(
-              color: AppColores.primary,
-              alignment: Alignment.center,
+            child: Align(
+              alignment: Alignment.bottomCenter,
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: _kContentMaxWidth),
-                child: TabBar(
-                  labelColor: AppColores.textWhite,
-                  unselectedLabelColor: AppColores.textWhite.withValues(
-                    alpha: 0.6,
-                  ),
-                  indicatorColor: AppColores.textWhite,
-                  indicatorWeight: 3,
-                  labelPadding: EdgeInsets.symmetric(
-                    horizontal: ResponsiveHelper.wp(context, isCompact ? 1 : 3),
-                  ),
-                  labelStyle: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: ResponsiveHelper.sp(
-                      context,
-                      isCompact ? 12.5 : 14,
-                    ),
-                  ),
-                  unselectedLabelStyle: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: ResponsiveHelper.sp(
-                      context,
-                      isCompact ? 12.5 : 14,
-                    ),
-                  ),
+                child: tabBarNeutra(
+                  context,
                   tabs: [
                     _BadgeTab(label: 'Reportes', count: _reportes),
                     _BadgeTab(label: 'Mensajes', count: _mensajes),
@@ -284,15 +247,15 @@ class _ItemCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final avatarSize = ResponsiveHelper.wp(context, 11).clamp(40.0, 52.0);
-    return Card(
-      margin: EdgeInsets.zero,
-      elevation: noLeido ? 1.5 : 0.5,
-      shadowColor: Colors.black.withValues(alpha: 0.08),
+    return Material(
       color: noLeido
-          ? accentColor.withValues(alpha: 0.05)
+          ? Color.alphaBlend(
+              accentColor.withValues(alpha: 0.07),
+              context.palette.surface,
+            )
           : context.palette.surface,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         side: BorderSide(
           color: noLeido
               ? accentColor.withValues(alpha: 0.25)
@@ -316,7 +279,7 @@ class _ItemCard extends StatelessWidget {
                 height: avatarSize,
                 decoration: BoxDecoration(
                   color: leadingBg,
-                  shape: BoxShape.circle,
+                  borderRadius: BorderRadius.circular(14),
                 ),
                 child: Icon(
                   leadingIcon,
@@ -398,8 +361,9 @@ Future<T?> _mostrarDetalleSheet<T>(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
+    backgroundColor: context.palette.surface,
     shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
     ),
     constraints: BoxConstraints(
       maxWidth: _kContentMaxWidth,
@@ -664,10 +628,10 @@ class _TabMensajes extends StatelessWidget {
                     ? Icons.local_taxi
                     : Icons.person,
                 leadingBg: hayNuevos
-                    ? AppColores.primary
+                    ? AppColores.primary.withValues(alpha: 0.18)
                     : context.palette.grey200,
                 leadingColor: hayNuevos
-                    ? context.palette.textPrimary
+                    ? acentoMarca(context)
                     : context.palette.textSecondary,
                 noLeido: hayNuevos,
                 trailingTop: hora,
@@ -757,10 +721,10 @@ class _TabSugerencias extends StatelessWidget {
                 leadingIcon: esConductor ? Icons.local_taxi : Icons.person,
                 leadingBg: visto
                     ? context.palette.grey200
-                    : AppColores.primary.withValues(alpha: 0.15),
+                    : AppColores.primary.withValues(alpha: 0.18),
                 leadingColor: visto
                     ? context.palette.textSecondary
-                    : context.palette.textPrimary,
+                    : acentoMarca(context),
                 noLeido: !visto,
                 trailingTop: fecha,
                 title: Wrap(
@@ -775,8 +739,8 @@ class _TabSugerencias extends StatelessWidget {
                       ),
                       decoration: BoxDecoration(
                         color: esConductor
-                            ? AppColores.primary.withValues(alpha: 0.12)
-                            : Colors.blue.withValues(alpha: 0.10),
+                            ? AppColores.primary.withValues(alpha: 0.16)
+                            : AppColores.secondary.withValues(alpha: 0.14),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
@@ -785,8 +749,8 @@ class _TabSugerencias extends StatelessWidget {
                           fontSize: ResponsiveHelper.sp(context, 11),
                           fontWeight: FontWeight.w700,
                           color: esConductor
-                              ? const Color(0xFF7A6000)
-                              : Colors.blue.shade700,
+                              ? acentoMarca(context)
+                              : AppColores.secondary,
                         ),
                       ),
                     ),

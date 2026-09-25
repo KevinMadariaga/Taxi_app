@@ -25,6 +25,7 @@ AppBar appBarNeutra(
   bool automaticallyImplyLeading = true,
   Widget? leading,
   List<Widget>? actions,
+  PreferredSizeWidget? bottom,
 }) {
   final palette = context.palette;
   final esOscuro = Theme.of(context).brightness == Brightness.dark;
@@ -51,6 +52,26 @@ AppBar appBarNeutra(
       ),
     ),
     actions: actions,
+    bottom: bottom,
+  );
+}
+
+/// Pestañas con el estilo de la app: indicador ámbar, texto del tema.
+TabBar tabBarNeutra(BuildContext context, {required List<Widget> tabs}) {
+  final palette = context.palette;
+  return TabBar(
+    tabs: tabs,
+    indicatorColor: AppColores.primary,
+    indicatorWeight: 3,
+    indicatorSize: TabBarIndicatorSize.label,
+    labelColor: palette.textPrimary,
+    unselectedLabelColor: palette.textSecondary,
+    labelStyle: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800),
+    unselectedLabelStyle: const TextStyle(
+      fontSize: 14.5,
+      fontWeight: FontWeight.w600,
+    ),
+    dividerColor: palette.borderSubtle,
   );
 }
 
@@ -418,9 +439,49 @@ void mostrarAvisoExito(
   required String titulo,
   required String mensaje,
   Duration duracion = const Duration(seconds: 2),
+}) => _mostrarAviso(
+  context,
+  titulo: titulo,
+  mensaje: mensaje,
+  color: AppColores.success,
+  icono: Icons.check_rounded,
+  duracion: duracion,
+);
+
+/// Igual que [mostrarAvisoExito] pero de advertencia (ámbar): algo impidió
+/// la acción y el usuario puede resolverlo. [accion]/[onAccion] agregan un
+/// botón a la derecha (ej. "Activar").
+void mostrarAvisoAdvertencia(
+  BuildContext context, {
+  required String titulo,
+  required String mensaje,
+  String? accion,
+  VoidCallback? onAccion,
+  Duration duracion = const Duration(seconds: 4),
+}) => _mostrarAviso(
+  context,
+  titulo: titulo,
+  mensaje: mensaje,
+  color: AppColores.warning,
+  icono: Icons.priority_high_rounded,
+  duracion: duracion,
+  accion: accion,
+  onAccion: onAccion,
+);
+
+void _mostrarAviso(
+  BuildContext context, {
+  required String titulo,
+  required String mensaje,
+  required Color color,
+  required IconData icono,
+  required Duration duracion,
+  String? accion,
+  VoidCallback? onAccion,
 }) {
   final palette = context.palette;
   final messenger = ScaffoldMessenger.of(context);
+  final acento = acentoMarca(context);
   messenger
     ..hideCurrentSnackBar()
     ..showSnackBar(
@@ -430,10 +491,10 @@ void mostrarAvisoExito(
         elevation: 6,
         backgroundColor: palette.surface,
         margin: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(18),
-          side: BorderSide(color: AppColores.success.withValues(alpha: 0.35)),
+          side: BorderSide(color: color.withValues(alpha: 0.45)),
         ),
         content: Row(
           children: [
@@ -441,14 +502,10 @@ void mostrarAvisoExito(
               width: 38,
               height: 38,
               decoration: BoxDecoration(
-                color: AppColores.success.withValues(alpha: 0.14),
+                color: color.withValues(alpha: 0.16),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
-                Icons.check_rounded,
-                color: AppColores.success,
-                size: 22,
-              ),
+              child: Icon(icono, color: color, size: 22),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -475,6 +532,18 @@ void mostrarAvisoExito(
                 ],
               ),
             ),
+            if (accion != null && onAccion != null)
+              TextButton(
+                onPressed: () {
+                  messenger.hideCurrentSnackBar();
+                  onAccion();
+                },
+                style: TextButton.styleFrom(foregroundColor: acento),
+                child: Text(
+                  accion,
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
           ],
         ),
       ),

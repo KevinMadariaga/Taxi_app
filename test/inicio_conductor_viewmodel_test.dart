@@ -106,7 +106,7 @@ void main() {
 
       expect(
         () => vm.aceptarSolicitud('sol-1'),
-        throwsA(isA<StateError>()),
+        throwsA(isA<MembresiaInactivaException>()),
       );
     });
 
@@ -121,10 +121,7 @@ void main() {
         'estado': 'buscando',
       });
 
-      expect(
-        () => vm.aceptarSolicitud('sol-1'),
-        throwsA(isA<StateError>()),
-      );
+      expect(() => vm.aceptarSolicitud('sol-1'), throwsA(isA<StateError>()));
     });
 
     test('lanza si la solicitud ya fue tomada por otro conductor', () async {
@@ -135,10 +132,7 @@ void main() {
         'estado': 'asignado',
       });
 
-      expect(
-        () => vm.aceptarSolicitud('sol-1'),
-        throwsA(isA<StateError>()),
-      );
+      expect(() => vm.aceptarSolicitud('sol-1'), throwsA(isA<StateError>()));
     });
 
     test('éxito: actualiza estado y payload del conductor', () async {
@@ -277,24 +271,30 @@ void main() {
     // acá, una contraoferta escribía el nombre en memoria (potencialmente
     // viejo) y `buscando_taxi_viewmodel.dart` lo copiaba tal cual a
     // `conductor` si el cliente la aceptaba.
-    test('éxito: usa nombre+apellido de Firestore, no el estado en memoria', () async {
-      await firestore.collection('usuarios').doc(_uid).set({
-        'nombre': 'Juan Carlos',
-        'apellido': 'Rodríguez',
-      });
-      await firestore.collection('solicitudes').doc('sol-1').set({
-        'estado': 'buscando',
-      });
+    test(
+      'éxito: usa nombre+apellido de Firestore, no el estado en memoria',
+      () async {
+        await firestore.collection('usuarios').doc(_uid).set({
+          'nombre': 'Juan Carlos',
+          'apellido': 'Rodríguez',
+        });
+        await firestore.collection('solicitudes').doc('sol-1').set({
+          'estado': 'buscando',
+        });
 
-      expect(vm.displayName, 'Conductor');
-      await vm.enviarContraoferta(solicitudId: 'sol-1', nuevoValor: 15000);
+        expect(vm.displayName, 'Conductor');
+        await vm.enviarContraoferta(solicitudId: 'sol-1', nuevoValor: 15000);
 
-      final doc = await firestore.collection('solicitudes').doc('sol-1').get();
-      expect(
-        doc.data()!['contraofertas'][_uid]['conductor']['nombre'],
-        'Juan Carlos Rodríguez',
-      );
-    });
+        final doc = await firestore
+            .collection('solicitudes')
+            .doc('sol-1')
+            .get();
+        expect(
+          doc.data()!['contraofertas'][_uid]['conductor']['nombre'],
+          'Juan Carlos Rodríguez',
+        );
+      },
+    );
   });
 
   group('toggleConductorConnection', () {
@@ -436,17 +436,20 @@ void main() {
       expect(data!['ubicacion']['lat'], closeTo(8.25, 1e-9));
     });
 
-    test('desconectarse a mitad de la lectura del GPS aborta la escritura', () async {
-      vm.isConnected = true;
-      tracking.position = fakePosition(8.24, -73.35);
-      // El fake resuelve de forma síncrona-async; se simula la desconexión
-      // justo después de pedir la posición.
-      final future = vm.publicarUbicacionSiCambio();
-      vm.isConnected = false;
-      await future;
+    test(
+      'desconectarse a mitad de la lectura del GPS aborta la escritura',
+      () async {
+        vm.isConnected = true;
+        tracking.position = fakePosition(8.24, -73.35);
+        // El fake resuelve de forma síncrona-async; se simula la desconexión
+        // justo después de pedir la posición.
+        final future = vm.publicarUbicacionSiCambio();
+        vm.isConnected = false;
+        await future;
 
-      expect(await leerDoc(), isNull);
-    });
+        expect(await leerDoc(), isNull);
+      },
+    );
   });
 
   group('Preview y ruta (estado puro)', () {
@@ -483,205 +486,213 @@ void main() {
     });
 
     test('calculateBearing: hacia el este da ~90°, hacia el norte da ~0°', () {
-      final east = vm.calculateBearing(
-        const LatLng(0, 0),
-        const LatLng(0, 1),
-      );
-      final north = vm.calculateBearing(
-        const LatLng(0, 0),
-        const LatLng(1, 0),
-      );
+      final east = vm.calculateBearing(const LatLng(0, 0), const LatLng(0, 1));
+      final north = vm.calculateBearing(const LatLng(0, 0), const LatLng(1, 0));
       expect(east, closeTo(90, 1));
       expect(north, closeTo(0, 1));
     });
   });
 
-  group('Lista de solicitudes (vía ensureSolicitudesSubscription, sin init())', () {
-    late FakeFirebaseFirestore firestore;
-    late InicioConductorViewmodel vm;
+  group(
+    'Lista de solicitudes (vía ensureSolicitudesSubscription, sin init())',
+    () {
+      late FakeFirebaseFirestore firestore;
+      late InicioConductorViewmodel vm;
 
-    setUp(() {
-      firestore = FakeFirebaseFirestore();
-      vm = _buildVm(firestore);
-    });
-
-    tearDown(() => vm.dispose());
-
-    Future<void> seedSolicitud(
-      String id, {
-      required double lat,
-      required double lng,
-      String estado = 'buscando',
-      String? tipoVehiculo,
-    }) {
-      return firestore.collection('solicitudes').doc(id).set({
-        'estado': estado,
-        'cliente': {
-          'id': 'cliente-$id',
-          'nombre': 'Cliente $id',
-          'ubicacion': {'lat': lat, 'lng': lng},
-        },
-        if (tipoVehiculo != null) 'tipoVehiculo': tipoVehiculo,
+      setUp(() {
+        firestore = FakeFirebaseFirestore();
+        vm = _buildVm(firestore);
       });
-    }
 
-    test('no suscribe si isConnected es false', () async {
-      await seedSolicitud('sol-1', lat: 10.0001, lng: 10.0001);
-      vm.isConnected = false;
+      tearDown(() => vm.dispose());
 
-      vm.ensureSolicitudesSubscription();
-      await Future<void>.delayed(const Duration(milliseconds: 50));
+      Future<void> seedSolicitud(
+        String id, {
+        required double lat,
+        required double lng,
+        String estado = 'buscando',
+        String? tipoVehiculo,
+      }) {
+        return firestore.collection('solicitudes').doc(id).set({
+          'estado': estado,
+          'cliente': {
+            'id': 'cliente-$id',
+            'nombre': 'Cliente $id',
+            'ubicacion': {'lat': lat, 'lng': lng},
+          },
+          if (tipoVehiculo != null) 'tipoVehiculo': tipoVehiculo,
+        });
+      }
 
-      expect(vm.solicitudes, isEmpty);
-    });
+      test('no suscribe si isConnected es false', () async {
+        await seedSolicitud('sol-1', lat: 10.0001, lng: 10.0001);
+        vm.isConnected = false;
 
-    test('excluye solicitudes a más de 3km', () async {
-      vm.currentLocation = const LatLng(10.0, 10.0);
-      // ~1.1km al norte
-      await seedSolicitud('cerca', lat: 10.01, lng: 10.0);
-      // ~11km al norte, fuera de rango
-      await seedSolicitud('lejos', lat: 10.1, lng: 10.0);
+        vm.ensureSolicitudesSubscription();
+        await Future<void>.delayed(const Duration(milliseconds: 50));
 
-      vm.isConnected = true;
-      vm.ensureSolicitudesSubscription();
-      await _pumpUntil(() => vm.solicitudes.isNotEmpty);
-      // Deja asentar el snapshot completo (ambos docs en un solo evento).
-      await Future<void>.delayed(const Duration(milliseconds: 50));
+        expect(vm.solicitudes, isEmpty);
+      });
 
-      expect(vm.solicitudes.map((s) => s.id), ['cerca']);
-    });
+      test('excluye solicitudes a más de 3km', () async {
+        vm.currentLocation = const LatLng(10.0, 10.0);
+        // ~1.1km al norte
+        await seedSolicitud('cerca', lat: 10.01, lng: 10.0);
+        // ~11km al norte, fuera de rango
+        await seedSolicitud('lejos', lat: 10.1, lng: 10.0);
 
-    test('excluye solicitudes de otro tipo de vehículo', () async {
-      vm.currentLocation = const LatLng(10.0, 10.0);
-      vm.tipoVehiculoConductor = 'carro';
-      await seedSolicitud('moto', lat: 10.001, lng: 10.0, tipoVehiculo: 'moto');
-      await seedSolicitud(
-        'carro',
-        lat: 10.001,
-        lng: 10.0,
-        tipoVehiculo: 'carro',
-      );
+        vm.isConnected = true;
+        vm.ensureSolicitudesSubscription();
+        await _pumpUntil(() => vm.solicitudes.isNotEmpty);
+        // Deja asentar el snapshot completo (ambos docs en un solo evento).
+        await Future<void>.delayed(const Duration(milliseconds: 50));
 
-      vm.isConnected = true;
-      vm.ensureSolicitudesSubscription();
-      await _pumpUntil(() => vm.solicitudes.isNotEmpty);
-      await Future<void>.delayed(const Duration(milliseconds: 50));
+        expect(vm.solicitudes.map((s) => s.id), ['cerca']);
+      });
 
-      expect(vm.solicitudes.map((s) => s.id), ['carro']);
-    });
+      test('excluye solicitudes de otro tipo de vehículo', () async {
+        vm.currentLocation = const LatLng(10.0, 10.0);
+        vm.tipoVehiculoConductor = 'carro';
+        await seedSolicitud(
+          'moto',
+          lat: 10.001,
+          lng: 10.0,
+          tipoVehiculo: 'moto',
+        );
+        await seedSolicitud(
+          'carro',
+          lat: 10.001,
+          lng: 10.0,
+          tipoVehiculo: 'carro',
+        );
 
-    test('ordena por distancia ascendente', () async {
-      vm.currentLocation = const LatLng(10.0, 10.0);
-      await seedSolicitud('lejana', lat: 10.02, lng: 10.0);
-      await seedSolicitud('cercana', lat: 10.005, lng: 10.0);
+        vm.isConnected = true;
+        vm.ensureSolicitudesSubscription();
+        await _pumpUntil(() => vm.solicitudes.isNotEmpty);
+        await Future<void>.delayed(const Duration(milliseconds: 50));
 
-      vm.isConnected = true;
-      vm.ensureSolicitudesSubscription();
-      await _pumpUntil(() => vm.solicitudes.length == 2);
-      await Future<void>.delayed(const Duration(milliseconds: 50));
+        expect(vm.solicitudes.map((s) => s.id), ['carro']);
+      });
 
-      expect(vm.solicitudes.map((s) => s.id).toList(), [
-        'cercana',
-        'lejana',
-      ]);
-    });
-  });
+      test('ordena por distancia ascendente', () async {
+        vm.currentLocation = const LatLng(10.0, 10.0);
+        await seedSolicitud('lejana', lat: 10.02, lng: 10.0);
+        await seedSolicitud('cercana', lat: 10.005, lng: 10.0);
+
+        vm.isConnected = true;
+        vm.ensureSolicitudesSubscription();
+        await _pumpUntil(() => vm.solicitudes.length == 2);
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+
+        expect(vm.solicitudes.map((s) => s.id).toList(), ['cercana', 'lejana']);
+      });
+    },
+  );
 
   group('init() — perfil (valida el fix de duplicación)', () {
-    test('hidrata displayName/plate/foto/rating y se actualiza en vivo', () async {
-      final firestore = FakeFirebaseFirestore();
-      await firestore.collection('usuarios').doc(_uid).set({
-        'nombre': 'Carlos Pérez',
-        'placa': 'ABC123',
-        'foto': 'http://foto1',
-        'calificacionPromedio': 4.5,
-        'totalCalificaciones': 10,
-      });
-      final vm = _buildVm(firestore);
+    test(
+      'hidrata displayName/plate/foto/rating y se actualiza en vivo',
+      () async {
+        final firestore = FakeFirebaseFirestore();
+        await firestore.collection('usuarios').doc(_uid).set({
+          'nombre': 'Carlos Pérez',
+          'placa': 'ABC123',
+          'foto': 'http://foto1',
+          'calificacionPromedio': 4.5,
+          'totalCalificaciones': 10,
+        });
+        final vm = _buildVm(firestore);
 
-      await vm.init();
-      await _pumpUntil(() => vm.displayName == 'Carlos Pérez');
+        await vm.init();
+        await _pumpUntil(() => vm.displayName == 'Carlos Pérez');
 
-      expect(vm.plate, 'ABC123');
-      expect(vm.photoUrl, 'http://foto1');
-      expect(vm.rating, 4.5);
-      expect(vm.totalRatings, 10);
+        expect(vm.plate, 'ABC123');
+        expect(vm.photoUrl, 'http://foto1');
+        expect(vm.rating, 4.5);
+        expect(vm.totalRatings, 10);
 
-      // Actualización en vivo: pasa por _subscribeConductorStatus, el OTRO
-      // call site que ahora comparte _hydrateProfileFromConductorDoc con
-      // _loadProfile — si hubiera vuelto a divergir, este assert lo agarra.
-      await firestore.collection('usuarios').doc(_uid).update({
-        'nombre': 'Carlos Actualizado',
-        'placa': 'XYZ999',
-      });
-      await _pumpUntil(() => vm.displayName == 'Carlos Actualizado');
-      expect(vm.plate, 'XYZ999');
+        // Actualización en vivo: pasa por _subscribeConductorStatus, el OTRO
+        // call site que ahora comparte _hydrateProfileFromConductorDoc con
+        // _loadProfile — si hubiera vuelto a divergir, este assert lo agarra.
+        await firestore.collection('usuarios').doc(_uid).update({
+          'nombre': 'Carlos Actualizado',
+          'placa': 'XYZ999',
+        });
+        await _pumpUntil(() => vm.displayName == 'Carlos Actualizado');
+        expect(vm.plate, 'XYZ999');
 
-      vm.dispose();
-    });
+        vm.dispose();
+      },
+    );
   });
 
   group('init() — conexión online/offline', () {
-    test('disponible=true activa isConnected y arranca la lista de solicitudes', () async {
-      final firestore = FakeFirebaseFirestore();
-      await firestore.collection('usuarios').doc(_uid).set({
-        'disponible': false,
-      });
-      final vm = _buildVm(firestore);
-      vm.currentLocation = const LatLng(10.0, 10.0);
+    test(
+      'disponible=true activa isConnected y arranca la lista de solicitudes',
+      () async {
+        final firestore = FakeFirebaseFirestore();
+        await firestore.collection('usuarios').doc(_uid).set({
+          'disponible': false,
+        });
+        final vm = _buildVm(firestore);
+        vm.currentLocation = const LatLng(10.0, 10.0);
 
-      await vm.init();
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-      expect(vm.isConnected, false);
+        await vm.init();
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        expect(vm.isConnected, false);
 
-      await firestore.collection('solicitudes').doc('sol-1').set({
-        'estado': 'buscando',
-        'cliente': {
-          'id': 'cliente-1',
-          'nombre': 'Cliente',
-          'ubicacion': {'lat': 10.001, 'lng': 10.0},
-        },
-      });
-      await firestore.collection('usuarios').doc(_uid).update({
-        'disponible': true,
-      });
+        await firestore.collection('solicitudes').doc('sol-1').set({
+          'estado': 'buscando',
+          'cliente': {
+            'id': 'cliente-1',
+            'nombre': 'Cliente',
+            'ubicacion': {'lat': 10.001, 'lng': 10.0},
+          },
+        });
+        await firestore.collection('usuarios').doc(_uid).update({
+          'disponible': true,
+        });
 
-      await _pumpUntil(() => vm.isConnected);
-      await _pumpUntil(() => vm.solicitudes.isNotEmpty);
-      expect(vm.solicitudes.single.id, 'sol-1');
+        await _pumpUntil(() => vm.isConnected);
+        await _pumpUntil(() => vm.solicitudes.isNotEmpty);
+        expect(vm.solicitudes.single.id, 'sol-1');
 
-      vm.dispose();
-    });
+        vm.dispose();
+      },
+    );
 
-    test('desconectar limpia solicitudes/preview y detiene el listener', () async {
-      final firestore = FakeFirebaseFirestore();
-      await firestore.collection('usuarios').doc(_uid).set({
-        'disponible': true,
-      });
-      await firestore.collection('solicitudes').doc('sol-1').set({
-        'estado': 'buscando',
-        'cliente': {
-          'id': 'cliente-1',
-          'nombre': 'Cliente',
-          'ubicacion': {'lat': 10.001, 'lng': 10.0},
-        },
-      });
-      final vm = _buildVm(firestore);
-      vm.currentLocation = const LatLng(10.0, 10.0);
+    test(
+      'desconectar limpia solicitudes/preview y detiene el listener',
+      () async {
+        final firestore = FakeFirebaseFirestore();
+        await firestore.collection('usuarios').doc(_uid).set({
+          'disponible': true,
+        });
+        await firestore.collection('solicitudes').doc('sol-1').set({
+          'estado': 'buscando',
+          'cliente': {
+            'id': 'cliente-1',
+            'nombre': 'Cliente',
+            'ubicacion': {'lat': 10.001, 'lng': 10.0},
+          },
+        });
+        final vm = _buildVm(firestore);
+        vm.currentLocation = const LatLng(10.0, 10.0);
 
-      await vm.init();
-      await _pumpUntil(() => vm.solicitudes.isNotEmpty);
+        await vm.init();
+        await _pumpUntil(() => vm.solicitudes.isNotEmpty);
 
-      await firestore.collection('usuarios').doc(_uid).update({
-        'disponible': false,
-      });
-      await _pumpUntil(() => !vm.isConnected);
+        await firestore.collection('usuarios').doc(_uid).update({
+          'disponible': false,
+        });
+        await _pumpUntil(() => !vm.isConnected);
 
-      expect(vm.solicitudes, isEmpty);
-      expect(vm.selectedPreview, isNull);
+        expect(vm.solicitudes, isEmpty);
+        expect(vm.selectedPreview, isNull);
 
-      vm.dispose();
-    });
+        vm.dispose();
+      },
+    );
   });
 
   group('init() — ratings agregados de solicitudes completadas', () {
@@ -719,34 +730,37 @@ void main() {
   });
 
   group('init() — asignado a mí', () {
-    test('dispara onAsignadoAMi una sola vez cuando una solicitud pasa a asignado', () async {
-      final firestore = FakeFirebaseFirestore();
-      await firestore.collection('usuarios').doc(_uid).set({});
-      final vm = _buildVm(firestore);
+    test(
+      'dispara onAsignadoAMi una sola vez cuando una solicitud pasa a asignado',
+      () async {
+        final firestore = FakeFirebaseFirestore();
+        await firestore.collection('usuarios').doc(_uid).set({});
+        final vm = _buildVm(firestore);
 
-      final asignadas = <String>[];
-      vm.onAsignadoAMi = asignadas.add;
+        final asignadas = <String>[];
+        vm.onAsignadoAMi = asignadas.add;
 
-      await vm.init();
+        await vm.init();
 
-      await firestore.collection('solicitudes').doc('sol-1').set({
-        'estado': 'asignado',
-        'conductor': {'id': _uid},
-      });
+        await firestore.collection('solicitudes').doc('sol-1').set({
+          'estado': 'asignado',
+          'conductor': {'id': _uid},
+        });
 
-      await _pumpUntil(() => asignadas.isNotEmpty);
-      expect(asignadas, ['sol-1']);
+        await _pumpUntil(() => asignadas.isNotEmpty);
+        expect(asignadas, ['sol-1']);
 
-      // Un segundo evento sobre la misma solicitud (p. ej. otro campo
-      // actualizado) no debe volver a dispararlo.
-      await firestore.collection('solicitudes').doc('sol-1').update({
-        'updatedAt': Timestamp.now(),
-      });
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-      expect(asignadas, ['sol-1']);
+        // Un segundo evento sobre la misma solicitud (p. ej. otro campo
+        // actualizado) no debe volver a dispararlo.
+        await firestore.collection('solicitudes').doc('sol-1').update({
+          'updatedAt': Timestamp.now(),
+        });
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        expect(asignadas, ['sol-1']);
 
-      vm.dispose();
-    });
+        vm.dispose();
+      },
+    );
   });
 
   // Regresión: `listenPreviewSolicitudStatus` llamaba a `onAsignado()` con

@@ -25,6 +25,7 @@ import 'package:taxi_app/screens/usuario_conductor/presentacion/view/activacion_
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/home_cliente_view.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
 import 'package:taxi_app/features/phone_auth/services/user_data_service.dart';
+import 'package:taxi_app/widgets/ajustes_ui.dart';
 
 class InicioConductor extends StatefulWidget {
   const InicioConductor({Key? key, this.mostrarBienvenida = false})
@@ -972,10 +973,8 @@ class _InicioConductorState extends State<InicioConductor>
                                                                         destino !=
                                                                             null
                                                                         ? LatLng(
-                                                                            destino
-                                                                                .latitude,
-                                                                            destino
-                                                                                .longitude,
+                                                                            destino.latitude,
+                                                                            destino.longitude,
                                                                           )
                                                                         : null,
                                                                   );
@@ -1185,8 +1184,6 @@ class _InicioConductorState extends State<InicioConductor>
                                             }
                                             _isAcceptingRequest.value = true;
                                             final id = preview.solicitud.id;
-                                            final messenger =
-                                                ScaffoldMessenger.of(context);
                                             try {
                                               final bgOk =
                                                   await _ensureBackgroundLocationForTrip();
@@ -1194,14 +1191,12 @@ class _InicioConductorState extends State<InicioConductor>
                                                 if (mounted) {
                                                   _isAcceptingRequest.value =
                                                       false;
-                                                  messenger.showSnackBar(
-                                                    const SnackBar(
-                                                      content: Text(
-                                                        'Activa la ubicación en segundo plano para aceptar viajes.',
-                                                      ),
-                                                      backgroundColor:
-                                                          Colors.orange,
-                                                    ),
+                                                  mostrarAvisoAdvertencia(
+                                                    this.context,
+                                                    titulo:
+                                                        'Ubicación en segundo plano',
+                                                    mensaje:
+                                                        'Actívala para poder aceptar viajes.',
                                                   );
                                                 }
                                                 return;
@@ -1215,16 +1210,36 @@ class _InicioConductorState extends State<InicioConductor>
                                                 vm,
                                                 id,
                                               );
+                                            } on MembresiaInactivaException {
+                                              if (mounted) {
+                                                _isAcceptingRequest.value =
+                                                    false;
+                                                mostrarAvisoAdvertencia(
+                                                  this.context,
+                                                  titulo: 'Activa tu membresía',
+                                                  mensaje:
+                                                      'La necesitas para aceptar viajes.',
+                                                  accion: 'Activar',
+                                                  onAccion: () =>
+                                                      Navigator.of(
+                                                        this.context,
+                                                      ).push(
+                                                        MaterialPageRoute(
+                                                          builder: (_) =>
+                                                              const ActivacionServicioView(),
+                                                        ),
+                                                      ),
+                                                );
+                                              }
                                             } on StateError catch (e) {
                                               if (mounted) {
                                                 _isAcceptingRequest.value =
                                                     false;
-                                                messenger.showSnackBar(
-                                                  SnackBar(
-                                                    content: Text(e.message),
-                                                    backgroundColor:
-                                                        Colors.orange,
-                                                  ),
+                                                mostrarAvisoAdvertencia(
+                                                  this.context,
+                                                  titulo:
+                                                      'Solicitud no disponible',
+                                                  mensaje: e.message,
                                                 );
                                               }
                                             } on FirebaseException catch (e) {
@@ -1240,32 +1255,35 @@ class _InicioConductorState extends State<InicioConductor>
                                               if (mounted) {
                                                 _isAcceptingRequest.value =
                                                     false;
-                                                messenger.showSnackBar(
-                                                  SnackBar(
-                                                    content: Text(
+                                                mostrarAvisoAdvertencia(
+                                                  this.context,
+                                                  titulo:
                                                       e.code ==
-                                                              'permission-denied'
-                                                          ? 'Esta solicitud ya no está disponible.'
-                                                          : 'Error al aceptar servicio: ${e.message ?? e.code}',
-                                                    ),
-                                                    backgroundColor:
-                                                        e.code ==
-                                                            'permission-denied'
-                                                        ? Colors.orange
-                                                        : null,
-                                                  ),
+                                                          'permission-denied'
+                                                      ? 'Solicitud no disponible'
+                                                      : 'No se pudo aceptar',
+                                                  mensaje:
+                                                      e.code ==
+                                                          'permission-denied'
+                                                      ? 'Otro conductor la tomó o el pasajero la canceló.'
+                                                      : (e.message ?? e.code),
                                                 );
                                               }
-                                            } catch (e) {
+                                            } catch (e, st) {
+                                              ErrorReporter.report(
+                                                e,
+                                                st,
+                                                reason:
+                                                    'InicioConductorView: aceptar solicitud',
+                                              );
                                               if (mounted) {
                                                 _isAcceptingRequest.value =
                                                     false;
-                                                messenger.showSnackBar(
-                                                  SnackBar(
-                                                    content: Text(
-                                                      'Error al aceptar servicio: $e',
-                                                    ),
-                                                  ),
+                                                mostrarAvisoAdvertencia(
+                                                  this.context,
+                                                  titulo: 'No se pudo aceptar',
+                                                  mensaje:
+                                                      'Revisa tu conexión e inténtalo de nuevo.',
                                                 );
                                               }
                                             }
