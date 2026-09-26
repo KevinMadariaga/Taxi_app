@@ -98,7 +98,7 @@
 			<string>UIInterfaceOrientationLandscapeRight</string>
 		</array>
 		<key>UIViewControllerBasedStatusBarAppearance</key>
-		<false/>
+		<true/>
 		<key>LSApplicationQueriesSchemes</key>
 		<array>
 			<string>tel</string>
