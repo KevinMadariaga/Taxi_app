@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:taxi_app/core/constants/app_constants.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/features/phone_auth/services/user_data_service.dart';
 import 'package:taxi_app/core/helpers/responsive_helper.dart';
@@ -12,7 +13,7 @@ import 'package:taxi_app/core/utils/error_reporter.dart';
 // ============================================================================
 // Datos de pago del gremio.
 // Número internacional sin '+' ni espacios (Colombia = 57 + celular).
-const String kWhatsappNumero = '573152987320';
+const String kWhatsappNumero = AppConstants.whatsappContacto;
 const String kNequiNumero = '3152987320';
 const String kBancolombiaNumero = '912-614617-52';
 const int kValorActivacion = 1000;

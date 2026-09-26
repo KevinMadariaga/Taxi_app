@@ -1,4 +1,8 @@
 class AppConstants {
+  /// WhatsApp de Ride (publicidad para negocios y activación de conductores),
+  /// en formato internacional sin "+" para `https://wa.me/<numero>`.
+  static const String whatsappContacto = '573151770319';
+
   static const String appTitle = 'Ride';
   static const String splashMessage =
       'Tu servicio de transporte de manera facil y segura';

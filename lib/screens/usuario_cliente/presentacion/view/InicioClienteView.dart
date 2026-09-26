@@ -5,6 +5,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart' show LatLng;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:taxi_app/core/constants/app_constants.dart';
 import 'package:taxi_app/caracteristicas/seleccion_destino/dominio/casos_uso/buscar_destinos_usecase.dart';
 import 'package:taxi_app/caracteristicas/seleccion_destino/presentacion/vistas/seleccionar_ubicacion_mapa_view.dart';
 import 'package:taxi_app/caracteristicas/seleccion_destino/presentacion/vistas/widgets/etiqueta_favorito_dialog.dart';
@@ -22,10 +23,24 @@ import 'package:taxi_app/core/theme/map_style.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/ubicacion_resultado.dart';
 import 'package:taxi_app/screens/perfil/perfil.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
-import 'package:taxi_app/widgets/ajustes_ui.dart';
 import 'package:taxi_app/widgets/confirmar_dialog.dart';
 import 'package:taxi_app/features/resumen_viaje/services/resumen_viaje_firestore_service.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/ResumenClienteView.dart';
+
+/// Mensaje con el que el negocio abre el chat de WhatsApp desde el modal de
+/// publicidad: ya trae lo que necesitamos para responder con una propuesta,
+/// así no hay que preguntarlo de vuelta.
+const String mensajePromoWhatsApp =
+    'Hola, equipo Ride 👋\n'
+    'Me interesa promocionar mi negocio en la app Ride.\n\n'
+    'Me gustaría conocer:\n'
+    '• Planes y precios de publicidad\n'
+    '• Dónde y cómo se muestra el anuncio en la app\n'
+    '• Duración y alcance estimado\n\n'
+    'Datos de mi negocio:\n'
+    '• Nombre: \n'
+    '• Tipo de negocio: \n'
+    '• Barrio o dirección: ';
 
 class InicioClienteView extends StatefulWidget {
   const InicioClienteView({super.key, this.authUid});
@@ -789,98 +804,24 @@ class _InicioClienteViewState extends State<InicioClienteView>
   Future<void> _mostrarPromoWhatsApp() async {
     await showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24.r)),
       ),
-      builder: (ctx) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 14, 24, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 40.w,
-                  height: 4.h,
-                  decoration: BoxDecoration(
-                    color: context.palette.grey300,
-                    borderRadius: BorderRadius.circular(2.r),
-                  ),
-                ),
-                SizedBox(height: 20.h),
-                Container(
-                  width: 64.w,
-                  height: 64.h,
-                  decoration: BoxDecoration(
-                    color: AppColores.primary.withValues(alpha: 0.18),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.campaign_rounded,
-                    color: acentoMarca(context),
-                    size: 34,
-                  ),
-                ),
-                SizedBox(height: 16.h),
-                Text(
-                  '¿Quieres promocionar tu negocio?',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 18.sp,
-                    fontWeight: FontWeight.w800,
-                    color: context.palette.textPrimary,
-                  ),
-                ),
-                SizedBox(height: 8.h),
-                Text(
-                  'Escríbenos por WhatsApp y te ayudamos a llegar a más clientes.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 14.sp,
-                    color: context.palette.textSecondary,
-                  ),
-                ),
-                SizedBox(height: 22.h),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.of(ctx).pop();
-                      _abrirWhatsAppPromo();
-                    },
-                    icon: const Icon(Icons.chat_rounded, size: 20),
-                    label: Text(
-                      'Contactar por WhatsApp',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15.sp,
-                      ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF25D366),
-                      foregroundColor: colorContenidoSobre(
-                        const Color(0xFF25D366),
-                      ),
-                      minimumSize: const Size.fromHeight(52),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16.r),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+      builder: (ctx) => _PromoNegocioSheet(
+        onContactar: () {
+          Navigator.of(ctx).pop();
+          _abrirWhatsAppPromo();
+        },
+      ),
     );
   }
 
   Future<void> _abrirWhatsAppPromo() async {
-    final mensaje = Uri.encodeComponent(
-      'Quiero contratar para promocionar mi negocio',
+    final mensaje = Uri.encodeComponent(mensajePromoWhatsApp);
+    final uri = Uri.parse(
+      'https://wa.me/${AppConstants.whatsappContacto}?text=$mensaje',
     );
-    final uri = Uri.parse('https://wa.me/573152987320?text=$mensaje');
     try {
       final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (!ok && mounted) {
@@ -1211,7 +1152,7 @@ class _HomeClienteMap extends StatelessWidget {
                     Icon(
                       Icons.location_on,
                       size: 12,
-                      color: acentoMarca(context),
+                      color: AppColores.brand500,
                     ),
                     SizedBox(width: 4.w),
                     Text(
@@ -1455,7 +1396,7 @@ class _SearchBox extends StatelessWidget {
                 child: Icon(
                   Icons.search_rounded,
                   size: 24,
-                  color: acentoMarca(context),
+                  color: AppColores.brand500,
                 ),
               ),
               SizedBox(width: 12.w),
@@ -1608,7 +1549,7 @@ class _FavoritoItem extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(icon, size: 15, color: acentoMarca(context)),
+                Icon(icon, size: 15, color: AppColores.brand500),
                 SizedBox(width: 6.w),
                 Text(
                   label,
@@ -1680,7 +1621,7 @@ class _SugerenciaItem extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 15, color: acentoMarca(context)),
+              Icon(icon, size: 15, color: AppColores.brand500),
               SizedBox(width: 6.w),
               Text(
                 label,
@@ -1844,8 +1785,11 @@ class _BottomNavBar extends StatelessWidget {
         backgroundColor: context.palette.surface,
         elevation: 0,
         type: BottomNavigationBarType.fixed,
-        // Ámbar puro sobre la superficie clara queda en 1.8:1.
-        selectedItemColor: acentoMarca(context),
+        // Ícono seleccionado en el naranja de marca (brand500: 3.2:1 en claro,
+        // 5.2:1 en oscuro; el ámbar puro sobre blanco queda en 1.8:1). La
+        // etiqueta va en el color de texto del tema para que se lea.
+        selectedItemColor: context.palette.textPrimary,
+        selectedIconTheme: const IconThemeData(color: AppColores.brand500),
         unselectedItemColor: context.palette.textSecondary,
         currentIndex: selectedIndex,
         onTap: onTap,
@@ -1866,6 +1810,275 @@ class _BottomNavBar extends StatelessWidget {
           BottomNavigationBarItem(
             icon: Icon(Icons.person_outline),
             label: 'Perfil',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Modal de "Promociona tu negocio": qué gana el negocio, cómo funciona y el
+/// botón a WhatsApp. Desplazable para que quepa en teléfonos chicos.
+class _PromoNegocioSheet extends StatelessWidget {
+  const _PromoNegocioSheet({required this.onContactar});
+
+  final VoidCallback onContactar;
+
+  static const _whatsappVerde = Color(0xFF25D366);
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return SafeArea(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * 0.9,
+        ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(24, 14, 24, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 40.w,
+                  height: 4.h,
+                  decoration: BoxDecoration(
+                    color: palette.grey300,
+                    borderRadius: BorderRadius.circular(2.r),
+                  ),
+                ),
+              ),
+              SizedBox(height: 20.h),
+              Center(
+                child: Container(
+                  width: 64.w,
+                  height: 64.h,
+                  decoration: BoxDecoration(
+                    color: AppColores.primary.withValues(alpha: 0.18),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.campaign_rounded,
+                    color: AppColores.brand500,
+                    size: 34,
+                  ),
+                ),
+              ),
+              SizedBox(height: 16.h),
+              Text(
+                'Promociona tu negocio en Ride',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 19.sp,
+                  fontWeight: FontWeight.w800,
+                  color: palette.textPrimary,
+                ),
+              ),
+              SizedBox(height: 8.h),
+              Text(
+                'Muestra tu negocio a los pasajeros de Ocaña cada vez que '
+                'abren la app para pedir un viaje.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 14.sp,
+                  height: 1.35,
+                  color: palette.textSecondary,
+                ),
+              ),
+              SizedBox(height: 20.h),
+              const _PromoBeneficio(
+                icono: Icons.home_rounded,
+                titulo: 'Visible en el inicio',
+                detalle:
+                    'Tu anuncio aparece en la pantalla principal de los '
+                    'pasajeros, justo donde eligen su destino.',
+              ),
+              const _PromoBeneficio(
+                icono: Icons.place_rounded,
+                titulo: 'Público de tu ciudad',
+                detalle:
+                    'Llega a personas que se mueven por Ocaña todos los días.',
+              ),
+              const _PromoBeneficio(
+                icono: Icons.support_agent_rounded,
+                titulo: 'Te acompañamos',
+                detalle:
+                    'Te contamos los planes disponibles y te ayudamos a '
+                    'armar tu anuncio.',
+              ),
+              SizedBox(height: 12.h),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: palette.grey100,
+                  borderRadius: BorderRadius.circular(14.r),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '¿Cómo funciona?',
+                      style: TextStyle(
+                        fontSize: 14.sp,
+                        fontWeight: FontWeight.w800,
+                        color: palette.textPrimary,
+                      ),
+                    ),
+                    SizedBox(height: 10.h),
+                    const _PromoPaso(
+                      numero: 1,
+                      texto:
+                          'Escríbenos por WhatsApp con los datos de tu '
+                          'negocio.',
+                    ),
+                    const _PromoPaso(
+                      numero: 2,
+                      texto: 'Te enviamos los planes, precios y duración.',
+                    ),
+                    const _PromoPaso(
+                      numero: 3,
+                      texto: 'Publicamos tu anuncio en la app.',
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(height: 20.h),
+              ElevatedButton.icon(
+                onPressed: onContactar,
+                icon: const Icon(Icons.chat_rounded, size: 20),
+                label: Text(
+                  'Contactar por WhatsApp',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15.sp,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _whatsappVerde,
+                  foregroundColor: colorContenidoSobre(_whatsappVerde),
+                  minimumSize: const Size.fromHeight(52),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16.r),
+                  ),
+                ),
+              ),
+              SizedBox(height: 10.h),
+              Text(
+                'Atención por WhatsApp al 315 177 0319',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12.sp, color: palette.textSecondary),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PromoBeneficio extends StatelessWidget {
+  const _PromoBeneficio({
+    required this.icono,
+    required this.titulo,
+    required this.detalle,
+  });
+
+  final IconData icono;
+  final String titulo;
+  final String detalle;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Padding(
+      padding: EdgeInsets.only(bottom: 12.h),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 36.w,
+            height: 36.w,
+            decoration: BoxDecoration(
+              color: AppColores.primary.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(10.r),
+            ),
+            child: Icon(icono, size: 20, color: AppColores.brand500),
+          ),
+          SizedBox(width: 12.w),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  titulo,
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w700,
+                    color: palette.textPrimary,
+                  ),
+                ),
+                SizedBox(height: 2.h),
+                Text(
+                  detalle,
+                  style: TextStyle(
+                    fontSize: 13.sp,
+                    height: 1.3,
+                    color: palette.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PromoPaso extends StatelessWidget {
+  const _PromoPaso({required this.numero, required this.texto});
+
+  final int numero;
+  final String texto;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Padding(
+      padding: EdgeInsets.only(bottom: 8.h),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 22,
+            height: 22,
+            alignment: Alignment.center,
+            decoration: const BoxDecoration(
+              color: AppColores.brand500,
+              shape: BoxShape.circle,
+            ),
+            child: Text(
+              '$numero',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                // Oscuro sobre el naranja: 5.75:1 (blanco queda en 3.2:1).
+                color: AppColores.ink900,
+              ),
+            ),
+          ),
+          SizedBox(width: 10.w),
+          Expanded(
+            child: Text(
+              texto,
+              style: TextStyle(
+                fontSize: 13.sp,
+                height: 1.3,
+                color: palette.textPrimary,
+              ),
+            ),
           ),
         ],
       ),
