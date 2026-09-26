@@ -114,7 +114,7 @@ class ConductorVehiculoInfo extends StatelessWidget {
                     ),
                     const SizedBox(width: 3),
                     Text(
-                      calificacion.toStringAsFixed(2),
+                      calificacion.toStringAsFixed(1),
                       style: TextStyle(
                         fontWeight: FontWeight.w700,
                         fontSize: 13,
