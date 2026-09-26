@@ -100,4 +100,20 @@ class ResumenViajeFirebaseService {
     // acá siempre fallaba con permission-denied (hallazgo QA en dispositivo
     // real, 2026-09-05) y el promedio nunca se actualizaba.
   }
+
+  /// Calificación del conductor al pasajero. Solo sobre un viaje completado
+  /// y una sola vez (`firestore.rules`: `soloCalificaAlCliente()`); el
+  /// promedio en `calificaciones_clientes/{clienteId}` lo acumula la Cloud
+  /// Function `onCalificacionRegistrada`.
+  Future<void> guardarCalificacionAlCliente({
+    required String solicitudId,
+    required double calificacion,
+    required String comentario,
+  }) async {
+    await _firestore.collection('solicitudes').doc(solicitudId).update({
+      'calificacionCliente': calificacion,
+      'comentarioCalificacionCliente': comentario.trim(),
+      'fechaCalificacionCliente': FieldValue.serverTimestamp(),
+    });
+  }
 }

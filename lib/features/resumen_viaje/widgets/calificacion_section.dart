@@ -4,7 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
 
-/// Sección de calificación del servicio (lado cliente).
+/// Sección de calificación: la del cliente al servicio y la del conductor
+/// al pasajero (mismo formulario, cambian [titulo] y [subtitulo]).
 /// - Estrellas seleccionables con etiqueta de feedback.
 /// - Si la calificación es < 3, pide un comentario obligatorio.
 /// - Al enfocar el comentario, centra el campo sobre el teclado y ofrece un
@@ -17,6 +18,8 @@ class CalificacionSection extends StatefulWidget {
     required this.requiereComentario,
     required this.comentarioInicial,
     required this.onComentarioChanged,
+    this.titulo = '¿Cómo estuvo tu viaje?',
+    this.subtitulo = 'Tu opinión ayuda a mejorar el servicio.',
   });
 
   final double calificacion;
@@ -24,6 +27,8 @@ class CalificacionSection extends StatefulWidget {
   final bool requiereComentario;
   final String comentarioInicial;
   final ValueChanged<String> onComentarioChanged;
+  final String titulo;
+  final String subtitulo;
 
   @override
   State<CalificacionSection> createState() => _CalificacionSectionState();
@@ -113,7 +118,7 @@ class _CalificacionSectionState extends State<CalificacionSection> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '¿Cómo estuvo tu viaje?',
+                        widget.titulo,
                         style: TextStyle(
                           fontSize: 17,
                           fontWeight: FontWeight.w800,
@@ -122,7 +127,7 @@ class _CalificacionSectionState extends State<CalificacionSection> {
                       ),
                       SizedBox(height: 2),
                       Text(
-                        'Tu opinión ayuda a mejorar el servicio.',
+                        widget.subtitulo,
                         style: TextStyle(
                           color: context.palette.textSecondary,
                           fontSize: 12.5,

@@ -219,6 +219,7 @@ class _DriverTripCardState extends State<DriverTripCard>
                         nombre: vm.clienteNombre,
                         photoUrl: vm.clientePhotoUrl,
                         direccion: vm.clienteDireccion,
+                        clienteId: vm.clienteId,
                       ),
                     ),
                     const SizedBox(width: 8),

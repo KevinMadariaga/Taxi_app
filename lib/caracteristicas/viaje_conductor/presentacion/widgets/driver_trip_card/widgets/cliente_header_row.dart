@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:taxi_app/caracteristicas/calificacion_cliente/presentacion/widgets/calificacion_cliente_badge.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/widgets/visor_foto_pantalla_completa.dart';
@@ -13,11 +14,15 @@ class ClienteHeaderRow extends StatelessWidget {
     required this.nombre,
     required this.photoUrl,
     required this.direccion,
+    this.clienteId,
   });
 
   final String nombre;
   final String? photoUrl;
   final String direccion;
+
+  /// Para mostrar el promedio que otros conductores le dieron al cliente.
+  final String? clienteId;
 
   static String _iniciales(String nombre) {
     final partes = nombre
@@ -61,15 +66,25 @@ class ClienteHeaderRow extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                nombre,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 18,
-                  color: context.palette.ink900,
-                ),
+              Row(
+                children: [
+                  Flexible(
+                    child: Text(
+                      nombre,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 18,
+                        color: context.palette.ink900,
+                      ),
+                    ),
+                  ),
+                  if (clienteId != null) ...[
+                    const SizedBox(width: 8),
+                    CalificacionClienteBadge(clienteId: clienteId!),
+                  ],
+                ],
               ),
               if (direccion.isNotEmpty) ...[
                 const SizedBox(height: 3),

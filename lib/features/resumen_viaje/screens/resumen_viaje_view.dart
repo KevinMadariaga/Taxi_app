@@ -214,6 +214,19 @@ class _ResumenViajeBodyState extends State<_ResumenViajeBody> {
                                   comentarioInicial: vm.comentarioCalificacion,
                                   onComentarioChanged: vm.setComentario,
                                 ),
+                              ] else if (!vm.clienteYaCalificado) ...[
+                                const SizedBox(height: 10),
+                                CalificacionSection(
+                                  titulo: '¿Cómo fue el pasajero?',
+                                  subtitulo:
+                                      'Opcional. Ayuda a otros conductores '
+                                      'a saber con quién viajan.',
+                                  calificacion: vm.calificacionSeleccionada,
+                                  onCalificacionChanged: vm.setCalificacion,
+                                  requiereComentario: vm.requiereComentario,
+                                  comentarioInicial: vm.comentarioCalificacion,
+                                  onComentarioChanged: vm.setComentario,
+                                ),
                               ],
                             ],
                           ),
@@ -288,6 +301,15 @@ class _ResumenViajeBodyState extends State<_ResumenViajeBody> {
         MaterialPageRoute(builder: (_) => const InicioClienteView()),
         (route) => false,
       );
+      return;
+    }
+
+    final errorCalificacion = await vm.guardarCalificacionConductor();
+    if (errorCalificacion != null) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(errorCalificacion)));
       return;
     }
 

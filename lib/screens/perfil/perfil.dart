@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
+import 'package:taxi_app/caracteristicas/calificacion_cliente/presentacion/widgets/calificacion_cliente_badge.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/helpers/responsive_helper.dart';
@@ -461,6 +462,7 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
                           _EncabezadoPerfil(
                             nombre: _nombreVisible,
                             esConductor: esVistaConductor,
+                            uid: _auth.currentUser?.uid,
                             imagenLocal: _cachedImageFile,
                             fotoUrl:
                                 (userData?['foto'] ??
@@ -589,6 +591,7 @@ class _EncabezadoPerfil extends StatelessWidget {
   const _EncabezadoPerfil({
     required this.nombre,
     required this.esConductor,
+    required this.uid,
     required this.imagenLocal,
     required this.fotoUrl,
     required this.avatarSize,
@@ -596,6 +599,10 @@ class _EncabezadoPerfil extends StatelessWidget {
 
   final String nombre;
   final bool esConductor;
+
+  /// Del pasajero: para mostrarle la calificación que le dieron los
+  /// conductores.
+  final String? uid;
   final File? imagenLocal;
   final String fotoUrl;
   final double avatarSize;
@@ -633,6 +640,8 @@ class _EncabezadoPerfil extends StatelessWidget {
                     : Icons.person_rounded,
                 texto: esConductor ? 'Conductor' : 'Pasajero',
               ),
+              if (!esConductor && uid != null)
+                _ChipCalificacion(clienteId: uid!),
             ],
           ),
         ],
@@ -707,6 +716,27 @@ class _Avatar extends StatelessWidget {
             child: SizedBox.square(dimension: size, child: imagen),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Calificación del pasajero con el mismo estilo que [_Chip].
+class _ChipCalificacion extends StatelessWidget {
+  const _ChipCalificacion({required this.clienteId});
+
+  final String clienteId;
+
+  @override
+  Widget build(BuildContext context) {
+    return CalificacionClienteBadge(
+      clienteId: clienteId,
+      textoSinCalificacion: 'Sin calificaciones aún',
+      fontSize: 12.5,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoracion: BoxDecoration(
+        color: AppColores.primary.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(99),
       ),
     );
   }

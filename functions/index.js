@@ -21,6 +21,7 @@ const {
   buildFcmMessage,
   buildRetiroMessage,
 } = require("./notificaciones");
+const { calificacionNueva, acumular } = require("./calificaciones");
 
 /**
  * Destinatarios del aviso "Solicitud entrante" de cada solicitud.
@@ -1482,8 +1483,13 @@ exports.onMembresiaActivada = onDocumentWritten(
 );
 
 /**
- * Cloud Function: acumula el promedio de calificación del conductor en
- * `usuarios/{conductorId}` cuando el cliente califica el viaje.
+ * Cloud Function: acumula los promedios de calificación de un viaje:
+ * - del conductor en `usuarios/{conductorId}` cuando el cliente califica
+ *   (`calificacion`);
+ * - del cliente en `calificaciones_clientes/{clienteId}` cuando el conductor
+ *   lo califica (`calificacionCliente`).
+ * Un mismo disparador para las dos, para no sumar invocaciones por cada
+ * escritura a `solicitudes`.
  *
  * Antes esto lo escribía el propio cliente desde la app (transacción sobre
  * `usuarios/{conductorId}`), pero `firestore.rules` solo permite `update` en
@@ -1505,64 +1511,80 @@ exports.onCalificacionRegistrada = onDocumentUpdated(
     const afterData = event.data.after.data();
     if (!beforeData || !afterData) return null;
 
-    // Solo procesar la primera vez que aparece la calificación en este
-    // documento — sin esto, cualquier otra escritura posterior al doc con
-    // `calificacion` ya presente reprocesaría el mismo puntaje de nuevo.
-    if (beforeData.calificacion != null || afterData.calificacion == null) {
-      return null;
-    }
-
-    const conductorId = extractConductorId(afterData);
-    if (!conductorId) {
-      console.log("onCalificacionRegistrada: sin conductorId, se omite.");
-      return null;
-    }
-
-    const nuevaCalificacion = Number(afterData.calificacion);
-    if (!Number.isFinite(nuevaCalificacion)) {
-      console.log("onCalificacionRegistrada: calificación no numérica, se omite.");
-      return null;
-    }
-
     const db = getFirestore();
-    const ref = db.collection("usuarios").doc(conductorId);
+    const solicitudId = event.params.solicitudId;
 
-    try {
-      await db.runTransaction(async (tx) => {
-        const snap = await tx.get(ref);
-        const d = snap.exists ? snap.data() : {};
-        const total = Number(d.totalCalificaciones ?? d.totalRatings ?? 0);
-        const prom = Number(
-          d.calificacionConductor ??
-            d.calificacionPromedio ??
-            d.calificacion ??
-            d.rating ??
-            0
-        );
-        const nuevoTotal = total + 1;
-        const nuevoProm = (prom * total + nuevaCalificacion) / nuevoTotal;
-        tx.set(
-          ref,
-          {
-            calificacionConductor: nuevoProm,
-            calificacionPromedio: nuevoProm,
-            totalCalificaciones: nuevoTotal,
-          },
-          { merge: true }
-        );
-      });
-      console.log(
-        `✅ Calificación acumulada para conductor ${conductorId} (solicitud ${event.params.solicitudId}).`
+    // Cliente → conductor: promedio en `usuarios/{conductorId}` (los campos
+    // que ya leía la app).
+    const alConductor = calificacionNueva(beforeData, afterData, "calificacion");
+    const conductorId = extractConductorId(afterData);
+    if (alConductor != null && conductorId) {
+      await acumularEn(
+        db,
+        db.collection("usuarios").doc(conductorId),
+        alConductor,
+        (d) => ({
+          promedio: Number(
+            d.calificacionConductor ??
+              d.calificacionPromedio ??
+              d.calificacion ??
+              d.rating ??
+              0
+          ),
+          total: Number(d.totalCalificaciones ?? d.totalRatings ?? 0),
+        }),
+        ({ promedio, total }) => ({
+          calificacionConductor: promedio,
+          calificacionPromedio: promedio,
+          totalCalificaciones: total,
+        }),
+        `conductor ${conductorId} (solicitud ${solicitudId})`
       );
-    } catch (err) {
-      console.error(
-        `❌ Error acumulando calificación del conductor ${conductorId}: ${err.message}`
+    }
+
+    // Conductor → cliente: promedio en `calificaciones_clientes/{clienteId}`
+    // (colección aparte: un conductor no puede leer el `usuarios` de otro,
+    // y así el cliente no puede editar su propio promedio).
+    const alCliente = calificacionNueva(
+      beforeData,
+      afterData,
+      "calificacionCliente"
+    );
+    const clienteId = afterData.cliente && afterData.cliente.id;
+    if (alCliente != null && clienteId) {
+      await acumularEn(
+        db,
+        db.collection("calificaciones_clientes").doc(clienteId),
+        alCliente,
+        (d) => ({ promedio: Number(d.promedio), total: Number(d.total) }),
+        ({ promedio, total }) => ({
+          promedio,
+          total,
+          updatedAt: FieldValue.serverTimestamp(),
+        }),
+        `cliente ${clienteId} (solicitud ${solicitudId})`
       );
     }
 
     return null;
   }
 );
+
+/** Suma [puntaje] al promedio guardado en [ref], en una transacción. */
+async function acumularEn(db, ref, puntaje, leer, escribir, etiqueta) {
+  try {
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      const previo = leer(snap.exists ? snap.data() : {});
+      tx.set(ref, escribir(acumular(previo.promedio, previo.total, puntaje)), {
+        merge: true,
+      });
+    });
+    console.log(`✅ Calificación acumulada para ${etiqueta}.`);
+  } catch (err) {
+    console.error(`❌ Error acumulando calificación de ${etiqueta}: ${err.message}`);
+  }
+}
 
 /**
  * Cloud Function: Notifica por push a TODOS los administradores cuando se

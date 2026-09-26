@@ -119,6 +119,33 @@ service cloud.firestore {
           .hasOnly(['calificacion', 'comentarioCalificacion', 'fechaCalificacion', 'updatedAt']);
       }
 
+      // Calificación que el CONDUCTOR le da al cliente: el espejo de
+      // `soloCambiaCalificacion()`. Solo sobre un viaje 'completado', una
+      // sola vez (no se reescribe una ya puesta: la Cloud Function
+      // `onCalificacionRegistrada` solo acumula la primera) y con puntaje
+      // 1–5. El promedio agregado lo escribe esa función en
+      // `calificaciones_clientes/{uid}`, nunca la app.
+      function camposCalificacionCliente() {
+        return ['calificacionCliente', 'comentarioCalificacionCliente',
+          'fechaCalificacionCliente'];
+      }
+
+      function soloCalificaAlCliente() {
+        let puntaje = request.resource.data.get('calificacionCliente', null);
+        return request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(camposCalificacionCliente().concat(['updatedAt'])) &&
+          resource.data.get('calificacionCliente', null) == null &&
+          puntaje is number && puntaje >= 1 && puntaje <= 5;
+      }
+
+      // Mientras el viaje no terminó, nadie escribe la calificación del
+      // cliente: si no, un conductor podía ponerla en pleno viaje (o una
+      // cuenta conductor cualquiera sobre una solicitud en 'buscando').
+      function noTocaCalificacionCliente() {
+        return !request.resource.data.diff(resource.data).affectedKeys()
+          .hasAny(camposCalificacionCliente());
+      }
+
       // Verdadero solo en el instante en que el documento pasa a tener
       // conductor asignado por primera vez (buscando -> asignado). Cubre los
       // dos caminos que llegan a ese mismo cambio: el conductor aceptando
@@ -177,10 +204,12 @@ service cloud.firestore {
         (
           (esEstadoTerminal(resource.data.estado) &&
             isOwner() && soloCambiaCalificacion()) ||
+          (resource.data.estado == 'completado' &&
+            isAssignedConductor() && soloCalificaAlCliente()) ||
           (!esEstadoTerminal(resource.data.estado) &&
             (isOwner() || isAssignedConductor() ||
               (isConductorRole() && isOpenForConductores())) &&
-            sinReasignar() &&
+            sinReasignar() && noTocaCalificacionCliente() &&
             (!esNuevaAsignacion() ||
               membresiaVigente(request.resource.data.conductor.id)))
         );
@@ -231,6 +260,21 @@ service cloud.firestore {
     // leer una solicitud en `buscando`, así que ahí adentro la lista
     // expondría los uids de hasta 20 conductores conectados.
     // ---------------------------------------------------------------
+    // ---------------------------------------------------------------
+    // calificaciones_clientes/{uid}: promedio de las calificaciones que los
+    // conductores le dieron a un cliente. Colección aparte (y no un campo en
+    // `usuarios/{uid}`) porque un conductor no puede leer el `usuarios` de
+    // otro, y porque así el cliente no puede editar su propio promedio. La
+    // escribe solo la Cloud Function `onCalificacionRegistrada` (Admin SDK).
+    // Lectura: el propio cliente (su perfil), cualquier conductor (la ve al
+    // recibir la solicitud) y los admins.
+    // ---------------------------------------------------------------
+    match /calificaciones_clientes/{uid} {
+      allow read: if isSignedIn() &&
+        (request.auth.uid == uid || isConductorRole() || isAdminRole());
+      allow write: if false;
+    }
+
     match /solicitudes_notificados/{solicitudId} {
       allow read, write: if false;
     }

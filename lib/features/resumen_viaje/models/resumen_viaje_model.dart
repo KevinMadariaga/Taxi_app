@@ -11,6 +11,9 @@ class ResumenViajeModel {
     required this.fechaViaje,
     required this.calificacion,
     required this.comentarioCalificacion,
+    this.clienteId = '',
+    this.calificacionCliente,
+    this.comentarioCalificacionCliente = '',
   });
 
   final String solicitudId;
@@ -22,6 +25,12 @@ class ResumenViajeModel {
   final DateTime? fechaViaje;
   final double? calificacion;
   final String comentarioCalificacion;
+
+  final String clienteId;
+
+  /// La que el conductor le dio al cliente (`solicitudes/{id}.calificacionCliente`).
+  final double? calificacionCliente;
+  final String comentarioCalificacionCliente;
 
   factory ResumenViajeModel.fromFirestore({
     required String solicitudId,
@@ -79,6 +88,12 @@ class ResumenViajeModel {
         .toString()
         .trim();
 
+    final clienteId = _firstString([
+      clienteMap?['id'],
+      clienteMap?['uid'],
+      data['clienteId'],
+    ], fallback: '');
+
     return ResumenViajeModel(
       solicitudId: solicitudId,
       clienteNombre: clienteNombre,
@@ -89,6 +104,10 @@ class ResumenViajeModel {
       fechaViaje: fechaViaje,
       calificacion: calificacion,
       comentarioCalificacion: comentarioCalificacion,
+      clienteId: clienteId,
+      calificacionCliente: _toNullableDouble(data['calificacionCliente']),
+      comentarioCalificacionCliente:
+          (data['comentarioCalificacionCliente'] ?? '').toString().trim(),
     );
   }
 

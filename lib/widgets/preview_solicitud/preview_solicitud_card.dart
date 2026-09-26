@@ -299,6 +299,7 @@ class PreviewSolicitudCard extends StatelessWidget {
                               nombre: preview.clientName ?? 'Cliente',
                               photoUrl: photoUrl,
                               distanciaKm: preview.distanciaKm,
+                              clienteId: preview.solicitud.clienteId,
                               compact: isCompactPanel,
                             ),
                             SizedBox(height: isCompactPanel ? 8.h : 12.h),

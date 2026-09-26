@@ -290,6 +290,7 @@ class ViajeConductorViewModel extends ChangeNotifier {
     return n.isNotEmpty ? n : 'Cliente';
   }
 
+  String? get clienteId => viaje?.cliente.id;
   String get clienteDireccion => viaje?.cliente.direccion ?? '';
   String get clientePhotoUrl => viaje?.cliente.fotoUrl ?? '';
   String get destinoDireccion => viaje?.destino.direccion ?? '';

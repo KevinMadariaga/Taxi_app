@@ -11,6 +11,8 @@ import 'package:provider/provider.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_maps_flutter_android/google_maps_flutter_android.dart';
 import 'package:google_maps_flutter_platform_interface/google_maps_flutter_platform_interface.dart';
+import 'package:taxi_app/caracteristicas/calificacion_cliente/datos/repositorios/calificacion_cliente_repository_impl.dart';
+import 'package:taxi_app/caracteristicas/calificacion_cliente/presentacion/viewmodels/calificaciones_clientes_viewmodel.dart';
 import 'package:taxi_app/core/helpers/firebase_helper.dart';
 import 'package:taxi_app/core/helpers/permisos_helper.dart';
 import 'package:taxi_app/core/constants/app_constants.dart';
@@ -351,6 +353,14 @@ class MyApp extends StatelessWidget {
             ),
 
             ChangeNotifierProvider(create: (_) => AuthViewModel(_authAdapter)),
+            // Promedios de clientes (calificaciones de los conductores):
+            // caché global compartida por las tarjetas del conductor y el
+            // perfil del cliente.
+            ChangeNotifierProvider(
+              create: (_) => CalificacionesClientesViewModel(
+                CalificacionClienteRepositoryImpl(),
+              ),
+            ),
             ChangeNotifierProvider<ThemeController>.value(
               value: _themeController,
             ),

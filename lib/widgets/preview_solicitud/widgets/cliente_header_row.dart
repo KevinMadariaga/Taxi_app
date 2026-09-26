@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
+import 'package:taxi_app/caracteristicas/calificacion_cliente/presentacion/widgets/calificacion_cliente_badge.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
 
@@ -13,12 +14,16 @@ class ClienteHeaderRow extends StatelessWidget {
     required this.nombre,
     required this.photoUrl,
     required this.distanciaKm,
+    this.clienteId,
     this.compact = false,
   });
 
   final String nombre;
   final String? photoUrl;
   final double? distanciaKm;
+
+  /// Para mostrar el promedio que otros conductores le dieron al cliente.
+  final String? clienteId;
   final bool compact;
 
   @override
@@ -74,20 +79,35 @@ class ClienteHeaderRow extends StatelessWidget {
                 ),
               ),
               SizedBox(height: 4.h),
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 3.h),
-                decoration: BoxDecoration(
-                  color: badgeColor,
-                  borderRadius: BorderRadius.circular(12.r),
-                ),
-                child: Text(
-                  cercania,
-                  style: TextStyle(
-                    fontSize: (compact ? 11 : 12).sp,
-                    fontWeight: FontWeight.w600,
-                    color: badgeTextColor,
+              Wrap(
+                spacing: 8.w,
+                runSpacing: 4.h,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 8.w,
+                      vertical: 3.h,
+                    ),
+                    decoration: BoxDecoration(
+                      color: badgeColor,
+                      borderRadius: BorderRadius.circular(12.r),
+                    ),
+                    child: Text(
+                      cercania,
+                      style: TextStyle(
+                        fontSize: (compact ? 11 : 12).sp,
+                        fontWeight: FontWeight.w600,
+                        color: badgeTextColor,
+                      ),
+                    ),
                   ),
-                ),
+                  if (clienteId != null)
+                    CalificacionClienteBadge(
+                      clienteId: clienteId!,
+                      fontSize: (compact ? 11 : 12).sp,
+                    ),
+                ],
               ),
             ],
           ),
