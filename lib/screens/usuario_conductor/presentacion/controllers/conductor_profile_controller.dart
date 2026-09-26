@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 
 import 'package:taxi_app/core/constants/solicitud_estado.dart';
 import 'package:taxi_app/core/helpers/session_helper.dart';
+import 'package:taxi_app/core/utils/calificacion_conductor.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
 
 /// Perfil del conductor (identidad + rating consolidado + historial de
@@ -45,8 +46,8 @@ class ConductorProfileController {
   int totalRatings = 0;
   int totalCompletedTrips = 0;
   double totalServiceValue = 0.0;
-  double _ratingFromConductorDoc = 0.0;
-  int _totalRatingsFromConductorDoc = 0;
+  Map<String, dynamic> _perfilDoc = const {};
+  List<Map<String, dynamic>> _viajesCompletados = const [];
 
   StreamSubscription<String?>? _cachedNameSub;
   StreamSubscription<QuerySnapshot>? _ratingSub;
@@ -102,8 +103,7 @@ class ConductorProfileController {
         // (`_subscribeConductorStatus`), que arranca en paralelo con esta
         // misma función y puede resolver primero.
         if (!_nombreConfirmadoDesdeFirestore) {
-          if (user.displayName != null &&
-              user.displayName!.trim().isNotEmpty) {
+          if (user.displayName != null && user.displayName!.trim().isNotEmpty) {
             displayName = user.displayName!.trim();
           } else if (user.email != null && user.email!.contains('@')) {
             final namePart = user.email!.split('@').first;
@@ -178,25 +178,16 @@ class ConductorProfileController {
       vehiclePhotoUrl = fotoVehiculo.toString().trim();
     }
 
-    final docAverage = _toDoubleOrNull(
-      data['calificacionPromedio'] ?? data['ratingPromedio'] ?? data['rating'],
-    );
-    final docCount = _toIntOrNull(
-      data['totalCalificaciones'] ??
-          data['ratingCount'] ??
-          data['totalRatings'],
-    );
+    // Merge: una lectura parcial no borra el promedio ya cargado.
+    _perfilDoc = {..._perfilDoc, ...data};
+    _recalcularCalificacion();
+  }
 
-    if (docAverage != null) {
-      _ratingFromConductorDoc = docAverage.clamp(0.0, 5.0).toDouble();
-    }
-    if (docCount != null && docCount >= 0) {
-      _totalRatingsFromConductorDoc = docCount;
-    }
-    if (_totalRatingsFromConductorDoc > 0) {
-      totalRatings = _totalRatingsFromConductorDoc;
-      rating = _ratingFromConductorDoc;
-    }
+  /// Misma regla que el perfil (`resolverCalificacionConductor`).
+  void _recalcularCalificacion() {
+    final c = resolverCalificacionConductor(_perfilDoc, _viajesCompletados);
+    rating = c.promedio;
+    totalRatings = c.total;
   }
 
   void subscribeRatings() {
@@ -209,9 +200,7 @@ class ConductorProfileController {
           .where('conductor.id', isEqualTo: uid)
           .snapshots()
           .listen((snap) {
-            double scoreTotal = 0.0;
-            int completedCount = 0;
-            int ratedCount = 0;
+            final completados = <Map<String, dynamic>>[];
             double serviceTotal = 0.0;
 
             for (var doc in snap.docs) {
@@ -222,51 +211,22 @@ class ConductorProfileController {
                 );
                 if (!_isCompletedStatus(estado)) continue;
 
-                completedCount++;
+                completados.add(data);
                 serviceTotal += _extractServiceValue(data);
-
-                final score = _extractRatingScore(data);
-                if (score != null) {
-                  scoreTotal += score;
-                  ratedCount++;
-                }
               } catch (e, st) {
                 ErrorReporter.report(e, st, reason: 'InicioConductorViewModel');
               }
             }
 
-            // Promedio basado en calificaciones efectivamente realizadas por clientes.
-            totalCompletedTrips = completedCount;
+            totalCompletedTrips = completados.length;
             totalServiceValue = serviceTotal;
-            // Si existe rating consolidado en usuarios, priorizarlo en la vista.
-            if (_totalRatingsFromConductorDoc > 0) {
-              totalRatings = _totalRatingsFromConductorDoc;
-              rating = _ratingFromConductorDoc;
-            } else if (ratedCount > 0) {
-              totalRatings = ratedCount;
-              rating = scoreTotal / ratedCount;
-            } else {
-              totalRatings = _totalRatingsFromConductorDoc;
-              rating = _totalRatingsFromConductorDoc > 0
-                  ? _ratingFromConductorDoc
-                  : 0.0;
-            }
+            _viajesCompletados = completados;
+            _recalcularCalificacion();
             onChanged?.call();
           });
     } catch (e, st) {
       ErrorReporter.report(e, st, reason: 'InicioConductorViewModel');
     }
-  }
-
-  double? _toDoubleOrNull(dynamic value) {
-    if (value is num) return value.toDouble();
-    return double.tryParse(value?.toString() ?? '');
-  }
-
-  int? _toIntOrNull(dynamic value) {
-    if (value is int) return value;
-    if (value is num) return value.toInt();
-    return int.tryParse(value?.toString() ?? '');
   }
 
   bool _isCompletedStatus(String status) {
@@ -285,17 +245,6 @@ class ConductorProfileController {
     final valor = data['valor'];
     if (valor is num) return valor.toDouble();
     return double.tryParse(valor?.toString() ?? '') ?? 0.0;
-  }
-
-  double? _extractRatingScore(Map<String, dynamic> data) {
-    final raw = data['calificacion'] ?? data['calificacion_cliente'];
-    if (raw is Map<String, dynamic>) {
-      final score = raw['score'] ?? raw['puntaje'] ?? raw['valor'];
-      if (score is num) return score.toDouble();
-      return double.tryParse(score?.toString() ?? '');
-    }
-    if (raw is num) return raw.toDouble();
-    return double.tryParse(raw?.toString() ?? '');
   }
 
   void dispose() {

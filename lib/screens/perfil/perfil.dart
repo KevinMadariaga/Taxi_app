@@ -21,6 +21,7 @@ import 'package:taxi_app/screens/usuario_conductor/presentacion/view/membresia_d
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/cambiar_vehiculo_view.dart';
 import 'package:taxi_app/screens/perfil/informacion_perfil_view.dart';
 import 'package:taxi_app/screens/perfil/editar_perfil.dart';
+import 'package:taxi_app/core/utils/calificacion_conductor.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
 import 'package:taxi_app/core/validators/vehiculo_validator.dart';
 import 'package:taxi_app/widgets/ajustes_ui.dart';
@@ -43,6 +44,7 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
 
   /// Viajes completados (null mientras carga o si falla la consulta).
   int? _viajes;
+  List<Map<String, dynamic>> _viajesCompletados = const [];
   File? _cachedImageFile;
   File? _cachedVehicleFile;
 
@@ -138,28 +140,27 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
           .collection('solicitudes')
           .where(campo, isEqualTo: uid)
           .get();
-      final completados = snap.docs.where((d) {
+      final completados = snap.docs.map((d) => d.data()).where((d) {
         final estado = SolicitudEstado.normalize(
-          (d.data()['estado'] ?? d.data()['status'] ?? '').toString(),
+          (d['estado'] ?? d['status'] ?? '').toString(),
         );
         return estado == SolicitudEstado.completado;
-      }).length;
-      if (mounted) setState(() => _viajes = completados);
+      }).toList();
+      if (mounted) {
+        setState(() {
+          _viajes = completados.length;
+          _viajesCompletados = completados;
+        });
+      }
     } catch (e, st) {
       ErrorReporter.report(e, st, reason: 'perfil: contar viajes');
     }
   }
 
-  /// Promedio del conductor que acumula la Cloud Function en su
-  /// `usuarios/{uid}`; null sin calificaciones.
+  /// Misma regla que el inicio del conductor; null sin calificaciones.
   double? get _promedioConductor {
-    final d = userData;
-    if (d == null) return null;
-    final total = num.tryParse('${d['totalCalificaciones'] ?? 0}') ?? 0;
-    if (total <= 0) return null;
-    return num.tryParse(
-      '${d['calificacionConductor'] ?? d['calificacionPromedio'] ?? d['calificacion']}',
-    )?.toDouble();
+    final c = resolverCalificacionConductor(userData, _viajesCompletados);
+    return c.total > 0 ? c.promedio : null;
   }
 
   Future<File> _cacheFileForUid(String uid) async {
