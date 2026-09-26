@@ -177,14 +177,14 @@ class _InicioClienteViewState extends State<InicioClienteView>
     final brightness = Theme.of(context).brightness;
     final isDark = brightness == Brightness.dark;
     _lastOverlayBrightness = brightness;
-    // La pestaña 0 (Historial, sin uso hoy) tiene AppBar amarillo de marca
+    // La pestaña 0 (Historial, sin uso hoy) tiene franja naranja de marca
     // — la franja de la barra de estado debe ser igual. Home (1) y Perfil
     // (2) siguen el fondo adaptativo del tema (Perfil ya no usa AppBar de
     // color).
     SystemChrome.setSystemUIOverlayStyle(
       _selectedIndex == 0
           ? const SystemUiOverlayStyle(
-              statusBarColor: AppColores.primary,
+              statusBarColor: AppColores.brand500,
               statusBarIconBrightness: Brightness.dark,
               statusBarBrightness: Brightness.light,
             )
@@ -693,7 +693,7 @@ class _InicioClienteViewState extends State<InicioClienteView>
               // La barra de estado es transparente (main.dart): este es el
               // color que se ve detrás. Perfil (2) usa el fondo del tema.
               color: switch (_selectedIndex) {
-                0 => AppColores.primary,
+                0 => AppColores.brand500,
                 2 => context.palette.background,
                 _ => context.palette.surface,
               },
@@ -890,7 +890,7 @@ class _NudgingArrowState extends State<_NudgingArrow>
       child: Container(
         padding: EdgeInsets.all(11.w),
         decoration: BoxDecoration(
-          color: AppColores.primary,
+          color: AppColores.brand500,
           borderRadius: BorderRadius.circular(13.r),
         ),
         child: const Icon(
@@ -1123,7 +1123,7 @@ class _HomeClienteMap extends StatelessWidget {
                     child: const Icon(
                       Icons.location_on,
                       size: 36,
-                      color: AppColores.primary,
+                      color: AppColores.brand500,
                       shadows: [Shadow(color: Colors.black45, blurRadius: 6)],
                     ),
                   ),
@@ -1211,7 +1211,10 @@ class _MapaCargandoUbicacion extends StatelessWidget {
           const SizedBox(
             width: 26,
             height: 26,
-            child: CircularProgressIndicator(strokeWidth: 2.5),
+            child: CircularProgressIndicator(
+              strokeWidth: 2.5,
+              color: AppColores.brand500,
+            ),
           ),
           SizedBox(height: 10.h),
           Text(
@@ -1277,11 +1280,11 @@ class _LoadingOverlay extends StatelessWidget {
         color: context.palette.overlayDark,
         child: Center(
           child: soloLoader
-              ? const CircularProgressIndicator()
+              ? const CircularProgressIndicator(color: AppColores.brand500)
               : Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const CircularProgressIndicator(),
+                    const CircularProgressIndicator(color: AppColores.brand500),
                     SizedBox(height: 12.h),
                     Text(
                       message,
@@ -1371,7 +1374,7 @@ class _SearchBox extends StatelessWidget {
             color: context.palette.surface,
             borderRadius: BorderRadius.circular(18.r),
             border: Border.all(
-              color: AppColores.primary.withValues(alpha: 0.35),
+              color: AppColores.brand500.withValues(alpha: 0.35),
               width: 1.4,
             ),
             boxShadow: [
@@ -1390,7 +1393,7 @@ class _SearchBox extends StatelessWidget {
                 width: 46.w,
                 height: 46.h,
                 decoration: BoxDecoration(
-                  color: AppColores.primary.withValues(alpha: 0.16),
+                  color: AppColores.brand500.withValues(alpha: 0.16),
                   borderRadius: BorderRadius.circular(13.r),
                 ),
                 child: Icon(
@@ -1677,10 +1680,10 @@ class _CarouselSection extends StatelessWidget {
                       child: Stack(
                         fit: StackFit.expand,
                         children: [
-                          // Fondo amarillo de marca
+                          // Fondo naranja de marca
                           Container(
                             decoration: const BoxDecoration(
-                              color: AppColores.primary,
+                              color: AppColores.brand500,
                             ),
                           ),
                           // Círculo decorativo top-right
@@ -1715,7 +1718,7 @@ class _CarouselSection extends StatelessWidget {
                                 Icon(
                                   item['icon'] as IconData,
                                   size: 30,
-                                  // Fijo oscuro: es el fondo ámbar, no el
+                                  // Fijo oscuro: es el fondo naranja, no el
                                   // del tema (en modo oscuro
                                   // `palette.textPrimary` es casi blanco).
                                   color: AppColores.ink900.withValues(
@@ -1738,7 +1741,8 @@ class _CarouselSection extends StatelessWidget {
                                   textAlign: TextAlign.center,
                                   style: const TextStyle(
                                     fontSize: 12,
-                                    color: AppColores.ink700,
+                                    // ink700 sobre el naranja: 4.08:1.
+                                    color: AppColores.ink900,
                                   ),
                                 ),
                               ],
@@ -1856,7 +1860,7 @@ class _PromoNegocioSheet extends StatelessWidget {
                   width: 64.w,
                   height: 64.h,
                   decoration: BoxDecoration(
-                    color: AppColores.primary.withValues(alpha: 0.18),
+                    color: AppColores.brand500.withValues(alpha: 0.18),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
@@ -2001,7 +2005,7 @@ class _PromoBeneficio extends StatelessWidget {
             width: 36.w,
             height: 36.w,
             decoration: BoxDecoration(
-              color: AppColores.primary.withValues(alpha: 0.16),
+              color: AppColores.brand500.withValues(alpha: 0.16),
               borderRadius: BorderRadius.circular(10.r),
             ),
             child: Icon(icono, size: 20, color: AppColores.brand500),
