@@ -5,7 +5,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
-import 'package:taxi_app/caracteristicas/calificacion_cliente/presentacion/widgets/calificacion_cliente_badge.dart';
+import 'package:provider/provider.dart';
+import 'package:taxi_app/caracteristicas/calificacion_cliente/presentacion/viewmodels/calificaciones_clientes_viewmodel.dart';
+import 'package:taxi_app/core/constants/solicitud_estado.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/helpers/responsive_helper.dart';
@@ -38,6 +40,9 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
   final UserDataService _userDataService = UserDataService();
 
   Map<String, dynamic>? userData;
+
+  /// Viajes completados (null mientras carga o si falla la consulta).
+  int? _viajes;
   File? _cachedImageFile;
   File? _cachedVehicleFile;
 
@@ -71,6 +76,7 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
 
     if (!mounted) return;
     setState(() => userData = data);
+    unawaited(_contarViajes(uid));
 
     // Preparar caché de imagen: usar imagen local si existe, sino descargarla.
     try {
@@ -121,6 +127,39 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
     await _cargarDatos();
     // Mensaje de 'Datos guardados' eliminado por solicitud
     if (mounted) setState(() => _guardando = false);
+  }
+
+  Future<void> _contarViajes(String uid) async {
+    final campo = widget.tipoUsuario == 'conductor'
+        ? 'conductor.id'
+        : 'cliente.id';
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('solicitudes')
+          .where(campo, isEqualTo: uid)
+          .get();
+      final completados = snap.docs.where((d) {
+        final estado = SolicitudEstado.normalize(
+          (d.data()['estado'] ?? d.data()['status'] ?? '').toString(),
+        );
+        return estado == SolicitudEstado.completado;
+      }).length;
+      if (mounted) setState(() => _viajes = completados);
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'perfil: contar viajes');
+    }
+  }
+
+  /// Promedio del conductor que acumula la Cloud Function en su
+  /// `usuarios/{uid}`; null sin calificaciones.
+  double? get _promedioConductor {
+    final d = userData;
+    if (d == null) return null;
+    final total = num.tryParse('${d['totalCalificaciones'] ?? 0}') ?? 0;
+    if (total <= 0) return null;
+    return num.tryParse(
+      '${d['calificacionConductor'] ?? d['calificacionPromedio'] ?? d['calificacion']}',
+    )?.toDouble();
   }
 
   Future<File> _cacheFileForUid(String uid) async {
@@ -463,6 +502,8 @@ class _PaginaPerfilUsuarioState extends State<PaginaPerfilUsuario> {
                             nombre: _nombreVisible,
                             esConductor: esVistaConductor,
                             uid: _auth.currentUser?.uid,
+                            viajes: _viajes,
+                            promedioConductor: _promedioConductor,
                             imagenLocal: _cachedImageFile,
                             fotoUrl:
                                 (userData?['foto'] ??
@@ -592,6 +633,8 @@ class _EncabezadoPerfil extends StatelessWidget {
     required this.nombre,
     required this.esConductor,
     required this.uid,
+    required this.viajes,
+    required this.promedioConductor,
     required this.imagenLocal,
     required this.fotoUrl,
     required this.avatarSize,
@@ -603,6 +646,11 @@ class _EncabezadoPerfil extends StatelessWidget {
   /// Del pasajero: para mostrarle la calificación que le dieron los
   /// conductores.
   final String? uid;
+  final int? viajes;
+
+  /// Del conductor (viene de su propio `usuarios/{uid}`). El del pasajero se
+  /// lee de `calificaciones_clientes` vía [CalificacionesClientesViewModel].
+  final double? promedioConductor;
   final File? imagenLocal;
   final String fotoUrl;
   final double avatarSize;
@@ -640,9 +688,14 @@ class _EncabezadoPerfil extends StatelessWidget {
                     : Icons.person_rounded,
                 texto: esConductor ? 'Conductor' : 'Pasajero',
               ),
-              if (!esConductor && uid != null)
-                _ChipCalificacion(clienteId: uid!),
             ],
+          ),
+          const SizedBox(height: 18),
+          _EstadisticasPerfil(
+            viajes: viajes,
+            promedio: esConductor
+                ? promedioConductor
+                : _promedioCliente(context, uid),
           ),
         ],
       ),
@@ -721,23 +774,104 @@ class _Avatar extends StatelessWidget {
   }
 }
 
-/// Calificación del pasajero con el mismo estilo que [_Chip].
-class _ChipCalificacion extends StatelessWidget {
-  const _ChipCalificacion({required this.clienteId});
+double? _promedioCliente(BuildContext context, String? uid) {
+  if (uid == null) return null;
+  final CalificacionesClientesViewModel vm;
+  try {
+    vm = context.watch<CalificacionesClientesViewModel>();
+  } on ProviderNotFoundException {
+    return null;
+  }
+  final c = vm.de(uid);
+  return (c != null && c.tieneCalificaciones) ? c.promedio : null;
+}
 
-  final String clienteId;
+/// "12 Viajes | ★4.8 Calificación". "–" mientras carga o sin datos.
+class _EstadisticasPerfil extends StatelessWidget {
+  const _EstadisticasPerfil({required this.viajes, required this.promedio});
+
+  final int? viajes;
+  final double? promedio;
 
   @override
   Widget build(BuildContext context) {
-    return CalificacionClienteBadge(
-      clienteId: clienteId,
-      textoSinCalificacion: 'Sin calificaciones aún',
-      cincoEstrellas: true,
-      fontSize: 12.5,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoracion: BoxDecoration(
-        color: AppColores.primary.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(99),
+    final palette = context.palette;
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      decoration: BoxDecoration(
+        border: Border.symmetric(
+          horizontal: BorderSide(color: palette.borderSubtle),
+        ),
+      ),
+      child: IntrinsicHeight(
+        child: Row(
+          children: [
+            Expanded(
+              child: _Estadistica(
+                valor: viajes?.toString() ?? '–',
+                etiqueta: 'Viajes',
+              ),
+            ),
+            VerticalDivider(width: 1, color: palette.borderSubtle),
+            Expanded(
+              child: _Estadistica(
+                valor: promedio?.toStringAsFixed(1) ?? '–',
+                etiqueta: 'Calificación',
+                conEstrella: promedio != null,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Estadistica extends StatelessWidget {
+  const _Estadistica({
+    required this.valor,
+    required this.etiqueta,
+    this.conEstrella = false,
+  });
+
+  final String valor;
+  final String etiqueta;
+  final bool conEstrella;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Semantics(
+      label: '$etiqueta: $valor',
+      excludeSemantics: true,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (conEstrella)
+                const Icon(
+                  Icons.star_rounded,
+                  size: 18,
+                  color: AppColores.primary,
+                ),
+              Text(
+                valor,
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: palette.textPrimary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(
+            etiqueta,
+            style: TextStyle(fontSize: 13, color: palette.textSecondary),
+          ),
+        ],
       ),
     );
   }

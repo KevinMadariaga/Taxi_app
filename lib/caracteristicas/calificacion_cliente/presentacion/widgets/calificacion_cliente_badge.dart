@@ -16,7 +16,6 @@ class CalificacionClienteBadge extends StatelessWidget {
     this.fontSize = 12,
     this.decoracion,
     this.padding = EdgeInsets.zero,
-    this.cincoEstrellas = false,
   });
 
   final String clienteId;
@@ -27,10 +26,6 @@ class CalificacionClienteBadge extends StatelessWidget {
   /// que mostrar: mientras carga no queda una pastilla vacía.
   final BoxDecoration? decoracion;
   final EdgeInsetsGeometry padding;
-
-  /// `true`: fila de 5 estrellas llenas/medias/vacías según el promedio (perfil)
-  /// en vez de una sola estrella (tarjetas compactas).
-  final bool cincoEstrellas;
 
   Widget _envolver(Widget hijo) {
     final d = decoracion;
@@ -78,24 +73,12 @@ class CalificacionClienteBadge extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (cincoEstrellas)
-              for (var i = 1; i <= 5; i++)
-                Icon(
-                  calificacion.promedio >= i
-                      ? Icons.star_rounded
-                      : calificacion.promedio >= i - 0.5
-                      ? Icons.star_half_rounded
-                      : Icons.star_outline_rounded,
-                  size: fontSize + 3,
-                  color: AppColores.primary,
-                )
-            else
-              Icon(
-                Icons.star_rounded,
-                size: fontSize + 3,
-                color: AppColores.primary,
-              ),
-            SizedBox(width: cincoEstrellas ? 6 : 2),
+            Icon(
+              Icons.star_rounded,
+              size: fontSize + 3,
+              color: AppColores.primary,
+            ),
+            const SizedBox(width: 2),
             Text(
               calificacion.promedio.toStringAsFixed(1),
               style: TextStyle(
