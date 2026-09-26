@@ -22,7 +22,7 @@ class RidePrimaryButton extends StatelessWidget {
   final VoidCallback? onPressed;
   final bool isLoading;
 
-  /// `true`: variante suave (fondo `brand400`, mismo naranja que el
+  /// `true`: variante suave (fondo `brand400`, dorado claro, mismo que el
   /// círculo del vehículo en `BarraProgresoDireccional`) en vez del sólido
   /// `brand700` — para fases donde el CTA no debe leerse tan "urgente"
   /// (ej. "Ya llegué al punto").
@@ -32,8 +32,8 @@ class RidePrimaryButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final disabled = onPressed == null || isLoading;
     final palette = context.palette;
-    // `pastel` va sobre brand400 (ámbar): blanco ahí queda en 1.8:1, así que
-    // el contenido pasa a oscuro. El sólido brand700 sí aguanta blanco (5.2:1).
+    // `pastel` va sobre brand400 (dorado claro): blanco ahí no se lee, así que
+    // el contenido pasa a oscuro. El sólido (primaryDark) sí aguanta blanco (5.2:1).
     final contentColor = pastel ? AppColores.ink900 : AppColores.textWhite;
     // Texto/ícono/spinner llevan color explícito, que pisa el
     // `foregroundColor` del estilo: sin esto, deshabilitado (o cargando)
@@ -55,13 +55,15 @@ class RidePrimaryButton extends StatelessWidget {
             }
             if (pastel) {
               return states.contains(WidgetState.pressed)
-                  ? AppColores.brand500
+                  ? AppColores.primary
                   : AppColores.brand400;
             }
+            // Sólido: dorado oscuro de la familia del principal (blanco
+            // encima 5.2:1; presionado 7:1).
             if (states.contains(WidgetState.pressed)) {
-              return AppColores.brand900;
+              return const Color(0xFF7A5000);
             }
-            return AppColores.brand700;
+            return AppColores.primaryDark;
           }),
           foregroundColor: WidgetStateProperty.resolveWith((states) {
             if (states.contains(WidgetState.disabled)) {

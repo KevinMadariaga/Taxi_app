@@ -110,6 +110,20 @@ class AppThemeConfig {
         ),
       ),
 
+      // Botones de texto y con borde: el principal dorado como texto sobre
+      // fondo claro queda en 1.6:1; en claro va el dorado oscuro (5.2:1), en
+      // oscuro el dorado (10:1).
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: isDark ? AppColores.primary : AppColores.primaryDark,
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: isDark ? AppColores.primary : AppColores.primaryDark,
+        ),
+      ),
+
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: p.surface,

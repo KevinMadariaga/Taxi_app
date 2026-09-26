@@ -384,7 +384,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                           gradient: LinearGradient(
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
-                            colors: [AppColores.brand400, AppColores.brand500],
+                            colors: [AppColores.brand400, AppColores.primary],
                           ),
                         ),
                         child: Container(

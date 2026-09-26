@@ -23,6 +23,7 @@ import 'package:taxi_app/core/theme/map_style.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/ubicacion_resultado.dart';
 import 'package:taxi_app/screens/perfil/perfil.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
+import 'package:taxi_app/widgets/ajustes_ui.dart';
 import 'package:taxi_app/widgets/confirmar_dialog.dart';
 import 'package:taxi_app/features/resumen_viaje/services/resumen_viaje_firestore_service.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/ResumenClienteView.dart';
@@ -184,7 +185,7 @@ class _InicioClienteViewState extends State<InicioClienteView>
     SystemChrome.setSystemUIOverlayStyle(
       _selectedIndex == 0
           ? const SystemUiOverlayStyle(
-              statusBarColor: AppColores.brand500,
+              statusBarColor: AppColores.primary,
               statusBarIconBrightness: Brightness.dark,
               statusBarBrightness: Brightness.light,
             )
@@ -693,7 +694,7 @@ class _InicioClienteViewState extends State<InicioClienteView>
               // La barra de estado es transparente (main.dart): este es el
               // color que se ve detrás. Perfil (2) usa el fondo del tema.
               color: switch (_selectedIndex) {
-                0 => AppColores.brand500,
+                0 => AppColores.primary,
                 2 => context.palette.background,
                 _ => context.palette.surface,
               },
@@ -890,7 +891,7 @@ class _NudgingArrowState extends State<_NudgingArrow>
       child: Container(
         padding: EdgeInsets.all(11.w),
         decoration: BoxDecoration(
-          color: AppColores.brand500,
+          color: AppColores.primary,
           borderRadius: BorderRadius.circular(13.r),
         ),
         child: const Icon(
@@ -1123,7 +1124,7 @@ class _HomeClienteMap extends StatelessWidget {
                     child: const Icon(
                       Icons.location_on,
                       size: 36,
-                      color: AppColores.brand500,
+                      color: AppColores.primary,
                       shadows: [Shadow(color: Colors.black45, blurRadius: 6)],
                     ),
                   ),
@@ -1152,7 +1153,7 @@ class _HomeClienteMap extends StatelessWidget {
                     Icon(
                       Icons.location_on,
                       size: 12,
-                      color: AppColores.brand500,
+                      color: acentoMarca(context),
                     ),
                     SizedBox(width: 4.w),
                     Text(
@@ -1208,12 +1209,12 @@ class _MapaCargandoUbicacion extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const SizedBox(
+          SizedBox(
             width: 26,
             height: 26,
             child: CircularProgressIndicator(
               strokeWidth: 2.5,
-              color: AppColores.brand500,
+              color: acentoMarca(context),
             ),
           ),
           SizedBox(height: 10.h),
@@ -1280,11 +1281,11 @@ class _LoadingOverlay extends StatelessWidget {
         color: context.palette.overlayDark,
         child: Center(
           child: soloLoader
-              ? const CircularProgressIndicator(color: AppColores.brand500)
+              ? const CircularProgressIndicator(color: AppColores.primary)
               : Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const CircularProgressIndicator(color: AppColores.brand500),
+                    const CircularProgressIndicator(color: AppColores.primary),
                     SizedBox(height: 12.h),
                     Text(
                       message,
@@ -1374,7 +1375,7 @@ class _SearchBox extends StatelessWidget {
             color: context.palette.surface,
             borderRadius: BorderRadius.circular(18.r),
             border: Border.all(
-              color: AppColores.brand500.withValues(alpha: 0.35),
+              color: AppColores.primary.withValues(alpha: 0.35),
               width: 1.4,
             ),
             boxShadow: [
@@ -1393,13 +1394,13 @@ class _SearchBox extends StatelessWidget {
                 width: 46.w,
                 height: 46.h,
                 decoration: BoxDecoration(
-                  color: AppColores.brand500.withValues(alpha: 0.16),
+                  color: AppColores.primary.withValues(alpha: 0.16),
                   borderRadius: BorderRadius.circular(13.r),
                 ),
                 child: Icon(
                   Icons.search_rounded,
                   size: 24,
-                  color: AppColores.brand500,
+                  color: acentoMarca(context),
                 ),
               ),
               SizedBox(width: 12.w),
@@ -1552,7 +1553,7 @@ class _FavoritoItem extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(icon, size: 15, color: AppColores.brand500),
+                Icon(icon, size: 15, color: acentoMarca(context)),
                 SizedBox(width: 6.w),
                 Text(
                   label,
@@ -1624,7 +1625,7 @@ class _SugerenciaItem extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 15, color: AppColores.brand500),
+              Icon(icon, size: 15, color: acentoMarca(context)),
               SizedBox(width: 6.w),
               Text(
                 label,
@@ -1683,7 +1684,7 @@ class _CarouselSection extends StatelessWidget {
                           // Fondo naranja de marca
                           Container(
                             decoration: const BoxDecoration(
-                              color: AppColores.brand500,
+                              color: AppColores.primary,
                             ),
                           ),
                           // Círculo decorativo top-right
@@ -1793,7 +1794,7 @@ class _BottomNavBar extends StatelessWidget {
         // 5.2:1 en oscuro; el ámbar puro sobre blanco queda en 1.8:1). La
         // etiqueta va en el color de texto del tema para que se lea.
         selectedItemColor: context.palette.textPrimary,
-        selectedIconTheme: const IconThemeData(color: AppColores.brand500),
+        selectedIconTheme: IconThemeData(color: acentoMarca(context)),
         unselectedItemColor: context.palette.textSecondary,
         currentIndex: selectedIndex,
         onTap: onTap,
@@ -1860,12 +1861,12 @@ class _PromoNegocioSheet extends StatelessWidget {
                   width: 64.w,
                   height: 64.h,
                   decoration: BoxDecoration(
-                    color: AppColores.brand500.withValues(alpha: 0.18),
+                    color: AppColores.primary.withValues(alpha: 0.18),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.campaign_rounded,
-                    color: AppColores.brand500,
+                    color: acentoMarca(context),
                     size: 34,
                   ),
                 ),
@@ -2005,10 +2006,10 @@ class _PromoBeneficio extends StatelessWidget {
             width: 36.w,
             height: 36.w,
             decoration: BoxDecoration(
-              color: AppColores.brand500.withValues(alpha: 0.16),
+              color: AppColores.primary.withValues(alpha: 0.16),
               borderRadius: BorderRadius.circular(10.r),
             ),
-            child: Icon(icono, size: 20, color: AppColores.brand500),
+            child: Icon(icono, size: 20, color: acentoMarca(context)),
           ),
           SizedBox(width: 12.w),
           Expanded(
@@ -2060,7 +2061,7 @@ class _PromoPaso extends StatelessWidget {
             height: 22,
             alignment: Alignment.center,
             decoration: const BoxDecoration(
-              color: AppColores.brand500,
+              color: AppColores.primary,
               shape: BoxShape.circle,
             ),
             child: Text(

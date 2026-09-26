@@ -8,15 +8,16 @@ class AppColores {
   // "Recoge al cliente"; `brand700` es más oscuro/rojizo, solo válido como
   // fondo sólido con texto blanco) para que todos los botones/acentos de
   // la app compartan ESE naranja, no el más oscuro.
-  // Color principal de la app: el naranja de marca (`brand500`). Antes era
-  // ámbar (#FFB020); se unificó para que botones, íconos, rutas y acentos
-  // compartan un solo naranja en claro y oscuro. Contenido encima: oscuro
-  // (`ink900`, 7.1:1); blanco queda en 2.6:1 (usar `colorContenidoSobre`).
-  static const Color primary = brand500;
+  // Color principal de la app: dorado #FEC33C, el mismo en claro y oscuro
+  // para botones, rutas, barras de marca y fondos de acento. Contenido
+  // encima: oscuro (`ink900`, 11.5:1); blanco queda en 1.6:1 (usar
+  // `colorContenidoSobre`). Como ÍCONO/TEXTO sobre fondo claro se pierde
+  // (1.6:1): ahí va `primaryDark` vía `acentoMarca()` (ajustes_ui.dart).
+  static const Color primary = Color(0xFFFEC33C);
   static const Color secondary = Colores.azul; // color secundario/acento
   // Naranja oscurecido: para iconos sobre fondos teñidos con `primary`,
   // donde el naranja base pierde contraste.
-  static const Color primaryDark = Color(0xFFC2410C);
+  static const Color primaryDark = Color(0xFF946300); // dorado oscuro, 5.2:1 sobre blanco
 
   // Superficies y fondos
   static const Color background = Color(0xFFF7F7F8);
@@ -68,8 +69,8 @@ class AppColores {
   // fondo sólido es `brand700`.
   static const Color brand50 = Color(0xFFFFF4E6);
   static const Color brand200 = Color(0xFFFFD9A8);
-  // 400: naranja claro (variante suave, degradados). 500: el principal.
-  static const Color brand400 = Color(0xFFFF9A5C);
+  // 400: dorado claro (variante suave, degradados hacia `primary`).
+  static const Color brand400 = Color(0xFFFFD877);
   static const Color brand500 = Colores.naranja;
   static const Color brand700 = Color(0xFFC2410C);
   static const Color brand900 = Color(0xFF7C2A08);
