@@ -12,9 +12,9 @@ class SoporteChatService {
       _chatRef(userId).collection('mensajes');
 
   Stream<QuerySnapshot<Map<String, dynamic>>> watchMensajes(String userId) {
-    return _mensajesRef(userId)
-        .orderBy('creadoEn', descending: false)
-        .snapshots();
+    return _mensajesRef(
+      userId,
+    ).orderBy('creadoEn', descending: false).snapshots();
   }
 
   Future<void> sendMensaje({
@@ -33,18 +33,14 @@ class SoporteChatService {
       'creadoEn': FieldValue.serverTimestamp(),
     });
 
-    batch.set(
-      _chatRef(userId),
-      {
-        'userId': userId,
-        'userName': userName,
-        'userType': userType,
-        'ultimoMensaje': texto.trim(),
-        'ultimoMensajeAt': FieldValue.serverTimestamp(),
-        'hayMensajesNuevosAdmin': !esAdmin,
-      },
-      SetOptions(merge: true),
-    );
+    batch.set(_chatRef(userId), {
+      'userId': userId,
+      'userName': userName,
+      'userType': userType,
+      'ultimoMensaje': texto.trim(),
+      'ultimoMensajeAt': FieldValue.serverTimestamp(),
+      'hayMensajesNuevosAdmin': !esAdmin,
+    }, SetOptions(merge: true));
 
     await batch.commit();
 
@@ -66,15 +62,11 @@ class SoporteChatService {
     for (final doc in mensajes.docs) {
       batch.delete(doc.reference);
     }
-    batch.set(
-      _chatRef(userId),
-      {
-        'ultimoMensaje': '',
-        'hayMensajesNuevosAdmin': false,
-        'ultimoMensajeAt': FieldValue.serverTimestamp(),
-      },
-      SetOptions(merge: true),
-    );
+    batch.set(_chatRef(userId), {
+      'ultimoMensaje': '',
+      'hayMensajesNuevosAdmin': false,
+      'ultimoMensajeAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
     await batch.commit();
   }
 

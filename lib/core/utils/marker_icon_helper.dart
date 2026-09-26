@@ -48,11 +48,10 @@ class MarkerIconHelper {
       canvas.drawPath(
         path,
         Paint()
-          ..shader = ui.Gradient.linear(
-            Offset(center.dx, center.dy),
-            tip,
-            [color.withValues(alpha: 0.55), color.withValues(alpha: 0.0)],
-          ),
+          ..shader = ui.Gradient.linear(Offset(center.dx, center.dy), tip, [
+            color.withValues(alpha: 0.55),
+            color.withValues(alpha: 0.0),
+          ]),
       );
     }
 
@@ -63,12 +62,17 @@ class MarkerIconHelper {
         ..color = Colors.black.withValues(alpha: 0.25)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2),
     );
-    canvas.drawCircle(center, radius + size * 0.05, Paint()..color = Colors.white);
+    canvas.drawCircle(
+      center,
+      radius + size * 0.05,
+      Paint()..color = Colors.white,
+    );
     canvas.drawCircle(center, radius, Paint()..color = color);
 
-    final image = await recorder
-        .endRecording()
-        .toImage(size.toInt(), size.toInt());
+    final image = await recorder.endRecording().toImage(
+      size.toInt(),
+      size.toInt(),
+    );
     final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
     return BitmapDescriptor.bytes(bytes!.buffer.asUint8List());
   }
@@ -223,9 +227,10 @@ class MarkerIconHelper {
     } else {
       tp.paint(canvas, iconOffset);
     }
-    final image = await recorder
-        .endRecording()
-        .toImage(size.toInt(), size.toInt());
+    final image = await recorder.endRecording().toImage(
+      size.toInt(),
+      size.toInt(),
+    );
     final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
     return BitmapDescriptor.bytes(bytes!.buffer.asUint8List());
   }

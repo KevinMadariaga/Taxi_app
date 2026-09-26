@@ -109,7 +109,8 @@ class ImageProcessingService {
   }) async {
     try {
       final dims = await _readDimensions(file);
-      final scale = maxSide / (dims.width > dims.height ? dims.width : dims.height);
+      final scale =
+          maxSide / (dims.width > dims.height ? dims.width : dims.height);
       final clampedScale = scale < 1.0 ? scale : 1.0; // nunca agrandar
       final targetW = (dims.width * clampedScale).round();
       final targetH = (dims.height * clampedScale).round();

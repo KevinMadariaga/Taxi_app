@@ -52,7 +52,9 @@ class AppleSignInService {
       // Google (que simplemente devuelve `null` sin lanzar excepción).
       if (e.code == AuthorizationErrorCode.canceled) return null;
       ErrorReporter.report(e, st, reason: 'apple_sign_in_service');
-      throw StateError('No se pudo iniciar sesión con Apple. Intenta de nuevo.');
+      throw StateError(
+        'No se pudo iniciar sesión con Apple. Intenta de nuevo.',
+      );
     } catch (e, st) {
       ErrorReporter.report(e, st, reason: 'apple_sign_in_service');
       if (esErrorDeConexion(e)) {
@@ -60,7 +62,9 @@ class AppleSignInService {
           'No tienes conexión a internet. Verifica tu conexión e intenta de nuevo.',
         );
       }
-      throw StateError('No se pudo iniciar sesión con Apple. Intenta de nuevo.');
+      throw StateError(
+        'No se pudo iniciar sesión con Apple. Intenta de nuevo.',
+      );
     }
   }
 }

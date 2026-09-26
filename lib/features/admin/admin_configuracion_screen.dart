@@ -209,7 +209,7 @@ class _PerfilCard extends StatelessWidget {
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [AppColores.brand400, AppColores.primary],
+              colors: [AppColores.brand400, AppColores.brand500],
             ),
           ),
           child: Container(

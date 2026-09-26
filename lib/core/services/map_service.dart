@@ -42,7 +42,8 @@ class MapService {
     return Duration(seconds: seconds);
   }
 
-  String formatDistance(double meters) => MapHelper.formatDistanceMeters(meters);
+  String formatDistance(double meters) =>
+      MapHelper.formatDistanceMeters(meters);
 
   String formatEta(Duration eta) {
     if (eta.inMinutes <= 0) return '1 min';

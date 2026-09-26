@@ -32,7 +32,9 @@ class ReportesService {
         'createdAt': FieldValue.serverTimestamp(),
         'visto': false,
       });
-      debugPrint('[ReportesService] Reporte de conductor enviado para $solicitudId');
+      debugPrint(
+        '[ReportesService] Reporte de conductor enviado para $solicitudId',
+      );
     } catch (e) {
       debugPrint('[ReportesService] Error: $e');
       rethrow;
@@ -57,7 +59,9 @@ class ReportesService {
         'createdAt': FieldValue.serverTimestamp(),
         'visto': false,
       });
-      debugPrint('[ReportesService] Reporte de conductor enviado para $solicitudId');
+      debugPrint(
+        '[ReportesService] Reporte de conductor enviado para $solicitudId',
+      );
     } catch (e) {
       debugPrint('[ReportesService] Error: $e');
       rethrow;
