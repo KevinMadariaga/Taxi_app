@@ -732,6 +732,7 @@ class _ChipCalificacion extends StatelessWidget {
     return CalificacionClienteBadge(
       clienteId: clienteId,
       textoSinCalificacion: 'Sin calificaciones aún',
+      cincoEstrellas: true,
       fontSize: 12.5,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoracion: BoxDecoration(

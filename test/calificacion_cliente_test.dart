@@ -197,6 +197,34 @@ void main() {
       expect(find.text('Nuevo'), findsOneWidget);
     });
 
+    testWidgets('cincoEstrellas: 3.6 → 3 llenas, 1 media, 1 vacía', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        ChangeNotifierProvider(
+          create: (_) => CalificacionesClientesViewModel(
+            _FakeRepo({
+              'c1': const CalificacionCliente(promedio: 3.6, total: 5),
+            }),
+          ),
+          child: MaterialApp(
+            theme: ThemeData(extensions: const [AppPalette.light]),
+            home: const Scaffold(
+              body: CalificacionClienteBadge(
+                clienteId: 'c1',
+                cincoEstrellas: true,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byIcon(Icons.star_rounded), findsNWidgets(3));
+      expect(find.byIcon(Icons.star_half_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.star_outline_rounded), findsOneWidget);
+      expect(find.text('3.6'), findsOneWidget);
+    });
+
     testWidgets('sin el provider global no rompe la pantalla', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(home: CalificacionClienteBadge(clienteId: 'c1')),
