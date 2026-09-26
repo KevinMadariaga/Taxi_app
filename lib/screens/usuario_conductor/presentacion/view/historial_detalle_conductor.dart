@@ -8,7 +8,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:taxi_app/data/solicitud_repository.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/viewmodels/historial_detalle_conductor_viewmodel.dart';
 
-const Color _amberDark = Color(0xFFB38F00);
+const Color _amberDark = AppColores.primary;
 
 class HistorialDetalleConductor extends StatefulWidget {
   final String conductorId;

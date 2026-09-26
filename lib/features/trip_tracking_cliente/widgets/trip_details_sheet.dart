@@ -237,7 +237,7 @@ class _Estrellas extends StatelessWidget {
           } else {
             icon = Icons.star_outline_rounded;
           }
-          return Icon(icon, size: 16, color: AppColores.warning);
+          return Icon(icon, size: 16, color: AppColores.primary);
         }),
         const SizedBox(width: 4),
         Text(

@@ -3,7 +3,7 @@ import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/widgets/ajustes_ui.dart';
 
-const Color kHistorialAmberDark = Color(0xFFB38F00);
+const Color kHistorialAmberDark = AppColores.primary;
 
 /// Formatea un número como pesos CO: `$12.000`.
 String formatPesos(double value) {

@@ -762,7 +762,7 @@ class _TabSugerencias extends StatelessWidget {
                           (_) => const Icon(
                             Icons.star_rounded,
                             size: 14,
-                            color: Color(0xFFFFC107),
+                            color: AppColores.primary,
                           ),
                         ),
                       ),
@@ -880,7 +880,7 @@ class _TabSugerencias extends StatelessWidget {
                   (_) => const Icon(
                     Icons.star_rounded,
                     size: 20,
-                    color: Color(0xFFFFC107),
+                    color: AppColores.primary,
                   ),
                 ),
               ),

@@ -49,7 +49,7 @@ class _MapaPreviewViewState extends State<MapaPreviewView> {
           height: 56,
           child: ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colores.amarillo,
+              backgroundColor: AppColores.buttonPrimary,
               foregroundColor: Colors.black87,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(28),

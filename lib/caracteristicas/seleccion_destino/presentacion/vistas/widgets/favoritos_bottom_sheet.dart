@@ -183,7 +183,7 @@ class _FavoritosSheetContent extends StatelessWidget {
                     );
                     return ListTile(
                       enabled: !sinUbicacion,
-                      leading: const Icon(Icons.star, color: Colors.amber),
+                      leading: const Icon(Icons.star, color: AppColores.primary),
                       title: Text(favorito.nombre),
                       subtitle: Text(
                         sinUbicacion

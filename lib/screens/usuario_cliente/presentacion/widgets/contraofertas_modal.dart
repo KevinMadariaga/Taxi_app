@@ -271,7 +271,7 @@ Widget _buildEstrellas(BuildContext context, double calif, int total) {
         } else {
           icon = Icons.star_outline_rounded;
         }
-        return Icon(icon, size: 15, color: AppColores.warning);
+        return Icon(icon, size: 15, color: AppColores.primary);
       }),
       SizedBox(width: 4.w),
       Text(

@@ -168,7 +168,7 @@ class _SugerenciaSheetState extends State<_SugerenciaSheet> {
                               : Icons.star_outline_rounded,
                           size: 38,
                           color: filled
-                              ? const Color(0xFFFFC107)
+                              ? AppColores.primary
                               : palette.grey400,
                         ),
                       ),

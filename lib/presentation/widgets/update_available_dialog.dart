@@ -50,7 +50,7 @@ class UpdateAvailableDialog extends StatelessWidget {
               ),
               child: const Icon(
                 Icons.system_update_alt_rounded,
-                color: Color(0xFFB38F00),
+                color: AppColores.primary,
                 size: 28,
               ),
             ),

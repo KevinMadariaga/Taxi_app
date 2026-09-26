@@ -8,7 +8,11 @@ class AppColores {
   // "Recoge al cliente"; `brand700` es más oscuro/rojizo, solo válido como
   // fondo sólido con texto blanco) para que todos los botones/acentos de
   // la app compartan ESE naranja, no el más oscuro.
-  static const Color primary = Color(0xFFFFB020); // color principal (CTA)
+  // Color principal de la app: el naranja de marca (`brand500`). Antes era
+  // ámbar (#FFB020); se unificó para que botones, íconos, rutas y acentos
+  // compartan un solo naranja en claro y oscuro. Contenido encima: oscuro
+  // (`ink900`, 7.1:1); blanco queda en 2.6:1 (usar `colorContenidoSobre`).
+  static const Color primary = brand500;
   static const Color secondary = Colores.azul; // color secundario/acento
   // Naranja oscurecido: para iconos sobre fondos teñidos con `primary`,
   // donde el naranja base pierde contraste.
@@ -30,7 +34,7 @@ class AppColores {
   ); // blanco con opacidad ~70%
 
   // Botones
-  static const Color buttonPrimary = Colores.amarillo;
+  static const Color buttonPrimary = primary;
   static const Color buttonCancel = Colores.rojo;
   static const Color buttonChat = Colores.azul;
 
@@ -47,9 +51,9 @@ class AppColores {
   // Errores
   static const Color error = Colores.rojo;
 
-  // Trazado de ruta en el mapa: el amarillo de marca de la app, no el azul
+  // Trazado de ruta en el mapa: el naranja de marca de la app, no el azul
   // de navegación de Google Maps.
-  static const Color route = Colores.amarillo;
+  static const Color route = primary;
 
   // Estados
   static const Color success = Color(0xFF2E7D32); // verde éxito
@@ -59,13 +63,14 @@ class AppColores {
 
   // Escala de marca "ride" — chips, badges, botón sólido de marca y
   // acentos de mapa (marker, relleno de barra de progreso). `brand500` da
-  // ~3.5:1 de contraste con blanco: solo superficies grandes/íconos, NUNCA
-  // texto blanco encima. El único naranja válido para texto blanco sobre
+  // ~2.6:1 de contraste con blanco: encima va texto OSCURO (`ink900`),
+  // nunca blanco. El único naranja válido para texto blanco sobre
   // fondo sólido es `brand700`.
   static const Color brand50 = Color(0xFFFFF4E6);
   static const Color brand200 = Color(0xFFFFD9A8);
-  static const Color brand400 = Color(0xFFFFB020);
-  static const Color brand500 = Color(0xFFF26212);
+  // 400: naranja claro (variante suave, degradados). 500: el principal.
+  static const Color brand400 = Color(0xFFFF9A5C);
+  static const Color brand500 = Colores.naranja;
   static const Color brand700 = Color(0xFFC2410C);
   static const Color brand900 = Color(0xFF7C2A08);
 
@@ -102,9 +107,6 @@ class AppColores {
 class Colores {
   Colores._();
 
-  static const Color amarillo = Color(
-    0xFFFFB020,
-  ); // CTA — migrado de amarillo a naranja "ride" (mismo valor de brand400)
   static const Color azul = Color(0xFF0A66C2); // accent blue
   static const Color naranja = Color(0xFFFF7A1A); // acento naranja
   static const Color blanco = Color(0xFFFFFFFF);

@@ -109,7 +109,9 @@ class _MapaInteractivoPrevisualizacionSolicitudState
       MarkerIconHelper.fromIcon(
         Icons.person,
         44,
-        Colors.white,
+        // Oscuro sobre el naranja (blanco quedaba en 2.6:1); el borde blanco
+        // lo sigue separando del mapa.
+        AppColores.ink900,
         borderColor: Colors.white,
         backgroundColor: AppColores.primary,
       ),
@@ -227,9 +229,7 @@ class _MapaInteractivoPrevisualizacionSolicitudState
           anchor: const Offset(0.5, 0.5),
           icon:
               _flagIcon ??
-              BitmapDescriptor.defaultMarkerWithHue(
-                BitmapDescriptor.hueOrange,
-              ),
+              BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
         ),
     };
 
@@ -272,9 +272,7 @@ class _MapaInteractivoPrevisualizacionSolicitudState
             _controller = controller;
             // Post-frame: `onMapCreated` dispara antes de que el mapa tenga
             // su tamaño final, y `newLatLngBounds` falla sin layout.
-            WidgetsBinding.instance.addPostFrameCallback(
-              (_) => _fitToPoints(),
-            );
+            WidgetsBinding.instance.addPostFrameCallback((_) => _fitToPoints());
           },
         ),
         Positioned(

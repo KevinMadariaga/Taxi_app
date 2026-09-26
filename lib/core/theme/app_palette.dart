@@ -231,13 +231,17 @@ class AppPalette extends ThemeExtension<AppPalette> {
   }
 }
 
-/// Color de texto/ícono legible sobre un fondo sólido: oscuro sobre fondos
-/// claros (el ámbar de marca, grises claros), blanco sobre oscuros. Blanco
-/// sobre el ámbar queda en 1.8:1; `ink900` en 10:1.
-Color colorContenidoSobre(Color fondo) =>
-    ThemeData.estimateBrightnessForColor(fondo) == Brightness.light
-    ? AppColores.ink900
-    : AppColores.textWhite;
+/// Color de texto/ícono legible sobre un fondo sólido: `ink900` o blanco,
+/// el que tenga más contraste (WCAG) con [fondo]. Sobre el naranja de marca
+/// gana el oscuro (7.1:1 contra 2.6:1 del blanco); sobre verde, rojo o
+/// `brand700`, el blanco. Se compara el contraste real y no el "brillo
+/// estimado": en naranjas medios el estimado elegía blanco ilegible.
+Color colorContenidoSobre(Color fondo) {
+  final l = fondo.computeLuminance();
+  final conOscuro = (l + 0.05) / (AppColores.ink900.computeLuminance() + 0.05);
+  final conBlanco = 1.05 / (l + 0.05);
+  return conOscuro >= conBlanco ? AppColores.ink900 : AppColores.textWhite;
+}
 
 /// Acceso corto a la paleta activa: `context.palette.surface` en vez de
 /// `Theme.of(context).extension<AppPalette>()!.surface`. Cae a [AppPalette.light]

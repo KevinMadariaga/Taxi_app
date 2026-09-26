@@ -109,7 +109,7 @@ class ConductorVehiculoInfo extends StatelessWidget {
                   children: [
                     const Icon(
                       Icons.star_rounded,
-                      color: AppColores.warning,
+                      color: AppColores.primary,
                       size: 16,
                     ),
                     const SizedBox(width: 3),
