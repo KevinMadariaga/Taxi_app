@@ -240,7 +240,7 @@ class _InfoBienvenida extends StatelessWidget {
               color: AppColores.primary.withValues(alpha: 0.16),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(icono, size: 19, color: acentoMarca(context)),
+            child: Icon(icono, size: 19, color: AppColores.primary),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -725,7 +725,10 @@ class _CuentaPago extends StatelessWidget {
           ),
           TextButton.icon(
             onPressed: onCopiar,
-            style: TextButton.styleFrom(foregroundColor: acentoMarca(context)),
+            style: TextButton.styleFrom(
+              foregroundColor: acentoMarca(context),
+              iconColor: AppColores.primary,
+            ),
             icon: const Icon(Icons.copy_rounded, size: 17),
             label: const Text(
               'Copiar',

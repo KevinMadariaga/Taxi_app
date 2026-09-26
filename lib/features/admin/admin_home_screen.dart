@@ -1111,6 +1111,7 @@ class _ConductorCard extends StatelessWidget {
                         onPressed: () => _aprobar(context, nombre),
                         style: TextButton.styleFrom(
                           foregroundColor: acentoMarca(context),
+                          iconColor: AppColores.primary,
                         ),
                         child: const Text(
                           'Activar',

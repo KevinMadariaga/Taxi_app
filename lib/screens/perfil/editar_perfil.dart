@@ -452,6 +452,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                       ),
                       style: TextButton.styleFrom(
                         foregroundColor: acentoMarca(context),
+                        iconColor: AppColores.primary,
                       ),
                     ),
                   ),
@@ -604,7 +605,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                     Icon(
                       Icons.add_a_photo_outlined,
                       size: 30,
-                      color: acentoMarca(context),
+                      color: AppColores.primary,
                     ),
                     const SizedBox(height: 8),
                     Text(

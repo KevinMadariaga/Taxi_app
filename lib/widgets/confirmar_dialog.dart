@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
-import 'package:taxi_app/widgets/ajustes_ui.dart';
 
 /// Diálogo de confirmación estándar de la app. Un solo estilo para toda
 /// acción destructiva o que necesite doble check antes de ejecutarse
@@ -45,7 +44,7 @@ Future<bool> mostrarConfirmacion(
                         (peligro
                             ? Icons.warning_amber_rounded
                             : Icons.help_outline_rounded),
-                    color: peligro ? AppColores.error : acentoMarca(ctx),
+                    color: peligro ? AppColores.error : AppColores.primary,
                     size: 28,
                   ),
                 ),

@@ -23,7 +23,6 @@ import 'package:taxi_app/core/theme/map_style.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/ubicacion_resultado.dart';
 import 'package:taxi_app/screens/perfil/perfil.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
-import 'package:taxi_app/widgets/ajustes_ui.dart';
 import 'package:taxi_app/widgets/confirmar_dialog.dart';
 import 'package:taxi_app/features/resumen_viaje/services/resumen_viaje_firestore_service.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/ResumenClienteView.dart';
@@ -1153,7 +1152,7 @@ class _HomeClienteMap extends StatelessWidget {
                     Icon(
                       Icons.location_on,
                       size: 12,
-                      color: acentoMarca(context),
+                      color: AppColores.primary,
                     ),
                     SizedBox(width: 4.w),
                     Text(
@@ -1214,7 +1213,7 @@ class _MapaCargandoUbicacion extends StatelessWidget {
             height: 26,
             child: CircularProgressIndicator(
               strokeWidth: 2.5,
-              color: acentoMarca(context),
+              color: AppColores.primary,
             ),
           ),
           SizedBox(height: 10.h),
@@ -1400,7 +1399,7 @@ class _SearchBox extends StatelessWidget {
                 child: Icon(
                   Icons.search_rounded,
                   size: 24,
-                  color: acentoMarca(context),
+                  color: AppColores.primary,
                 ),
               ),
               SizedBox(width: 12.w),
@@ -1553,7 +1552,7 @@ class _FavoritoItem extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(icon, size: 15, color: acentoMarca(context)),
+                Icon(icon, size: 15, color: AppColores.primary),
                 SizedBox(width: 6.w),
                 Text(
                   label,
@@ -1625,7 +1624,7 @@ class _SugerenciaItem extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 15, color: acentoMarca(context)),
+              Icon(icon, size: 15, color: AppColores.primary),
               SizedBox(width: 6.w),
               Text(
                 label,
@@ -1794,7 +1793,7 @@ class _BottomNavBar extends StatelessWidget {
         // 5.2:1 en oscuro; el ámbar puro sobre blanco queda en 1.8:1). La
         // etiqueta va en el color de texto del tema para que se lea.
         selectedItemColor: context.palette.textPrimary,
-        selectedIconTheme: IconThemeData(color: acentoMarca(context)),
+        selectedIconTheme: IconThemeData(color: AppColores.primary),
         unselectedItemColor: context.palette.textSecondary,
         currentIndex: selectedIndex,
         onTap: onTap,
@@ -1866,7 +1865,7 @@ class _PromoNegocioSheet extends StatelessWidget {
                   ),
                   child: Icon(
                     Icons.campaign_rounded,
-                    color: acentoMarca(context),
+                    color: AppColores.primary,
                     size: 34,
                   ),
                 ),
@@ -2009,7 +2008,7 @@ class _PromoBeneficio extends StatelessWidget {
               color: AppColores.primary.withValues(alpha: 0.16),
               borderRadius: BorderRadius.circular(10.r),
             ),
-            child: Icon(icono, size: 20, color: acentoMarca(context)),
+            child: Icon(icono, size: 20, color: AppColores.primary),
           ),
           SizedBox(width: 12.w),
           Expanded(

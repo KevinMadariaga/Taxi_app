@@ -257,7 +257,7 @@ class _PerfilCard extends StatelessWidget {
               Icon(
                 Icons.verified_user_rounded,
                 size: 15,
-                color: acentoMarca(context),
+                color: AppColores.primary,
               ),
               const SizedBox(width: 6),
               Text(

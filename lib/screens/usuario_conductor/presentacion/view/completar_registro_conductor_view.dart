@@ -275,7 +275,7 @@ class _CompletarRegistroConductorViewState
                     Icon(
                       icon,
                       size: 36,
-                      color: sel ? acentoMarca(context) : palette.textSecondary,
+                      color: sel ? AppColores.primary : palette.textSecondary,
                     ),
                     const SizedBox(height: 8),
                     Text(
@@ -403,7 +403,7 @@ class _CompletarRegistroConductorViewState
             ),
             child: Icon(
               Icons.add_a_photo_outlined,
-              color: acentoMarca(context),
+              color: AppColores.primary,
               size: 26,
             ),
           ),
@@ -570,7 +570,7 @@ class _CompletarRegistroConductorViewState
                     ),
                     child: Icon(
                       Icons.local_taxi_rounded,
-                      color: acentoMarca(context),
+                      color: AppColores.primary,
                       size: 26,
                     ),
                   ),

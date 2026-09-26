@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
-import 'package:taxi_app/widgets/ajustes_ui.dart';
 
 import '../viewmodels/calificaciones_clientes_viewmodel.dart';
 
@@ -76,7 +76,7 @@ class CalificacionClienteBadge extends StatelessWidget {
             Icon(
               Icons.star_rounded,
               size: fontSize + 3,
-              color: acentoMarca(context),
+              color: AppColores.primary,
             ),
             const SizedBox(width: 2),
             Text(

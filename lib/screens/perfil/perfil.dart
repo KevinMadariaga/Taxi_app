@@ -760,7 +760,7 @@ class _Chip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icono, size: 15, color: acentoMarca(context)),
+          Icon(icono, size: 15, color: AppColores.primary),
           const SizedBox(width: 6),
           Text(
             texto,

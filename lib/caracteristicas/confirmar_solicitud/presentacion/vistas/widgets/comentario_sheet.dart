@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
-import 'package:taxi_app/widgets/ajustes_ui.dart';
 
 import '../../viewmodels/confirmar_solicitud_viewmodel.dart';
 
@@ -119,7 +118,7 @@ class _ComentarioSheetState extends State<_ComentarioSheet> {
             children: [
               for (final (icono, texto) in _sugerencias)
                 ActionChip(
-                  avatar: Icon(icono, size: 18, color: acentoMarca(context)),
+                  avatar: Icon(icono, size: 18, color: AppColores.primary),
                   label: Text(texto),
                   labelStyle: TextStyle(
                     fontWeight: FontWeight.w600,

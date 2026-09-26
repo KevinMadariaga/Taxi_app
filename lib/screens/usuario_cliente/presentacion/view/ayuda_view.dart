@@ -250,7 +250,7 @@ class _PreguntaTile extends StatelessWidget {
       child: ExpansionTile(
         tilePadding: const EdgeInsets.symmetric(horizontal: 16),
         childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        iconColor: acentoMarca(context),
+        iconColor: AppColores.primary,
         collapsedIconColor: palette.textSecondary,
         expandedAlignment: Alignment.centerLeft,
         title: Text(

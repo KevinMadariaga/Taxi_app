@@ -379,7 +379,7 @@ class _ComoFunciona extends StatelessWidget {
           child: Icon(
             Icons.info_outline_rounded,
             size: 16,
-            color: acentoMarca(context),
+            color: AppColores.primary,
           ),
         ),
         SizedBox(width: 8.w),
@@ -509,11 +509,7 @@ class _DestinoField extends StatelessWidget {
             color: context.palette.grey100,
             textColor: context.palette.textPrimary,
             borderColor: context.palette.borderSubtle,
-            icon: Icon(
-              Icons.map_rounded,
-              size: 16,
-              color: acentoMarca(context),
-            ),
+            icon: Icon(Icons.map_rounded, size: 16, color: AppColores.primary),
             onPressed: onElegirEnMapa,
           ),
         ],

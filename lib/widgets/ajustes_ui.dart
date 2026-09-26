@@ -8,9 +8,9 @@ import 'package:taxi_app/core/theme/app_palette.dart';
 /// fondo, grupos de opciones y filas. Todo lee `context.palette`, así que
 /// funciona igual en claro y oscuro.
 
-/// Naranja legible como ícono sobre un fondo teñido: el oscurecido en claro
-/// (el ámbar de marca se pierde sobre blanco) y el de marca en oscuro (el
-/// oscurecido se pierde sobre gris carbón).
+/// Naranja legible como TEXTO de acento: el oscurecido en claro (el naranja
+/// principal no se lee sobre blanco) y el principal en oscuro. Los íconos de
+/// acento usan directamente `AppColores.primary` en ambos modos.
 Color acentoMarca(BuildContext context) =>
     Theme.of(context).brightness == Brightness.dark
     ? AppColores.primary
@@ -167,7 +167,7 @@ class FilaOpcion extends StatelessWidget {
     final colorIcono = peligro
         ? AppColores.error
         : destacado
-        ? acentoMarca(context)
+        ? AppColores.primary
         : palette.textPrimary;
     final fondoIcono = peligro
         ? AppColores.error.withValues(alpha: 0.12)
@@ -403,7 +403,7 @@ class EncabezadoIcono extends StatelessWidget {
             color: AppColores.primary.withValues(alpha: 0.16),
             shape: BoxShape.circle,
           ),
-          child: Icon(icono, size: 36, color: acentoMarca(context)),
+          child: Icon(icono, size: 36, color: AppColores.primary),
         ),
         const SizedBox(height: 14),
         Text(
@@ -538,7 +538,10 @@ void _mostrarAviso(
                   messenger.hideCurrentSnackBar();
                   onAccion();
                 },
-                style: TextButton.styleFrom(foregroundColor: acento),
+                style: TextButton.styleFrom(
+                  foregroundColor: acento,
+                  iconColor: AppColores.primary,
+                ),
                 child: Text(
                   accion,
                   style: const TextStyle(fontWeight: FontWeight.w800),

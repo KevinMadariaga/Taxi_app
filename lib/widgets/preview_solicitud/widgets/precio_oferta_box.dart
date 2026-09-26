@@ -156,7 +156,7 @@ class _PrecioColumna extends StatelessWidget {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 14.sp, color: AppColores.primaryDark),
+              Icon(icon, size: 14.sp, color: AppColores.primary),
               SizedBox(width: 4.w),
               Flexible(
                 child: Text(

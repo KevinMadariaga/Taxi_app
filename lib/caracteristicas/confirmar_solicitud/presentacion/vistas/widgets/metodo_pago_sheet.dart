@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
-import 'package:taxi_app/widgets/ajustes_ui.dart';
 
 import '../../viewmodels/confirmar_solicitud_viewmodel.dart';
 
@@ -182,7 +181,7 @@ class _OpcionPago extends StatelessWidget {
                       ? Icons.radio_button_checked_rounded
                       : Icons.radio_button_off_rounded,
                   key: ValueKey(seleccionado),
-                  color: seleccionado ? acentoMarca(context) : palette.grey400,
+                  color: seleccionado ? AppColores.primary : palette.grey400,
                 ),
               ),
             ],

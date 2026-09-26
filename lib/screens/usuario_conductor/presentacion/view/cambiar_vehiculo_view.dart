@@ -410,7 +410,7 @@ class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
                     Icon(
                       icon,
                       size: 36,
-                      color: sel ? acentoMarca(context) : palette.textSecondary,
+                      color: sel ? AppColores.primary : palette.textSecondary,
                     ),
                     const SizedBox(height: 8),
                     Text(
@@ -546,7 +546,7 @@ class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
             ),
             child: Icon(
               Icons.add_a_photo_outlined,
-              color: acentoMarca(context),
+              color: AppColores.primary,
               size: 26,
             ),
           ),
@@ -865,7 +865,7 @@ class _CambiarVehiculoViewState extends State<CambiarVehiculoView> {
                             Icon(
                               Icons.info_outline_rounded,
                               size: 16,
-                              color: acentoMarca(context),
+                              color: AppColores.primary,
                             ),
                             const SizedBox(width: 8),
                             Expanded(

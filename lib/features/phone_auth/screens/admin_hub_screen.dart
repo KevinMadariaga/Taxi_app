@@ -631,7 +631,7 @@ class _TabMensajes extends StatelessWidget {
                     ? AppColores.primary.withValues(alpha: 0.18)
                     : context.palette.grey200,
                 leadingColor: hayNuevos
-                    ? acentoMarca(context)
+                    ? AppColores.primary
                     : context.palette.textSecondary,
                 noLeido: hayNuevos,
                 trailingTop: hora,
@@ -724,7 +724,7 @@ class _TabSugerencias extends StatelessWidget {
                     : AppColores.primary.withValues(alpha: 0.18),
                 leadingColor: visto
                     ? context.palette.textSecondary
-                    : acentoMarca(context),
+                    : AppColores.primary,
                 noLeido: !visto,
                 trailingTop: fecha,
                 title: Wrap(

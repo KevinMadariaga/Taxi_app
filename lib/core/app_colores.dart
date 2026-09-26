@@ -11,10 +11,11 @@ class AppColores {
   // Color principal de la app: naranja claro de la familia del logo (el
   // logo va de #FEB902 arriba a #FC6C02 abajo), elegido entre sus tonos
   // claros. El mismo en claro y oscuro para botones, rutas, barras de marca
-  // y fondos de acento. Contenido encima: oscuro (`ink900`, 9.5:1); blanco
-  // no se lee (usar `colorContenidoSobre`). Como ÍCONO/TEXTO sobre fondo
-  // claro se pierde: ahí va `primaryDark` vía `acentoMarca()`.
-  static const Color primary = Color(0xFFFFA62B);
+  // y fondos de acento. Contenido encima: oscuro (`ink900`, 10:1); blanco
+  // no se lee (usar `colorContenidoSobre`). Los ÍCONOS de acento usan este
+  // mismo naranja en ambos modos; el TEXTO de acento sobre fondo claro usa
+  // `primaryDark` vía `acentoMarca()` para poder leerse.
+  static const Color primary = Color(0xFFFFAD3B);
   static const Color secondary = Colores.azul; // color secundario/acento
   // Naranja oscurecido: para iconos sobre fondos teñidos con `primary`,
   // donde el naranja base pierde contraste.

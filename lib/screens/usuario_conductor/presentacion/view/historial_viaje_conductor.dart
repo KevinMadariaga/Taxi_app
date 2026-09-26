@@ -472,14 +472,14 @@ class _ResumenConductor extends StatelessWidget {
             icon: Icons.directions_car_rounded,
             valor: totalViajes.toString(),
             label: 'Viajes',
-            color: acentoMarca(context),
+            color: AppColores.primary,
           ),
           const _SeparadorVertical(),
           _ResumenItem(
             icon: Icons.star_rounded,
             valor: promedio > 0 ? promedio.toStringAsFixed(1) : '–',
             label: 'Calificación',
-            color: acentoMarca(context),
+            color: AppColores.primary,
           ),
           const _SeparadorVertical(),
           _ResumenItem(

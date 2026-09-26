@@ -354,7 +354,7 @@ class _VehiculoCard extends StatelessWidget {
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
                             valueColor: AlwaysStoppedAnimation<Color>(
-                              AppColores.primaryDark,
+                              AppColores.primary,
                             ),
                           ),
                         ),
@@ -382,7 +382,7 @@ class _VehiculoCard extends StatelessWidget {
             padding: const EdgeInsets.all(14),
             child: Row(
               children: [
-                Icon(vehiculo.icon, color: acentoMarca(context), size: 22),
+                Icon(vehiculo.icon, color: AppColores.primary, size: 22),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(

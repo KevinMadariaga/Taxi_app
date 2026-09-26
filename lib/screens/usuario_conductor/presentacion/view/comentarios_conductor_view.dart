@@ -238,7 +238,7 @@ class _TarjetaComentario extends StatelessWidget {
                 Icon(
                   Icons.format_quote_rounded,
                   size: 20,
-                  color: acentoMarca(context),
+                  color: AppColores.primary,
                 ),
                 const SizedBox(width: 6),
                 Expanded(

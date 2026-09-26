@@ -297,7 +297,8 @@ class MapaPrevisualizacionSolicitud extends StatelessWidget {
                         objetivoEsDestino ? Icons.flag : Icons.person,
                         color: objetivoEsDestino
                             ? AppColores.primaryDark
-                            : Colors.white,
+                            // Oscuro sobre el naranja (blanco: 1.9:1).
+                            : AppColores.ink900,
                         size: 20,
                       ),
                     ),

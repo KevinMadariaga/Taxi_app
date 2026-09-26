@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
-import 'package:taxi_app/widgets/ajustes_ui.dart';
 
 const Color kHistorialAmberDark = AppColores.primary;
 
@@ -77,7 +76,7 @@ class HistorialViajeCard extends StatelessWidget {
                     isMoto
                         ? Icons.two_wheeler_rounded
                         : Icons.directions_car_rounded,
-                    color: acentoMarca(context),
+                    color: AppColores.primary,
                   ),
                 ),
                 const SizedBox(width: 14),
@@ -175,7 +174,7 @@ class _MiniRating extends StatelessWidget {
           Icon(
             Icons.star_rounded,
             size: 14,
-            color: tiene ? acentoMarca(context) : context.palette.grey400,
+            color: tiene ? AppColores.primary : context.palette.grey400,
           ),
           const SizedBox(width: 3),
           Text(
@@ -348,7 +347,7 @@ class DetalleViajeDialog extends StatelessWidget {
                       ),
                       child: Icon(
                         Icons.person_rounded,
-                        color: acentoMarca(context),
+                        color: AppColores.primary,
                         size: 32,
                       ),
                     ),

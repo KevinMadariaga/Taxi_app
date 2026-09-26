@@ -156,7 +156,7 @@ class RideSecondaryButton extends StatelessWidget {
                   Stack(
                     clipBehavior: Clip.none,
                     children: [
-                      Icon(icon, size: 17, color: palette.ink700),
+                      Icon(icon, size: 17, color: AppColores.primary),
                       if (badgeCount > 0)
                         Positioned(
                           top: -5,

@@ -112,15 +112,19 @@ class AppThemeConfig {
 
       // Botones de texto y con borde: el naranja principal como texto sobre
       // fondo claro no se lee; en claro va el naranja oscuro (5.3:1), en
-      // oscuro el principal (8.5:1).
+      // oscuro el principal (9:1).
+      // El ícono del botón sí va en el naranja principal en ambos modos (el
+      // texto necesita el oscuro para leerse; el ícono es decorativo).
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: isDark ? AppColores.primary : AppColores.primaryDark,
+          iconColor: AppColores.primary,
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: isDark ? AppColores.primary : AppColores.primaryDark,
+          iconColor: AppColores.primary,
         ),
       ),
 
