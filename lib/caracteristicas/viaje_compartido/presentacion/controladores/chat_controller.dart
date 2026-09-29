@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import 'package:taxi_app/core/utils/notificacion_clave.dart';
 import 'package:taxi_app/core/services/chat_firestore_datasource.dart';
 import 'package:taxi_app/core/services/notificacion_servicio.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
@@ -151,6 +152,7 @@ class ChatController {
         // Formato consumido por `_manejarTapNotificacion` en main.dart para
         // abrir el chat de este viaje al tocar la notificación.
         payload: 'viaje_chat:$viajeId:$currentUserId:$otherPartyLabel',
+        push: AvisoPush('trip_chat_message', viajeId),
       );
     } catch (_) {
       // Sin bloquear la UX si notificaciones no estan disponibles.

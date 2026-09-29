@@ -1,6 +1,7 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'dart:ui' show Color;
+import 'package:taxi_app/core/services/registro_avisos.dart';
+import 'package:taxi_app/core/utils/notificacion_clave.dart';
 
 /// Servicio centralizado para notificaciones locales.
 /// Implementado como singleton para compartir la misma instancia del plugin.
@@ -170,6 +171,38 @@ class NotificacionesServicio {
     _initialized = true;
   }
 
+  /// Un solo aviso por evento, venga por push o sea local.
+  ///
+  /// - [push] es el evento del backend al que corresponde el aviso (o `null`
+  ///   si ningún push lo cubre: se muestra siempre).
+  /// - Aviso LOCAL con la app en segundo plano: no se muestra. El push de ese
+  ///   evento ya lo dibuja el sistema, y un listener de Firestore que sigue
+  ///   vivo en background (tracking del conductor) duplicaba cada aviso.
+  /// - Evento único ([AvisoPush.esEventoUnico]): el primero que lo muestre lo
+  ///   reclama en [RegistroAvisos] y los demás lo descartan.
+  @visibleForTesting
+  static Future<bool> debeMostrar(
+    AvisoPush? push, {
+    required bool desdePush,
+    required bool enPrimerPlano,
+  }) async {
+    if (push == null) return true;
+    if (!desdePush && !enPrimerPlano) return false;
+    if (push.esEventoUnico) return RegistroAvisos.reclamar(push.claveEvento);
+    return true;
+  }
+
+  Future<bool> _debeMostrar(AvisoPush? push, bool desdePush) {
+    if (push == null) return Future.value(true);
+    // Solo se consulta para avisos locales (isolate principal, con binding).
+    final estado = desdePush ? null : WidgetsBinding.instance.lifecycleState;
+    return debeMostrar(
+      push,
+      desdePush: desdePush,
+      enPrimerPlano: estado == null || estado == AppLifecycleState.resumed,
+    );
+  }
+
   /// Notificación simple (genérica) con ID opcional
   Future<void> showNotification({
     int? id,
@@ -178,7 +211,10 @@ class NotificacionesServicio {
     String? channelId,
     String? channelName,
     String? payload,
+    AvisoPush? push,
+    bool desdePush = false,
   }) async {
+    if (!await _debeMostrar(push, desdePush)) return;
     await _ensureInitialized();
 
     final androidDetails = AndroidNotificationDetails(
@@ -218,7 +254,9 @@ class NotificacionesServicio {
     required String senderName,
     required String message,
     String? payload,
+    AvisoPush? push,
   }) async {
+    if (!await _debeMostrar(push, false)) return;
     await _ensureInitialized();
 
     final androidDetails = AndroidNotificationDetails(
@@ -266,7 +304,10 @@ class NotificacionesServicio {
     bool vibrate = true,
     int? id,
     String? payload,
+    AvisoPush? push,
+    bool desdePush = false,
   }) async {
+    if (!await _debeMostrar(push, desdePush)) return;
     await _ensureInitialized();
 
     final androidDetails = AndroidNotificationDetails(

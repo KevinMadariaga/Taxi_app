@@ -10,6 +10,7 @@ import 'package:taxi_app/core/app_navigator.dart';
 import 'package:taxi_app/core/helpers/session_helper.dart';
 import 'package:taxi_app/core/services/avisos_solicitud_store.dart';
 import 'package:taxi_app/core/services/notificacion_servicio.dart';
+import 'package:taxi_app/core/services/registro_avisos.dart';
 import 'package:taxi_app/core/utils/notificacion_clave.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
 import 'package:taxi_app/core/constants/rutas_app.dart';
@@ -32,7 +33,14 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   // muestra automáticamente en background/terminated — mostrarla también
   // aquí duplicaba el aviso (dos notificaciones para el mismo evento).
   // Solo mostramos manualmente los mensajes puramente data-only.
-  if (message.notification != null) return;
+  //
+  // Aun así se reclama el evento: si la app sigue viva en background y el
+  // listener de una pantalla detecta el mismo cambio, ya no avisa de nuevo.
+  if (message.notification != null) {
+    final aviso = AvisoPush.desdeDatos(data);
+    if (aviso.esEventoUnico) await RegistroAvisos.reclamar(aviso.claveEvento);
+    return;
+  }
 
   if (data.containsKey('title') || data.containsKey('body')) {
     final String title = data['title'] ?? 'Ride';
@@ -48,6 +56,8 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       // tener silenciado — justo para el aviso más importante del conductor.
       channelId: data['channelId'] as String?,
       payload: payloadDeMensaje(data),
+      push: AvisoPush.desdeDatos(data),
+      desdePush: true,
     );
     await _recordarAvisoMostrado(data);
   }
@@ -586,6 +596,8 @@ class FcmService {
       title: title,
       body: body,
       payload: payloadDeMensaje(message.data),
+      push: AvisoPush.desdeDatos(message.data),
+      desdePush: true,
     );
     unawaited(_recordarAvisoMostrado(message.data));
   }

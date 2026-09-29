@@ -490,6 +490,7 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
         body: nuevas.length == 1
             ? 'Te proponen un nuevo valor: \$$valorTxt'
             : 'La más baja: \$$valorTxt',
+        push: AvisoPush('contraoferta', _solicitudId ?? ''),
       );
     } catch (e, st) {
       ErrorReporter.report(e, st, reason: 'buscando_taxi_viewmodel');
@@ -883,6 +884,11 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
         id: 1001,
         title: 'Solicitud asignada',
         body: '¡Un conductor ha sido asignado a tu viaje!',
+        push: AvisoPush(
+          'trip_status_change',
+          _solicitudId ?? '',
+          estado: SolicitudEstado.asignado,
+        ),
       );
     } catch (e, st) {
       ErrorReporter.report(e, st, reason: 'buscando_taxi_viewmodel');
@@ -963,6 +969,11 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
         id: 1004,
         title: 'Búsqueda cancelada',
         body: 'Cancelamos tu solicitud automáticamente por inactividad.',
+        push: AvisoPush(
+          'trip_status_change',
+          solicitudId,
+          estado: SolicitudEstado.cancelado,
+        ),
       );
     } catch (e, st) {
       ErrorReporter.report(e, st, reason: 'buscando_taxi_viewmodel');

@@ -472,6 +472,7 @@ class ViajeConductorViewModel extends ChangeNotifier {
           .showTripNotification(
             title: '💳 Cambió el método de pago',
             body: 'El cliente actualizó su forma de pago a "$actual".',
+            push: AvisoPush('payment_method_change', viajeId),
           )
           .catchError((e, st) {
             ErrorReporter.report(
@@ -762,6 +763,11 @@ class ViajeConductorViewModel extends ChangeNotifier {
           'Servicio cancelado',
           'El cliente ha cancelado el servicio.',
           clave: 'servicio_cancelado',
+          push: AvisoPush(
+            'trip_status_change',
+            viajeId,
+            estado: SolicitudEstado.cancelado,
+          ),
         ),
       );
       _safeNotify();
@@ -837,6 +843,11 @@ class ViajeConductorViewModel extends ChangeNotifier {
         NotificacionesServicio.instance.showTripNotification(
           title: 'Cliente en camino',
           body: 'El cliente va en camino, espera que llegue al vehículo.',
+          push: AvisoPush(
+            'trip_status_change',
+            viajeId,
+            estado: SolicitudEstado.enCamino,
+          ),
         ),
       );
       _safeNotify();
@@ -1102,6 +1113,7 @@ class ViajeConductorViewModel extends ChangeNotifier {
     String title,
     String body, {
     required String clave,
+    AvisoPush? push,
   }) async {
     try {
       await _ensureNotifications();
@@ -1109,6 +1121,7 @@ class ViajeConductorViewModel extends ChangeNotifier {
         id: idNotificacionDe(clave, viajeId),
         title: title,
         body: body,
+        push: push,
       );
     } catch (e, st) {
       FirebaseCrashlytics.instance.recordError(

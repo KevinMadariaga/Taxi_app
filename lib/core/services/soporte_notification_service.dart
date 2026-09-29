@@ -135,6 +135,7 @@ class SoporteNotificationService {
                 title: 'Soporte — Respuesta recibida',
                 body: texto,
                 payload: 'soporte_chat',
+                push: AvisoPush('soporte_chat_respuesta', userId),
               );
             }
           },
@@ -194,6 +195,7 @@ class SoporteNotificationService {
                 title: 'Soporte — $userName',
                 body: texto,
                 payload: 'admin_hub:1',
+                push: AvisoPush('soporte_chat', change.doc.id),
               );
             }
           },
@@ -245,6 +247,7 @@ class SoporteNotificationService {
                 channelId: 'taxi_emergencia_channel',
                 channelName: 'Emergencias',
                 payload: 'admin_hub:0',
+                push: AvisoPush('emergencia', change.doc.id),
               );
             }
           },
@@ -307,6 +310,7 @@ class SoporteNotificationService {
                     ? motivos
                     : 'Reporte enviado por un cliente.',
                 payload: 'admin_hub:0',
+                push: AvisoPush('reporte', change.doc.id),
               );
             }
           },
@@ -353,6 +357,7 @@ class SoporteNotificationService {
                     ? mensaje
                     : 'Un usuario envió una sugerencia.',
                 payload: 'admin_hub:2',
+                push: AvisoPush('sugerencia', change.doc.id),
               );
             }
           },
@@ -410,6 +415,7 @@ class SoporteNotificationService {
                 channelId: 'taxi_admin_channel',
                 channelName: 'Notificaciones del Administrador',
                 payload: 'admin_conductores',
+                push: AvisoPush('solicitud_conductor', change.doc.id),
               );
             }
           },

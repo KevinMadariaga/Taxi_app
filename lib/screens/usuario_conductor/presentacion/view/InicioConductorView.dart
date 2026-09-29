@@ -9,6 +9,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:taxi_app/core/utils/notificacion_clave.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/theme/map_style.dart';
@@ -1420,6 +1421,7 @@ class _InicioConductorState extends State<InicioConductor>
               title: '¡Membresía activada!',
               body:
                   'Tu membresía de conductor está activa. ¡Ya puedes recibir solicitudes!',
+              push: AvisoPush('membresia_activada', uid),
             );
           }
           WidgetsBinding.instance.addPostFrameCallback((_) {

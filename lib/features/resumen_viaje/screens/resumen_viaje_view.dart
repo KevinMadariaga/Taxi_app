@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:taxi_app/core/constants/solicitud_estado.dart';
+import 'package:taxi_app/core/utils/notificacion_clave.dart';
 import 'package:taxi_app/widgets/boton.dart';
 import 'package:taxi_app/widgets/sugerencia_modal.dart';
 import 'package:taxi_app/core/app_colores.dart';
@@ -35,13 +37,21 @@ class ResumenViajeView extends StatelessWidget {
         tipoUsuario: tipoUsuario,
         solicitudId: solicitudId,
       ),
-      child: _ResumenViajeBody(tipoUsuario: tipoUsuario),
+      child: _ResumenViajeBody(
+        tipoUsuario: tipoUsuario,
+        solicitudId: solicitudId,
+      ),
     );
   }
 }
 
 class _ResumenViajeBody extends StatefulWidget {
-  const _ResumenViajeBody({required this.tipoUsuario});
+  const _ResumenViajeBody({
+    required this.tipoUsuario,
+    required this.solicitudId,
+  });
+
+  final String solicitudId;
 
   final TipoUsuarioResumen tipoUsuario;
 
@@ -77,6 +87,11 @@ class _ResumenViajeBodyState extends State<_ResumenViajeBody> {
           await NotificacionesServicio.instance.showTripNotification(
             title: '✅ El servicio ha terminado',
             body: '¡Gracias por elegirnos! Esperamos verte pronto.',
+            push: AvisoPush(
+              'trip_status_change',
+              widget.solicitudId,
+              estado: SolicitudEstado.completado,
+            ),
           );
         }
       } catch (e, st) {

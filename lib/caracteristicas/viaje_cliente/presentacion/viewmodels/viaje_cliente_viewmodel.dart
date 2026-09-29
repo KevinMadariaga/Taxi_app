@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:intl/intl.dart';
 
+import 'package:taxi_app/core/utils/notificacion_clave.dart';
 import 'package:taxi_app/caracteristicas/viaje_cliente/dominio/casos_uso/cancelar_viaje_usecase.dart';
 import 'package:taxi_app/caracteristicas/viaje_cliente/dominio/casos_uso/confirmar_voy_en_camino_usecase.dart';
 import 'package:taxi_app/caracteristicas/viaje_compartido/datos/fuentes/ruta_datasource.dart';
@@ -489,6 +490,7 @@ class ViajeClienteViewModel extends ChangeNotifier {
         id: 77701,
         title: 'Tu conductor está cerca',
         body: 'El conductor esta por llegar. ¡Prepárate para abordar!',
+        push: AvisoPush('conductor_cerca', viajeId),
       );
     }
   }

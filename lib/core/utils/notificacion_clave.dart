@@ -58,3 +58,53 @@ int idNotificacion(String clave) {
 /// Id de la notificación identificada por [tipo] y [entidad].
 int idNotificacionDe(String tipo, [String? entidad]) =>
     idNotificacion(claveNotificacion(tipo, entidad));
+
+/// Tipos de push que avisan un evento que ocurre UNA sola vez (un cambio de
+/// estado del viaje, el conductor llegando). Para esos, el primer aviso que se
+/// muestre —push o local, en primer plano o en background— gana y los demás
+/// se descartan. Chat y contraofertas NO están: se repiten con la misma clave
+/// y cada mensaje u oferta nueva debe poder avisar.
+const Set<String> tiposPushDeEventoUnico = {
+  'trip_status_change',
+  'conductor_cerca',
+  'payment_method_change',
+  'membresia_activada',
+};
+
+/// El evento del backend al que corresponde un aviso, para no mostrar dos
+/// notificaciones del mismo hecho (una por push y otra local).
+///
+/// Las notificaciones locales que avisan algo que el backend TAMBIÉN manda por
+/// FCM lo declaran con el mismo [tipo] y entidad que usa
+/// `functions/index.js`; así la app sabe que hay un push "gemelo".
+class AvisoPush {
+  AvisoPush(this.tipo, String entidad, {this.estado})
+    : clave = claveNotificacion(tipo, entidad);
+
+  AvisoPush._(this.tipo, this.clave, this.estado);
+
+  /// Desde el `data` de un mensaje FCM.
+  factory AvisoPush.desdeDatos(Map<String, dynamic> data) {
+    final tipo = '${data['type'] ?? ''}';
+    final enviada = '${data['notifClave'] ?? ''}';
+    final clave = enviada.isNotEmpty
+        ? enviada
+        : claveNotificacion(tipo, '${data['solicitudId'] ?? ''}');
+    final estado = '${data['estado'] ?? ''}';
+    return AvisoPush._(tipo, clave, estado.isEmpty ? null : estado);
+  }
+
+  final String tipo;
+
+  /// Misma clave que `claveNotificacion` del backend (`<tipo>_<entidad>`).
+  final String clave;
+
+  /// Distingue eventos de la misma clave: cada cambio de estado del viaje es
+  /// un evento distinto.
+  final String? estado;
+
+  bool get esEventoUnico => tiposPushDeEventoUnico.contains(tipo);
+
+  String get claveEvento =>
+      (estado == null || estado!.isEmpty) ? clave : '$clave|$estado';
+}
