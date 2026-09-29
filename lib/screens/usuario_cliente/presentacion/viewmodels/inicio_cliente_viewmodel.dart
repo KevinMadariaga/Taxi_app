@@ -7,6 +7,7 @@ import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:taxi_app/core/utils/direccion_format.dart';
 import 'package:taxi_app/caracteristicas/seleccion_destino/datos/repositorios/ubicaciones_repository_impl.dart';
 import 'package:taxi_app/caracteristicas/seleccion_destino/dominio/casos_uso/eliminar_favorito_usecase.dart';
 import 'package:taxi_app/caracteristicas/seleccion_destino/dominio/casos_uso/guardar_favorito_usecase.dart';
@@ -543,10 +544,14 @@ class InicioClienteViewModel extends ChangeNotifier {
         coord.latitude,
         coord.longitude,
       );
-      if (placemarks.isNotEmpty) {
-        final p = placemarks.first;
-        final name = p.name?.trim() ?? '';
-        final street = p.street?.trim() ?? '';
+      for (final p in placemarks) {
+        String limpio(String? s) {
+          final t = s?.trim() ?? '';
+          return esPlusCode(t) ? '' : t;
+        }
+
+        final name = limpio(p.name);
+        final street = limpio(p.street);
         final subLocality = p.subLocality?.trim() ?? '';
         final locality = p.locality?.trim() ?? '';
         final parts = <String>[
@@ -562,7 +567,7 @@ class InicioClienteViewModel extends ChangeNotifier {
     } catch (e, st) {
       ErrorReporter.report(e, st, reason: 'inicio_cliente_viewmodel');
     }
-    return '${coord.latitude.toStringAsFixed(6)}, ${coord.longitude.toStringAsFixed(6)}';
+    return textoSinDireccion;
   }
 
   @override

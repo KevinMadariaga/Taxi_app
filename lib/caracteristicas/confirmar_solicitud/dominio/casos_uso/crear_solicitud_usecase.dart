@@ -126,7 +126,7 @@ class CrearSolicitudUseCase {
     final title = formatearDireccion(destino.title);
     if (title.isNotEmpty) return title;
 
-    return _coordsText(destino.position);
+    return textoSinDireccion;
   }
 
   Future<String> _resolverDesdeCoordenadas(LatLng position) async {
@@ -135,19 +135,24 @@ class CrearSolicitudUseCase {
         position.latitude,
         position.longitude,
       );
-      if (placemarks.isNotEmpty) {
-        final resuelta = _friendlyDesdePlacemark(placemarks.first);
+      for (final p in placemarks) {
+        final resuelta = _friendlyDesdePlacemark(p);
         if (resuelta.trim().isNotEmpty) return resuelta.trim();
       }
     } catch (e, st) {
       ErrorReporter.report(e, st, reason: 'crear_solicitud_usecase');
     }
-    return _coordsText(position);
+    return textoSinDireccion;
   }
 
   String _friendlyDesdePlacemark(Placemark p) {
-    final name = p.name?.trim() ?? '';
-    final street = p.street?.trim() ?? '';
+    String limpio(String? s) {
+      final t = s?.trim() ?? '';
+      return esPlusCode(t) ? '' : t;
+    }
+
+    final name = limpio(p.name);
+    final street = limpio(p.street);
     final subLocality = p.subLocality?.trim() ?? '';
     final locality = p.locality?.trim() ?? '';
 
@@ -165,9 +170,5 @@ class CrearSolicitudUseCase {
     ].where((s) => s.isNotEmpty).toList();
     if (parts.isEmpty) return '';
     return formatearDireccion(parts.take(2).join(', '));
-  }
-
-  String _coordsText(LatLng point) {
-    return '${point.latitude.toStringAsFixed(6)}, ${point.longitude.toStringAsFixed(6)}';
   }
 }

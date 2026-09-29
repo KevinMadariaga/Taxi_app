@@ -6,6 +6,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
 
+import 'package:taxi_app/core/utils/direccion_format.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
@@ -129,7 +130,7 @@ class _SeleccionDestinoScreenState extends State<SeleccionDestinoScreen> {
     if (resultado == null || !mounted) return;
     final direccion = resultado.direccion?.trim().isNotEmpty == true
         ? resultado.direccion!.trim()
-        : _vm.coordsText(resultado.position);
+        : textoSinDireccion;
     _destinoController.text = direccion;
     await _irAMapPreview(resultado.position, direccion);
   });
@@ -176,9 +177,12 @@ class _SeleccionDestinoScreenState extends State<SeleccionDestinoScreen> {
   Future<void> _tapElegirEnMapa() => _conGuardaDeSeleccion(() async {
     final origen = _vm.origenPosition ?? widget.currentLocation;
     if (origen == null) return;
+    // Se abre sobre el origen con su dirección ya resuelta; si todavía no la
+    // hay, va vacía y el mapa la geocodifica. Antes se pasaban las
+    // coordenadas como texto y el usuario veía "8.23, -73.34" de entrada.
     await _confirmarUbicacionYNavegar(
       origen,
-      _vm.coordsText(origen),
+      _vm.origenDireccion,
       titulo: 'Elige tu destino en el mapa',
     );
   });

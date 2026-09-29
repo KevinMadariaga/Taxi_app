@@ -5,6 +5,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart' show LatLng;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:taxi_app/core/utils/direccion_format.dart';
 import 'package:taxi_app/core/constants/app_constants.dart';
 import 'package:taxi_app/caracteristicas/seleccion_destino/dominio/casos_uso/buscar_destinos_usecase.dart';
 import 'package:taxi_app/caracteristicas/seleccion_destino/presentacion/vistas/seleccionar_ubicacion_mapa_view.dart';
@@ -539,7 +540,7 @@ class _InicioClienteViewState extends State<InicioClienteView>
 
     final direccion = picked.direccion?.trim().isNotEmpty == true
         ? picked.direccion!.trim()
-        : '${picked.position.latitude}, ${picked.position.longitude}';
+        : textoSinDireccion;
     final ok = await vm.guardarFavorito(
       nombre: etiqueta,
       direccion: direccion,

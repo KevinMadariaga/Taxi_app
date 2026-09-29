@@ -26,3 +26,16 @@ String formatearDireccion(String? direccion) {
   if (parts.isEmpty) return '';
   return parts.take(2).join(', ');
 }
+
+/// Lo que se muestra cuando un punto del mapa no tiene dirección conocida
+/// (sin red, punto sin dirección catastral). Nunca se le muestran
+/// coordenadas al usuario: antes cada geocodificación caía a "8.23, -73.34".
+const String textoSinDireccion = 'Punto seleccionado en el mapa';
+
+/// Plus Code de Google (ej. "7GJ3+X4" o "7GJ3+X4 Ocaña"). El geocodificador de
+/// Android a veces lo devuelve como `name`/`street` de un punto sin dirección;
+/// para el usuario es tan ilegible como una coordenada.
+bool esPlusCode(String? texto) => RegExp(
+  r'^[23456789CFGHJMPQRVWX]{2,8}\+[23456789CFGHJMPQRVWX]{0,3}(\s|,|$)',
+  caseSensitive: false,
+).hasMatch((texto ?? '').trim());

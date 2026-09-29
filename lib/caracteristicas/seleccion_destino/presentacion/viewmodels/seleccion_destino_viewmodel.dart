@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import 'package:taxi_app/core/utils/direccion_format.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
 
 import '../../datos/repositorios/historial_destinos_repository_impl.dart';
@@ -134,22 +135,16 @@ class SeleccionDestinoViewModel extends ChangeNotifier {
     return '${point.latitude.toStringAsFixed(5)},${point.longitude.toStringAsFixed(5)}';
   }
 
-  String coordsText(LatLng point) {
-    return '${point.latitude.toStringAsFixed(6)}, ${point.longitude.toStringAsFixed(6)}';
-  }
-
   /// En Colombia `street` suele venir ya con el número incluido (ej.
   /// "Cra. 10ª # 20-10"), pero algunos dispositivos además devuelven ese
   /// mismo número suelto en otro campo (ej. "# 20-10") — sin deduplicar se ve
   /// repetido ("# 20-10, Cra. 10ª # 20-10"). Se descarta cualquier parte que
   /// ya esté contenida en otra (se queda con la más completa).
   String _direccionAmigable(Placemark p, LatLng fallback) {
-    final partes = [
-      p.street,
-      p.subLocality,
-      p.locality,
-      p.administrativeArea,
-    ].map((s) => (s ?? '').trim()).where((s) => s.isNotEmpty).toList();
+    final partes = [p.street, p.subLocality, p.locality, p.administrativeArea]
+        .map((s) => (s ?? '').trim())
+        .where((s) => s.isNotEmpty && !esPlusCode(s))
+        .toList();
 
     final unicas = <String>[];
     for (final parte in partes) {
@@ -160,7 +155,7 @@ class SeleccionDestinoViewModel extends ChangeNotifier {
     }
 
     final direccion = unicas.join(', ');
-    if (direccion.trim().isEmpty) return coordsText(fallback);
+    if (direccion.trim().isEmpty) return textoSinDireccion;
     return direccion;
   }
 
@@ -177,17 +172,17 @@ class SeleccionDestinoViewModel extends ChangeNotifier {
         punto.latitude,
         punto.longitude,
       );
-      if (placemarks.isNotEmpty) {
-        final resuelta = _direccionAmigable(placemarks.first, punto);
+      for (final p in placemarks) {
+        final resuelta = _direccionAmigable(p, punto);
+        if (resuelta == textoSinDireccion) continue;
         _direccionCache[key] = resuelta;
         return resuelta;
       }
     } catch (e, st) {
       ErrorReporter.report(e, st, reason: 'SeleccionDestinoViewModel');
     }
-    final fallback = coordsText(punto);
-    _direccionCache[key] = fallback;
-    return fallback;
+    // Sin cachear: con red de nuevo, el próximo intento puede resolverla.
+    return textoSinDireccion;
   }
 
   /// Inicializa el origen: usa la dirección ya conocida (resuelta antes de

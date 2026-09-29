@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
+import 'package:taxi_app/core/utils/direccion_format.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/widgets/confirmar_dialog.dart';
@@ -72,7 +73,7 @@ Future<UbicacionEntity?> mostrarFavoritosBottomSheet(
 
   final direccion = picked.direccion?.trim().isNotEmpty == true
       ? picked.direccion!.trim()
-      : vm.coordsText(picked.position);
+      : textoSinDireccion;
   final guardado = await vm.guardarFavorito(
     nombre: etiqueta,
     ubicacion: picked.position,
@@ -183,7 +184,10 @@ class _FavoritosSheetContent extends StatelessWidget {
                     );
                     return ListTile(
                       enabled: !sinUbicacion,
-                      leading: const Icon(Icons.star, color: AppColores.primary),
+                      leading: const Icon(
+                        Icons.star,
+                        color: AppColores.primary,
+                      ),
                       title: Text(favorito.nombre),
                       subtitle: Text(
                         sinUbicacion
