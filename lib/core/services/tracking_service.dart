@@ -7,6 +7,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:taxi_app/core/helpers/permisos_helper.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:taxi_app/core/services/detector_ubicacion_simulada.dart';
 import 'package:taxi_app/core/services/firebase_service.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
 
@@ -203,6 +204,10 @@ class TrackingService {
               }
 
               _lastPosition = position;
+              DetectorUbicacionSimulada.instance.revisar(
+                position,
+                origen: 'tracking',
+              );
 
               onLocationUpdate?.call(position);
             },
@@ -276,6 +281,10 @@ class TrackingService {
       );
 
       _lastPosition = position;
+      DetectorUbicacionSimulada.instance.revisar(
+        position,
+        origen: 'lectura puntual',
+      );
       return position;
     } catch (e) {
       developer.log(
