@@ -18,8 +18,12 @@
          EMUI/Huawei, ColorOS/Oppo, etc.) pueden congelar el tracking en
          background aunque el foreground service este corriendo. -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
-    <!-- Google Mobile Ads SDK -->
-    <uses-permission android:name="com.google.android.gms.permission.AD_ID" />
+    <!-- La app no usa anuncios ni ID de publicidad: se quita AD_ID también si
+         alguna dependencia de Google Play Services lo agrega al merged
+         manifest (D7). Mantener coherente con la declaración de "ID de
+         publicidad" en Play Console (= No). -->
+    <uses-permission android:name="com.google.android.gms.permission.AD_ID"
+        tools:node="remove" />
     <application
         android:label="Ride"
         android:name="${applicationName}"
