@@ -170,6 +170,94 @@ describe('solicitudes — actualizar', () => {
     );
   });
 
+  // D4 (29/09/2026): un conductor que no es el asignado solo escribe lo que
+  // escriben `aceptarSolicitud` y `enviarContraoferta`, nada más.
+  describe('conductor no asignado sobre una solicitud en buscando (D4)', () => {
+    test('acepta con el payload real de aceptarSolicitud', async () => {
+      await sembrar(env, 'solicitudes/s1', solicitud());
+      await assertSucceeds(
+        como(env, CONDUCTOR).doc('solicitudes/s1').update({
+          estado: 'asignado',
+          conductor: { id: CONDUCTOR, nombre: 'Conductor' },
+          estadoContraoferta: 'sin_contraoferta',
+          contraoferta: { estado: 'sin_contraoferta', updatedAt: new Date() },
+          'fecha de aceptacion conductor': new Date(),
+          updatedAt: new Date(),
+        }),
+      );
+    });
+
+    test('contraoferta con el payload real de enviarContraoferta', async () => {
+      await sembrar(env, 'solicitudes/s1', solicitud());
+      const oferta = {
+        estado: 'pendiente_cliente', valor: 15000,
+        conductor: { id: CONDUCTOR }, createdAt: new Date(),
+      };
+      await assertSucceeds(
+        como(env, CONDUCTOR).doc('solicitudes/s1').set({
+          estado: 'buscando',
+          estadoContraoferta: 'pendiente_cliente',
+          updatedAt: new Date(),
+          contraoferta: oferta,
+          contraofertas: { [CONDUCTOR]: oferta },
+        }, { merge: true }),
+      );
+    });
+
+    test('NO puede cambiar la tarifa', async () => {
+      await sembrar(env, 'solicitudes/s1', solicitud());
+      await assertFails(
+        como(env, CONDUCTOR).doc('solicitudes/s1').update({ tarifa: { total: 1 } }),
+      );
+    });
+
+    test('NO puede colar otro campo junto con su contraoferta', async () => {
+      await sembrar(env, 'solicitudes/s1', solicitud());
+      await assertFails(
+        como(env, CONDUCTOR).doc('solicitudes/s1').set({
+          contraofertas: { [CONDUCTOR]: { valor: 15000 } },
+          destino: { direccion: 'otro lado' },
+        }, { merge: true }),
+      );
+    });
+
+    test('NO puede escribir la contraoferta de otro conductor', async () => {
+      await sembrar(env, 'solicitudes/s1', solicitud());
+      await assertFails(
+        como(env, CONDUCTOR).doc('solicitudes/s1').set(
+          { contraofertas: { [OTRO_CONDUCTOR]: { valor: 1 } } },
+          { merge: true },
+        ),
+      );
+    });
+
+    test('NO puede poner el contraoferta legacy a nombre de otro', async () => {
+      await sembrar(env, 'solicitudes/s1', solicitud());
+      await assertFails(
+        como(env, CONDUCTOR).doc('solicitudes/s1').update({
+          contraoferta: { valor: 1, conductor: { id: OTRO_CONDUCTOR } },
+        }),
+      );
+    });
+
+    test('NO puede asignar el viaje a otro conductor', async () => {
+      await sembrar(env, 'solicitudes/s1', solicitud());
+      await assertFails(
+        como(env, CONDUCTOR).doc('solicitudes/s1').update({
+          estado: 'asignado',
+          conductor: { id: OTRO_CONDUCTOR },
+        }),
+      );
+    });
+
+    test('NO puede cancelar la solicitud de un cliente', async () => {
+      await sembrar(env, 'solicitudes/s1', solicitud());
+      await assertFails(
+        como(env, CONDUCTOR).doc('solicitudes/s1').update({ estado: 'cancelado' }),
+      );
+    });
+  });
+
   // El bug C3: un conductor NO asignado tocando un viaje ajeno ya en curso.
   test('un conductor ajeno NO puede tocar un viaje en curso de otro', async () => {
     await sembrar(env, 'solicitudes/s1', solicitud({ estado: 'en camino', conductorId: OTRO_CONDUCTOR }));

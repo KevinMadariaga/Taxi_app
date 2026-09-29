@@ -8,24 +8,21 @@ rules_version = '2';
 // Limitaciones conocidas y aceptadas (mejoran muchísimo sobre el estado
 // anterior, pero no son perfectas — requieren cambios de código para
 // cerrarse del todo):
-// - `solicitudes` en estado 'buscando': cualquier usuario con rol=='conductor'
-//   puede escribir el documento completo, no solo los campos de
-//   conductor/contraoferta, porque el código no separa esas escrituras por
-//   campo (InicioConductorViewModel.aceptarSolicitud/enviarContraoferta). Sí
-//   se cerró la parte más grave: pasar a 'asignado' exige membresía activa
-//   (`membresiaVigente()`) y, una vez el viaje está en un estado terminal,
-//   solo se puede seguir escribiendo la calificación (`soloCambiaCalificacion()`).
+// - (Cerrada el 29/09/2026, D4) `solicitudes` en 'buscando': un conductor
+//   que no es el dueño ni el asignado ya solo puede escribir los campos de
+//   aceptar (para sí mismo) o su propia contraoferta — ver
+//   `escrituraDeConductorAjeno()`. Antes podía reescribir el documento
+//   completo (tarifa, destino, cliente…).
 // - `usuarios` con `tipoUsuario`/`rol` == 'conductor': autoasignable por
 //   diseño (botón "Ser conductor", sin aprobación) — cualquiera puede leer
 //   las solicitudes en 'buscando'. No es un descuido de esta regla: es una
 //   decisión de producto ya aceptada, y `tipoUsuario` no le agrega alcance a
 //   `rol` (ambos dan exactamente el mismo `isConductorRole()`), así que
 //   restringir uno sin el otro no cierra nada.
-// - `usuarios` con rol=='conductor': lectura abierta a cualquier admin
-//   autenticado (no solo el admin dueño del gremio) porque
-//   gestion_conductores_viewmodel.dart lista TODOS los conductores sin
-//   filtrar por adminId en la query — el aislamiento por gremio hoy es
-//   solo client-side.
+// - `usuarios` con rol=='conductor': lectura abierta a cualquier admin. Es
+//   intencional: ya no hay gremios, el admin es un único nivel (se otorga
+//   poniendo `rol: 'admin'` a mano en la base) y gestiona a todos los
+//   conductores. Los restos de `adminId`/`gremio` en el código son legado.
 //
 // Antes de desplegar a producción: probar con el emulador de Firestore
 // (rules-tests/, `npm test`) contra los flujos reales de la app.
@@ -191,6 +188,36 @@ service cloud.firestore {
               resource.data.get('conductor', {}).get('id', null));
       }
 
+      // Lo único que puede escribir un conductor que todavía no es el
+      // asignado sobre una solicitud abierta. Espejo exacto de las dos
+      // escrituras reales del código:
+      // - `InicioConductorViewModel.aceptarSolicitud`: se asigna A SÍ MISMO.
+      // - `InicioConductorViewModel.enviarContraoferta`: toca solo SU entrada
+      //   de `contraofertas` (y el `contraoferta` legacy, que debe ser suyo).
+      // Nada de tarifa, destino, origen ni datos del cliente.
+      function escrituraDeConductorAjeno() {
+        let cambios = request.resource.data.diff(resource.data).affectedKeys();
+        return aceptaParaSiMismo(cambios) || ofertaSuContraoferta(cambios);
+      }
+
+      function aceptaParaSiMismo(cambios) {
+        return cambios.hasOnly(['estado', 'conductor', 'estadoContraoferta',
+            'contraoferta', 'fecha de aceptacion conductor', 'updatedAt']) &&
+          request.resource.data.estado == 'asignado' &&
+          request.resource.data.conductor.id == request.auth.uid;
+      }
+
+      function ofertaSuContraoferta(cambios) {
+        let antes = resource.data.get('contraofertas', {});
+        let despues = request.resource.data.get('contraofertas', {});
+        return cambios.hasOnly(['estado', 'estadoContraoferta', 'contraoferta',
+            'contraofertas', 'updatedAt']) &&
+          request.resource.data.get('estado', '') in ['buscando', 'pending', 'pendiente'] &&
+          despues.diff(antes).affectedKeys().hasOnly([request.auth.uid]) &&
+          (!cambios.hasAny(['contraoferta']) ||
+            request.resource.data.contraoferta.conductor.id == request.auth.uid);
+      }
+
       allow read: if isOwner() || isAssignedConductor() ||
         (isConductorRole() && isOpenForConductores());
 
@@ -208,7 +235,8 @@ service cloud.firestore {
             isAssignedConductor() && soloCalificaAlCliente()) ||
           (!esEstadoTerminal(resource.data.estado) &&
             (isOwner() || isAssignedConductor() ||
-              (isConductorRole() && isOpenForConductores())) &&
+              (isConductorRole() && isOpenForConductores() &&
+                escrituraDeConductorAjeno())) &&
             sinReasignar() && noTocaCalificacionCliente() &&
             (!esNuevaAsignacion() ||
               membresiaVigente(request.resource.data.conductor.id)))
