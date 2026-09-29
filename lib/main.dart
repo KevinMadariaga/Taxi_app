@@ -198,14 +198,18 @@ Future<void> main() async {
   // `FlutterError.onError`, así que cualquier handler puesto acá arriba se
   // perdería silenciosamente.
 
-  // Fuerza hybrid composition (TextureLayer) en el GoogleMap de Android en vez
-  // del SurfaceView por defecto. El SurfaceView pierde su superficie nativa
-  // cuando el sistema recrea la Activity tras estar mucho tiempo en segundo
-  // plano, dejando la pantalla en negro hasta forzar cierre. Debe fijarse
-  // antes de montar cualquier GoogleMap.
+  // GoogleMap de Android en TLHC (Texture Layer Hybrid Composition), el modo
+  // por defecto del plugin. Antes se forzaba `useAndroidViewSurface = true`
+  // (Hybrid Composition) para evitar una pantalla negra al recrear la
+  // Activity tras mucho tiempo en background; con la versión actual del
+  // plugin ya no ocurre (probado el 29/09/2026 con "No conservar actividades"
+  // en un Redmi Note 11). Hybrid Composition sincroniza cada frame de Flutter
+  // con la vista nativa: en el viaje activo el raster pasaba de ~7 a 14–33 ms
+  // y el 44 % de los frames llegaban tarde; con TLHC, 1.9 % (E1/E2).
+  // Debe fijarse antes de montar cualquier GoogleMap.
   final mapsImplementation = GoogleMapsFlutterPlatform.instance;
   if (mapsImplementation is GoogleMapsFlutterAndroid) {
-    mapsImplementation.useAndroidViewSurface = true;
+    mapsImplementation.useAndroidViewSurface = false;
   }
 
   // En Android, sin esto la app queda fija a 60Hz aunque el equipo tenga
