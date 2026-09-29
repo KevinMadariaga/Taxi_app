@@ -17,8 +17,10 @@ buildTypes {
 ## 2. Generar el App Bundle y mapping.txt
 - Ejecuta:
   ```
-  flutter build appbundle --release
+  make build-android
   ```
+  (= `flutter build appbundle --release --dart-define-from-file=env.json --obfuscate --split-debug-info=build/symbols`;
+  el Dart va ofuscado desde el 29/09/2026, D3.)
 - El archivo `mapping.txt` se generará en:
   `android/app/build/outputs/mapping/release/mapping.txt`
 
@@ -26,6 +28,15 @@ buildTypes {
 - Accede a Google Play Console > Tu app > Versión 5 (o la que corresponda).
 - En la sección "Archivos de desofuscación", sube el `mapping.txt` generado.
 - Asegúrate de asociar el archivo a la versión correcta.
+
+## 3b. Subir los símbolos de Dart a Crashlytics
+- El código Dart va ofuscado: sin sus símbolos, los crashes de Crashlytics
+  salen ilegibles. Tras cada build de release:
+  ```
+  make upload-symbols
+  ```
+- Guarda también una copia de `build/symbols/` por versión (p. ej.
+  `symbols-1.0.9+70.zip`): la próxima build la sobreescribe.
 
 ## 4. Buenas prácticas
 - Renombra y guarda cada mapping.txt con el versionCode correspondiente, por ejemplo: `mapping-v5.txt`.

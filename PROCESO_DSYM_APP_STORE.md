@@ -5,6 +5,12 @@
   - `build/ios/Release-iphoneos/Runner.app.dSYM`
   - (También pueden generarse: `App.framework.dSYM`, `Flutter.framework.dSYM`, etc.)
 
+## 1b. Build ofuscada y símbolos de Dart (desde el 29/09/2026, D3)
+- Genera el .ipa con `make build-ipa` (lleva `--obfuscate --split-debug-info=build/symbols`).
+- Sube los símbolos de Dart a Crashlytics con `make upload-symbols` y guarda
+  una copia de `build/symbols/` por versión. Los .dSYM de abajo siguen siendo
+  necesarios para la parte nativa.
+
 ## 2. Empaqueta el .dSYM en un zip
 Desde la raíz del proyecto ejecuta:
 
