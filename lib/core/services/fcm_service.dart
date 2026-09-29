@@ -130,23 +130,31 @@ class FcmService {
   static final FcmService instance = FcmService._();
 
   final FirebaseMessaging _messaging = FirebaseMessaging.instance;
-  bool _initialized = false;
+
+  /// La primera llamada a [init]; las siguientes (aunque lleguen mientras la
+  /// primera sigue en curso) esperan esa misma y no registran nada de nuevo.
+  /// Antes era un `bool` que se marcaba al FINAL, tras varios `await`: dos
+  /// llamadas seguidas registraban los handlers dos veces (notificaciones
+  /// duplicadas).
+  Future<void>? _init;
 
   /// Token obtenido pero aún sin usuario autenticado.
   /// Se guarda en Firestore cuando authStateChanges notifique un usuario.
   String? _pendingToken;
 
-  // ignore: unused_field — se mantiene para evitar que el GC cancele el listener
   StreamSubscription<User?>? _authStateSub;
+  StreamSubscription<String>? _tokenRefreshSub;
+  StreamSubscription<RemoteMessage>? _foregroundSub;
+  StreamSubscription<RemoteMessage>? _openedAppSub;
 
   /// Inicializa FCM: permisos, token, handlers.
   ///
   /// Se llama en main() antes del login. Si el usuario aún no está autenticado
   /// (Firebase Auth aún no restauró la sesión), el token queda en [_pendingToken]
   /// y se persiste en Firestore tan pronto como authStateChanges detecte al usuario.
-  Future<void> init() async {
-    if (_initialized) return;
+  Future<void> init() => _init ??= _inicializar();
 
+  Future<void> _inicializar() async {
     // 1) Registrar handler de background antes que todo
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
@@ -227,6 +235,7 @@ class FcmService {
 
     // 5) Escuchar authStateChanges para detectar cuando Firebase Auth restaura
     //    la sesión o el usuario hace login. Guarda _pendingToken si existe.
+    await _authStateSub?.cancel();
     _authStateSub = FirebaseAuth.instance.authStateChanges().listen((
       user,
     ) async {
@@ -245,13 +254,18 @@ class FcmService {
     });
 
     // 6) Escuchar renovaciones del token FCM
-    _messaging.onTokenRefresh.listen(_onTokenRefresh);
+    await _tokenRefreshSub?.cancel();
+    _tokenRefreshSub = _messaging.onTokenRefresh.listen(_onTokenRefresh);
 
     // 7) Handler de mensajes en primer plano (FCM no los muestra automáticamente)
-    FirebaseMessaging.onMessage.listen(_onForegroundMessage);
+    await _foregroundSub?.cancel();
+    _foregroundSub = FirebaseMessaging.onMessage.listen(_onForegroundMessage);
 
     // 8) Handler cuando el usuario toca una notificación (app en background)
-    FirebaseMessaging.onMessageOpenedApp.listen(_onMessageOpenedApp);
+    await _openedAppSub?.cancel();
+    _openedAppSub = FirebaseMessaging.onMessageOpenedApp.listen(
+      _onMessageOpenedApp,
+    );
 
     // 9) Verificar si la app se abrió desde una notificación (app terminada)
     final initialMessage = await _messaging.getInitialMessage();
@@ -264,7 +278,6 @@ class FcmService {
       });
     }
 
-    _initialized = true;
     debugPrint('[FCM] Servicio inicializado correctamente');
   }
 
