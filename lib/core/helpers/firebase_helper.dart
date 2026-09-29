@@ -4,9 +4,15 @@ import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:flutter/foundation.dart';
 import 'package:taxi_app/firebase_options.dart';
-import 'dart:io' show Platform;
 
 class FirebaseHelper {
+  /// App Check solo en builds que no son debug y fuera de web.
+  @visibleForTesting
+  static bool debeActivarAppCheck({
+    required bool esDebug,
+    required bool esWeb,
+  }) => !esDebug && !esWeb;
+
   /// Inicializa Firebase, Crashlytics y App Check.
   static Future<void> initializeFirebase() async {
     try {
@@ -24,18 +30,22 @@ class FirebaseHelper {
         );
       }
 
-      // App Check: solo activar en producción con AppAttest (iOS).
-      // En Android NO se activa: activate() trae androidProvider con default
-      // AndroidProvider.playIntegrity, y Play Integrity no está configurado
-      // (huella SHA-256 release en Play Console/Firebase). Con enforcement
-      // activo en Firestore/Cloud Functions, las peticiones sin token válido
-      // se rechazan con 403 en silencio → fcmToken nunca se persiste → no
-      // llegan notificaciones FCM en Android. iOS sí funciona porque AppAttest
-      // está bien configurado.
-      // En modo debug, omitir App Check para no bloquear FCM con errores 403
-      // (el token debug debe registrarse primero en Firebase Console).
-      if (!kDebugMode && !kIsWeb && Platform.isIOS) {
+      // App Check en release para ambas plataformas: Play Integrity en
+      // Android (proveedor ya registrado en Firebase para la app Android) y
+      // App Attest en iOS. Hoy los servicios están en UNENFORCED (modo
+      // monitor): las peticiones sin token válido pasan igual, así que esto
+      // no puede dejar sin FCM a nadie; primero se miden las métricas y solo
+      // después se hace enforcement. Requisito para que los tokens de Android
+      // sean válidos: la SHA-256 de la llave de firma de Play (Play App
+      // Signing) registrada en la app Android de Firebase.
+      // En debug se omite (el token de depuración habría que registrarlo a
+      // mano en la consola).
+      if (FirebaseHelper.debeActivarAppCheck(
+        esDebug: kDebugMode,
+        esWeb: kIsWeb,
+      )) {
         await FirebaseAppCheck.instance.activate(
+          providerAndroid: const AndroidPlayIntegrityProvider(),
           providerApple: const AppleAppAttestProvider(),
         );
       }
