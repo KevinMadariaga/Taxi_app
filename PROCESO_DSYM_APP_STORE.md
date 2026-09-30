@@ -7,9 +7,10 @@
 
 ## 1b. Build ofuscada y símbolos de Dart (desde el 29/09/2026, D3)
 - Genera el .ipa con `make build-ipa` (lleva `--obfuscate --split-debug-info=build/symbols`).
-- Sube los símbolos de Dart a Crashlytics con `make upload-symbols` y guarda
-  una copia de `build/symbols/` por versión. Los .dSYM de abajo siguen siendo
-  necesarios para la parte nativa.
+- `make upload-symbols` sube a Crashlytics los .dSYM del archive (incluido
+  `App.framework.dSYM`, el del código Dart). Guarda también `build/symbols/ios`
+  por versión, para desofuscar a mano con `flutter symbolize` si hace falta.
+  Los .dSYM de abajo son para App Store Connect.
 
 ## 2. Empaqueta el .dSYM en un zip
 Desde la raíz del proyecto ejecuta:

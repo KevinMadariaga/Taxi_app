@@ -77,3 +77,8 @@ android/build/reports/
 
 # Salida de copy-mapping.sh
 /mapping-v*.txt
+
+# Caché de la herramienta de símbolos de Crashlytics (make upload-symbols)
+.crashlytics/
+# Copias locales de símbolos por versión (D3): no van a git
+release_symbols/
