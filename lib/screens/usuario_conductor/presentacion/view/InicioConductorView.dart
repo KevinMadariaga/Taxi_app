@@ -9,6 +9,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:taxi_app/caracteristicas/tour_introductorio/presentacion/paso_tour.dart';
+import 'package:taxi_app/caracteristicas/tour_introductorio/presentacion/tour_introductorio.dart';
 import 'package:taxi_app/core/utils/notificacion_clave.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
@@ -124,7 +126,68 @@ class _InicioConductorState extends State<InicioConductor>
           _isPreparingLocation = false;
         });
       }
+      // Después de los permisos de ubicación, para no encimarse con ellos.
+      await _maybeMostrarTour();
     });
+  }
+
+  // Partes del home que ilumina el recorrido de la primera vez.
+  final _tourPerfil = GlobalKey(debugLabel: 'tour-perfil-conductor');
+  final _tourMapa = GlobalKey(debugLabel: 'tour-mapa-conductor');
+  final _tourConectar = GlobalKey(debugLabel: 'tour-conectar');
+  final _tourMenu = GlobalKey(debugLabel: 'tour-menu-conductor');
+
+  /// Recorrido introductorio de la primera vez (por usuario).
+  Future<void> _maybeMostrarTour() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null || !mounted || _vm.selectedPreview != null) return;
+    if (_selectedIndexNotifier.value != 1) return;
+    await Future<void>.delayed(const Duration(milliseconds: 400));
+    if (!mounted) return;
+    await mostrarTourSiEsPrimeraVez(
+      context,
+      tourId: 'inicio_conductor_v1',
+      uid: uid,
+      pasos: [
+        PasoTour(
+          objetivo: _tourPerfil,
+          icono: Icons.badge_outlined,
+          titulo: 'Tu tarjeta de conductor',
+          descripcion:
+              'Tu nombre, tu placa y tu calificación. La calificación es el '
+              'promedio de lo que te dan los pasajeros.',
+        ),
+        PasoTour(
+          objetivo: _tourConectar,
+          icono: Icons.power_settings_new_rounded,
+          titulo: 'Conéctate para recibir viajes',
+          descripcion:
+              'Activa este botón para empezar a recibir solicitudes. '
+              'Necesitas la membresía activa; si no la tienes, te mostramos '
+              'cómo activarla.',
+          radio: 16,
+        ),
+        PasoTour(
+          objetivo: _tourMapa,
+          icono: Icons.local_taxi_rounded,
+          titulo: 'Solicitudes cercanas',
+          descripcion:
+              'Conectado, las solicitudes de pasajeros cerca aparecen aquí '
+              'sobre el mapa. Toca una para ver el recorrido, aceptarla o '
+              'proponer otro valor.',
+        ),
+        PasoTour(
+          objetivo: _tourMenu,
+          icono: Icons.menu_rounded,
+          titulo: 'Menú',
+          descripcion:
+              'En "Más opciones" encuentras tu historial, comentarios y '
+              'ayuda. En "Tú", tu perfil y tu vehículo.',
+          margen: 2,
+          radio: 12,
+        ),
+      ],
+    );
   }
 
   // Centraliza el cierre/retroceso de la preview para poder invocarlo
@@ -472,6 +535,7 @@ class _InicioConductorState extends State<InicioConductor>
                         // Nombre y placa arriba (dentro de un marco) -- ocultar cuando hay preview seleccionada
                         if (vm.selectedPreview == null)
                           Padding(
+                            key: _tourPerfil,
                             padding: const EdgeInsets.fromLTRB(
                               16.0,
                               0.0,
@@ -723,6 +787,7 @@ class _InicioConductorState extends State<InicioConductor>
                         // Mapa colocado justo bajo el contenedor de información y ocupa el espacio restante
                         Expanded(
                           child: Padding(
+                            key: _tourMapa,
                             padding: EdgeInsets.symmetric(
                               horizontal: 10.0.w,
                               vertical: 7.0.h,
@@ -1015,6 +1080,7 @@ class _InicioConductorState extends State<InicioConductor>
                         // Botón de conexión colocado debajo del mapa, ancho completo
                         if (!vm.isMapExpanded && vm.selectedPreview == null)
                           Padding(
+                            key: _tourConectar,
                             padding: EdgeInsets.symmetric(
                               horizontal: 12.0.w,
                               vertical: 16.0.h,
@@ -1325,6 +1391,7 @@ class _InicioConductorState extends State<InicioConductor>
                       valueListenable: _selectedIndexNotifier,
                       builder: (context, selectedIndex, _) {
                         return BottomNavigationBar(
+                          key: _tourMenu,
                           currentIndex: selectedIndex,
                           selectedItemColor: AppColores.primary,
                           unselectedItemColor: context.palette.textSecondary,

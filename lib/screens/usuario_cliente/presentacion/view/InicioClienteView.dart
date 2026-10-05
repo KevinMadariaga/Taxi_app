@@ -5,6 +5,8 @@ import 'package:google_maps_flutter/google_maps_flutter.dart' show LatLng;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:taxi_app/caracteristicas/tour_introductorio/presentacion/paso_tour.dart';
+import 'package:taxi_app/caracteristicas/tour_introductorio/presentacion/tour_introductorio.dart';
 import 'package:taxi_app/core/utils/direccion_format.dart';
 import 'package:taxi_app/core/constants/app_constants.dart';
 import 'package:taxi_app/caracteristicas/seleccion_destino/dominio/casos_uso/buscar_destinos_usecase.dart';
@@ -99,9 +101,11 @@ class _InicioClienteViewState extends State<InicioClienteView>
       // dos a la vez apilaba dos diálogos casi simultáneos (hallazgo QA en
       // dispositivo real, 2026-09-05). Se espera a que la bienvenida se
       // cierre antes de evaluar la calificación pendiente.
-      _maybeMostrarBienvenida().then(
-        (_) => _maybeMostrarCalificacionPendiente(),
-      );
+      // El recorrido va entre la bienvenida y la calificación pendiente:
+      // los tres pueden abrir algo encima del home y no deben apilarse.
+      _maybeMostrarBienvenida()
+          .then((_) => _maybeMostrarTour())
+          .then((_) => _maybeMostrarCalificacionPendiente());
     });
   }
 
@@ -152,6 +156,73 @@ class _InicioClienteViewState extends State<InicioClienteView>
 
   /// Muestra el diálogo de bienvenida SOLO la primera vez que este usuario
   /// inicia sesión (flag persistido por uid en SharedPreferences).
+  // Partes del home que ilumina el recorrido de la primera vez.
+  final _tourBuscador = GlobalKey(debugLabel: 'tour-buscador');
+  final _tourFavoritos = GlobalKey(debugLabel: 'tour-favoritos');
+  final _tourPublicidad = GlobalKey(debugLabel: 'tour-publicidad');
+  final _tourMapa = GlobalKey(debugLabel: 'tour-mapa');
+  final _tourMenu = GlobalKey(debugLabel: 'tour-menu');
+
+  /// Recorrido introductorio de la primera vez (por usuario).
+  Future<void> _maybeMostrarTour() async {
+    final uid = widget.authUid ?? vm.clientId;
+    if (uid == null || uid.isEmpty || !mounted || _selectedIndex != 1) {
+      return;
+    }
+    // Que terminen de acomodarse favoritos y carrusel antes de medir.
+    await Future<void>.delayed(const Duration(milliseconds: 400));
+    if (!mounted) return;
+    await mostrarTourSiEsPrimeraVez(
+      context,
+      tourId: 'inicio_cliente_v1',
+      uid: uid,
+      pasos: [
+        PasoTour(
+          objetivo: _tourBuscador,
+          icono: Icons.search_rounded,
+          titulo: '¿A dónde vamos?',
+          descripcion:
+              'Toca aquí para escribir tu destino o elegirlo en el mapa. '
+              'Luego confirmas el punto de recogida, el vehículo y tu oferta.',
+        ),
+        PasoTour(
+          objetivo: _tourFavoritos,
+          icono: Icons.star_rounded,
+          titulo: 'Tus lugares',
+          descripcion:
+              'Guarda tus sitios frecuentes, como casa o trabajo, y pide un '
+              'viaje con un solo toque. También verás sugerencias.',
+        ),
+        PasoTour(
+          objetivo: _tourPublicidad,
+          icono: Icons.campaign_rounded,
+          titulo: 'Promociones',
+          descripcion:
+              'Aquí aparecen anuncios de negocios. Si tienes uno y quieres '
+              'promocionarlo en Ride, tócalo y escríbenos.',
+        ),
+        PasoTour(
+          objetivo: _tourMapa,
+          icono: Icons.my_location_rounded,
+          titulo: 'Tu ubicación',
+          descripcion:
+              'Muestra dónde estás. La usamos como punto de recogida y '
+              'puedes cambiarlo antes de pedir el viaje.',
+        ),
+        PasoTour(
+          objetivo: _tourMenu,
+          icono: Icons.menu_rounded,
+          titulo: 'Menú',
+          descripcion:
+              'En "Más opciones" están tu historial, la ayuda y la '
+              'seguridad. En "Perfil", tus datos y tu calificación.',
+          margen: 2,
+          radio: 12,
+        ),
+      ],
+    );
+  }
+
   Future<void> _maybeMostrarBienvenida() async {
     final uid = widget.authUid ?? vm.clientId;
     if (uid == null || uid.isEmpty) return;
@@ -724,18 +795,24 @@ class _InicioClienteViewState extends State<InicioClienteView>
                                   clientName: vm.clientName,
                                 ),
                                 SizedBox(height: 12.h),
-                                _SearchBox(
-                                  isTablet: isTablet,
-                                  onTap: _navigateToDestinoSeleccion,
+                                KeyedSubtree(
+                                  key: _tourBuscador,
+                                  child: _SearchBox(
+                                    isTablet: isTablet,
+                                    onTap: _navigateToDestinoSeleccion,
+                                  ),
                                 ),
                                 SizedBox(height: 16.h),
-                                _FavoritosSection(
-                                  isTablet: isTablet,
-                                  favoritos: vm.favoritos,
-                                  isLoading: vm.isLoadingFavoritos,
-                                  onFavoriteTap: _onFavoriteSelected,
-                                  onSugerenciaTap: _onSugerenciaTap,
-                                  onFavoritoEliminar: _onFavoritoEliminar,
+                                KeyedSubtree(
+                                  key: _tourFavoritos,
+                                  child: _FavoritosSection(
+                                    isTablet: isTablet,
+                                    favoritos: vm.favoritos,
+                                    isLoading: vm.isLoadingFavoritos,
+                                    onFavoriteTap: _onFavoriteSelected,
+                                    onSugerenciaTap: _onSugerenciaTap,
+                                    onFavoritoEliminar: _onFavoritoEliminar,
+                                  ),
                                 ),
                               ],
                             ),
@@ -753,16 +830,22 @@ class _InicioClienteViewState extends State<InicioClienteView>
                                 children: [
                                   SizedBox(
                                     height: carouselHeight,
-                                    child: _CarouselSection(
-                                      controller: _carouselController,
-                                      onTap: _mostrarPromoWhatsApp,
+                                    child: KeyedSubtree(
+                                      key: _tourPublicidad,
+                                      child: _CarouselSection(
+                                        controller: _carouselController,
+                                        onTap: _mostrarPromoWhatsApp,
+                                      ),
                                     ),
                                   ),
                                   SizedBox(height: 18.h),
                                   Expanded(
-                                    child: _HomeClienteMap(
-                                      currentLocationNotifier:
-                                          vm.currentLocationNotifier,
+                                    child: KeyedSubtree(
+                                      key: _tourMapa,
+                                      child: _HomeClienteMap(
+                                        currentLocationNotifier:
+                                            vm.currentLocationNotifier,
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -788,9 +871,12 @@ class _InicioClienteViewState extends State<InicioClienteView>
             ),
           ],
         ),
-        bottomNavigationBar: _BottomNavBar(
-          selectedIndex: _selectedIndex,
-          onTap: _onBottomNavTap,
+        bottomNavigationBar: KeyedSubtree(
+          key: _tourMenu,
+          child: _BottomNavBar(
+            selectedIndex: _selectedIndex,
+            onTap: _onBottomNavTap,
+          ),
         ),
       ),
     );
