@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:taxi_app/core/modelos/contacto_emergencia.dart';
 import 'package:taxi_app/firebase_options.dart';
 
 import '../models/admin_model.dart';
@@ -90,7 +91,11 @@ class UserDataService {
       final d = snap.data();
       if (snap.exists && d != null) data.addAll(d);
     } catch (e, st) {
-      ErrorReporter.report(e, st, reason: 'UserDataService.getPerfilConFallback');
+      ErrorReporter.report(
+        e,
+        st,
+        reason: 'UserDataService.getPerfilConFallback',
+      );
     }
 
     final faltaNombre = (data['nombre'] ?? '').toString().trim().isEmpty;
@@ -191,22 +196,29 @@ class UserDataService {
   /// perdían al salir de la pantalla.
   Future<void> guardarContactosEmergencia({
     required String uid,
-    required List<String> contactos,
+    required List<ContactoEmergencia> contactos,
   }) async {
     await _firestore.collection('usuarios').doc(uid).set({
-      'contactosEmergencia': contactos,
+      'contactosEmergencia': contactos.map((c) => c.aFirestore()).toList(),
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
 
-  /// Lee los contactos de emergencia guardados de `usuarios/{uid}`.
-  Future<List<String>> obtenerContactosEmergencia(String uid) async {
+  /// Lee los contactos de emergencia guardados de `usuarios/{uid}`. Acepta
+  /// también el formato viejo (textos libres). Devuelve una lista
+  /// MODIFICABLE: `SeguridadView` la usa como estado; con `const []`
+  /// agregar el primer contacto cerraba la app ("Cannot add to an
+  /// unmodifiable list", visto en Crashlytics).
+  Future<List<ContactoEmergencia>> obtenerContactosEmergencia(
+    String uid,
+  ) async {
     final data = await getUsuario(uid);
     final raw = data?['contactosEmergencia'];
-    if (raw is List) {
-      return raw.map((e) => e.toString()).toList();
-    }
-    return const [];
+    if (raw is! List) return <ContactoEmergencia>[];
+    return raw
+        .map(ContactoEmergencia.desdeFirestore)
+        .where((c) => c.nombre.isNotEmpty || c.telefono.isNotEmpty)
+        .toList();
   }
 
   /// Cambia el rol guardado a conductor (el usuario ya tiene placa + foto de
