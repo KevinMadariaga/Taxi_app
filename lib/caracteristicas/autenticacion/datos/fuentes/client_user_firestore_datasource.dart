@@ -54,7 +54,11 @@ class ClientUserFirestoreDataSource {
     final foto = (photoUrl ?? '').trim();
     final doc = await _firestore.collection('usuarios').doc(uid).get();
 
-    if (doc.exists) {
+    // Un doc sin rol no es una cuenta: es el `fcmToken` que FcmService
+    // guardó al iniciar sesión, a veces antes que el perfil. Tratarlo como
+    // cuenta existente dejaba al cliente sin `rol` ni `createdAt` (no salía
+    // como "Nuevo" en el admin ni le llegaba el aviso de cliente nuevo).
+    if (doc.exists && tienePerfil(doc.data())) {
       final existing = ClientUserModel.fromFirestore(
         uid,
         doc.data() ?? <String, dynamic>{},
@@ -132,7 +136,11 @@ class ClientUserFirestoreDataSource {
       'createdAt': FieldValue.serverTimestamp(),
     };
 
-    await _firestore.collection('usuarios').doc(uid).set(payload);
+    // merge: conserva el `fcmToken` si ya estaba guardado.
+    await _firestore
+        .collection('usuarios')
+        .doc(uid)
+        .set(payload, SetOptions(merge: true));
 
     return (await getById(uid)) ??
         ClientUserModel(
@@ -170,7 +178,18 @@ class ClientUserFirestoreDataSource {
       if (safeEmail.isNotEmpty) 'email': safeEmail,
       'rol': 'cliente',
       'isProfileComplete': true,
+      // Desde aquí cuenta como "Nuevo" en el panel admin (y aquí se le
+      // avisa al admin: `onNuevoClienteRegistrado`).
+      'perfilCompletadoAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
+}
+
+/// Si el doc de `usuarios` ya es un perfil (tiene rol), y no solo datos
+/// sueltos como el token FCM.
+bool tienePerfil(Map<String, dynamic>? data) {
+  if (data == null) return false;
+  final rol = '${data['rol'] ?? data['tipoUsuario'] ?? ''}'.trim();
+  return rol.isNotEmpty;
 }

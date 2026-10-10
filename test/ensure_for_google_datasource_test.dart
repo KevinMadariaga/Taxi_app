@@ -38,6 +38,31 @@ void main() {
       },
     );
 
+    // Carrera: FcmService guardó el token antes que el perfil, así que el
+    // doc existía solo con `fcmToken`. Antes se trataba como cuenta vieja y
+    // quedaba sin `rol` ni `createdAt` (sin aviso de cliente nuevo al admin
+    // ni etiqueta "Nuevo" en el panel).
+    test('doc con solo el token FCM: se trata como alta nueva', () async {
+      final firestore = FakeFirebaseFirestore();
+      await firestore.collection('usuarios').doc(_uid).set({
+        'fcmToken': 'token-1',
+      });
+      final datasource = ClientUserFirestoreDataSource(firestore: firestore);
+
+      await datasource.ensureForGoogle(
+        uid: _uid,
+        displayName: 'Ana López',
+        email: 'ana@example.com',
+      );
+
+      final data = (await firestore.collection('usuarios').doc(_uid).get())
+          .data();
+      expect(data?['rol'], 'cliente');
+      expect(data?['createdAt'], isNotNull);
+      expect(data?['nombre'], 'Ana');
+      expect(data?['fcmToken'], 'token-1', reason: 'el token se conserva');
+    });
+
     test('doc inexistente: sí se prellena partiendo el displayName', () async {
       final firestore = FakeFirebaseFirestore();
       final datasource = ClientUserFirestoreDataSource(firestore: firestore);
@@ -57,27 +82,24 @@ void main() {
       expect(doc.data()?['isProfileComplete'], false);
     });
 
-    test(
-      'doc existente pero con nombre vacío (alta previa fallida): backfill '
-      'desde el displayName',
-      () async {
-        final firestore = FakeFirebaseFirestore();
-        await firestore.collection('usuarios').doc(_uid).set({
-          'nombre': '',
-          'apellido': '',
-          'rol': 'cliente',
-        });
-        final datasource = ClientUserFirestoreDataSource(firestore: firestore);
+    test('doc existente pero con nombre vacío (alta previa fallida): backfill '
+        'desde el displayName', () async {
+      final firestore = FakeFirebaseFirestore();
+      await firestore.collection('usuarios').doc(_uid).set({
+        'nombre': '',
+        'apellido': '',
+        'rol': 'cliente',
+      });
+      final datasource = ClientUserFirestoreDataSource(firestore: firestore);
 
-        final result = await datasource.ensureForGoogle(
-          uid: _uid,
-          displayName: 'Ana López',
-          email: 'ana@example.com',
-        );
+      final result = await datasource.ensureForGoogle(
+        uid: _uid,
+        displayName: 'Ana López',
+        email: 'ana@example.com',
+      );
 
-        expect(result.nombre, 'Ana');
-        expect(result.apellido, 'López');
-      },
-    );
+      expect(result.nombre, 'Ana');
+      expect(result.apellido, 'López');
+    });
   });
 }

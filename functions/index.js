@@ -22,6 +22,7 @@ const {
   buildRetiroMessage,
 } = require("./notificaciones");
 const { calificacionNueva, acumular } = require("./calificaciones");
+const { esRegistroDeClienteCompletado } = require("./usuarios");
 
 /**
  * Destinatarios del aviso "Solicitud entrante" de cada solicitud.
@@ -1387,19 +1388,20 @@ exports.onSolicitudActivacionConductor = onDocumentWritten(
  * alta de un conductor la crea un admin a mano desde el panel y no debe
  * generar esta notificación.
  */
-exports.onNuevoClienteRegistrado = onDocumentCreated(
+// Avisa cuando el cliente TERMINA su registro (perfil completo con foto),
+// no cuando se crea la cuenta: una cuenta a medias no se lista en el panel.
+// `onDocumentWritten` porque esa es una actualización del doc, que además
+// puede haber nacido solo con el `fcmToken`. Ver
+// `esRegistroDeClienteCompletado`.
+exports.onNuevoClienteRegistrado = onDocumentWritten(
   {
     document: "usuarios/{uid}",
     region: "us-central1",
   },
   async (event) => {
-    const after = event.data.exists ? event.data.data() : null;
-    if (!after) return null;
-
-    const rol = (after.rol || after.tipoUsuario || "")
-      .toString()
-      .toLowerCase();
-    if (rol !== "cliente") return null;
+    const before = event.data.before.exists ? event.data.before.data() : null;
+    const after = event.data.after.exists ? event.data.after.data() : null;
+    if (!esRegistroDeClienteCompletado(before, after)) return null;
 
     const db = getFirestore();
     const tokens = await getAdminTokens(db);
