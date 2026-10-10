@@ -63,6 +63,34 @@ void main() {
       expect(data?['fcmToken'], 'token-1', reason: 'el token se conserva');
     });
 
+    test(
+      'cuenta vieja sin rol pero con teléfono y foto: NO se reescribe',
+      () async {
+        final firestore = FakeFirebaseFirestore();
+        await firestore.collection('usuarios').doc(_uid).set({
+          'nombre': 'Rosa',
+          'telefono': '3001234567',
+          'foto': 'https://foto',
+          'isProfileComplete': true,
+          'fcmToken': 't',
+        });
+        final datasource = ClientUserFirestoreDataSource(firestore: firestore);
+
+        await datasource.ensureForGoogle(
+          uid: _uid,
+          displayName: 'Otro Nombre',
+          email: 'rosa@example.com',
+        );
+
+        final data = (await firestore.collection('usuarios').doc(_uid).get())
+            .data();
+        expect(data?['telefono'], '3001234567');
+        expect(data?['foto'], 'https://foto');
+        expect(data?['isProfileComplete'], true);
+        expect(data?['nombre'], 'Rosa');
+      },
+    );
+
     test('doc inexistente: sí se prellena partiendo el displayName', () async {
       final firestore = FakeFirebaseFirestore();
       final datasource = ClientUserFirestoreDataSource(firestore: firestore);

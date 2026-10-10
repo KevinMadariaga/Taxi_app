@@ -186,10 +186,19 @@ class ClientUserFirestoreDataSource {
   }
 }
 
-/// Si el doc de `usuarios` ya es un perfil (tiene rol), y no solo datos
-/// sueltos como el token FCM.
+/// Si el doc de `usuarios` ya es un perfil, y no solo datos sueltos como el
+/// token FCM que FcmService guarda al iniciar sesión.
+///
+/// Basta con cualquier señal de cuenta real (rol, perfil completo, teléfono
+/// o foto): tratar como alta nueva a una cuenta vieja sin `rol` la
+/// reescribiría con `telefono: ''` e `isProfileComplete: false`.
 bool tienePerfil(Map<String, dynamic>? data) {
   if (data == null) return false;
-  final rol = '${data['rol'] ?? data['tipoUsuario'] ?? ''}'.trim();
-  return rol.isNotEmpty;
+  String texto(String k) => '${data[k] ?? ''}'.trim();
+  return texto('rol').isNotEmpty ||
+      texto('tipoUsuario').isNotEmpty ||
+      data['isProfileComplete'] == true ||
+      texto('telefono').isNotEmpty ||
+      texto('foto').isNotEmpty ||
+      texto('fotoUrl').isNotEmpty;
 }
