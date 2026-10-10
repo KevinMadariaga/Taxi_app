@@ -168,6 +168,30 @@ void main() {
     expect(find.text('Paso A'), findsNothing);
   });
 
+  testWidgets('si no hay nada en pantalla no lo marca como visto', (
+    tester,
+  ) async {
+    final repo = _RepoEnMemoria();
+    await _montar(
+      tester,
+      alAbrir: (c) => mostrarTourSiEsPrimeraVez(
+        c,
+        tourId: 'inicio',
+        uid: 'u1',
+        pasos: [
+          PasoTour(
+            objetivo: _sinMontar,
+            icono: Icons.block,
+            titulo: 'Nada',
+            descripcion: 'No está montado',
+          ),
+        ],
+        repositorio: repo,
+      ),
+    );
+    expect(repo.vistos, isEmpty);
+  });
+
   testWidgets('con animaciones reducidas funciona sin animar', (tester) async {
     await _montar(
       tester,

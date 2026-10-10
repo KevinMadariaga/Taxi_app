@@ -23,6 +23,10 @@ Future<void> mostrarTourSiEsPrimeraVez(
   final repo = repositorio ?? TourRepositoryImpl();
   try {
     if (uid.isEmpty || await repo.yaVisto(tourId, uid)) return;
+    // Solo se marca si de verdad se va a mostrar: si en este momento no hay
+    // ninguna parte en pantalla (p. ej. el conductor con una solicitud
+    // abierta), se intenta de nuevo la próxima vez en vez de perderlo.
+    if (!pasos.any((p) => rectGlobalDe(p.objetivo) != null)) return;
     await repo.marcarVisto(tourId, uid);
     if (!context.mounted) return;
     await mostrarTourIntroductorio(context, pasos);
