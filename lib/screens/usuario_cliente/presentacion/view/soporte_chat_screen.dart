@@ -36,6 +36,14 @@ class _SoporteChatScreenState extends State<SoporteChatScreen> {
   late String _userName;
 
   DateTime? _ultimoMensajeUsuario;
+
+  /// Inicio de la conversación actual: solo se muestran mensajes desde acá.
+  DateTime? _desde;
+  bool _cargandoDesde = true;
+
+  /// Una sola suscripción: antes se creaba un stream nuevo en cada `build`
+  /// (y el timer de expiración reconstruye cada 30 s).
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _mensajes;
   Timer? _expiryTimer;
 
   static const _tiempoExpiracion = Duration(minutes: 6);
@@ -53,11 +61,35 @@ class _SoporteChatScreenState extends State<SoporteChatScreen> {
     _userId = user?.uid ?? '';
     _userName = user?.displayName ?? user?.email ?? 'Usuario';
     _cargarNombreDesdeFirestore();
+    _mensajes = _service.watchMensajes(_userId);
+    _cargarInicioConversacion();
 
     // Revisa expiración cada 30 s para actualizar el banner sin esperar un evento Firestore.
     _expiryTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       if (mounted) setState(() {});
     });
+  }
+
+  Future<void> _cargarInicioConversacion() async {
+    try {
+      if (_userId.isNotEmpty) {
+        _desde = await _service.inicioConversacion(_userId);
+      }
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'soporte_chat_screen');
+    }
+    if (mounted) setState(() => _cargandoDesde = false);
+  }
+
+  void _avisarError() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'No se pudo completar. Revisa tu conexión e inténtalo de nuevo.',
+        ),
+      ),
+    );
   }
 
   Future<void> _cargarNombreDesdeFirestore() async {
@@ -87,20 +119,37 @@ class _SoporteChatScreenState extends State<SoporteChatScreen> {
     _textCtrl.clear();
     setState(() => _ultimoMensajeUsuario = DateTime.now());
 
-    await _service.sendMensaje(
-      userId: _userId,
-      userName: _userName,
-      userType: widget.userType,
-      texto: text,
-      esAdmin: false,
-    );
+    try {
+      await _service.sendMensaje(
+        userId: _userId,
+        userName: _userName,
+        userType: widget.userType,
+        texto: text,
+        esAdmin: false,
+      );
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'soporte_chat_screen: enviar');
+      _textCtrl.text = text; // Que no pierda lo que escribió.
+      _avisarError();
+      return;
+    }
 
     _scrollToBottom();
   }
 
   Future<void> _nuevaConversacion() async {
-    await _service.resetearChat(_userId);
-    if (mounted) setState(() => _ultimoMensajeUsuario = null);
+    try {
+      final desde = await _service.resetearChat(_userId);
+      if (mounted) {
+        setState(() {
+          _desde = desde ?? DateTime.now();
+          _ultimoMensajeUsuario = null;
+        });
+      }
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'soporte_chat_screen: reiniciar');
+      _avisarError();
+    }
   }
 
   void _scrollToBottom() {
@@ -131,13 +180,21 @@ class _SoporteChatScreenState extends State<SoporteChatScreen> {
         children: [
           Expanded(
             child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: _service.watchMensajes(_userId),
+              stream: _mensajes,
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
+                if (_cargandoDesde ||
+                    snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
 
-                final docs = snapshot.data?.docs ?? [];
+                final docs = (snapshot.data?.docs ?? [])
+                    .where(
+                      (d) => SoporteChatService.esDeConversacionActual(
+                        d.data(),
+                        _desde,
+                      ),
+                    )
+                    .toList();
 
                 // Actualiza _ultimoMensajeUsuario con el último msg del usuario
                 // sin setState para no disparar rebuilds en loop.

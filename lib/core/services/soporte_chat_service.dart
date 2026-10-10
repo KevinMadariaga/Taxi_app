@@ -1,7 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class SoporteChatService {
-  SoporteChatService() : _firestore = FirebaseFirestore.instance;
+  SoporteChatService({FirebaseFirestore? firestore})
+    : _firestore = firestore ?? FirebaseFirestore.instance;
 
   final FirebaseFirestore _firestore;
 
@@ -51,23 +52,52 @@ class SoporteChatService {
     // mismo mensaje en Firestore.
   }
 
+  /// `set` con merge y no `update`: `update` falla si el chat todavía no
+  /// existe, y el admin lo llama sin esperar al abrir el chat.
   Future<void> marcarLeidoPorAdmin(String userId) {
-    return _chatRef(userId).update({'hayMensajesNuevosAdmin': false});
+    return _chatRef(
+      userId,
+    ).set({'hayMensajesNuevosAdmin': false}, SetOptions(merge: true));
   }
 
-  /// Elimina todos los mensajes y resetea el metadata del chat.
-  Future<void> resetearChat(String userId) async {
-    final mensajes = await _mensajesRef(userId).get();
-    final batch = _firestore.batch();
-    for (final doc in mensajes.docs) {
-      batch.delete(doc.reference);
-    }
-    batch.set(_chatRef(userId), {
+  /// Empieza una conversación nueva para el usuario SIN borrar mensajes.
+  ///
+  /// Antes borraba todos los mensajes en un batch, pero las reglas no
+  /// permiten borrarlos (son el registro de los reportes de seguridad para
+  /// soporte): el batch completo fallaba con `permission-denied` y la app se
+  /// cerraba. Ahora se marca `inicioConversacion` y la pantalla del usuario
+  /// muestra solo los mensajes desde ahí; el admin conserva el historial.
+  ///
+  /// Devuelve la marca tal como la guardó el servidor, para filtrar con el
+  /// mismo reloj con el que se sellan los mensajes (`creadoEn`).
+  Future<DateTime?> resetearChat(String userId) async {
+    await _chatRef(userId).set({
+      'inicioConversacion': FieldValue.serverTimestamp(),
       'ultimoMensaje': '',
       'hayMensajesNuevosAdmin': false,
       'ultimoMensajeAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
-    await batch.commit();
+    return inicioConversacion(userId);
+  }
+
+  /// Desde cuándo mostrarle mensajes al usuario (`null` = todos).
+  Future<DateTime?> inicioConversacion(String userId) async {
+    final doc = await _chatRef(userId).get();
+    final ts = doc.data()?['inicioConversacion'];
+    return ts is Timestamp ? ts.toDate() : null;
+  }
+
+  /// Si el mensaje [data] pertenece a la conversación que empezó en [desde].
+  /// Un mensaje recién enviado todavía sin `creadoEn` (pendiente del
+  /// servidor) se muestra.
+  static bool esDeConversacionActual(
+    Map<String, dynamic> data,
+    DateTime? desde,
+  ) {
+    if (desde == null) return true;
+    final ts = data['creadoEn'];
+    if (ts is! Timestamp) return true;
+    return !ts.toDate().isBefore(desde);
   }
 
   Stream<QuerySnapshot<Map<String, dynamic>>> watchTodosChats() {

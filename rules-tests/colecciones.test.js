@@ -459,6 +459,27 @@ describe('soporte, reportes y emergencias', () => {
     );
   });
 
+  // SoporteChatService.resetearChat ("Nueva conversación"): antes borraba
+  // los mensajes en un batch y la app se cerraba con permission-denied.
+  // Borrarlos sigue prohibido (son el registro para soporte); ahora solo
+  // marca el inicio de la conversación en el doc del chat.
+  test('el usuario NO puede borrar sus mensajes de soporte', async () => {
+    await sembrar(env, `soporte_chats/${CLIENTE}/mensajes/m1`, { texto: 'hola' });
+    await assertFails(
+      como(env, CLIENTE).doc(`soporte_chats/${CLIENTE}/mensajes/m1`).delete(),
+    );
+  });
+
+  test('el usuario sí puede empezar una conversación nueva', async () => {
+    await sembrar(env, `soporte_chats/${CLIENTE}`, { abierto: true });
+    await assertSucceeds(
+      como(env, CLIENTE).doc(`soporte_chats/${CLIENTE}`).set(
+        { inicioConversacion: new Date(), ultimoMensaje: '', hayMensajesNuevosAdmin: false },
+        { merge: true },
+      ),
+    );
+  });
+
   test('otro usuario no lee ese chat', async () => {
     await sembrar(env, `soporte_chats/${CLIENTE}`, { abierto: true });
     await assertFails(como(env, OTRO_CLIENTE).doc(`soporte_chats/${CLIENTE}`).get());

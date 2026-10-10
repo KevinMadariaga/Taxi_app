@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/services/soporte_chat_service.dart';
+import 'package:taxi_app/core/utils/error_reporter.dart';
 import 'package:taxi_app/widgets/ajustes_ui.dart';
 
 class SoporteChatDetalleAdminScreen extends StatefulWidget {
@@ -43,7 +44,12 @@ class _SoporteChatDetalleAdminScreenState
   @override
   void initState() {
     super.initState();
-    _service.marcarLeidoPorAdmin(widget.userId);
+    _service
+        .marcarLeidoPorAdmin(widget.userId)
+        .catchError(
+          (Object e, StackTrace st) =>
+              ErrorReporter.report(e, st, reason: 'soporte admin: leído'),
+        );
     _expiryTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       if (mounted) setState(() {});
     });
@@ -63,13 +69,27 @@ class _SoporteChatDetalleAdminScreenState
     if (text.isEmpty) return;
 
     _textCtrl.clear();
-    await _service.sendMensaje(
-      userId: widget.userId,
-      userName: widget.userName,
-      userType: 'usuario',
-      texto: text,
-      esAdmin: true,
-    );
+    try {
+      await _service.sendMensaje(
+        userId: widget.userId,
+        userName: widget.userName,
+        userType: 'usuario',
+        texto: text,
+        esAdmin: true,
+      );
+    } catch (e, st) {
+      // Sin esto un fallo del batch (sin red, permisos) cerraba la app.
+      ErrorReporter.report(e, st, reason: 'soporte admin: enviar');
+      _textCtrl.text = text;
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No se pudo enviar. Inténtalo de nuevo.'),
+          ),
+        );
+      }
+      return;
+    }
 
     _scrollToBottom();
   }
