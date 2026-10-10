@@ -5,7 +5,11 @@ import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/widgets/boton.dart';
 
-const List<int> _diasSugeridos = [7, 15, 30, 60, 90];
+/// "1 día" / "N días" (sin "1 días").
+String textoDias(Object? dias) => '$dias' == '1' ? '1 día' : '$dias días';
+
+// 1 día primero (y preseleccionado): para probar o activar por un día.
+const List<int> _diasSugeridos = [1, 7, 15, 30, 60, 90];
 
 /// Pide "¿por cuántos días se activa el servicio?" y devuelve la cantidad,
 /// o `null` si se cancela. Compartido entre el panel admin (pestaña
@@ -31,7 +35,7 @@ class _DialogoDiasMembresiaState extends State<_DialogoDiasMembresia> {
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController(text: '30');
+    _controller = TextEditingController(text: '${_diasSugeridos.first}');
   }
 
   @override
@@ -114,7 +118,7 @@ class _DialogoDiasMembresiaState extends State<_DialogoDiasMembresia> {
                     Icons.calendar_month_rounded,
                     color: AppColores.primary,
                   ),
-                  suffixText: 'días',
+                  suffixText: _controller.text.trim() == '1' ? 'día' : 'días',
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
                   ),
@@ -214,7 +218,7 @@ class _CuadroDias extends StatelessWidget {
     return Semantics(
       button: true,
       selected: seleccionado,
-      label: '$dias días',
+      label: textoDias(dias),
       child: Material(
         color: seleccionado ? AppColores.primary : palette.background,
         shape: RoundedRectangleBorder(
@@ -245,7 +249,7 @@ class _CuadroDias extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  'días',
+                  dias == 1 ? 'día' : 'días',
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,

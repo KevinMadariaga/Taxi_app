@@ -17,9 +17,12 @@ import 'package:taxi_app/widgets/confirmar_dialog.dart';
 import 'package:taxi_app/widgets/dialogo_dias_membresia.dart';
 
 class AdminHomeScreen extends StatefulWidget {
-  const AdminHomeScreen({super.key, required this.adminId});
+  const AdminHomeScreen({super.key, required this.adminId, this.firestore});
 
   final String adminId;
+
+  /// Para tests (base de datos falsa); por defecto la real.
+  final FirebaseFirestore? firestore;
 
   @override
   State<AdminHomeScreen> createState() => _AdminHomeScreenState();
@@ -38,8 +41,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   // aplica localmente sobre `docs` dentro del builder, así que hoistear el
   // stream (una sola suscripción viva) no cambia el comportamiento de
   // búsqueda, solo deja de releer Firestore en cada tecla.
-  final Stream<QuerySnapshot<Map<String, dynamic>>> _usuariosStream =
-      FirebaseFirestore.instance.collection('usuarios').snapshots();
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _usuariosStream =
+      (widget.firestore ?? FirebaseFirestore.instance)
+          .collection('usuarios')
+          .snapshots();
 
   Future<void> _aprobarMembresia({
     required String uid,
@@ -191,6 +196,9 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                         <QueryDocumentSnapshot<Map<String, dynamic>>>[];
                     final clientes =
                         <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+                    // Los que no terminaron el registro (sin foto, etc.) no
+                    // se listan; solo se cuentan.
+                    var clientesSinTerminar = 0;
                     for (final d in docs) {
                       final data = d.data();
                       if (!coincideBusqueda(data, _query)) continue;
@@ -198,7 +206,11 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                         case AdminUserBucket.conductor:
                           conductores.add(d);
                         case AdminUserBucket.cliente:
-                          clientes.add(d);
+                          if (registroCompleto(data)) {
+                            clientes.add(d);
+                          } else {
+                            clientesSinTerminar++;
+                          }
                       }
                     }
 
@@ -214,6 +226,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                         ),
                         _ListaClientes(
                           docs: clientes,
+                          sinTerminar: clientesSinTerminar,
                           onDeshabilitar: _deshabilitarUsuario,
                           onHabilitar: _habilitarUsuario,
                         ),
@@ -359,7 +372,7 @@ void _verDetalles(BuildContext context, Map<String, dynamic> data) {
                           icono: Icons.event_rounded,
                           etiqueta: 'Vigencia',
                           valor:
-                              '${data['membresiaDias']} días${vence is Timestamp ? ' · vence ${_fechaCorta(vence)}' : ''}',
+                              '${textoDias(data['membresiaDias'])}${vence is Timestamp ? ' · vence ${_fechaCorta(vence)}' : ''}',
                         ),
                     ],
                   ),
@@ -405,34 +418,261 @@ class _ListaConductores extends StatelessWidget {
         detalle: 'Aquí aparecen los usuarios que se registran como conductor.',
       );
     }
-    final pendientes = docs
-        .where(
-          (d) =>
-              d.data()['solicitudConductor'] == true &&
-              !membresiaActiva(d.data()),
-        )
-        .length;
+    final pendientes = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+    final activos = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+    final inactivos = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+    for (final d in docs) {
+      switch (estadoConductor(d.data())) {
+        case EstadoConductor.pendiente:
+          pendientes.add(d);
+        case EstadoConductor.activo:
+          activos.add(d);
+        case EstadoConductor.inactivo:
+          inactivos.add(d);
+      }
+    }
+
+    // Los pedidos más recientes arriba.
+    pendientes.sort(
+      (a, b) => masRecientePrimero(
+        fechaSolicitudConductor(a.data()),
+        fechaSolicitudConductor(b.data()),
+      ),
+    );
+
+    Widget tarjeta(QueryDocumentSnapshot<Map<String, dynamic>> d) =>
+        _ConductorCard(
+          key: ValueKey(d.id),
+          doc: d,
+          onAprobar: onAprobar,
+          onRevocar: onRevocar,
+          onQuitar: onQuitar,
+          onDeshabilitar: onDeshabilitar,
+          onHabilitar: onHabilitar,
+        );
 
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 600),
-        child: ListView.builder(
+        child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
-          itemCount: docs.length + (pendientes > 0 ? 1 : 0),
-          itemBuilder: (context, i) {
-            if (pendientes > 0 && i == 0) {
-              return _AvisoPendientes(pendientes: pendientes);
-            }
-            return _ConductorCard(
-              doc: docs[i - (pendientes > 0 ? 1 : 0)],
-              onAprobar: onAprobar,
-              onRevocar: onRevocar,
-              onQuitar: onQuitar,
-              onDeshabilitar: onDeshabilitar,
-              onHabilitar: onHabilitar,
-            );
-          },
+          children: [
+            _ResumenConteo(
+              icono: Icons.local_taxi_rounded,
+              cantidad: activos.length,
+              etiqueta: activos.length == 1
+                  ? 'conductor activo'
+                  : 'conductores activos',
+              detalle: 'de ${docs.length} registrados',
+            ),
+            // Primero lo que requiere acción: los que esperan activación.
+            if (pendientes.isNotEmpty) ...[
+              _AvisoPendientes(pendientes: pendientes.length),
+              ...pendientes.map(tarjeta),
+            ],
+            if (activos.isNotEmpty)
+              _SeccionDesplegable(
+                titulo: 'Activos',
+                cantidad: activos.length,
+                icono: Icons.verified_rounded,
+                children: activos.map(tarjeta).toList(),
+              ),
+            if (inactivos.isNotEmpty)
+              _SeccionDesplegable(
+                titulo: 'Sin membresía activa',
+                cantidad: inactivos.length,
+                icono: Icons.pause_circle_outline_rounded,
+                children: inactivos.map(tarjeta).toList(),
+              ),
+          ],
         ),
+      ),
+    );
+  }
+}
+
+/// Encabezado con un número grande (conductores activos, clientes).
+class _ResumenConteo extends StatelessWidget {
+  const _ResumenConteo({
+    required this.icono,
+    required this.cantidad,
+    required this.etiqueta,
+    this.detalle,
+    this.nuevos = 0,
+  });
+
+  final IconData icono;
+  final int cantidad;
+  final String etiqueta;
+  final String? detalle;
+  final int nuevos;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Semantics(
+      container: true,
+      label:
+          '$cantidad $etiqueta${nuevos > 0 ? ', $nuevos nuevos esta semana' : ''}',
+      excludeSemantics: true,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: palette.surface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: palette.borderSubtle),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                color: AppColores.primary.withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(icono, color: AppColores.primary, size: 24),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
+                    children: [
+                      Text(
+                        '$cantidad',
+                        style: TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.w900,
+                          color: palette.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          etiqueta,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: palette.textPrimary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (detalle != null)
+                    Text(
+                      detalle!,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: palette.textSecondary,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            if (nuevos > 0) _BadgeNuevo(texto: '$nuevos nuevos'),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Sección plegable (cerrada al abrir la pestaña) con su cantidad.
+class _SeccionDesplegable extends StatelessWidget {
+  const _SeccionDesplegable({
+    required this.titulo,
+    required this.cantidad,
+    required this.icono,
+    required this.children,
+  });
+
+  final String titulo;
+  final int cantidad;
+  final IconData icono;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, bottom: 8),
+      child: Theme(
+        // Sin las líneas divisorias que ExpansionTile pone por defecto.
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          initiallyExpanded: false,
+          tilePadding: const EdgeInsets.symmetric(horizontal: 12),
+          childrenPadding: const EdgeInsets.only(top: 4),
+          backgroundColor: palette.surface,
+          collapsedBackgroundColor: palette.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+            side: BorderSide(color: palette.borderSubtle),
+          ),
+          collapsedShape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+            side: BorderSide(color: palette.borderSubtle),
+          ),
+          iconColor: palette.textPrimary,
+          collapsedIconColor: palette.textSecondary,
+          leading: Icon(icono, color: AppColores.primary),
+          title: Text(
+            '$titulo ($cantidad)',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+              color: palette.textPrimary,
+            ),
+          ),
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+              child: Column(children: children),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BadgeNuevo extends StatelessWidget {
+  const _BadgeNuevo({this.texto = 'Nuevo'});
+
+  final String texto;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: AppColores.primary,
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.fiber_new_rounded,
+            size: 14,
+            color: colorContenidoSobre(AppColores.primary),
+          ),
+          const SizedBox(width: 3),
+          Text(
+            texto,
+            style: TextStyle(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w800,
+              color: colorContenidoSobre(AppColores.primary),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -494,33 +734,65 @@ class _AvisoPendientes extends StatelessWidget {
 class _ListaClientes extends StatelessWidget {
   const _ListaClientes({
     required this.docs,
+    this.sinTerminar = 0,
     required this.onDeshabilitar,
     required this.onHabilitar,
   });
   final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs;
+
+  /// Cuentas creadas que todavía no completaron el registro.
+  final int sinTerminar;
   final Future<void> Function(String uid) onDeshabilitar;
   final Future<void> Function(String uid) onHabilitar;
 
   @override
   Widget build(BuildContext context) {
     if (docs.isEmpty) {
-      return const _EmptyTile(
+      return _EmptyTile(
         icono: Icons.people_outline_rounded,
         titulo: 'No hay clientes',
-        detalle: 'Aquí aparecen los pasajeros registrados.',
+        detalle: sinTerminar > 0
+            ? 'Aquí aparecen cuando completan su registro con foto. '
+                  '$sinTerminar con el registro sin terminar.'
+            : 'Aquí aparecen los pasajeros registrados.',
       );
     }
+    // Los más recientes arriba: así los nuevos quedan a la vista.
+    final ordenados = [...docs]
+      ..sort(
+        (a, b) => masRecientePrimero(
+          fechaRegistro(a.data()),
+          fechaRegistro(b.data()),
+        ),
+      );
+    final nuevos = ordenados.where((d) => esUsuarioNuevo(d.data())).length;
+
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 600),
         child: ListView.builder(
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
-          itemCount: docs.length,
-          itemBuilder: (context, i) => _ClienteCard(
-            doc: docs[i],
-            onDeshabilitar: onDeshabilitar,
-            onHabilitar: onHabilitar,
-          ),
+          itemCount: ordenados.length + 1,
+          itemBuilder: (context, i) {
+            if (i == 0) {
+              return _ResumenConteo(
+                icono: Icons.people_alt_rounded,
+                cantidad: ordenados.length,
+                etiqueta: ordenados.length == 1 ? 'cliente' : 'clientes',
+                detalle: sinTerminar > 0
+                    ? 'completos · $sinTerminar sin terminar'
+                    : 'con registro completo',
+                nuevos: nuevos,
+              );
+            }
+            final doc = ordenados[i - 1];
+            return _ClienteCard(
+              key: ValueKey(doc.id),
+              doc: doc,
+              onDeshabilitar: onDeshabilitar,
+              onHabilitar: onHabilitar,
+            );
+          },
         ),
       ),
     );
@@ -657,6 +929,7 @@ PopupMenuButton<String> _menuAcciones(
 
 class _ClienteCard extends StatelessWidget {
   const _ClienteCard({
+    super.key,
     required this.doc,
     required this.onDeshabilitar,
     required this.onHabilitar,
@@ -729,6 +1002,10 @@ class _ClienteCard extends StatelessWidget {
                         ),
                       ),
                     ),
+                    if (esUsuarioNuevo(data)) ...[
+                      const SizedBox(width: 6),
+                      const _BadgeNuevo(),
+                    ],
                     if (deshabilitado) ...[
                       const SizedBox(width: 6),
                       const _BadgeDeshabilitado(),
@@ -796,6 +1073,7 @@ class _BadgeDeshabilitado extends StatelessWidget {
 
 class _ConductorCard extends StatelessWidget {
   const _ConductorCard({
+    super.key,
     required this.doc,
     required this.onAprobar,
     required this.onRevocar,
@@ -831,7 +1109,7 @@ class _ConductorCard extends StatelessWidget {
       mostrarAvisoExito(
         context,
         titulo: 'Membresía activada',
-        mensaje: '$nombre · $dias días',
+        mensaje: '$nombre · ${textoDias(dias)}',
       );
     }
   }
@@ -985,6 +1263,12 @@ class _ConductorCard extends StatelessWidget {
                             ),
                           ),
                         ),
+                        // Nuevo conductor que pide activar el servicio.
+                        if (estadoConductor(data) ==
+                            EstadoConductor.pendiente) ...[
+                          const SizedBox(width: 6),
+                          const _BadgeNuevo(),
+                        ],
                         if (deshabilitado) ...[
                           const SizedBox(width: 6),
                           const _BadgeDeshabilitado(),
@@ -1055,7 +1339,7 @@ class _ConductorCard extends StatelessWidget {
                     Icons.workspace_premium_rounded,
                     'Membresía activa',
                     dias != null
-                        ? '$dias días${vence is Timestamp ? ' · vence ${_fechaCorta(vence)}' : ''}'
+                        ? '${textoDias(dias)}${vence is Timestamp ? ' · vence ${_fechaCorta(vence)}' : ''}'
                         : null,
                   )
                 : pidio

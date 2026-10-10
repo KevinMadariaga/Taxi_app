@@ -82,3 +82,55 @@ bool coincideBusqueda(Map<String, dynamic> data, String query) {
 
   return false;
 }
+
+/// Registro de cliente terminado: misma regla que decide si entra al home
+/// (`ClientUserEntity.perfilCompleto`): la bandera Y la foto. Los que no lo
+/// terminaron no se listan en el panel admin.
+bool registroCompleto(Map<String, dynamic> data) {
+  final foto = '${data['foto'] ?? data['fotoUrl'] ?? ''}'.trim();
+  return data['isProfileComplete'] == true && foto.isNotEmpty;
+}
+
+/// Fecha de alta del usuario: cuándo completó el registro
+/// (`perfilCompletadoAt`) y, en cuentas anteriores a ese campo, `createdAt`
+/// o `fechaRegistro`. `null` si no tiene ninguna.
+DateTime? fechaRegistro(Map<String, dynamic> data) {
+  final v =
+      data['perfilCompletadoAt'] ?? data['createdAt'] ?? data['fechaRegistro'];
+  return v is Timestamp ? v.toDate() : null;
+}
+
+/// Cuánto tiempo se marca a un usuario como "Nuevo" en el panel.
+const Duration ventanaUsuarioNuevo = Duration(days: 7);
+
+/// Registrado dentro de [ventanaUsuarioNuevo]. Sin fecha de alta: no.
+bool esUsuarioNuevo(Map<String, dynamic> data, {DateTime? ahora}) {
+  final alta = fechaRegistro(data);
+  if (alta == null) return false;
+  return (ahora ?? DateTime.now()).difference(alta) <= ventanaUsuarioNuevo;
+}
+
+enum EstadoConductor { pendiente, activo, inactivo }
+
+/// Para ordenar la pestaña Conductores: primero los que esperan activación,
+/// después los activos y al final el resto (membresía vencida o revocada).
+EstadoConductor estadoConductor(Map<String, dynamic> data) {
+  if (membresiaActiva(data)) return EstadoConductor.activo;
+  if (data['solicitudConductor'] == true) return EstadoConductor.pendiente;
+  return EstadoConductor.inactivo;
+}
+
+/// Cuándo pidió la activación el conductor: `solicitudConductorAt`, o
+/// `updatedAt` en solicitudes anteriores a ese campo.
+DateTime? fechaSolicitudConductor(Map<String, dynamic> data) {
+  final v = data['solicitudConductorAt'] ?? data['updatedAt'];
+  return v is Timestamp ? v.toDate() : null;
+}
+
+/// Ordena de más reciente a más antiguo por [fecha]; sin fecha, al final.
+int masRecientePrimero(DateTime? a, DateTime? b) {
+  if (a == null && b == null) return 0;
+  if (a == null) return 1;
+  if (b == null) return -1;
+  return b.compareTo(a);
+}

@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:taxi_app/widgets/dialogo_dias_membresia.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/helpers/responsive_helper.dart';
@@ -200,7 +201,7 @@ class _MembresiaDetalleContent extends StatelessWidget {
                       FilaDato(
                         icono: Icons.timelapse_rounded,
                         etiqueta: 'Plan contratado',
-                        valor: dias != null ? '$dias días' : '—',
+                        valor: dias != null ? textoDias(dias) : '—',
                       ),
                       FilaDato(
                         icono: Icons.event_available_outlined,

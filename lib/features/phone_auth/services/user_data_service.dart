@@ -275,6 +275,9 @@ class UserDataService {
       },
       'rol': 'conductor',
       'solicitudConductor': true,
+      // Cuándo pidió la activación: ordena a los pendientes en el panel
+      // admin (updatedAt cambia con cualquier edición del perfil).
+      'solicitudConductorAt': FieldValue.serverTimestamp(),
       'servicioActivo': false,
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
