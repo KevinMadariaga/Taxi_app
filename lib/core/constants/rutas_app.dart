@@ -34,4 +34,8 @@ class RutasApp {
   static const String ayudaCambiarDestino = '/ayuda/cambiar-destino';
   static const String ayudaProblemasConductor = '/ayuda/problemas-conductor';
   static const String ayudaMetodoPago = '/ayuda/metodo-pago';
+
+  /// Chat de soporte (en vivo con el asesor). Argumento opcional
+  /// `userType`; sin él, la pantalla lo resuelve del perfil.
+  static const String soporteChat = '/soporte/chat';
 }

@@ -12,6 +12,14 @@ class SoporteChatService {
   CollectionReference<Map<String, dynamic>> _mensajesRef(String userId) =>
       _chatRef(userId).collection('mensajes');
 
+  /// 'conductor' o 'cliente' según `usuarios/{uid}.rol`, para abrir el chat
+  /// desde una notificación sin saber de qué rol es.
+  Future<String> tipoUsuarioDe(String uid) async {
+    final doc = await _firestore.collection('usuarios').doc(uid).get();
+    final rol = '${doc.data()?['rol'] ?? ''}'.toLowerCase();
+    return rol == 'conductor' ? 'conductor' : 'cliente';
+  }
+
   Stream<QuerySnapshot<Map<String, dynamic>>> watchMensajes(String userId) {
     return _mensajesRef(
       userId,

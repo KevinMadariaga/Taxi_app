@@ -36,9 +36,10 @@ import 'package:taxi_app/core/services/tracking_service.dart';
 import 'package:taxi_app/core/services/fcm_service.dart';
 import 'package:taxi_app/core/app_navigator.dart';
 import 'package:taxi_app/features/phone_auth/screens/admin_hub_screen.dart';
-import 'package:taxi_app/screens/usuario_cliente/presentacion/view/soporte_chat_screen.dart';
+import 'package:taxi_app/core/services/soporte_notification_service.dart';
 import 'package:taxi_app/caracteristicas/viaje_compartido/presentacion/vistas/chat_screen.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
+import 'package:taxi_app/widgets/barra_teclado.dart';
 
 const SystemUiOverlayStyle _globalSystemOverlayStyle = SystemUiOverlayStyle(
   statusBarColor: Colors.transparent,
@@ -92,8 +93,10 @@ void _manejarTapNotificacion(String? payload) {
     // para poder retirarla), así que el tap NO pasa por `onMessageOpenedApp`
     // y llega acá. Sin esta rama, tocarla no hacía nada.
     unawaited(FcmService.instance.irAInicioConductorSiNoHayViajeActivo(nav));
+  } else if (payload.startsWith('promo:')) {
+    FcmService.instance.abrirPromocion(payload.substring('promo:'.length));
   } else if (payload == 'soporte_chat') {
-    nav.push(MaterialPageRoute(builder: (_) => const SoporteChatScreen()));
+    SoporteNotificationService.instance.abrirChat(nav);
   } else if (payload.startsWith('viaje_chat:')) {
     final partes = payload.split(':');
     if (partes.length < 4) return;
@@ -391,7 +394,9 @@ class MyApp extends StatelessWidget {
                         value: isDark
                             ? _darkSystemOverlayStyle
                             : _globalSystemOverlayStyle,
-                        child: child ?? const SizedBox.shrink(),
+                        child: BarraTeclado(
+                          child: child ?? const SizedBox.shrink(),
+                        ),
                       ),
                     ),
                   );

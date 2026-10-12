@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'dart:io';
 
 import 'package:firebase_storage/firebase_storage.dart';
@@ -35,6 +36,18 @@ class ImageUploadService {
         ? 'image/png'
         : 'image/jpeg';
     await ref.putFile(file, SettableMetadata(contentType: contentType));
+    return ref.getDownloadURL();
+  }
+
+  /// Sube [bytes] ya optimizados (p. ej. WebP de `optimizarAWebP`) a
+  /// [storagePath] y devuelve la URL de descarga.
+  Future<String> uploadBytes({
+    required Uint8List bytes,
+    required String storagePath,
+    String contentType = 'image/webp',
+  }) async {
+    final ref = _storage.ref().child(storagePath);
+    await ref.putData(bytes, SettableMetadata(contentType: contentType));
     return ref.getDownloadURL();
   }
 

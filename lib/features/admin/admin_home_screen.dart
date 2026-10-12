@@ -9,6 +9,9 @@ import 'package:taxi_app/core/services/sugerencias_service.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
 import 'package:taxi_app/features/admin/admin_configuracion_screen.dart';
 import 'package:taxi_app/features/admin/admin_usuario_filtros.dart';
+import 'package:taxi_app/caracteristicas/anuncios/presentacion/vistas/admin_anuncios_screen.dart';
+import 'package:taxi_app/caracteristicas/anuncios/presentacion/vistas/promociones_admin_screen.dart';
+import 'package:taxi_app/caracteristicas/estadisticas/presentacion/vistas/estadisticas_admin_screen.dart';
 import 'package:taxi_app/features/phone_auth/screens/admin_hub_screen.dart';
 import 'package:taxi_app/features/phone_auth/services/user_data_service.dart';
 import 'package:taxi_app/core/validators/vehiculo_validator.dart';
@@ -96,15 +99,132 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     super.dispose();
   }
 
+  /// Secciones del panel, en el orden de la barra. Una sola lista para la
+  /// barra inferior (teléfono) y el riel lateral (tablet/escritorio).
+  static const List<({IconData icono, IconData iconoActivo, String texto})>
+  _secciones = [
+    (
+      icono: Icons.view_carousel_outlined,
+      iconoActivo: Icons.view_carousel_rounded,
+      texto: 'Anuncios',
+    ),
+    (
+      icono: Icons.campaign_outlined,
+      iconoActivo: Icons.campaign_rounded,
+      texto: 'Promoción',
+    ),
+    (
+      icono: Icons.people_outline_rounded,
+      iconoActivo: Icons.people_rounded,
+      texto: 'Usuarios',
+    ),
+    (
+      icono: Icons.insights_outlined,
+      iconoActivo: Icons.insights_rounded,
+      texto: 'Estadísticas',
+    ),
+  ];
+
+  /// Arranca en Usuarios: es el trabajo diario del admin.
+  int _seccion = 2;
+
   @override
   Widget build(BuildContext context) {
+    // IndexedStack conserva el estado de cada sección (scroll, formulario a
+    // medio llenar) al cambiar de una a otra o al rotar la pantalla.
+    final paginas = IndexedStack(
+      index: _seccion,
+      children: [
+        const AdminAnunciosScreen(),
+        const PromocionesAdminScreen(),
+        _construirUsuarios(context),
+        const EstadisticasAdminScreen(),
+      ],
+    );
+    void elegir(int i) => setState(() => _seccion = i);
+
+    // Por espacio disponible, no por tipo de dispositivo.
+    if (MediaQuery.sizeOf(context).width < 600) {
+      return Scaffold(
+        body: paginas,
+        bottomNavigationBar: NavigationBarTheme(
+          data: NavigationBarThemeData(
+            labelTextStyle: WidgetStateProperty.resolveWith(
+              (estados) => TextStyle(
+                fontSize: 12,
+                fontWeight: estados.contains(WidgetState.selected)
+                    ? FontWeight.w800
+                    : FontWeight.w500,
+                color: estados.contains(WidgetState.selected)
+                    ? context.palette.textPrimary
+                    : context.palette.textSecondary,
+              ),
+            ),
+          ),
+          child: NavigationBar(
+            selectedIndex: _seccion,
+            onDestinationSelected: elegir,
+            backgroundColor: context.palette.surface,
+            // Sección activa: el naranja principal sólido con el ícono
+            // oscuro encima, bien distinguible de las demás.
+            indicatorColor: AppColores.primary,
+            destinations: [
+              for (final s in _secciones)
+                NavigationDestination(
+                  icon: Icon(s.icono, color: context.palette.textSecondary),
+                  selectedIcon: Icon(s.iconoActivo, color: AppColores.ink900),
+                  label: s.texto,
+                ),
+            ],
+          ),
+        ),
+      );
+    }
+    return Scaffold(
+      backgroundColor: context.palette.background,
+      body: Row(
+        children: [
+          SafeArea(
+            right: false,
+            child: NavigationRail(
+              selectedIndex: _seccion,
+              onDestinationSelected: elegir,
+              labelType: NavigationRailLabelType.all,
+              backgroundColor: context.palette.surface,
+              indicatorColor: AppColores.primary,
+              selectedLabelTextStyle: TextStyle(
+                fontWeight: FontWeight.w800,
+                color: context.palette.textPrimary,
+              ),
+              unselectedLabelTextStyle: TextStyle(
+                color: context.palette.textSecondary,
+              ),
+              destinations: [
+                for (final s in _secciones)
+                  NavigationRailDestination(
+                    icon: Icon(s.icono, color: context.palette.textSecondary),
+                    selectedIcon: Icon(s.iconoActivo, color: AppColores.ink900),
+                    label: Text(s.texto),
+                  ),
+              ],
+            ),
+          ),
+          VerticalDivider(width: 1, color: context.palette.borderSubtle),
+          Expanded(child: paginas),
+        ],
+      ),
+    );
+  }
+
+  /// Sección Usuarios: conductores y clientes en pestañas.
+  Widget _construirUsuarios(BuildContext context) {
     return DefaultTabController(
       length: 2,
       child: Scaffold(
         backgroundColor: context.palette.background,
         appBar: appBarNeutra(
           context,
-          titulo: 'Administrador',
+          titulo: 'Usuarios',
           actions: [
             _AdminBellIcon(
               onTap: () => Navigator.of(
@@ -138,7 +258,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 600),
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 6),
                     child: TextField(
                       onChanged: (v) => setState(() => _query = v),
                       cursorColor: AppColores.primary,

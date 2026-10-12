@@ -8,9 +8,12 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_navigator.dart';
 import 'package:taxi_app/core/helpers/session_helper.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:taxi_app/core/services/avisos_solicitud_store.dart';
+import 'package:taxi_app/core/services/bandeja_notificaciones.dart';
 import 'package:taxi_app/core/services/notificacion_servicio.dart';
 import 'package:taxi_app/core/services/registro_avisos.dart';
+import 'package:taxi_app/core/services/soporte_notification_service.dart';
 import 'package:taxi_app/core/utils/notificacion_clave.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
 import 'package:taxi_app/core/constants/rutas_app.dart';
@@ -28,6 +31,8 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   // Push silencioso de retirada: la solicitud dejó de estar disponible y hay
   // que sacar su aviso de la bandeja. No muestra nada.
   if (await _atenderRetiro(data)) return;
+
+  await guardarEnBandeja(message);
 
   // Si el mensaje trae bloque 'notification', el OS (Android/iOS) YA la
   // muestra automáticamente en background/terminated — mostrarla también
@@ -63,6 +68,27 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   }
 }
 
+/// Lleva el push a la campana. Desde cualquier isolate; el mismo mensaje
+/// visto dos veces (al llegar y al tocarlo) no se duplica.
+Future<void> guardarEnBandeja(RemoteMessage message) async {
+  final data = message.data;
+  try {
+    await BandejaNotificaciones.guardar(
+      id:
+          message.messageId ??
+          '${data['notifClave'] ?? data['type']}_'
+              '${message.sentTime?.millisecondsSinceEpoch}',
+      titulo: message.notification?.title ?? '${data['title'] ?? ''}',
+      cuerpo: message.notification?.body ?? '${data['body'] ?? ''}',
+      tipo: '${data['type'] ?? ''}',
+      entidad: '${data['promocionId'] ?? ''}',
+      fecha: message.sentTime,
+    );
+  } catch (e, st) {
+    ErrorReporter.report(e, st, reason: 'guardarEnBandeja');
+  }
+}
+
 /// Deja registrado que el aviso de "Solicitud entrante" de este cliente está
 /// en la bandeja, para poder limpiarlo aunque el push de retirada no llegue
 /// (Android no entrega data-only si se forzó el cierre de la app).
@@ -83,6 +109,7 @@ String? payloadDeMensaje(Map<String, dynamic> data) {
   final tipo = '${data['type'] ?? ''}';
   final solicitudId = '${data['solicitudId'] ?? ''}';
   if (tipo == 'nueva_solicitud') return 'nueva_solicitud:$solicitudId';
+  if (tipo == 'promo') return 'promo:${data['promocionId'] ?? ''}';
   return solicitudId.isEmpty ? null : solicitudId;
 }
 
@@ -156,6 +183,16 @@ class FcmService {
   StreamSubscription<String>? _tokenRefreshSub;
   StreamSubscription<RemoteMessage>? _foregroundSub;
   StreamSubscription<RemoteMessage>? _openedAppSub;
+
+  /// Promoción que el usuario pidió ver tocando su notificación (local o
+  /// del sistema) o la campana. La muestra `OyentePromociones` en el
+  /// inicio apenas está a la vista — también si la app venía cerrada.
+  final ValueNotifier<String?> promocionPorAbrir = ValueNotifier(null);
+
+  void abrirPromocion(String promocionId) {
+    if (promocionId.isEmpty) return;
+    promocionPorAbrir.value = promocionId;
+  }
 
   /// Inicializa FCM: permisos, token, handlers.
   ///
@@ -280,6 +317,7 @@ class FcmService {
     // 9) Verificar si la app se abrió desde una notificación (app terminada)
     final initialMessage = await _messaging.getInitialMessage();
     if (initialMessage != null) {
+      unawaited(_guardarYRefrescar(initialMessage));
       debugPrint(
         '[FCM] App abierta desde notificación: ${initialMessage.messageId}',
       );
@@ -374,6 +412,49 @@ class FcmService {
         reason: 'FcmService: fallo al guardar token en administradores/$uid',
       );
     }
+
+    unawaited(sincronizarPromos());
+  }
+
+  /// Preferencia de "Promociones y novedades" (Ajustes → Notificaciones).
+  static const String clavePromos = 'settings_noti_promos';
+
+  /// Temas de FCM por público de las promociones del admin
+  /// (`enviarPromocion` en functions/index.js).
+  static const String _temaPromosClientes = 'promos_clientes';
+  static const String _temaPromosConductores = 'promos_conductores';
+
+  /// Suscribe al tema de promos del rol actual (y saca del otro) según la
+  /// preferencia. Se repite en cada login y al cambiar de rol:
+  /// `deleteToken()` al cerrar sesión borra las suscripciones.
+  Future<void> sincronizarPromos() async {
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) return;
+      final prefs = await SharedPreferences.getInstance();
+      final activadas = prefs.getBool(clavePromos) ?? true;
+      final doc = await FirebaseFirestore.instance
+          .collection('usuarios')
+          .doc(uid)
+          .get();
+      final esConductor =
+          '${doc.data()?['rol'] ?? ''}'.toLowerCase() == 'conductor';
+      final propio = esConductor ? _temaPromosConductores : _temaPromosClientes;
+      final otro = esConductor ? _temaPromosClientes : _temaPromosConductores;
+      await _messaging.unsubscribeFromTopic(otro);
+      if (activadas) {
+        await _messaging.subscribeToTopic(propio);
+      } else {
+        await _messaging.unsubscribeFromTopic(propio);
+      }
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'FcmService: tema de promos');
+    }
+  }
+
+  Future<void> _guardarYRefrescar(RemoteMessage message) async {
+    await guardarEnBandeja(message);
+    await BandejaNotificaciones.instance.cargar();
   }
 
   /// Fuerza la actualización del token en Firestore.
@@ -442,6 +523,9 @@ class FcmService {
     }
 
     _pendingToken = null;
+
+    // La campana es de esta cuenta: no se la deja al próximo que entre.
+    await BandejaNotificaciones.instance.borrarTodo();
 
     // Borra el token del dispositivo: el siguiente login pide uno nuevo.
     try {
@@ -567,6 +651,15 @@ class FcmService {
       return;
     }
 
+    // A la campana aunque no se dibuje (la muestra otro listener o la
+    // pantalla del viaje); no si es del chat que el usuario está leyendo.
+    final chatALaVista =
+        (type == 'trip_chat_message' &&
+            _chatsAbiertos.containsKey(solicitudId)) ||
+        (type == 'soporte_chat_respuesta' &&
+            SoporteNotificationService.instance.chatUsuarioAbierto > 0);
+    if (!chatALaVista) unawaited(_guardarYRefrescar(message));
+
     if (_tiposConAvisoPropioEnForeground.contains(type)) {
       return;
     }
@@ -605,6 +698,7 @@ class FcmService {
   /// Cuando el usuario toca la notificación con la app en background.
   void _onMessageOpenedApp(RemoteMessage message) {
     debugPrint('[FCM] Notificación tocada: ${message.data}');
+    unawaited(_guardarYRefrescar(message));
     _navigateFromMessage(message);
   }
 
@@ -665,7 +759,17 @@ class FcmService {
     // sigue en el stack si solo estaba en background. No navegar aquí evita
     // abrir por error una pantalla de administrador (ver comentario en el
     // caso 'soporte_chat' más abajo, que es el sentido usuario→admin).
-    if (type == 'trip_chat_message' || type == 'soporte_chat_respuesta') {
+    if (type == 'trip_chat_message') return;
+
+    // Promoción del admin → su ventana en el inicio.
+    if (type == 'promo') {
+      abrirPromocion('${message.data['promocionId'] ?? ''}');
+      return;
+    }
+
+    // Respuesta del asesor → directo al chat de soporte.
+    if (type == 'soporte_chat_respuesta') {
+      SoporteNotificationService.instance.abrirChat(nav);
       return;
     }
 

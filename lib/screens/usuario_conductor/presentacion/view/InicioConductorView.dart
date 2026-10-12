@@ -22,6 +22,9 @@ import 'package:provider/provider.dart';
 import 'package:taxi_app/core/services/services.dart';
 import 'package:taxi_app/core/helpers/permisos_helper.dart';
 import 'package:taxi_app/core/helpers/session_helper.dart';
+import 'package:taxi_app/widgets/campana_notificaciones.dart';
+import 'package:taxi_app/caracteristicas/anuncios/dominio/entidades/promocion.dart';
+import 'package:taxi_app/caracteristicas/anuncios/presentacion/widgets/oyente_promociones.dart';
 import 'package:taxi_app/widgets/preview_solicitud/preview_solicitud_card.dart';
 import 'package:taxi_app/widgets/solicitud_card.dart';
 import 'package:taxi_app/screens/usuario_conductor/presentacion/view/activacion_servicio_view.dart';
@@ -510,6 +513,10 @@ class _InicioConductorState extends State<InicioConductor>
                       foregroundColor: context.palette.textPrimary,
                       elevation: 0,
                       automaticallyImplyLeading: false,
+                      actions: const [
+                        CampanaNotificaciones(),
+                        SizedBox(width: 8),
+                      ],
                       // Este AppBar no tiene título ni marca: se funde con el
                       // fondo de la pantalla (mapa/dashboard), así que la
                       // barra de estado debe seguir ese mismo fondo — no el
@@ -530,6 +537,9 @@ class _InicioConductorState extends State<InicioConductor>
                 child: Stack(
                   clipBehavior: Clip.none,
                   children: [
+                    const OyentePromociones(
+                      publico: AudienciaPromocion.conductores,
+                    ),
                     Column(
                       children: [
                         // Nombre y placa arriba (dentro de un marco) -- ocultar cuando hay preview seleccionada

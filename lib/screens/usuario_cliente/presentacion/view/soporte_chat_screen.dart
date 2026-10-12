@@ -5,15 +5,19 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
+import 'package:taxi_app/core/services/notificacion_servicio.dart';
 import 'package:taxi_app/core/services/soporte_chat_service.dart';
+import 'package:taxi_app/core/services/soporte_notification_service.dart';
+import 'package:taxi_app/core/utils/notificacion_clave.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
 import 'package:taxi_app/caracteristicas/confirmar_solicitud/datos/repositorios/cliente_repository_impl.dart';
 import 'package:taxi_app/widgets/ajustes_ui.dart';
 
 class SoporteChatScreen extends StatefulWidget {
-  const SoporteChatScreen({super.key, this.userType = 'cliente'});
+  const SoporteChatScreen({super.key, this.userType});
 
-  final String userType;
+  /// Sin valor (abierto desde una notificación) se resuelve del perfil.
+  final String? userType;
 
   @override
   State<SoporteChatScreen> createState() => _SoporteChatScreenState();
@@ -35,6 +39,8 @@ class _SoporteChatScreenState extends State<SoporteChatScreen> {
   // de Auth nunca refleja.
   late String _userName;
 
+  late String _userType = widget.userType ?? 'cliente';
+
   DateTime? _ultimoMensajeUsuario;
 
   /// Inicio de la conversación actual: solo se muestran mensajes desde acá.
@@ -46,7 +52,9 @@ class _SoporteChatScreenState extends State<SoporteChatScreen> {
   late final Stream<QuerySnapshot<Map<String, dynamic>>> _mensajes;
   Timer? _expiryTimer;
 
-  static const _tiempoExpiracion = Duration(minutes: 6);
+  /// Espera por el asesor: 10 min sin mensajes (de nadie) y se ofrece
+  /// reiniciar. Una respuesta del asesor reabre la ventana.
+  static const _tiempoExpiracion = Duration(minutes: 10);
 
   bool get _expirado {
     if (_ultimoMensajeUsuario == null) return false;
@@ -60,7 +68,24 @@ class _SoporteChatScreenState extends State<SoporteChatScreen> {
     final user = FirebaseAuth.instance.currentUser;
     _userId = user?.uid ?? '';
     _userName = user?.displayName ?? user?.email ?? 'Usuario';
+    SoporteNotificationService.instance.chatUsuarioAbierto++;
+    // Lo que ya está en la bandeja del sistema se lee acá: el aviso local
+    // (id fijo) y el que dibujó el sistema desde el push (por su tag).
+    unawaited(NotificacionesServicio.instance.cancel(900001));
+    final clave = claveNotificacion('soporte_chat_respuesta', _userId);
+    unawaited(
+      NotificacionesServicio.instance.cancel(idNotificacion(clave), tag: clave),
+    );
     _cargarNombreDesdeFirestore();
+    if (widget.userType == null && _userId.isNotEmpty) {
+      _service.tipoUsuarioDe(_userId).then((t) => _userType = t).catchError((
+        Object e,
+        StackTrace st,
+      ) {
+        ErrorReporter.report(e, st, reason: 'soporte_chat_screen: rol');
+        return _userType;
+      });
+    }
     _mensajes = _service.watchMensajes(_userId);
     _cargarInicioConversacion();
 
@@ -105,6 +130,7 @@ class _SoporteChatScreenState extends State<SoporteChatScreen> {
 
   @override
   void dispose() {
+    SoporteNotificationService.instance.chatUsuarioAbierto--;
     _expiryTimer?.cancel();
     _textCtrl.dispose();
     _scrollCtrl.dispose();
@@ -123,7 +149,7 @@ class _SoporteChatScreenState extends State<SoporteChatScreen> {
       await _service.sendMensaje(
         userId: _userId,
         userName: _userName,
-        userType: widget.userType,
+        userType: _userType,
         texto: text,
         esAdmin: false,
       );
@@ -196,12 +222,15 @@ class _SoporteChatScreenState extends State<SoporteChatScreen> {
                     )
                     .toList();
 
-                // Actualiza _ultimoMensajeUsuario con el último msg del usuario
-                // sin setState para no disparar rebuilds en loop.
+                // Último mensaje de la conversación (usuario o asesor), solo
+                // si el usuario ya escribió: sin pregunta no hay espera.
+                final usuarioEscribio = docs.any(
+                  (d) => !(d.data()['esAdmin'] as bool? ?? false),
+                );
                 DateTime? ultimo;
                 for (final d in docs.reversed) {
+                  if (!usuarioEscribio) break;
                   final data = d.data();
-                  if (data['esAdmin'] as bool? ?? false) continue;
                   final ts = data['creadoEn'] as Timestamp?;
                   if (ts != null) {
                     ultimo = ts.toDate();
@@ -377,6 +406,9 @@ class _SoporteChatScreenState extends State<SoporteChatScreen> {
                       child: TextField(
                         controller: _textCtrl,
                         focusNode: _focusNode,
+                        // Crece con el mensaje (hasta 5 líneas) para leerlo completo.
+                        minLines: 1,
+                        maxLines: 5,
                         textInputAction: TextInputAction.send,
                         onSubmitted: (_) => _send(),
                         decoration: InputDecoration(

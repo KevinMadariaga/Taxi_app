@@ -26,6 +26,11 @@ import 'package:taxi_app/core/theme/map_style.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/model/ubicacion_resultado.dart';
 import 'package:taxi_app/screens/perfil/perfil.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
+import 'package:taxi_app/widgets/ajustes_ui.dart';
+import 'package:taxi_app/widgets/campana_notificaciones.dart';
+import 'package:taxi_app/caracteristicas/anuncios/presentacion/widgets/carrusel_anuncios.dart';
+import 'package:taxi_app/caracteristicas/anuncios/dominio/entidades/promocion.dart';
+import 'package:taxi_app/caracteristicas/anuncios/presentacion/widgets/oyente_promociones.dart';
 import 'package:taxi_app/widgets/confirmar_dialog.dart';
 import 'package:taxi_app/features/resumen_viaje/services/resumen_viaje_firestore_service.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/ResumenClienteView.dart';
@@ -60,9 +65,6 @@ class _InicioClienteViewState extends State<InicioClienteView>
   late VoidCallback _vmListener;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   int _selectedIndex = 1;
-  final PageController _carouselController = PageController(
-    viewportFraction: 0.92,
-  );
   // Aislado en su propio ValueNotifier (Tarea 3): togglear este flag no debe
   // forzar un setState() del árbol completo de 1400+ líneas, solo el overlay
   // de carga que lo consume vía AnimatedBuilder.
@@ -283,7 +285,6 @@ class _InicioClienteViewState extends State<InicioClienteView>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _carouselController.dispose();
     _isPreparingNavigationNotifier.dispose();
     vm.removeListener(_vmListener);
     vm.dispose();
@@ -832,9 +833,10 @@ class _InicioClienteViewState extends State<InicioClienteView>
                                     height: carouselHeight,
                                     child: KeyedSubtree(
                                       key: _tourPublicidad,
-                                      child: _CarouselSection(
-                                        controller: _carouselController,
-                                        onTap: _mostrarPromoWhatsApp,
+                                      child: CarruselAnuncios(
+                                        tarjetaFinal: _TarjetaPromociona(
+                                          onTap: _mostrarPromoWhatsApp,
+                                        ),
                                       ),
                                     ),
                                   ),
@@ -866,6 +868,7 @@ class _InicioClienteViewState extends State<InicioClienteView>
                     isPreparingNavigation: _isPreparingNavigationNotifier,
                   ),
                   _UbicacionOkBanner(visible: _mostrarUbicacionOk),
+                  const OyentePromociones(publico: AudienciaPromocion.clientes),
                 ],
               ),
             ),
@@ -1432,6 +1435,7 @@ class _HeaderSection extends StatelessWidget {
             ),
           ),
         ),
+        const CampanaNotificaciones(),
       ],
     );
   }
@@ -1729,122 +1733,96 @@ class _SugerenciaItem extends StatelessWidget {
   }
 }
 
-class _CarouselSection extends StatelessWidget {
-  const _CarouselSection({required this.controller, required this.onTap});
+/// "¿Quieres promocionar tu negocio?": primera tarjeta del carrusel de
+/// anuncios (`CarruselAnuncios`), abre el modal de contacto.
+class _TarjetaPromociona extends StatelessWidget {
+  const _TarjetaPromociona({required this.onTap});
 
-  final PageController controller;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final items = [
-      {
-        'title': '¿Quieres promocionar\ntu negocio?',
-        'subtitle': 'Comunícate con nosotros',
-        'icon': Icons.campaign_rounded,
-      },
-    ];
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Expanded(
-          child: Stack(
-            children: [
-              PageView.builder(
-                controller: controller,
-                itemCount: items.length,
-                itemBuilder: (context, index) {
-                  final item = items[index];
-                  return GestureDetector(
-                    onTap: onTap,
-                    child: Card(
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      clipBehavior: Clip.hardEdge,
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          // Fondo naranja de marca
-                          Container(
-                            decoration: const BoxDecoration(
-                              color: AppColores.primary,
-                            ),
-                          ),
-                          // Círculo decorativo top-right
-                          Positioned(
-                            right: -20,
-                            top: -20,
-                            child: Container(
-                              width: 110,
-                              height: 110,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Colors.white.withValues(alpha: 0.12),
-                              ),
-                            ),
-                          ),
-                          // Contenido
-                          //
-                          // Nota: esta card vive dentro de un SizedBox con
-                          // altura clampeada en px crudos (`carouselHeight`,
-                          // 160-240, independiente del diseño), así que su
-                          // contenido usa tamaños fijos (no `.w/.h/.sp` de
-                          // ScreenUtil) para no desbordar en pantallas cuyo
-                          // factor de escala se dispare (tablets/pantallas
-                          // muy anchas) mientras el contenedor no escala.
-                          Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  item['icon'] as IconData,
-                                  size: 30,
-                                  // Fijo oscuro: es el fondo naranja, no el
-                                  // del tema (en modo oscuro
-                                  // `palette.textPrimary` es casi blanco).
-                                  color: AppColores.ink900.withValues(
-                                    alpha: 0.85,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  item['title'].toString(),
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppColores.ink900,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  item['subtitle'].toString(),
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    // ink700 sobre el naranja: 4.08:1.
-                                    color: AppColores.ink900,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
+    const item = {
+      'title': '¿Quieres promocionar\ntu negocio?',
+      'subtitle': 'Comunícate con nosotros',
+      'icon': Icons.campaign_rounded,
+    };
+    return GestureDetector(
+      onTap: onTap,
+      child: Card(
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        clipBehavior: Clip.hardEdge,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // Fondo naranja de marca
+            Container(
+              decoration: const BoxDecoration(color: AppColores.primary),
+            ),
+            // Círculo decorativo top-right
+            Positioned(
+              right: -20,
+              top: -20,
+              child: Container(
+                width: 110,
+                height: 110,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withValues(alpha: 0.12),
+                ),
               ),
-            ],
-          ),
+            ),
+            // Contenido
+            //
+            // Nota: esta card vive dentro de un SizedBox con
+            // altura clampeada en px crudos (`carouselHeight`,
+            // 160-240, independiente del diseño), así que su
+            // contenido usa tamaños fijos (no `.w/.h/.sp` de
+            // ScreenUtil) para no desbordar en pantallas cuyo
+            // factor de escala se dispare (tablets/pantallas
+            // muy anchas) mientras el contenedor no escala.
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    item['icon'] as IconData,
+                    size: 30,
+                    // Fijo oscuro: es el fondo naranja, no el
+                    // del tema (en modo oscuro
+                    // `palette.textPrimary` es casi blanco).
+                    color: AppColores.ink900.withValues(alpha: 0.85),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    item['title'].toString(),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: AppColores.ink900,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    item['subtitle'].toString(),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      // ink700 sobre el naranja: 4.08:1.
+                      color: AppColores.ink900,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }
@@ -1921,147 +1899,152 @@ class _PromoNegocioSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = context.palette;
     return SafeArea(
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.sizeOf(context).height * 0.9,
-        ),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 14, 24, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Center(
-                child: Container(
-                  width: 40.w,
-                  height: 4.h,
-                  decoration: BoxDecoration(
-                    color: palette.grey300,
-                    borderRadius: BorderRadius.circular(2.r),
+      child: ConCerrar(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(context).height * 0.9,
+          ),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(24, 14, 24, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40.w,
+                    height: 4.h,
+                    decoration: BoxDecoration(
+                      color: palette.grey300,
+                      borderRadius: BorderRadius.circular(2.r),
+                    ),
                   ),
                 ),
-              ),
-              SizedBox(height: 20.h),
-              Center(
-                child: Container(
-                  width: 64.w,
-                  height: 64.h,
-                  decoration: BoxDecoration(
-                    color: AppColores.primary.withValues(alpha: 0.18),
-                    shape: BoxShape.circle,
+                SizedBox(height: 20.h),
+                Center(
+                  child: Container(
+                    width: 64.w,
+                    height: 64.h,
+                    decoration: BoxDecoration(
+                      color: AppColores.primary.withValues(alpha: 0.18),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.campaign_rounded,
+                      color: AppColores.primary,
+                      size: 34,
+                    ),
                   ),
-                  child: Icon(
-                    Icons.campaign_rounded,
-                    color: AppColores.primary,
-                    size: 34,
-                  ),
                 ),
-              ),
-              SizedBox(height: 16.h),
-              Text(
-                'Promociona tu negocio en Ride',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 19.sp,
-                  fontWeight: FontWeight.w800,
-                  color: palette.textPrimary,
-                ),
-              ),
-              SizedBox(height: 8.h),
-              Text(
-                'Muestra tu negocio a los pasajeros de Ocaña cada vez que '
-                'abren la app para pedir un viaje.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 14.sp,
-                  height: 1.35,
-                  color: palette.textSecondary,
-                ),
-              ),
-              SizedBox(height: 20.h),
-              const _PromoBeneficio(
-                icono: Icons.home_rounded,
-                titulo: 'Visible en el inicio',
-                detalle:
-                    'Tu anuncio aparece en la pantalla principal de los '
-                    'pasajeros, justo donde eligen su destino.',
-              ),
-              const _PromoBeneficio(
-                icono: Icons.place_rounded,
-                titulo: 'Público de tu ciudad',
-                detalle:
-                    'Llega a personas que se mueven por Ocaña todos los días.',
-              ),
-              const _PromoBeneficio(
-                icono: Icons.support_agent_rounded,
-                titulo: 'Te acompañamos',
-                detalle:
-                    'Te contamos los planes disponibles y te ayudamos a '
-                    'armar tu anuncio.',
-              ),
-              SizedBox(height: 12.h),
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: palette.grey100,
-                  borderRadius: BorderRadius.circular(14.r),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '¿Cómo funciona?',
-                      style: TextStyle(
-                        fontSize: 14.sp,
-                        fontWeight: FontWeight.w800,
-                        color: palette.textPrimary,
-                      ),
-                    ),
-                    SizedBox(height: 10.h),
-                    const _PromoPaso(
-                      numero: 1,
-                      texto:
-                          'Escríbenos por WhatsApp con los datos de tu '
-                          'negocio.',
-                    ),
-                    const _PromoPaso(
-                      numero: 2,
-                      texto: 'Te enviamos los planes, precios y duración.',
-                    ),
-                    const _PromoPaso(
-                      numero: 3,
-                      texto: 'Publicamos tu anuncio en la app.',
-                    ),
-                  ],
-                ),
-              ),
-              SizedBox(height: 20.h),
-              ElevatedButton.icon(
-                onPressed: onContactar,
-                icon: const Icon(Icons.chat_rounded, size: 20),
-                label: Text(
-                  'Contactar por WhatsApp',
+                SizedBox(height: 16.h),
+                Text(
+                  'Promociona tu negocio en Ride',
+                  textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15.sp,
+                    fontSize: 19.sp,
+                    fontWeight: FontWeight.w800,
+                    color: palette.textPrimary,
                   ),
                 ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _whatsappVerde,
-                  foregroundColor: colorContenidoSobre(_whatsappVerde),
-                  minimumSize: const Size.fromHeight(52),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16.r),
+                SizedBox(height: 8.h),
+                Text(
+                  'Muestra tu negocio a los pasajeros de Ocaña cada vez que '
+                  'abren la app para pedir un viaje.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    height: 1.35,
+                    color: palette.textSecondary,
                   ),
                 ),
-              ),
-              SizedBox(height: 10.h),
-              Text(
-                'Atención por WhatsApp al 315 177 0319',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 12.sp, color: palette.textSecondary),
-              ),
-            ],
+                SizedBox(height: 20.h),
+                const _PromoBeneficio(
+                  icono: Icons.home_rounded,
+                  titulo: 'Visible en el inicio',
+                  detalle:
+                      'Tu anuncio aparece en la pantalla principal de los '
+                      'pasajeros, justo donde eligen su destino.',
+                ),
+                const _PromoBeneficio(
+                  icono: Icons.place_rounded,
+                  titulo: 'Público de tu ciudad',
+                  detalle:
+                      'Llega a personas que se mueven por Ocaña todos los días.',
+                ),
+                const _PromoBeneficio(
+                  icono: Icons.support_agent_rounded,
+                  titulo: 'Te acompañamos',
+                  detalle:
+                      'Te contamos los planes disponibles y te ayudamos a '
+                      'armar tu anuncio.',
+                ),
+                SizedBox(height: 12.h),
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: palette.grey100,
+                    borderRadius: BorderRadius.circular(14.r),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '¿Cómo funciona?',
+                        style: TextStyle(
+                          fontSize: 14.sp,
+                          fontWeight: FontWeight.w800,
+                          color: palette.textPrimary,
+                        ),
+                      ),
+                      SizedBox(height: 10.h),
+                      const _PromoPaso(
+                        numero: 1,
+                        texto:
+                            'Escríbenos por WhatsApp con los datos de tu '
+                            'negocio.',
+                      ),
+                      const _PromoPaso(
+                        numero: 2,
+                        texto: 'Te enviamos los planes, precios y duración.',
+                      ),
+                      const _PromoPaso(
+                        numero: 3,
+                        texto: 'Publicamos tu anuncio en la app.',
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(height: 20.h),
+                ElevatedButton.icon(
+                  onPressed: onContactar,
+                  icon: const Icon(Icons.chat_rounded, size: 20),
+                  label: Text(
+                    'Contactar por WhatsApp',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15.sp,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _whatsappVerde,
+                    foregroundColor: colorContenidoSobre(_whatsappVerde),
+                    minimumSize: const Size.fromHeight(52),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16.r),
+                    ),
+                  ),
+                ),
+                SizedBox(height: 10.h),
+                Text(
+                  'Atención por WhatsApp al 315 177 0319',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 12.sp,
+                    color: palette.textSecondary,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

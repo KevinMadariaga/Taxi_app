@@ -1,4 +1,5 @@
 import 'dart:developer' as developer;
+import 'dart:async';
 import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -6,6 +7,7 @@ import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:taxi_app/core/modelos/contacto_emergencia.dart';
+import 'package:taxi_app/core/services/fcm_service.dart';
 import 'package:taxi_app/firebase_options.dart';
 
 import '../models/admin_model.dart';
@@ -228,6 +230,8 @@ class UserDataService {
       'rol': 'conductor',
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
+    // Las promos van por tema según el rol.
+    unawaited(FcmService.instance.sincronizarPromos());
   }
 
   /// Vuelve el rol a cliente. A propósito NO toca `solicitudConductor`: si
@@ -242,6 +246,8 @@ class UserDataService {
       'rol': 'cliente',
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
+    // Las promos van por tema según el rol.
+    unawaited(FcmService.instance.sincronizarPromos());
   }
 
   /// Auto-registro de un cliente como conductor (foto, vehículo, placa) desde

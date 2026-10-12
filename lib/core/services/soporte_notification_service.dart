@@ -1,7 +1,9 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:taxi_app/core/constants/rutas_app.dart';
 import 'package:taxi_app/core/services/notificacion_servicio.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
 import 'package:taxi_app/core/utils/notificacion_clave.dart';
@@ -93,6 +95,17 @@ class SoporteNotificationService {
     }
   }
 
+  /// Pantallas de chat de soporte del usuario abiertas: con el chat a la
+  /// vista no se notifica la respuesta, el usuario ya la está leyendo.
+  int chatUsuarioAbierto = 0;
+
+  /// Abre el chat de soporte desde la campana o al tocar la notificación
+  /// (local o del sistema). Si ya está a la vista, no apila otro.
+  void abrirChat(NavigatorState nav, {String? userType}) {
+    if (chatUsuarioAbierto > 0) return;
+    nav.pushNamed(RutasApp.soporteChat, arguments: {'userType': ?userType});
+  }
+
   /// Llama cuando el usuario (cliente o conductor) inicia sesión.
   /// Muestra notificación cuando el admin responde en el chat de soporte.
   void iniciarEscuchaUsuario(String userId) {
@@ -115,7 +128,7 @@ class SoporteNotificationService {
               if (data == null) continue;
 
               final esAdmin = data['esAdmin'] as bool? ?? false;
-              if (!esAdmin) continue;
+              if (!esAdmin || chatUsuarioAbierto > 0) continue;
 
               final ts = data['creadoEn'] as Timestamp?;
               final msgTime = ts?.toDate();

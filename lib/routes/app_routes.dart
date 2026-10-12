@@ -17,6 +17,7 @@ import 'package:taxi_app/screens/usuario_cliente/presentacion/view/ayuda/estado_
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/ayuda/cambiar_destino_view.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/ayuda/problemas_conductor_view.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/ayuda/metodo_pago_view.dart';
+import 'package:taxi_app/screens/usuario_cliente/presentacion/view/soporte_chat_screen.dart';
 
 /// Construye las rutas; los nombres viven en [RutasApp].
 class AppRoutes {
@@ -35,6 +36,12 @@ class AppRoutes {
         );
       case RutasApp.login:
         return MaterialPageRoute(builder: (_) => const HomeView());
+      case RutasApp.soporteChat:
+        return MaterialPageRoute(
+          settings: settings,
+          builder: (_) =>
+              SoporteChatScreen(userType: args['userType'] as String?),
+        );
       case RutasApp.adminHome:
         return MaterialPageRoute(
           settings: settings,

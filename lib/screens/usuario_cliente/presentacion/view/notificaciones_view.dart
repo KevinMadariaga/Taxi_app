@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/helpers/permisos_helper.dart';
 import 'package:taxi_app/core/helpers/responsive_helper.dart';
+import 'package:taxi_app/core/services/fcm_service.dart';
 import 'package:taxi_app/core/services/notificacion_servicio.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/widgets/ajustes_ui.dart';
@@ -37,7 +38,8 @@ const List<OpcionNotificacion> opcionesNotificacionCliente = [
     titulo: 'Promociones y novedades',
     subtitulo: 'Descuentos y nuevas funciones',
     icono: Icons.local_offer_outlined,
-    porDefecto: false,
+    // Igual que el default de `FcmService.sincronizarPromos`.
+    porDefecto: true,
   ),
   (
     clave: 'settings_noti_sistema',
@@ -61,6 +63,13 @@ const List<OpcionNotificacion> opcionesNotificacionConductor = [
     titulo: 'Mensajes de chat',
     subtitulo: 'Lo que te escriba el pasajero durante el viaje',
     icono: Icons.chat_bubble_outline_rounded,
+    porDefecto: true,
+  ),
+  (
+    clave: FcmService.clavePromos,
+    titulo: 'Promociones y novedades',
+    subtitulo: 'Anuncios y novedades de Ride',
+    icono: Icons.local_offer_outlined,
     porDefecto: true,
   ),
   (
@@ -114,6 +123,9 @@ class _NotificacionesViewState extends State<NotificacionesView> {
     setState(() => _valores[clave] = valor);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(clave, valor);
+    if (clave == FcmService.clavePromos) {
+      await FcmService.instance.sincronizarPromos();
+    }
   }
 
   Future<void> _requestPermission() async {
