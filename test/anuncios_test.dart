@@ -223,7 +223,7 @@ void main() {
     });
   }
 
-  testWidgets('tocar la notificación abre la ventana y la X la cierra', (
+  testWidgets('sale sola, llega el tap de la misma promo y no se duplica', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(390, 844);
@@ -235,18 +235,20 @@ void main() {
         home: Scaffold(
           body: OyentePromociones(
             publico: AudienciaPromocion.clientes,
-            // Ya vista: así solo la abre el tap, no la aparición sola.
-            repositorio: _RepoFalso(const [])..vistas.add('p1'),
+            habilitado: ValueNotifier(true),
+            repositorio: _RepoFalso(const []),
             fuente: fuente,
           ),
         ),
       ),
     );
-    fuente.value = 'p1'; // lo que hace FcmService al tocar la notificación
+    // Sale sola al entrar al inicio…
     await tester.pump(const Duration(milliseconds: 400));
     await tester.pumpAndSettle();
     expect(find.text('Viaja con 20% menos'), findsOneWidget);
-    expect(fuente.value, isNull, reason: 'se consume una sola vez');
+    // …y mientras está abierta el usuario toca la notificación.
+    fuente.value = 'p1';
+    await tester.pump();
 
     await tester.tap(find.byTooltip('Cerrar'), warnIfMissed: true);
     expect(
@@ -255,7 +257,14 @@ void main() {
       reason: 'la X entra en un teléfono sin desplazar',
     );
     await tester.pumpAndSettle();
-    expect(find.text('Viaja con 20% menos'), findsNothing);
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Viaja con 20% menos'),
+      findsNothing,
+      reason: 'no vuelve a abrirse por el tap',
+    );
+    expect(fuente.value, isNull, reason: 'el pedido se consumió');
   });
 
   for (final ancho in [320.0, 390.0, 1200.0]) {
@@ -359,6 +368,7 @@ void main() {
       home: Scaffold(
         body: OyentePromociones(
           publico: AudienciaPromocion.clientes,
+          habilitado: ValueNotifier(true),
           repositorio: repo,
           fuente: ValueNotifier<String?>(null),
         ),
@@ -537,5 +547,72 @@ void main() {
     );
     expect(find.text('Solo título'), findsOneWidget);
     expect(find.text('Escribir por WhatsApp'), findsNothing);
+  });
+
+  Widget inicioCon(OyentePromociones oyente) =>
+      MaterialApp(home: Scaffold(body: oyente));
+
+  testWidgets('tocar la notificación de una promo que ya salió no la repite', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final repo = _RepoFalso(const [])..vistas.add('p1');
+    final fuente = ValueNotifier<String?>(null);
+    var forzada = false;
+    await tester.pumpWidget(
+      inicioCon(
+        OyentePromociones(
+          publico: AudienciaPromocion.clientes,
+          habilitado: ValueNotifier(true),
+          repositorio: repo,
+          fuente: fuente,
+          forzada: () => forzada,
+        ),
+      ),
+    );
+    // Desde la notificación: ya salió sola antes → no se repite.
+    fuente.value = 'p1';
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+    expect(find.text('Viaja con 20% menos'), findsNothing);
+
+    // Desde la campana: el usuario la pide → sí se abre.
+    forzada = true;
+    fuente.value = 'p1';
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+    expect(find.text('Viaja con 20% menos'), findsOneWidget);
+  });
+
+  testWidgets('espera a que termine el recorrido introductorio', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final habilitado = ValueNotifier(false);
+    await tester.pumpWidget(
+      inicioCon(
+        OyentePromociones(
+          publico: AudienciaPromocion.clientes,
+          habilitado: habilitado,
+          repositorio: _RepoFalso(const []),
+          fuente: ValueNotifier<String?>(null),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(seconds: 2));
+    expect(
+      find.text('Viaja con 20% menos'),
+      findsNothing,
+      reason: 'el recorrido sigue en pantalla',
+    );
+
+    habilitado.value = true; // el inicio terminó bienvenida y recorrido
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+    expect(find.text('Viaja con 20% menos'), findsOneWidget);
   });
 }

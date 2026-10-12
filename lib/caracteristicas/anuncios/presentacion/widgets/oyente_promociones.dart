@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/services/fcm_service.dart';
 import 'package:taxi_app/core/utils/error_reporter.dart';
@@ -18,18 +19,29 @@ import 'ventana_promocion.dart';
 ///   sea para [publico], esté vigente y no se haya visto en este teléfono.
 ///   Con el inicio a la vista sale apenas el admin la envía.
 ///
-/// Cada promoción se ve una sola vez (por tap o sola). Si hay un viaje u
-/// otra pantalla encima, espera a que el inicio vuelva a estar a la vista.
+/// Cada promoción se ve una sola vez (por tap o sola): tocar la
+/// notificación de una que ya salió no la repite; solo la campana la vuelve
+/// a abrir. Espera a que el inicio termine lo suyo ([habilitado]: la
+/// bienvenida, el recorrido introductorio, permisos) y a que no haya un
+/// viaje u otra pantalla encima.
 class OyentePromociones extends StatefulWidget {
   const OyentePromociones({
     super.key,
     required this.publico,
+    required this.habilitado,
     AnunciosRepository? repositorio,
     ValueNotifier<String?>? fuente,
+    bool Function()? forzada,
   }) : _repositorio = repositorio,
-       _fuente = fuente;
+       _fuente = fuente,
+       _forzada = forzada;
 
   final AudienciaPromocion publico;
+
+  /// El inicio lo pone en `true` cuando terminó su secuencia de entrada:
+  /// antes, la ventana taparía el recorrido o la bienvenida.
+  final ValueListenable<bool> habilitado;
+  final bool Function()? _forzada;
   final AnunciosRepository? _repositorio;
   final ValueNotifier<String?>? _fuente;
 
@@ -42,6 +54,11 @@ class _OyentePromocionesState extends State<OyentePromociones> {
       widget._repositorio ?? AnunciosRepositoryImpl();
   late final ValueNotifier<String?> _fuente =
       widget._fuente ?? FcmService.instance.promocionPorAbrir;
+  late final bool Function() _forzada =
+      widget._forzada ??
+      (widget._fuente != null
+          ? () => false
+          : () => FcmService.instance.promocionForzada);
   late final AppLifecycleListener _ciclo;
   StreamSubscription<List<Promocion>>? _sub;
   List<Promocion> _recientes = const [];
@@ -52,6 +69,7 @@ class _OyentePromocionesState extends State<OyentePromociones> {
   void initState() {
     super.initState();
     _fuente.addListener(_intentar);
+    widget.habilitado.addListener(_intentar);
     _ciclo = AppLifecycleListener(onResume: _intentar);
     _sub = _repo.watchPromociones(limite: 5).listen(
       (lista) {
@@ -68,6 +86,7 @@ class _OyentePromocionesState extends State<OyentePromociones> {
   @override
   void dispose() {
     _fuente.removeListener(_intentar);
+    widget.habilitado.removeListener(_intentar);
     _espera?.cancel();
     _ciclo.dispose();
     _sub?.cancel();
@@ -77,13 +96,13 @@ class _OyentePromocionesState extends State<OyentePromociones> {
   /// Espera un instante (deja terminar lo que se esté cerrando, como la
   /// lista de la campana) y revisa si hay algo que mostrar.
   void _intentar() {
-    if (_mostrando || !mounted) return;
+    if (_mostrando || !mounted || !widget.habilitado.value) return;
     _espera?.cancel();
     _espera = Timer(const Duration(milliseconds: 350), _mostrarSiToca);
   }
 
   Future<void> _mostrarSiToca() async {
-    if (_mostrando || !mounted) return;
+    if (_mostrando || !mounted || !widget.habilitado.value) return;
     _mostrando = true;
     try {
       if (ModalRoute.of(context)?.isCurrent != true) return;
@@ -107,7 +126,13 @@ class _OyentePromocionesState extends State<OyentePromociones> {
   Future<Promocion?> _siguiente() async {
     final pedida = _fuente.value;
     if (pedida != null) {
+      final forzada = _forzada();
       _fuente.value = null;
+      // Desde la notificación, una que ya salió (sola en el inicio, o por un
+      // tap anterior) no se repite.
+      if (!forzada && (await _repo.promocionesVistas()).contains(pedida)) {
+        return null;
+      }
       final promo = await _repo.obtenerPromocion(pedida);
       if (promo == null && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

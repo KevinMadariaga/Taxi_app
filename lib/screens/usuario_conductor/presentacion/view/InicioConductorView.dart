@@ -9,6 +9,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:taxi_app/caracteristicas/sancion_conductor/presentacion/widgets/pausa_cancelaciones_overlay.dart';
 import 'package:taxi_app/caracteristicas/tour_introductorio/presentacion/paso_tour.dart';
 import 'package:taxi_app/caracteristicas/tour_introductorio/presentacion/tour_introductorio.dart';
 import 'package:taxi_app/core/utils/notificacion_clave.dart';
@@ -113,26 +114,36 @@ class _InicioConductorState extends State<InicioConductor>
       if (mounted) _initMembresiaWatcher();
     });
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final ready = await _validateGpsAndPermissionsOnStart();
-      if (!ready) return;
+      try {
+        final ready = await _validateGpsAndPermissionsOnStart();
+        if (!ready) return;
 
-      if (mounted) {
-        setState(() {
-          _isPreparingLocation = true;
-        });
+        if (mounted) {
+          setState(() {
+            _isPreparingLocation = true;
+          });
+        }
+
+        await _bootstrapConductorLocationFlow();
+
+        if (mounted) {
+          setState(() {
+            _isPreparingLocation = false;
+          });
+        }
+        // Después de los permisos de ubicación, para no encimarse con ellos.
+        await _maybeMostrarTour();
+      } finally {
+        // La ventana de promoción va al final: nunca encima de los permisos
+        // ni del recorrido de un conductor nuevo.
+        if (mounted) _promosHabilitadas.value = true;
       }
-
-      await _bootstrapConductorLocationFlow();
-
-      if (mounted) {
-        setState(() {
-          _isPreparingLocation = false;
-        });
-      }
-      // Después de los permisos de ubicación, para no encimarse con ellos.
-      await _maybeMostrarTour();
     });
   }
+
+  /// Se enciende al terminar la entrada (permisos → ubicación → recorrido):
+  /// recién ahí puede salir una promoción.
+  final ValueNotifier<bool> _promosHabilitadas = ValueNotifier(false);
 
   // Partes del home que ilumina el recorrido de la primera vez.
   final _tourPerfil = GlobalKey(debugLabel: 'tour-perfil-conductor');
@@ -537,8 +548,9 @@ class _InicioConductorState extends State<InicioConductor>
                 child: Stack(
                   clipBehavior: Clip.none,
                   children: [
-                    const OyentePromociones(
+                    OyentePromociones(
                       publico: AudienciaPromocion.conductores,
+                      habilitado: _promosHabilitadas,
                     ),
                     Column(
                       children: [
@@ -1391,6 +1403,9 @@ class _InicioConductorState extends State<InicioConductor>
                         ),
                       ),
                     ),
+                    // Pausa por cancelaciones: encima de todo el inicio
+                    // (tapa la lista de solicitudes); sin pausa no pinta nada.
+                    const Positioned.fill(child: PausaCancelacionesOverlay()),
                   ],
                 ),
               ),
@@ -1883,6 +1898,7 @@ class _InicioConductorState extends State<InicioConductor>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _promosHabilitadas.dispose();
     _membresiaSub?.cancel();
     _membresiaExpiryTimer?.cancel();
     _mapController = null;

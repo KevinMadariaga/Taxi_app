@@ -181,7 +181,7 @@ class _FilaAviso extends StatelessWidget {
     final nav = Navigator.of(context);
     nav.pop(); // cierra la lista
     if (_abrePromocion) {
-      FcmService.instance.abrirPromocion(aviso.entidad);
+      FcmService.instance.abrirPromocion(aviso.entidad, aunqueYaVista: true);
     } else {
       SoporteNotificationService.instance.abrirChat(nav);
     }

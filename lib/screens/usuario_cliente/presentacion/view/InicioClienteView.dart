@@ -68,6 +68,10 @@ class _InicioClienteViewState extends State<InicioClienteView>
   // Aislado en su propio ValueNotifier (Tarea 3): togglear este flag no debe
   // forzar un setState() del árbol completo de 1400+ líneas, solo el overlay
   // de carga que lo consume vía AnimatedBuilder.
+  /// Se enciende al terminar la entrada (bienvenida → recorrido →
+  /// calificación pendiente): recién ahí puede salir una promoción.
+  final ValueNotifier<bool> _promosHabilitadas = ValueNotifier(false);
+
   final ValueNotifier<bool> _isPreparingNavigationNotifier =
       ValueNotifier<bool>(false);
   bool _gpsPromptShown = false;
@@ -105,9 +109,14 @@ class _InicioClienteViewState extends State<InicioClienteView>
       // cierre antes de evaluar la calificación pendiente.
       // El recorrido va entre la bienvenida y la calificación pendiente:
       // los tres pueden abrir algo encima del home y no deben apilarse.
+      // La ventana de promoción va al final de todo: nunca encima de la
+      // bienvenida ni del recorrido de un usuario nuevo.
       _maybeMostrarBienvenida()
           .then((_) => _maybeMostrarTour())
-          .then((_) => _maybeMostrarCalificacionPendiente());
+          .then((_) => _maybeMostrarCalificacionPendiente())
+          .whenComplete(() {
+            if (mounted) _promosHabilitadas.value = true;
+          });
     });
   }
 
@@ -286,6 +295,7 @@ class _InicioClienteViewState extends State<InicioClienteView>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _isPreparingNavigationNotifier.dispose();
+    _promosHabilitadas.dispose();
     vm.removeListener(_vmListener);
     vm.dispose();
     super.dispose();
@@ -868,7 +878,10 @@ class _InicioClienteViewState extends State<InicioClienteView>
                     isPreparingNavigation: _isPreparingNavigationNotifier,
                   ),
                   _UbicacionOkBanner(visible: _mostrarUbicacionOk),
-                  const OyentePromociones(publico: AudienciaPromocion.clientes),
+                  OyentePromociones(
+                    publico: AudienciaPromocion.clientes,
+                    habilitado: _promosHabilitadas,
+                  ),
                 ],
               ),
             ),

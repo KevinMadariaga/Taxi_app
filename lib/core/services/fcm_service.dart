@@ -189,8 +189,14 @@ class FcmService {
   /// inicio apenas está a la vista — también si la app venía cerrada.
   final ValueNotifier<String?> promocionPorAbrir = ValueNotifier(null);
 
-  void abrirPromocion(String promocionId) {
+  /// `true` si el pedido actual viene de la campana: el usuario quiere verla
+  /// de nuevo aunque ya se le haya mostrado. Desde una notificación no se
+  /// repite (pudo haber salido sola en el inicio un momento antes).
+  bool promocionForzada = false;
+
+  void abrirPromocion(String promocionId, {bool aunqueYaVista = false}) {
     if (promocionId.isEmpty) return;
+    promocionForzada = aunqueYaVista;
     promocionPorAbrir.value = promocionId;
   }
 
