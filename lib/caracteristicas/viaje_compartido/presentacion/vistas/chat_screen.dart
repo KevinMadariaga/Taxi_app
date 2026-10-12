@@ -182,6 +182,9 @@ class _ChatScreenState extends State<ChatScreen> {
                         child: TextField(
                           controller: _textController,
                           focusNode: _focusNode,
+                          // Crece con el mensaje (hasta 5 líneas) para leerlo completo.
+                          minLines: 1,
+                          maxLines: 5,
                           textInputAction: TextInputAction.send,
                           textCapitalization: TextCapitalization.sentences,
                           onSubmitted: (_) => _send(),

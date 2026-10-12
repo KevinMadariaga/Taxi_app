@@ -192,7 +192,7 @@ class _CalificacionSectionState extends State<CalificacionSection> {
                         // del campo. `textInputAction: done` se conserva
                         // igual (no depende de `maxLines`) para seguir
                         // mostrando el botón "Listo" del teclado.
-                        maxLines: 4,
+                        maxLines: 8,
                         minLines: 2,
                         maxLength: 240,
                         // El default de Flutter (20px) no alcanza: el

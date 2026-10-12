@@ -167,9 +167,7 @@ class _SugerenciaSheetState extends State<_SugerenciaSheet> {
                               ? Icons.star_rounded
                               : Icons.star_outline_rounded,
                           size: 38,
-                          color: filled
-                              ? AppColores.primary
-                              : palette.grey400,
+                          color: filled ? AppColores.primary : palette.grey400,
                         ),
                       ),
                     );
@@ -181,7 +179,7 @@ class _SugerenciaSheetState extends State<_SugerenciaSheet> {
                 TextField(
                   controller: _textCtrl,
                   focusNode: _focusNode,
-                  maxLines: 4,
+                  maxLines: 8,
                   minLines: 2,
                   textInputAction: TextInputAction.done,
                   onSubmitted: (_) => _focusNode.unfocus(),

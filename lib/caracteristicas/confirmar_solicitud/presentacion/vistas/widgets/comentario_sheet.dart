@@ -140,7 +140,9 @@ class _ComentarioSheetState extends State<_ComentarioSheet> {
           const SizedBox(height: 14),
           TextField(
             controller: _controller,
-            maxLines: 3,
+            // Hasta 8 líneas (todo el comentario a la vista); más, se
+            // desplaza dentro del campo sin salirse de la hoja.
+            maxLines: 8,
             minLines: 2,
             textCapitalization: TextCapitalization.sentences,
             // Sin tope, el único techo era el límite de 1 MiB por

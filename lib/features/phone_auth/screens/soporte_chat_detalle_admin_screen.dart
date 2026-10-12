@@ -33,7 +33,8 @@ class _SoporteChatDetalleAdminScreenState
   DateTime? _ultimoMensajeUsuario;
   Timer? _expiryTimer;
 
-  static const _tiempoExpiracion = Duration(minutes: 6);
+  // Igual que la espera del lado del usuario (soporte_chat_screen.dart).
+  static const _tiempoExpiracion = Duration(minutes: 10);
 
   bool get _usuarioInactivo {
     if (_ultimoMensajeUsuario == null) return false;
@@ -276,6 +277,9 @@ class _SoporteChatDetalleAdminScreenState
                     child: TextField(
                       controller: _textCtrl,
                       focusNode: _focusNode,
+                      // Crece con el mensaje (hasta 5 líneas) para leerlo completo.
+                      minLines: 1,
+                      maxLines: 5,
                       textInputAction: TextInputAction.send,
                       onSubmitted: (_) => _send(),
                       decoration: InputDecoration(

@@ -138,6 +138,7 @@ class _ProblemasConductorViewState extends State<ProblemasConductorView> {
       backgroundColor: context.palette.background,
       appBar: appBarNeutra(context, titulo: 'Problemas con el conductor'),
       body: ListView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
         children: [
           if (widget.nombreConductor.isNotEmpty) ...[
@@ -232,8 +233,13 @@ class _ProblemasConductorViewState extends State<ProblemasConductorView> {
           const SizedBox(height: 8),
           TextField(
             controller: _comentario,
-            maxLines: 4,
+            // Crece con el texto (la pantalla se desplaza).
+            minLines: 4,
+            maxLines: null,
             maxLength: 300,
+            // "Listo" en el teclado lo cierra en vez de meter un salto de línea.
+            textInputAction: TextInputAction.done,
+            onTapOutside: (_) => FocusScope.of(context).unfocus(),
             decoration: InputDecoration(
               hintText: 'Cuéntanos qué pasó...',
               filled: true,

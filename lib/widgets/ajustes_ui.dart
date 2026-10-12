@@ -552,3 +552,74 @@ void _mostrarAviso(
       ),
     );
 }
+
+/// Pone una X arriba a la derecha de un modal para cerrarlo sin tener que
+/// adivinar que se cierra tocando afuera o deslizando.
+class ConCerrar extends StatelessWidget {
+  const ConCerrar({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        child,
+        Positioned(
+          top: 6,
+          right: 6,
+          child: IconButton(
+            tooltip: 'Cerrar',
+            // Fondo propio: que se vea también sobre una imagen.
+            style: IconButton.styleFrom(
+              backgroundColor: context.palette.surface.withValues(alpha: 0.85),
+            ),
+            onPressed: () => Navigator.of(context).maybePop(),
+            icon: Icon(
+              Icons.close_rounded,
+              color: context.palette.textSecondary,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Chip de opción con la selección bien visible: el naranja principal
+/// sólido con texto oscuro (10:1) y check. Sin seleccionar, borde suave. Se
+/// usa en todos los filtros y opciones del panel admin para que se vean
+/// iguales.
+class ChipSeleccion extends StatelessWidget {
+  const ChipSeleccion({
+    super.key,
+    required this.texto,
+    required this.seleccionado,
+    required this.onSeleccionar,
+  });
+
+  final String texto;
+  final bool seleccionado;
+  final VoidCallback? onSeleccionar;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return ChoiceChip(
+      label: Text(texto),
+      selected: seleccionado,
+      onSelected: onSeleccionar == null ? null : (_) => onSeleccionar!(),
+      showCheckmark: true,
+      checkmarkColor: AppColores.ink900,
+      selectedColor: AppColores.primary,
+      backgroundColor: palette.surface,
+      side: BorderSide(
+        color: seleccionado ? AppColores.primary : palette.borderSubtle,
+      ),
+      labelStyle: TextStyle(
+        color: seleccionado ? AppColores.ink900 : palette.textPrimary,
+        fontWeight: seleccionado ? FontWeight.w800 : FontWeight.w600,
+      ),
+    );
+  }
+}

@@ -2,10 +2,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:geocoding/geocoding.dart';
+import 'package:taxi_app/core/constants/solicitud_estado.dart';
 
 class HistorialClienteViewModel extends ChangeNotifier {
   HistorialClienteViewModel({FirebaseFirestore? firestore})
-      : _firestore = firestore ?? FirebaseFirestore.instance;
+    : _firestore = firestore ?? FirebaseFirestore.instance;
 
   final FirebaseFirestore _firestore;
 
@@ -18,11 +19,23 @@ class HistorialClienteViewModel extends ChangeNotifier {
         .where('cliente.id', isEqualTo: uid)
         .get();
 
-    final docs = snap.docs.map((d) => {'id': d.id, ...d.data()}).toList();
+    // Solo viajes completados, como el historial del conductor: las
+    // canceladas no son viajes (y el servidor las borra a los 30 min).
+    final docs = snap.docs
+        .where((d) {
+          final estado = SolicitudEstado.normalize(
+            (d.data()['estado'] ?? d.data()['status'] ?? '').toString(),
+          );
+          return estado == SolicitudEstado.completado;
+        })
+        .map((d) => {'id': d.id, ...d.data()})
+        .toList();
 
     docs.sort((a, b) {
-      final aTime = (a['completedAt'] ?? a['fecha de terminacion']) as Timestamp?;
-      final bTime = (b['completedAt'] ?? b['fecha de terminacion']) as Timestamp?;
+      final aTime =
+          (a['completedAt'] ?? a['fecha de terminacion']) as Timestamp?;
+      final bTime =
+          (b['completedAt'] ?? b['fecha de terminacion']) as Timestamp?;
       if (aTime == null && bTime == null) return 0;
       if (aTime == null) return 1;
       if (bTime == null) return -1;
@@ -67,13 +80,15 @@ class HistorialClienteViewModel extends ChangeNotifier {
   }
 
   int extraerCalificacion(Map<String, dynamic> data) {
-    final obj = data['calificacion cliente'] ??
+    final obj =
+        data['calificacion cliente'] ??
         data['calificacion'] ??
         data['calificacion_cliente'] ??
         data['rating'];
     if (obj == null) return 0;
     if (obj is Map) {
-      final score = obj['score'] ?? obj['valor'] ?? obj['rating'] ?? obj['value'];
+      final score =
+          obj['score'] ?? obj['valor'] ?? obj['rating'] ?? obj['value'];
       if (score is num) return score.toInt();
       return int.tryParse(score?.toString() ?? '') ?? 0;
     }
@@ -89,7 +104,8 @@ class HistorialClienteViewModel extends ChangeNotifier {
 
   String extraerPrecio(Map<String, dynamic> data) {
     final tarifa = data['tarifa'];
-    if (tarifa is Map && tarifa['total'] != null) return tarifa['total'].toString();
+    if (tarifa is Map && tarifa['total'] != null)
+      return tarifa['total'].toString();
     if (data['valor'] != null) return data['valor'].toString();
     return '---';
   }

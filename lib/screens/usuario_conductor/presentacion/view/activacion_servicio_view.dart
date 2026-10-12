@@ -83,129 +83,131 @@ Future<void> mostrarBienvenidaConductorDialog(
         surfaceTintColor: Colors.transparent,
         insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 440),
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(22, 26, 22, 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const EncabezadoIcono(
-                  icono: Icons.local_taxi_rounded,
-                  titulo: 'Bienvenido a Ride',
-                  descripcion:
-                      'Ya eres conductor. Activa tu servicio para empezar '
-                      'a recibir viajes de pasajeros cerca de ti.',
-                ),
-                const SizedBox(height: 20),
-                Container(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  decoration: BoxDecoration(
-                    color: palette.background,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: palette.borderSubtle),
+        child: ConCerrar(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 440),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(22, 26, 22, 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const EncabezadoIcono(
+                    icono: Icons.local_taxi_rounded,
+                    titulo: 'Bienvenido a Ride',
+                    descripcion:
+                        'Ya eres conductor. Activa tu servicio para empezar '
+                        'a recibir viajes de pasajeros cerca de ti.',
                   ),
-                  child: Column(
+                  const SizedBox(height: 20),
+                  Container(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    decoration: BoxDecoration(
+                      color: palette.background,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: palette.borderSubtle),
+                    ),
+                    child: Column(
+                      children: [
+                        const _InfoBienvenida(
+                          icono: Icons.payments_outlined,
+                          titulo: 'Paga la membresía',
+                          detalle: 'Por Nequi o Bancolombia.',
+                        ),
+                        Divider(height: 1, indent: 58, color: palette.divider),
+                        const _InfoBienvenida(
+                          icono: Icons.receipt_long_outlined,
+                          titulo: 'Envía el comprobante',
+                          detalle: 'Por WhatsApp, directo desde la app.',
+                        ),
+                        Divider(height: 1, indent: 58, color: palette.divider),
+                        const _InfoBienvenida(
+                          icono: Icons.notifications_active_outlined,
+                          titulo: 'Te avisamos al activarla',
+                          detalle:
+                              'Un administrador la revisa y te llega la '
+                              'notificación para conectarte.',
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const _InfoBienvenida(
-                        icono: Icons.payments_outlined,
-                        titulo: 'Paga la membresía',
-                        detalle: 'Por Nequi o Bancolombia.',
+                      Icon(
+                        Icons.sell_outlined,
+                        size: 16,
+                        color: palette.textSecondary,
                       ),
-                      Divider(height: 1, indent: 58, color: palette.divider),
-                      const _InfoBienvenida(
-                        icono: Icons.receipt_long_outlined,
-                        titulo: 'Envía el comprobante',
-                        detalle: 'Por WhatsApp, directo desde la app.',
-                      ),
-                      Divider(height: 1, indent: 58, color: palette.divider),
-                      const _InfoBienvenida(
-                        icono: Icons.notifications_active_outlined,
-                        titulo: 'Te avisamos al activarla',
-                        detalle:
-                            'Un administrador la revisa y te llega la '
-                            'notificación para conectarte.',
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          'Valor de la activación: ${_pesos(kValorActivacion)}',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: palette.textSecondary,
+                          ),
+                        ),
                       ),
                     ],
                   ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.sell_outlined,
-                      size: 16,
-                      color: palette.textSecondary,
-                    ),
-                    const SizedBox(width: 6),
-                    Flexible(
-                      child: Text(
-                        'Valor de la activación: ${_pesos(kValorActivacion)}',
-                        textAlign: TextAlign.center,
+                  const SizedBox(height: 18),
+                  SizedBox(
+                    height: 52,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColores.buttonPrimary,
+                        foregroundColor: Colors.black,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      onPressed: () async {
+                        // Registrar solicitud (notifica al admin) y abrir pago
+                        // ENCIMA del modal (no lo cierra).
+                        await _marcarSolicitudActivacion();
+                        if (!context.mounted) return;
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const ActivacionServicioView(),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.bolt_rounded),
+                      label: const Text(
+                        'Activar servicio',
                         style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: palette.textSecondary,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 18),
-                SizedBox(
-                  height: 52,
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColores.buttonPrimary,
-                      foregroundColor: Colors.black,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-                    onPressed: () async {
-                      // Registrar solicitud (notifica al admin) y abrir pago
-                      // ENCIMA del modal (no lo cierra).
-                      await _marcarSolicitudActivacion();
-                      if (!context.mounted) return;
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const ActivacionServicioView(),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    height: 48,
+                    child: OutlinedButton.icon(
+                      onPressed: onVolverCliente,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: palette.textPrimary,
+                        side: BorderSide(color: palette.grey300),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
                         ),
-                      );
-                    },
-                    icon: const Icon(Icons.bolt_rounded),
-                    label: const Text(
-                      'Activar servicio',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
+                      ),
+                      icon: const Icon(Icons.person_outline_rounded, size: 20),
+                      label: const Text(
+                        'Volver a ser cliente',
+                        style: TextStyle(fontWeight: FontWeight.w700),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 10),
-                SizedBox(
-                  height: 48,
-                  child: OutlinedButton.icon(
-                    onPressed: onVolverCliente,
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: palette.textPrimary,
-                      side: BorderSide(color: palette.grey300),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-                    icon: const Icon(Icons.person_outline_rounded, size: 20),
-                    label: const Text(
-                      'Volver a ser cliente',
-                      style: TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
