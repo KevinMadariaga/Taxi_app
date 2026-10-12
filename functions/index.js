@@ -21,6 +21,8 @@ const {
   buildFcmMessage,
   buildRetiroMessage,
 } = require("./notificaciones");
+const { diaYHoraColombia, resultadoNuevo } = require("./estadisticas");
+const { unaVez, consumirCupo } = require("./limites");
 const { calificacionNueva, acumular } = require("./calificaciones");
 const { esRegistroDeClienteCompletado } = require("./usuarios");
 
@@ -316,6 +318,7 @@ exports.onSolicitudEstadoChangeConductor = onDocumentUpdated(
     });
 
     try {
+      if (!(await unaVez(event, "onSolicitudEstadoChangeConductor"))) return null;
       const response = await getMessaging().send(message);
       console.log(`✅ Notificación enviada al conductor ${conductorId}: ${response}`);
     } catch (err) {
@@ -387,6 +390,7 @@ exports.onMetodoPagoCambiado = onDocumentUpdated(
     });
 
     try {
+      if (!(await unaVez(event, "onMetodoPagoCambiado"))) return null;
       const response = await getMessaging().send(message);
       console.log(`✅ Notificación de cambio de pago enviada al conductor ${conductorId}: ${response}`);
     } catch (err) {
@@ -496,6 +500,7 @@ exports.onSolicitudEstadoChange = onDocumentUpdated(
     });
 
     try {
+      if (!(await unaVez(event, "onSolicitudEstadoChange"))) return null;
       const response = await getMessaging().send(fcmMessage);
       console.log(
         `✅ Notificación enviada al cliente ${clienteId}: ${response}`
@@ -715,6 +720,7 @@ exports.onNuevaSolicitudCreada = onDocumentCreated(
       );
 
     try {
+      if (!(await unaVez(event, "onNuevaSolicitudCreada"))) return null;
       const resp = await getMessaging().sendEachForMulticast(message);
       console.log(
         `✅ Notif. nueva solicitud: ${resp.successCount}/${tokens.length} conductores notificados.`
@@ -838,6 +844,7 @@ exports.onSolicitudDejaDeBuscar = onDocumentUpdated(
     }
 
     try {
+      if (!(await unaVez(event, "onSolicitudDejaDeBuscar"))) return null;
       const resp = await getMessaging().sendEachForMulticast(
         buildRetiroMessage({
           tokens,
@@ -1081,6 +1088,7 @@ exports.onContraofertaCreada = onDocumentUpdated(
     });
 
     try {
+      if (!(await unaVez(event, "onContraofertaCreada"))) return null;
       await getMessaging().send(message);
       console.log(`✅ Notif. contraoferta enviada al cliente ${clienteId}`);
     } catch (err) {
@@ -1160,6 +1168,7 @@ exports.onTripChatMessageCreated = onDocumentCreated(
     });
 
     try {
+      if (!(await unaVez(event, "onTripChatMessageCreated"))) return null;
       await getMessaging().send(message);
       console.log(`✅ Notif. chat de viaje enviada al ${recipientLabel}.`);
     } catch (err) {
@@ -1213,6 +1222,7 @@ exports.onSoporteChatMensajeCreado = onDocumentCreated(
     });
 
     try {
+      if (!(await unaVez(event, "onSoporteChatMensajeCreado"))) return null;
       await getMessaging().send(message);
       console.log(`✅ Notif. respuesta de soporte enviada a ${userId}.`);
     } catch (err) {
@@ -1260,6 +1270,7 @@ exports.onEmergenciaCreada = onDocumentCreated(
     message.apns.headers["apns-priority"] = "10";
 
     try {
+      if (!(await unaVez(event, "onEmergenciaCreada"))) return null;
       const resp = await getMessaging().sendEachForMulticast(message);
       console.log(
         `✅ Notif. emergencia: ${resp.successCount}/${tokens.length} admins notificados.`
@@ -1318,6 +1329,7 @@ exports.onSoporteChatMensajeUsuarioCreado = onDocumentCreated(
     });
 
     try {
+      if (!(await unaVez(event, "onSoporteChatMensajeUsuarioCreado"))) return null;
       const resp = await getMessaging().sendEachForMulticast(message);
       console.log(
         `✅ Notif. soporte (usuario→admin): ${resp.successCount}/${tokens.length} admins notificados.`
@@ -1369,6 +1381,7 @@ exports.onSolicitudActivacionConductor = onDocumentWritten(
     });
 
     try {
+      if (!(await unaVez(event, "onSolicitudActivacionConductor"))) return null;
       const resp = await getMessaging().sendEachForMulticast(message);
       console.log(
         `✅ Notif. solicitud de activación: ${resp.successCount}/${tokens.length} admins notificados.`
@@ -1423,6 +1436,7 @@ exports.onNuevoClienteRegistrado = onDocumentWritten(
     });
 
     try {
+      if (!(await unaVez(event, "onNuevoClienteRegistrado"))) return null;
       const resp = await getMessaging().sendEachForMulticast(message);
       console.log(
         `✅ Notif. nuevo cliente: ${resp.successCount}/${tokens.length} admins notificados.`
@@ -1474,6 +1488,7 @@ exports.onMembresiaActivada = onDocumentWritten(
     });
 
     try {
+      if (!(await unaVez(event, "onMembresiaActivada"))) return null;
       await getMessaging().send(message);
       console.log(`✅ Notif. membresía activada enviada a ${event.params.uid}.`);
     } catch (err) {
@@ -1520,7 +1535,11 @@ exports.onCalificacionRegistrada = onDocumentUpdated(
     // que ya leía la app).
     const alConductor = calificacionNueva(beforeData, afterData, "calificacion");
     const conductorId = extractConductorId(afterData);
-    if (alConductor != null && conductorId) {
+    if (
+      alConductor != null &&
+      conductorId &&
+      (await unaVez(event, "onCalificacionRegistrada:conductor"))
+    ) {
       await acumularEn(
         db,
         db.collection("usuarios").doc(conductorId),
@@ -1553,7 +1572,11 @@ exports.onCalificacionRegistrada = onDocumentUpdated(
       "calificacionCliente"
     );
     const clienteId = afterData.cliente && afterData.cliente.id;
-    if (alCliente != null && clienteId) {
+    if (
+      alCliente != null &&
+      clienteId &&
+      (await unaVez(event, "onCalificacionRegistrada:cliente"))
+    ) {
       await acumularEn(
         db,
         db.collection("calificaciones_clientes").doc(clienteId),
@@ -1619,6 +1642,7 @@ exports.onReporteCreado = onDocumentCreated(
     });
 
     try {
+      if (!(await unaVez(event, "onReporteCreado"))) return null;
       const resp = await getMessaging().sendEachForMulticast(message);
       console.log(
         `✅ Notif. reporte: ${resp.successCount}/${tokens.length} admins notificados.`
@@ -1661,6 +1685,7 @@ exports.onSugerenciaCreada = onDocumentCreated(
     });
 
     try {
+      if (!(await unaVez(event, "onSugerenciaCreada"))) return null;
       const resp = await getMessaging().sendEachForMulticast(message);
       console.log(
         `✅ Notif. sugerencia: ${resp.successCount}/${tokens.length} admins notificados.`
@@ -1711,10 +1736,10 @@ exports.onSugerenciaCreada = onDocumentCreated(
 const SOLICITUD_BUSCANDO_TIMEOUT_MS = 15 * 60 * 1000;
 // Retención de las solicitudes canceladas antes de borrarlas. La base guarda
 // solo activas y terminadas; las canceladas se purgan, pero no al instante:
-// 24 h dejan ventana para una disputa de soporte ("yo no cancelé") y para
-// medir tasa de cancelación, y evitan cualquier carrera con un conductor que
-// estuviera aceptando en ese mismo momento.
-const CANCELADA_RETENCION_MS = 24 * 60 * 60 * 1000;
+// 30 min evitan cualquier carrera con un conductor que estuviera aceptando en
+// ese mismo momento. Bajó de 24 h a 30 min a pedido del negocio (oct 2026):
+// no hacía falta la ventana de disputa y ocupaban el historial.
+const CANCELADA_RETENCION_MS = 30 * 60 * 1000;
 
 // Interruptor de seguridad de la purga: en `true` la función cuenta y loguea
 // lo que borraría, pero no borra nada. Se usó así en el primer despliegue para
@@ -1876,6 +1901,30 @@ exports.cancelarSolicitudesBuscandoInactivas = onSchedule(
   }
 );
 
+// Borra las marcas vencidas de `unaVez` (eventos_procesados) y los cupos
+// de `consumirCupo` (limites). Corre dentro de `purgarSolicitudesCanceladas`
+// y no como tarea programada propia: Cloud Scheduler da 3 tareas gratis por
+// cuenta y ya hay 3 (esta, cancelar búsquedas inactivas y vencer
+// membresías); una cuarta se cobraría. Firestore tiene TTL nativo, pero
+// activarlo requiere gcloud/consola.
+async function purgarRegistrosVencidos(db) {
+  const ahora = Timestamp.now();
+  for (const coleccion of ["eventos_procesados", "limites"]) {
+    try {
+      const snap = await db
+        .collection(coleccion)
+        .where("expiraEn", "<=", ahora)
+        .limit(2000)
+        .get();
+      if (snap.empty) continue;
+      await commitEnLotes(db, snap.docs, (batch, doc) => batch.delete(doc.ref));
+      console.log(`🧹 ${snap.size} registro(s) vencido(s) borrado(s) de ${coleccion}.`);
+    } catch (err) {
+      console.error(`❌ purgarRegistrosVencidos (${coleccion}):`, err.message);
+    }
+  }
+}
+
 // Purga las solicitudes canceladas: la colección debe guardar solo viajes
 // activos y terminados. Cubre las tres formas de cancelar —el botón del
 // cliente, el corte por inactividad de la app y el timeout de
@@ -1888,18 +1937,21 @@ exports.cancelarSolicitudesBuscandoInactivas = onSchedule(
 // irrecuperable; dárselo al cliente sería superficie de ataque nueva para algo
 // que el Admin SDK ya puede hacer sin pasar por las reglas. Además, borrar en
 // el momento de cancelar compite con un conductor que estuviera aceptando en
-// ese instante — la retención de 24 h cierra esa carrera por completo.
+// ese instante — la retención de 30 min cierra esa carrera por completo.
 //
-// Cada 30 min alcanza de sobra para una retención de 24 h y mantiene el costo
-// en ~48 lecturas/día cuando no hay nada que borrar.
+// Cada 10 min: una cancelada vive entre 30 y 40 min. Cuesta ~144 lecturas/día
+// cuando no hay nada que borrar.
 exports.purgarSolicitudesCanceladas = onSchedule(
   {
-    schedule: "every 30 minutes",
+    schedule: "every 10 minutes",
     region: "us-central1",
     timeoutSeconds: 120,
   },
   async () => {
     const db = getFirestore();
+    // Va primero: el resto de la función sale temprano cuando no hay
+    // canceladas que borrar.
+    await purgarRegistrosVencidos(db);
     const cutoff = Timestamp.fromMillis(Date.now() - CANCELADA_RETENCION_MS);
 
     let snap;
@@ -1918,14 +1970,14 @@ exports.purgarSolicitudesCanceladas = onSchedule(
     }
 
     if (snap.empty) {
-      console.log("✅ Sin solicitudes canceladas de más de 24 h que purgar.");
+      console.log("✅ Sin solicitudes canceladas de más de 30 min que purgar.");
       return null;
     }
 
     if (PURGA_CANCELADAS_DRY_RUN) {
       console.log(
         `🔎 DRY RUN: se borrarían ${snap.size} solicitud(es) cancelada(s) ` +
-          `de más de 24 h. Ids: ${snap.docs
+          `de más de 30 min. Ids: ${snap.docs
             .slice(0, 20)
             .map((d) => d.id)
             .join(", ")}${snap.size > 20 ? " …" : ""}`
@@ -1936,7 +1988,7 @@ exports.purgarSolicitudesCanceladas = onSchedule(
     try {
       await commitEnLotes(db, snap.docs, (batch, doc) => batch.delete(doc.ref));
       console.log(
-        `🗑️ ${snap.size} solicitud(es) cancelada(s) purgada(s) (>24 h).`
+        `🗑️ ${snap.size} solicitud(es) cancelada(s) purgada(s) (>30 min).`
       );
     } catch (err) {
       console.error("❌ Error purgando solicitudes canceladas:", err.message);
@@ -2012,6 +2064,175 @@ exports.expirarMembresiasVencidas = onSchedule(
  * Requiere sesión de Firebase Auth (cliente o conductor) para evitar que un
  * tercero use este proxy como Directions API gratis a costa de tu cuota.
  */
+// Promoción del admin: queda en `promociones` (la app la muestra como modal
+// en el inicio, una sola vez, mientras esté vigente) y además se avisa por
+// push al tema de su público. La app se suscribe a `promos_clientes` o
+// `promos_conductores` según su rol (`FcmService.sincronizarPromos`), así
+// que no hace falta recorrer tokens. Solo un admin puede mandarla: el rol se
+// lee de `usuarios/{uid}.rol`, igual que `isAdminRole()` en las reglas.
+const PROMOCIONES_POR_HORA = 5;
+
+const TEMAS_PROMO = {
+  clientes: "'promos_clientes' in topics",
+  conductores: "'promos_conductores' in topics",
+  todos: "'promos_clientes' in topics || 'promos_conductores' in topics",
+};
+
+exports.enviarPromocion = onCall(
+  { region: "us-central1", timeoutSeconds: 15 },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "Se requiere sesión iniciada.");
+    }
+    const db = getFirestore();
+    const perfil = await db.collection("usuarios").doc(uid).get();
+    const rol = String(perfil.get("rol") ?? perfil.get("role") ?? "")
+      .trim()
+      .toLowerCase();
+    if (!["admin", "administrador"].includes(rol)) {
+      throw new HttpsError("permission-denied", "Solo un administrador.");
+    }
+
+    // Tope por admin: llega a todos los usuarios, así que una cuenta
+    // comprometida (o un doble toque repetido) no puede mandar decenas.
+    const cupo = await consumirCupo(`enviarPromocion:${uid}`, {
+      max: PROMOCIONES_POR_HORA,
+      ventanaMs: 60 * 60 * 1000,
+    });
+    if (!cupo.permitido) {
+      const minutos = Math.max(1, Math.ceil(cupo.reintentarEnMs / 60000));
+      throw new HttpsError(
+        "resource-exhausted",
+        `Llegaste al límite de ${PROMOCIONES_POR_HORA} promociones por hora. ` +
+          `Podrás enviar otra en ${minutos} min.`
+      );
+    }
+
+    const titulo = String(request.data?.titulo ?? "").trim().slice(0, 80);
+    const cuerpo = String(request.data?.cuerpo ?? "").trim().slice(0, 300);
+    const imagenUrl = String(request.data?.imagenUrl ?? "").trim();
+    const audiencia = String(request.data?.audiencia ?? "todos");
+    const diasVigencia = Number(request.data?.diasVigencia ?? 3);
+    if (!titulo || !cuerpo) {
+      throw new HttpsError("invalid-argument", "Faltan título o mensaje.");
+    }
+    if (!TEMAS_PROMO[audiencia]) {
+      throw new HttpsError("invalid-argument", "Público inválido.");
+    }
+    if (imagenUrl && !imagenUrl.startsWith("https://")) {
+      throw new HttpsError("invalid-argument", "Imagen inválida.");
+    }
+    if (!Number.isFinite(diasVigencia) || diasVigencia < 1 || diasVigencia > 30) {
+      throw new HttpsError("invalid-argument", "Vigencia entre 1 y 30 días.");
+    }
+
+    const ref = await db.collection("promociones").add({
+      titulo,
+      cuerpo,
+      imagenUrl,
+      audiencia,
+      creadoPor: uid,
+      creadoEn: FieldValue.serverTimestamp(),
+      venceEn: Timestamp.fromMillis(Date.now() + diasVigencia * 86400000),
+    });
+
+    const { token, ...mensaje } = buildFcmMessage({
+      title: titulo,
+      body: cuerpo,
+      type: "promo",
+      entidad: ref.id,
+      channelId: "taxi_system_channel",
+      extraData: { promocionId: ref.id },
+    });
+    if (imagenUrl) mensaje.notification.image = imagenUrl;
+    const messageId = await getMessaging().send({
+      ...mensaje,
+      condition: TEMAS_PROMO[audiencia],
+    });
+    console.log(
+      `📣 Promoción ${ref.id} (${audiencia}) enviada por ${uid}: "${titulo}" (${messageId})`
+    );
+    return { ok: true, id: ref.id };
+  }
+);
+
+// ── Estadísticas del panel del admin ──────────────────────────────────
+// Cuentan en el día (hora de Colombia) en que se CREÓ la solicitud, así un
+// viaje que termina pasada la medianoche no descuadra creadas vs.
+// completadas de ese día.
+//
+// Firestore entrega "al menos una vez": `unaVez` evita sumar dos veces el
+// mismo evento.
+
+function msDeCreacion(data, respaldoMs) {
+  const t = data.createdAt;
+  return t && typeof t.toMillis === "function" ? t.toMillis() : respaldoMs;
+}
+
+exports.estadisticasSolicitudCreada = onDocumentCreated(
+  { document: "solicitudes/{solicitudId}", region: "us-central1" },
+  async (event) => {
+    const data = event.data?.data();
+    if (!data) return;
+    const { dia, hora } = diaYHoraColombia(
+      msDeCreacion(data, Date.parse(event.time))
+    );
+    const clienteId = extractClienteId(data);
+    if (!(await unaVez(event, "estadisticasSolicitudCreada"))) return;
+    try {
+      await getFirestore()
+        .collection("estadisticas_diarias")
+        .doc(dia)
+        .set(
+          {
+            fecha: dia,
+            creadas: FieldValue.increment(1),
+            porHora: { [hora]: FieldValue.increment(1) },
+            ...(clienteId ? { clientes: FieldValue.arrayUnion(clienteId) } : {}),
+            actualizadoEn: FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+    } catch (err) {
+      console.error("❌ estadisticasSolicitudCreada:", err.message);
+    }
+  }
+);
+
+exports.estadisticasSolicitudEstado = onDocumentUpdated(
+  { document: "solicitudes/{solicitudId}", region: "us-central1" },
+  async (event) => {
+    const antes = event.data?.before.data();
+    const despues = event.data?.after.data();
+    if (!antes || !despues) return;
+    const contador = resultadoNuevo(
+      normalizeEstado(antes.estado),
+      normalizeEstado(despues.estado)
+    );
+    if (!contador) return;
+    const { dia } = diaYHoraColombia(
+      msDeCreacion(despues, Date.parse(event.time))
+    );
+    if (!(await unaVez(event, "estadisticasSolicitudEstado"))) return;
+    try {
+      await getFirestore()
+        .collection("estadisticas_diarias")
+        .doc(dia)
+        .set(
+          {
+            fecha: dia,
+            [contador]: FieldValue.increment(1),
+            actualizadoEn: FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+    } catch (err) {
+      console.error("❌ estadisticasSolicitudEstado:", err.message);
+    }
+  }
+);
+
 exports.getDirectionsRoute = onCall(
   { region: "us-central1", secrets: [googleDirectionsKey], timeoutSeconds: 10 },
   async (request) => {

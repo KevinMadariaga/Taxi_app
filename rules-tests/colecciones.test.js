@@ -515,6 +515,82 @@ describe('soporte, reportes y emergencias', () => {
   });
 });
 
+describe('anuncios y promociones', () => {
+  test('cualquiera con sesión ve los anuncios; sin sesión no', async () => {
+    await sembrar(env, 'anuncios/a1', { imagenUrl: 'https://x/a.jpg' });
+    await assertSucceeds(como(env, CLIENTE).collection('anuncios').get());
+    await assertSucceeds(como(env, CONDUCTOR).doc('anuncios/a1').get());
+    await assertFails(comoAnonimo(env).collection('anuncios').get());
+  });
+
+  test('solo el admin sube y borra anuncios', async () => {
+    await assertSucceeds(
+      como(env, ADMIN).collection('anuncios').add({ imagenUrl: 'https://x/a.jpg' }),
+    );
+    await assertFails(
+      como(env, CLIENTE).collection('anuncios').add({ imagenUrl: 'https://x/b.jpg' }),
+    );
+    await sembrar(env, 'anuncios/a1', { imagenUrl: 'https://x/a.jpg' });
+    await assertFails(como(env, CLIENTE).doc('anuncios/a1').delete());
+    await assertSucceeds(como(env, ADMIN).doc('anuncios/a1').delete());
+  });
+
+  test('el admin edita un anuncio; el cliente no; nadie cambia el autor', async () => {
+    await sembrar(env, 'anuncios/a1', { imagenUrl: 'https://x/a.jpg', creadoPor: ADMIN });
+    await assertSucceeds(
+      como(env, ADMIN).doc('anuncios/a1').update({ titulo: 'Panadería', whatsapp: '3001234567' }),
+    );
+    await assertFails(como(env, CLIENTE).doc('anuncios/a1').update({ titulo: 'x' }));
+    await assertFails(como(env, ADMIN).doc('anuncios/a1').update({ creadoPor: CLIENTE }));
+  });
+
+  test('solo el admin lee las estadísticas y nadie las escribe desde la app', async () => {
+    await sembrar(env, 'estadisticas_diarias/2026-10-12', { creadas: 3 });
+    await assertSucceeds(como(env, ADMIN).doc('estadisticas_diarias/2026-10-12').get());
+    await assertFails(como(env, CLIENTE).doc('estadisticas_diarias/2026-10-12').get());
+    await assertFails(
+      como(env, ADMIN).doc('estadisticas_diarias/2026-10-12').set({ creadas: 99 }),
+    );
+  });
+
+  test('marcas de eventos y cupos: nadie los toca desde la app', async () => {
+    await sembrar(env, 'limites/enviarPromocion:admin-1', { usados: 5 });
+    await sembrar(env, 'eventos_procesados/x:1', { nombre: 'x' });
+    await assertFails(como(env, ADMIN).doc('limites/enviarPromocion:admin-1').get());
+    await assertFails(
+      como(env, ADMIN).doc('limites/enviarPromocion:admin-1').set({ usados: 0 }),
+    );
+    await assertFails(como(env, ADMIN).doc('eventos_procesados/x:1').delete());
+  });
+
+  test('las promociones se leen; crearlas solo por la Cloud Function', async () => {
+    await sembrar(env, 'promociones/p1', { titulo: 'Hoy', audiencia: 'todos' });
+    await assertSucceeds(como(env, CLIENTE).collection('promociones').get());
+    await assertFails(
+      como(env, ADMIN).collection('promociones').add({ titulo: 'x' }),
+    );
+  });
+
+  test('el admin corrige el texto o la borra; el cliente no', async () => {
+    await sembrar(env, 'promociones/p1', {
+      titulo: 'Hoy', cuerpo: 'a', audiencia: 'todos', creadoPor: ADMIN,
+    });
+    await assertSucceeds(
+      como(env, ADMIN).doc('promociones/p1').update({ titulo: 'Mañana', editadoEn: new Date() }),
+    );
+    await assertFails(como(env, CLIENTE).doc('promociones/p1').update({ titulo: 'x' }));
+    await assertFails(como(env, CLIENTE).doc('promociones/p1').delete());
+    await assertSucceeds(como(env, ADMIN).doc('promociones/p1').delete());
+  });
+
+  test('ni el admin puede cambiar quién la creó', async () => {
+    await sembrar(env, 'promociones/p1', { titulo: 'Hoy', creadoPor: ADMIN });
+    await assertFails(
+      como(env, ADMIN).doc('promociones/p1').update({ creadoPor: CLIENTE }),
+    );
+  });
+});
+
 describe('administradores', () => {
   // FcmService: solo escribe si el documento ya existe.
   test('el admin actualiza su propio documento (fcmToken)', async () => {

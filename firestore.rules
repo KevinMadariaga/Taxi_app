@@ -536,5 +536,39 @@ service cloud.firestore {
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow delete: if false;
     }
+
+    // Anuncios de negocios del carrusel del inicio del cliente. Los sube,
+    // edita y borra un admin (`AdminAnunciosScreen`); cualquiera con sesión
+    // los ve.
+    match /anuncios/{id} {
+      allow read: if isSignedIn();
+      allow create, delete: if isAdminRole();
+      // Editar: imagen, textos, enlaces y vencimiento; no quién ni cuándo.
+      allow update: if isAdminRole() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'imagenUrl', 'titulo', 'detalle', 'whatsapp', 'instagram',
+          'venceEn', 'editadoEn',
+        ]);
+    }
+
+    // Contadores diarios de solicitudes del panel de estadísticas. Los
+    // escriben solo las Cloud Functions `estadisticas*`; solo el admin lee.
+    match /estadisticas_diarias/{dia} {
+      allow read: if isAdminRole();
+      allow write: if false;
+    }
+
+    // Promociones que salen como modal en el inicio. Las crea solo la
+    // Cloud Function `enviarPromocion` (Admin SDK: valida y manda el push).
+    // Un admin puede corregirlas (texto, imagen, público, vigencia — no
+    // quién ni cuándo la creó) o borrarlas desde el panel.
+    match /promociones/{id} {
+      allow read: if isSignedIn();
+      allow create: if false;
+      allow update: if isAdminRole() &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['titulo', 'cuerpo', 'imagenUrl', 'audiencia', 'venceEn', 'editadoEn']);
+      allow delete: if isAdminRole();
+    }
   }
 }
