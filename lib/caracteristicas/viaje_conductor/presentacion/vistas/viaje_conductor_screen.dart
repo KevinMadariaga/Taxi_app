@@ -3,6 +3,7 @@ import 'dart:async' show unawaited;
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 
+import 'package:taxi_app/caracteristicas/sancion_conductor/datos/repositorios/sancion_conductor_repository_impl.dart';
 import 'package:taxi_app/caracteristicas/verificacion_recogida/datos/repositorios/codigo_verificacion_repository_impl.dart';
 import 'package:taxi_app/caracteristicas/verificacion_recogida/dominio/casos_uso/generar_codigo_verificacion_usecase.dart';
 import 'package:taxi_app/caracteristicas/verificacion_recogida/dominio/casos_uso/validar_codigo_verificacion_usecase.dart';
@@ -15,6 +16,7 @@ import 'package:taxi_app/caracteristicas/viaje_compartido/presentacion/utils/tri
 import 'package:taxi_app/caracteristicas/viaje_compartido/presentacion/vistas/chat_screen.dart';
 import 'package:taxi_app/caracteristicas/viaje_conductor/datos/fuentes/driver_ubicacion_datasource.dart';
 import 'package:taxi_app/caracteristicas/viaje_conductor/datos/fuentes/navegacion_externa_datasource.dart';
+import 'package:taxi_app/caracteristicas/viaje_conductor/dominio/casos_uso/cancelar_viaje_conductor_usecase.dart';
 import 'package:taxi_app/caracteristicas/viaje_conductor/dominio/casos_uso/finalizar_viaje_usecase.dart';
 import 'package:taxi_app/caracteristicas/viaje_conductor/dominio/casos_uso/iniciar_ruta_destino_usecase.dart';
 import 'package:taxi_app/caracteristicas/viaje_conductor/dominio/casos_uso/reportar_llegada_usecase.dart';
@@ -22,6 +24,7 @@ import 'package:taxi_app/caracteristicas/viaje_conductor/presentacion/viewmodels
 import 'package:taxi_app/caracteristicas/viaje_conductor/presentacion/widgets/driver_trip_card/arrival_confirmation_sheet.dart';
 import 'package:taxi_app/caracteristicas/viaje_conductor/presentacion/widgets/driver_trip_card/driver_trip_card.dart';
 import 'package:taxi_app/caracteristicas/viaje_conductor/presentacion/widgets/driver_trip_card/widgets/codigo_verificacion_sheet.dart';
+import 'package:taxi_app/caracteristicas/viaje_conductor/presentacion/widgets/driver_trip_card/widgets/motivo_cancelacion_sheet.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/services/fcm_service.dart';
@@ -32,6 +35,7 @@ import 'package:taxi_app/features/driver_trip/widgets/driver_waiting_client_moda
 import 'package:taxi_app/features/trip_tracking_cliente/widgets/panic_button_fab.dart';
 import 'package:taxi_app/features/trip_tracking_cliente/widgets/trip_details_sheet.dart';
 import 'package:taxi_app/core/constants/rutas_app.dart';
+import 'package:taxi_app/widgets/confirmar_dialog.dart';
 import 'package:taxi_app/widgets/intermediate_transition_view.dart';
 import 'package:taxi_app/widgets/preview_solicitud/widgets/mapa_previsualizacion_solicitud.dart';
 
@@ -88,6 +92,8 @@ class _ViajeConductorScreenState extends State<ViajeConductorScreen>
       finalizarViaje: FinalizarViajeUseCase(
         ActualizarEstadoViajeUseCase(viajeRepository),
       ),
+      cancelarViaje: CancelarViajeConductorUseCase(viajeRepository),
+      sanciones: SancionConductorRepositoryImpl(),
       actualizarInfoConductor: ActualizarInfoConductorEnViajeUseCase(
         viajeRepository,
       ),
@@ -363,6 +369,28 @@ class _ViajeConductorScreenState extends State<ViajeConductorScreen>
     await _vm.finalizarViaje();
   }
 
+  /// Motivo → confirmación → cancelar. Al escribirse `cancelado`, el VM pone
+  /// `debeSalir` y [_handleSalida] lleva al inicio del conductor.
+  Future<void> _onCancelarViaje() async {
+    final motivo = await MotivoCancelacionSheet.mostrar(context);
+    if (motivo == null || !mounted) return;
+
+    final aviso = await _vm.avisoLimiteCancelaciones();
+    if (!mounted) return;
+    final confirmado = await mostrarConfirmacion(
+      context,
+      titulo: '¿Cancelar el viaje?',
+      mensaje: [
+        'Le avisaremos al cliente que cancelaste el viaje.',
+        ?aviso,
+      ].join('\n\n'),
+      accion: 'Cancelar viaje',
+      peligro: true,
+    );
+    if (!confirmado || !mounted) return;
+    await _vm.cancelarViaje(motivo);
+  }
+
   void _openChat() {
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -407,6 +435,40 @@ class _ViajeConductorScreenState extends State<ViajeConductorScreen>
           metodoPago: _vm.metodoPago,
           mostrarVehiculo: false,
           mostrarCalificacion: false,
+          pie: _vm.puedeCancelarViaje
+              ? SizedBox(
+                  height: 52,
+                  child: OutlinedButton.icon(
+                    onPressed: _vm.isCancelandoViaje
+                        ? null
+                        : () {
+                            Navigator.pop(context);
+                            _onCancelarViaje();
+                          },
+                    icon: const Icon(
+                      Icons.close_rounded,
+                      color: AppColores.error,
+                    ),
+                    label: const Text(
+                      'Cancelar viaje',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColores.error,
+                      // El tema global pinta los íconos de los botones en
+                      // ámbar; este va en rojo como el resto del botón.
+                      iconColor: AppColores.error,
+                      side: const BorderSide(color: AppColores.error),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                  ),
+                )
+              : null,
         ),
       ),
     );

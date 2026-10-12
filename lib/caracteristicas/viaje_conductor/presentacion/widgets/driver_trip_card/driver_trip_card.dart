@@ -260,14 +260,13 @@ class _DriverTripCardState extends State<DriverTripCard>
                   primaryLoading:
                       vm.isSendingArrival ||
                       vm.isValidatingCodigo ||
-                      vm.isFinalizandoViaje,
+                      vm.isFinalizandoViaje ||
+                      vm.isCancelandoViaje,
                   primaryPastel: accion.pastel,
                 ),
-                // Sin botón de cancelar: por diseño del negocio, el viaje lo
-                // cancela el CLIENTE. El conductor escucha ese cambio de
-                // estado en Firestore y sale solo — `_handleEstadoTransition`
-                // pone `debeSalir` al ver `cancelado` y la pantalla navega de
-                // vuelta a `InicioConductor` con el motivo.
+                // "Cancelar viaje" vive en la hoja de Detalles
+                // (`ViajeConductorScreen._openDetails`) para no sumarle alto
+                // a esta card, que tiene techo por pantalla.
               ],
             ),
           ),

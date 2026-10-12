@@ -9,6 +9,8 @@
 // que la ejecuta.
 
 import { test, describe, before, after, beforeEach } from 'node:test';
+import firebase from 'firebase/compat/app';
+import 'firebase/compat/firestore';
 import {
   crearEntorno, sembrarActores, sembrar, como, comoAnonimo, solicitud,
   assertFails, assertSucceeds,
@@ -293,11 +295,37 @@ describe('solicitudes — actualizar', () => {
     await assertSucceeds(db.doc('solicitudes/s1').update({ estado: 'completado' }));
   });
 
-  // A3: cancelación desde el lado del conductor.
-  test('el conductor asignado cancela su viaje', async () => {
-    await sembrar(env, 'solicitudes/s1', solicitud({ estado: 'asignado', conductorId: CONDUCTOR }));
-    await assertSucceeds(
+  // ViajeConductorViewModel.cancelarViaje → SolicitudFirestoreDatasource
+  // .marcarCancelada: payload real, también con el pasajero ya a bordo.
+  for (const estado of ['asignado', 'en espera', 'en camino', 'en ruta']) {
+    test(`el conductor asignado cancela su viaje (${estado})`, async () => {
+      await sembrar(env, 'solicitudes/s1', solicitud({ estado, conductorId: CONDUCTOR }));
+      await assertSucceeds(
+        como(env, CONDUCTOR).doc('solicitudes/s1').set({
+          estado: 'cancelado',
+          cancelledAt: firebase.firestore.FieldValue.serverTimestamp(),
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+          cancelledBy: 'conductor',
+          cancelReason: 'El cliente no aparece',
+        }, { merge: true }),
+      );
+    });
+  }
+
+  test('otro conductor NO puede cancelar un viaje que no es suyo', async () => {
+    await sembrar(env, 'solicitudes/s1', solicitud({ estado: 'en ruta', conductorId: OTRO_CONDUCTOR }));
+    await assertFails(
       como(env, CONDUCTOR).doc('solicitudes/s1').update({
+        estado: 'cancelado',
+        cancelledBy: 'conductor',
+      }),
+    );
+  });
+
+  test('un cliente ajeno NO puede cancelar el viaje como conductor', async () => {
+    await sembrar(env, 'solicitudes/s1', solicitud({ estado: 'en ruta', conductorId: CONDUCTOR }));
+    await assertFails(
+      como(env, OTRO_CLIENTE).doc('solicitudes/s1').update({
         estado: 'cancelado',
         cancelledBy: 'conductor',
       }),
@@ -526,5 +554,62 @@ describe('solicitudes — asignación única', () => {
         { merge: true },
       ),
     );
+  });
+});
+
+// Pausa por cancelaciones (`sanciones_conductores/{uid}.bloqueadoHasta`, la
+// escribe `onSolicitudEstadoChangeConductor`).
+describe('solicitudes — pausa por cancelaciones del conductor', () => {
+  const enMinutos = (m) => firebase.firestore.Timestamp.fromMillis(Date.now() + m * 60000);
+
+  test('un conductor con pausa vigente NO puede aceptar', async () => {
+    await sembrar(env, `sanciones_conductores/${CONDUCTOR}`, { bloqueadoHasta: enMinutos(10) });
+    await sembrar(env, 'solicitudes/s1', solicitud());
+    await assertFails(
+      como(env, CONDUCTOR).doc('solicitudes/s1').update({
+        estado: 'asignado',
+        conductor: { id: CONDUCTOR },
+      }),
+    );
+  });
+
+  test('el cliente NO puede aceptar la contraoferta de un conductor en pausa', async () => {
+    await sembrar(env, `sanciones_conductores/${CONDUCTOR}`, { bloqueadoHasta: enMinutos(10) });
+    await sembrar(env, 'solicitudes/s1', solicitud());
+    await assertFails(
+      como(env, CLIENTE).doc('solicitudes/s1').update({
+        estado: 'asignado',
+        conductor: { id: CONDUCTOR },
+      }),
+    );
+  });
+
+  test('con la pausa ya vencida vuelve a poder aceptar', async () => {
+    await sembrar(env, `sanciones_conductores/${CONDUCTOR}`, {
+      bloqueadoHasta: enMinutos(-1),
+      cancelaciones: [],
+    });
+    await sembrar(env, 'solicitudes/s1', solicitud());
+    await assertSucceeds(
+      como(env, CONDUCTOR).doc('solicitudes/s1').update({
+        estado: 'asignado',
+        conductor: { id: CONDUCTOR },
+      }),
+    );
+  });
+
+  test('el conductor lee su propia sanción; otro conductor no', async () => {
+    await sembrar(env, `sanciones_conductores/${CONDUCTOR}`, { bloqueadoHasta: enMinutos(10) });
+    await assertSucceeds(como(env, CONDUCTOR).doc(`sanciones_conductores/${CONDUCTOR}`).get());
+    await assertFails(como(env, OTRO_CONDUCTOR).doc(`sanciones_conductores/${CONDUCTOR}`).get());
+    await assertSucceeds(como(env, ADMIN).doc(`sanciones_conductores/${CONDUCTOR}`).get());
+  });
+
+  test('nadie desde la app puede escribir ni borrar su sanción', async () => {
+    await sembrar(env, `sanciones_conductores/${CONDUCTOR}`, { bloqueadoHasta: enMinutos(10) });
+    const ref = como(env, CONDUCTOR).doc(`sanciones_conductores/${CONDUCTOR}`);
+    await assertFails(ref.set({ bloqueadoHasta: null }));
+    await assertFails(ref.delete());
+    await assertFails(como(env, ADMIN).doc(`sanciones_conductores/${CONDUCTOR}`).delete());
   });
 });

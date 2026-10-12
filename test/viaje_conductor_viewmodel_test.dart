@@ -21,6 +21,7 @@ import 'package:taxi_app/core/services/chat_firestore_datasource.dart';
 import 'package:taxi_app/caracteristicas/viaje_conductor/datos/fuentes/conductor_perfil_datasource.dart';
 import 'package:taxi_app/caracteristicas/viaje_conductor/datos/fuentes/driver_ubicacion_datasource.dart';
 import 'package:taxi_app/caracteristicas/viaje_conductor/datos/fuentes/navegacion_externa_datasource.dart';
+import 'package:taxi_app/caracteristicas/viaje_conductor/dominio/casos_uso/cancelar_viaje_conductor_usecase.dart';
 import 'package:taxi_app/caracteristicas/viaje_conductor/dominio/casos_uso/finalizar_viaje_usecase.dart';
 import 'package:taxi_app/caracteristicas/viaje_conductor/dominio/casos_uso/iniciar_ruta_destino_usecase.dart';
 import 'package:taxi_app/caracteristicas/viaje_conductor/dominio/casos_uso/reportar_llegada_usecase.dart';
@@ -72,7 +73,13 @@ class _FakeViajeRepository implements ViajeRepository {
   Future<void> cancelar({
     required String viajeId,
     required String canceladoPor,
-  }) async {}
+    String? motivo,
+  }) async {
+    if (errorAlActualizar != null) throw errorAlActualizar!;
+    cancelaciones.add((canceladoPor: canceladoPor, motivo: motivo));
+  }
+
+  final cancelaciones = <({String canceladoPor, String? motivo})>[];
 
   final infoConductorActualizada = <Map<String, dynamic>>[];
 
@@ -215,6 +222,7 @@ class _Fixture {
         validarCodigo: ValidarCodigoVerificacionUseCase(codigoRepo),
       ),
       finalizarViaje: FinalizarViajeUseCase(actualizar),
+      cancelarViaje: CancelarViajeConductorUseCase(viajeRepo),
       actualizarInfoConductor: ActualizarInfoConductorEnViajeUseCase(viajeRepo),
       // Firestore fake: sin esto, `_bindPerfilConductor` (que sí se activa
       // porque `actualizarInfoConductor` está seteado arriba) pegaría contra
@@ -359,63 +367,57 @@ void main() {
   });
 
   group('temporizador de espera: ancla de servidor', () {
-    test(
-      'con esperaIniciadaEn ya escrito en el pasado, arranca en el '
-      'remanente real y no en 180',
-      () async {
-        final ahora = DateTime(2026, 1, 1, 12, 0, 30);
-        final f = _Fixture(now: () => ahora);
-        // `init()` PRIMERO: el fake usa un `StreamController.broadcast`, así
-        // que un `emitir()` antes de suscribirse (antes de `init()`) se
-        // pierde sin avisar — el listener todavía no existe.
-        await f.vm.init();
-        // Snapshot en `asignado` para que la transición a `en espera` sea
-        // real — mismo motivo que el primer test del grupo anterior.
-        f.viajeRepo.emitir(_viaje(SolicitudEstado.asignado));
-        await pumpEventQueue();
+    test('con esperaIniciadaEn ya escrito en el pasado, arranca en el '
+        'remanente real y no en 180', () async {
+      final ahora = DateTime(2026, 1, 1, 12, 0, 30);
+      final f = _Fixture(now: () => ahora);
+      // `init()` PRIMERO: el fake usa un `StreamController.broadcast`, así
+      // que un `emitir()` antes de suscribirse (antes de `init()`) se
+      // pierde sin avisar — el listener todavía no existe.
+      await f.vm.init();
+      // Snapshot en `asignado` para que la transición a `en espera` sea
+      // real — mismo motivo que el primer test del grupo anterior.
+      f.viajeRepo.emitir(_viaje(SolicitudEstado.asignado));
+      await pumpEventQueue();
 
-        f.viajeRepo.emitir(
-          _viaje(
-            SolicitudEstado.enEspera,
-            esperaIniciadaEn: DateTime(2026, 1, 1, 12, 0, 0),
-          ),
-        );
-        await pumpEventQueue();
+      f.viajeRepo.emitir(
+        _viaje(
+          SolicitudEstado.enEspera,
+          esperaIniciadaEn: DateTime(2026, 1, 1, 12, 0, 0),
+        ),
+      );
+      await pumpEventQueue();
 
-        // 30s ya transcurridos según el ancla -> quedan 150, no 180.
-        expect(f.vm.waitingRemainingSeconds, 150);
-      },
-    );
+      // 30s ya transcurridos según el ancla -> quedan 150, no 180.
+      expect(f.vm.waitingRemainingSeconds, 150);
+    });
 
-    test(
-      'la deriva del timer local de 1s se corrige en cada snapshot '
-      'mientras la modal sigue contando',
-      () async {
-        var ahora = DateTime(2026, 1, 1, 12, 0, 30);
-        final f = _Fixture(now: () => ahora);
-        await f.vm.init();
-        f.viajeRepo.emitir(_viaje(SolicitudEstado.asignado));
-        await pumpEventQueue();
+    test('la deriva del timer local de 1s se corrige en cada snapshot '
+        'mientras la modal sigue contando', () async {
+      var ahora = DateTime(2026, 1, 1, 12, 0, 30);
+      final f = _Fixture(now: () => ahora);
+      await f.vm.init();
+      f.viajeRepo.emitir(_viaje(SolicitudEstado.asignado));
+      await pumpEventQueue();
 
-        final inicio = DateTime(2026, 1, 1, 12, 0, 0);
-        f.viajeRepo.emitir(
-          _viaje(SolicitudEstado.enEspera, esperaIniciadaEn: inicio),
-        );
-        await pumpEventQueue();
-        expect(f.vm.waitingRemainingSeconds, 150);
+      final inicio = DateTime(2026, 1, 1, 12, 0, 0);
+      f.viajeRepo.emitir(
+        _viaje(SolicitudEstado.enEspera, esperaIniciadaEn: inicio),
+      );
+      await pumpEventQueue();
+      expect(f.vm.waitingRemainingSeconds, 150);
 
-        // Otro snapshot llega más tarde sin que el ESTADO cambie (p. ej. un
-        // ping GPS del propio conductor, que escribe en la misma
-        // solicitud) — el remanente se resincroniza contra el ancla real
-        // en vez de seguir solo el conteo local.
-        ahora = DateTime(2026, 1, 1, 12, 1, 0);
-        f.viajeRepo.emitir(
-          _viaje(SolicitudEstado.enEspera, esperaIniciadaEn: inicio),
-        );
-        await pumpEventQueue();
-        expect(f.vm.waitingRemainingSeconds, 120);
-      },
-    );
+      // Otro snapshot llega más tarde sin que el ESTADO cambie (p. ej. un
+      // ping GPS del propio conductor, que escribe en la misma
+      // solicitud) — el remanente se resincroniza contra el ancla real
+      // en vez de seguir solo el conteo local.
+      ahora = DateTime(2026, 1, 1, 12, 1, 0);
+      f.viajeRepo.emitir(
+        _viaje(SolicitudEstado.enEspera, esperaIniciadaEn: inicio),
+      );
+      await pumpEventQueue();
+      expect(f.vm.waitingRemainingSeconds, 120);
+    });
   });
 
   group('cambio de método de pago avisa al conductor', () {
@@ -443,28 +445,29 @@ void main() {
       },
     );
 
-    test('mismo valor con distinta capitalización no cuenta como cambio', () async {
-      final f = _Fixture();
-      await f.vm.init();
-      f.viajeRepo.emitir(
-        _viaje(SolicitudEstado.asignado, metodoPago: 'Efectivo'),
-      );
-      await pumpEventQueue();
+    test(
+      'mismo valor con distinta capitalización no cuenta como cambio',
+      () async {
+        final f = _Fixture();
+        await f.vm.init();
+        f.viajeRepo.emitir(
+          _viaje(SolicitudEstado.asignado, metodoPago: 'Efectivo'),
+        );
+        await pumpEventQueue();
 
-      f.viajeRepo.emitir(
-        _viaje(SolicitudEstado.asignado, metodoPago: 'EFECTIVO'),
-      );
-      await pumpEventQueue();
+        f.viajeRepo.emitir(
+          _viaje(SolicitudEstado.asignado, metodoPago: 'EFECTIVO'),
+        );
+        await pumpEventQueue();
 
-      expect(f.vm.cambioMetodoPagoPendiente, isFalse);
-    });
+        expect(f.vm.cambioMetodoPagoPendiente, isFalse);
+      },
+    );
 
     test('el primer snapshot (línea base) nunca cuenta como cambio', () async {
       final f = _Fixture();
       await f.vm.init();
-      f.viajeRepo.emitir(
-        _viaje(SolicitudEstado.asignado, metodoPago: 'Nequi'),
-      );
+      f.viajeRepo.emitir(_viaje(SolicitudEstado.asignado, metodoPago: 'Nequi'));
       await pumpEventQueue();
 
       expect(f.vm.cambioMetodoPagoPendiente, isFalse);
@@ -527,6 +530,61 @@ void main() {
 
       f.vm.limpiarError();
       expect(f.vm.errorText, isNull);
+    });
+  });
+
+  group('cancelarViaje (conductor)', () {
+    test('marca cancelledBy conductor con el motivo, una sola vez', () async {
+      final f = _Fixture();
+      f.vm.viaje = _viaje(SolicitudEstado.enRuta);
+
+      await Future.wait([
+        f.vm.cancelarViaje('El cliente no aparece'),
+        f.vm.cancelarViaje('El cliente no aparece'),
+      ]);
+
+      expect(f.viajeRepo.cancelaciones, [
+        (canceladoPor: 'conductor', motivo: 'El cliente no aparece'),
+      ]);
+      expect(f.vm.isCancelandoViaje, isFalse);
+    });
+
+    test('al llegar el snapshot cancelado sale con mensaje propio', () async {
+      final f = _Fixture();
+      await f.vm.init();
+      // Después de `init`: el stream del fake es broadcast y descarta lo que
+      // se emite sin oyente.
+      f.viajeRepo.emitir(_viaje(SolicitudEstado.asignado));
+      await pumpEventQueue();
+
+      await f.vm.cancelarViaje('Otro motivo');
+      expect(f.viajeRepo.cancelaciones, hasLength(1));
+      f.viajeRepo.emitir(_viaje(SolicitudEstado.cancelado));
+      await pumpEventQueue();
+
+      expect(f.vm.debeSalir, isTrue);
+      expect(f.vm.mensajeSalida, contains('Cancelaste el viaje'));
+    });
+
+    test('un fallo deja error y permite reintentar', () async {
+      final f = _Fixture();
+      f.vm.viaje = _viaje(SolicitudEstado.asignado);
+      f.viajeRepo.errorAlActualizar = StateError('permiso denegado');
+
+      await f.vm.cancelarViaje('Otro motivo');
+
+      expect(f.vm.errorText, contains('No se pudo cancelar el viaje'));
+      expect(f.vm.puedeCancelarViaje, isTrue);
+    });
+
+    test('no se cancela un viaje ya terminado', () async {
+      final f = _Fixture();
+      f.vm.viaje = _viaje(SolicitudEstado.completado);
+
+      await f.vm.cancelarViaje('Otro motivo');
+
+      expect(f.viajeRepo.cancelaciones, isEmpty);
+      expect(f.vm.puedeCancelarViaje, isFalse);
     });
   });
 
@@ -665,10 +723,7 @@ void main() {
     });
 
     test('lejos con ETA largo: bloqueado', () {
-      expect(
-        evaluar(metros: 4000, eta: const Duration(minutes: 12)),
-        isFalse,
-      );
+      expect(evaluar(metros: 4000, eta: const Duration(minutes: 12)), isFalse);
     });
 
     // El agujero que cierra el progreso: viaje corto (o ETA heredado del
@@ -715,10 +770,7 @@ void main() {
     });
 
     test('progreso no medible: el ETA no alcanza por sí solo', () {
-      expect(
-        evaluar(metros: 4000, eta: const Duration(minutes: 1)),
-        isFalse,
-      );
+      expect(evaluar(metros: 4000, eta: const Duration(minutes: 1)), isFalse);
     });
 
     // Reabrir la app parado al lado del destino rebaselinea el tramo desde
@@ -763,10 +815,7 @@ void main() {
 
     /// Emite el viaje y deja que el listener resuelva la ruta.
     Future<void> correr(_Fixture f, ViajeEntity viaje) async {
-      f.rutaFake.ruta = [
-        viaje.conductor.ubicacion!,
-        viaje.destino.ubicacion!,
-      ];
+      f.rutaFake.ruta = [viaje.conductor.ubicacion!, viaje.destino.ubicacion!];
       await f.vm.init();
       f.viajeRepo.emitir(viaje);
       await pumpEventQueue();
@@ -776,13 +825,16 @@ void main() {
     // 200 m. Es el caso de reabrir la app parado al lado del destino — el
     // progreso arranca en 0 sin que nadie se haya movido, y exigirlo dejaría
     // el viaje imposible de cerrar.
-    test('baseline corto: manda la cercanía, el viaje se puede cerrar', () async {
-      final f = _Fixture();
-      await correr(f, viajeEnRuta(gradosDeSeparacion: 0.0003));
+    test(
+      'baseline corto: manda la cercanía, el viaje se puede cerrar',
+      () async {
+        final f = _Fixture();
+        await correr(f, viajeEnRuta(gradosDeSeparacion: 0.0003));
 
-      expect(f.vm.progresoTramo, 0);
-      expect(f.vm.puedeTerminarViaje, isTrue);
-    });
+        expect(f.vm.progresoTramo, 0);
+        expect(f.vm.puedeTerminarViaje, isTrue);
+      },
+    );
 
     // ~1.1 km: baseline por encima del piso, así que el progreso sí manda y
     // el conductor recién llegado al arranque del tramo no puede cerrar.

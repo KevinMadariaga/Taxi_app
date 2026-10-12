@@ -25,6 +25,7 @@ const { diaYHoraColombia, resultadoNuevo } = require("./estadisticas");
 const { unaVez, consumirCupo } = require("./limites");
 const { calificacionNueva, acumular } = require("./calificaciones");
 const { esRegistroDeClienteCompletado } = require("./usuarios");
+const { canceladoPorConductor, registrarCancelacion } = require("./sanciones");
 
 /**
  * Destinatarios del aviso "Solicitud entrante" de cada solicitud.
@@ -195,6 +196,11 @@ const ESTADO_MENSAJES = {
   },
 };
 
+const MENSAJE_CANCELADO_POR_CONDUCTOR = {
+  title: "❌ Viaje cancelado",
+  body: "El conductor canceló el viaje. Puedes solicitar uno nuevo.",
+};
+
 /**
  * Normaliza el estado para coincidir con las claves del mapeo.
  */
@@ -278,6 +284,38 @@ const ESTADO_MENSAJES_CONDUCTOR = {
  * viva (foreground o los pocos segundos antes de que Android/iOS congelen
  * el proceso en background).
  */
+/**
+ * Suma la cancelación en `sanciones_conductores/{uid}` y, si pasa del límite,
+ * fija `bloqueadoHasta`. En transacción: dos cancelaciones casi simultáneas
+ * no deben pisarse el conteo.
+ */
+async function sumarCancelacionConductor(event, conductorId) {
+  try {
+    if (!(await unaVez(event, "sumarCancelacionConductor"))) return;
+    const db = getFirestore();
+    const ref = db.collection("sanciones_conductores").doc(conductorId);
+    const bloqueo = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      const previas = snap.exists ? snap.data().cancelaciones : [];
+      const r = registrarCancelacion(previas, Date.now());
+      const cambios = {
+        cancelaciones: r.cancelaciones,
+        actualizadoEn: FieldValue.serverTimestamp(),
+      };
+      if (r.bloqueadoHasta) {
+        cambios.bloqueadoHasta = Timestamp.fromMillis(r.bloqueadoHasta);
+      }
+      tx.set(ref, cambios, { merge: true });
+      return r.bloqueadoHasta;
+    });
+    if (bloqueo) {
+      console.log(`⏸️ Conductor ${conductorId} en pausa por cancelaciones hasta ${new Date(bloqueo).toISOString()}.`);
+    }
+  } catch (err) {
+    console.error(`❌ Error sumando cancelación del conductor ${conductorId}: ${err.message}`);
+  }
+}
+
 exports.onSolicitudEstadoChangeConductor = onDocumentUpdated(
   {
     document: "solicitudes/{solicitudId}",
@@ -297,6 +335,14 @@ exports.onSolicitudEstadoChangeConductor = onDocumentUpdated(
 
     const conductorId = extractConductorId(afterData);
     if (!conductorId) return null;
+
+    // Canceló el propio conductor: no se le manda push de su propia acción
+    // (y el texto "El cliente canceló" sería falso). En su lugar se cuenta
+    // la cancelación para la pausa de 15 min (ver `sanciones.js`).
+    if (estadoNuevo === "cancelado" && canceladoPorConductor(afterData)) {
+      await sumarCancelacionConductor(event, conductorId);
+      return null;
+    }
 
     const db = getFirestore();
     const fcmToken = await getConductorFcmToken(db, conductorId);
@@ -438,7 +484,10 @@ exports.onSolicitudEstadoChange = onDocumentUpdated(
     );
 
     // Verificar si tenemos un mensaje configurado para este estado
-    const mensaje = ESTADO_MENSAJES[estadoNuevo];
+    const mensaje =
+      estadoNuevo === "cancelado" && canceladoPorConductor(afterData)
+        ? MENSAJE_CANCELADO_POR_CONDUCTOR
+        : ESTADO_MENSAJES[estadoNuevo];
     if (!mensaje) {
       console.log(`Sin mensaje configurado para estado: "${estadoNuevo}"`);
       return null;
@@ -643,8 +692,30 @@ exports.onNuevaSolicitudCreada = onDocumentCreated(
       }
     }
 
+    // Conductores en pausa por cancelaciones (`sanciones_conductores`): no se
+    // les avisa mientras dure. Las reglas además les impiden aceptar.
+    const enPausa = new Set();
+    const ahoraMs = Date.now();
+    for (let i = 0; i < uids.length; i += 100) {
+      const refs = uids
+        .slice(i, i + 100)
+        .map((uid) => db.collection("sanciones_conductores").doc(uid));
+      try {
+        const docs = await db.getAll(...refs);
+        docs.forEach((doc) => {
+          const hasta = doc.exists ? doc.data().bloqueadoHasta : null;
+          if (hasta && typeof hasta.toMillis === "function" && hasta.toMillis() > ahoraMs) {
+            enPausa.add(doc.id);
+          }
+        });
+      } catch (err) {
+        console.error("Error leyendo sanciones_conductores:", err);
+      }
+    }
+
     const cercanos = [];
     for (const [uid, conductorData] of candidatos) {
+      if (enPausa.has(uid)) continue;
       const tipoConductor = (conductorData.tipoVehiculo || "").toString().toLowerCase().trim();
       if (tipoVehiculoSolicitado && tipoConductor && tipoConductor !== tipoVehiculoSolicitado) {
         continue;

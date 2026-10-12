@@ -37,10 +37,12 @@ class ViajeRepositoryImpl implements ViajeRepository {
   Future<void> cancelar({
     required String viajeId,
     required String canceladoPor,
+    String? motivo,
   }) {
     return _datasource.marcarCancelada(
       solicitudId: viajeId,
       canceladoPor: canceladoPor,
+      razon: motivo,
     );
   }
 

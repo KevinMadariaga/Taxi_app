@@ -175,6 +175,18 @@ service cloud.firestore {
         return c.get('membresia', '').lower() == 'activa' && !vencida;
       }
 
+      // Pausa por cancelaciones: tras más de 5 cancelaciones del conductor en
+      // 24 h, la Cloud Function `onSolicitudEstadoChangeConductor` escribe
+      // `sanciones_conductores/{uid}.bloqueadoHasta` (+15 min). Mientras siga
+      // vigente, el conductor no puede quedar asignado a un viaje nuevo — ni
+      // aceptándolo él ni por una contraoferta suya que acepte el cliente.
+      function sinPausaPorCancelaciones(uid) {
+        let ruta = /databases/$(database)/documents/sanciones_conductores/$(uid);
+        return !exists(ruta) ||
+          !(get(ruta).data.get('bloqueadoHasta', null) is timestamp &&
+            get(ruta).data.bloqueadoHasta > request.time);
+      }
+
       // Una vez asignada, la solicitud no vuelve a abrirse ni cambia de
       // conductor. Es la garantía de servidor de "un viaje, un conductor":
       // un `set` del cliente (cambiar oferta, rechazar contraoferta) que
@@ -239,7 +251,8 @@ service cloud.firestore {
                 escrituraDeConductorAjeno())) &&
             sinReasignar() && noTocaCalificacionCliente() &&
             (!esNuevaAsignacion() ||
-              membresiaVigente(request.resource.data.conductor.id)))
+              (membresiaVigente(request.resource.data.conductor.id) &&
+                sinPausaPorCancelaciones(request.resource.data.conductor.id))))
         );
 
       allow delete: if false;
@@ -300,6 +313,18 @@ service cloud.firestore {
     match /calificaciones_clientes/{uid} {
       allow read: if isSignedIn() &&
         (request.auth.uid == uid || isConductorRole() || isAdminRole());
+      allow write: if false;
+    }
+
+    // ---------------------------------------------------------------
+    // sanciones_conductores: conteo de cancelaciones del conductor y su
+    // pausa (`bloqueadoHasta`). Solo la escribe la Cloud Function
+    // `onSolicitudEstadoChangeConductor` (Admin SDK): si el conductor
+    // pudiera escribirla, se borraría la pausa. La lee él mismo (modal con
+    // la cuenta regresiva) y los admins.
+    // ---------------------------------------------------------------
+    match /sanciones_conductores/{uid} {
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAdminRole());
       allow write: if false;
     }
 

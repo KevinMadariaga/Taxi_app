@@ -6,6 +6,7 @@ import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import 'package:taxi_app/caracteristicas/sancion_conductor/dominio/repositorios/sancion_conductor_repository.dart';
 import 'package:taxi_app/caracteristicas/verificacion_recogida/dominio/casos_uso/validar_codigo_verificacion_usecase.dart';
 import 'package:taxi_app/caracteristicas/viaje_compartido/dominio/entidades/viaje_entity.dart';
 import 'package:taxi_app/caracteristicas/viaje_compartido/dominio/casos_uso/actualizar_estado_viaje_usecase.dart';
@@ -17,6 +18,7 @@ import 'package:taxi_app/caracteristicas/viaje_compartido/presentacion/controlad
 import 'package:taxi_app/caracteristicas/viaje_conductor/datos/fuentes/conductor_perfil_datasource.dart';
 import 'package:taxi_app/caracteristicas/viaje_conductor/datos/fuentes/driver_ubicacion_datasource.dart';
 import 'package:taxi_app/caracteristicas/viaje_conductor/datos/fuentes/navegacion_externa_datasource.dart';
+import 'package:taxi_app/caracteristicas/viaje_conductor/dominio/casos_uso/cancelar_viaje_conductor_usecase.dart';
 import 'package:taxi_app/caracteristicas/viaje_conductor/dominio/casos_uso/finalizar_viaje_usecase.dart';
 import 'package:taxi_app/caracteristicas/viaje_conductor/dominio/casos_uso/iniciar_ruta_destino_usecase.dart';
 import 'package:taxi_app/caracteristicas/viaje_conductor/dominio/casos_uso/reportar_llegada_usecase.dart';
@@ -44,18 +46,22 @@ class ViajeConductorViewModel extends ChangeNotifier {
     required ReportarLlegadaUseCase reportarLlegada,
     required IniciarRutaDestinoUseCase iniciarRutaDestino,
     required FinalizarViajeUseCase finalizarViaje,
+    required CancelarViajeConductorUseCase cancelarViaje,
     required DriverUbicacionDatasource ubicacionDatasource,
     required RutaDatasource rutaDatasource,
     required NavegacionExternaDatasource navegacionDatasource,
     ActualizarInfoConductorEnViajeUseCase? actualizarInfoConductor,
     ConductorPerfilDatasource? perfilDatasource,
     ChatController? chatController,
+    SancionConductorRepository? sanciones,
     DateTime Function()? now,
   }) : _watchViaje = watchViaje,
        _actualizarEstado = actualizarEstado,
        _reportarLlegada = reportarLlegada,
        _iniciarRutaDestino = iniciarRutaDestino,
        _finalizarViaje = finalizarViaje,
+       _cancelarViaje = cancelarViaje,
+       _sanciones = sanciones,
        _ubicacion = ubicacionDatasource,
        _ruta = rutaDatasource,
        _navegacion = navegacionDatasource,
@@ -78,6 +84,8 @@ class ViajeConductorViewModel extends ChangeNotifier {
   final ReportarLlegadaUseCase _reportarLlegada;
   final IniciarRutaDestinoUseCase _iniciarRutaDestino;
   final FinalizarViajeUseCase _finalizarViaje;
+  final CancelarViajeConductorUseCase _cancelarViaje;
+  final SancionConductorRepository? _sanciones;
   final DriverUbicacionDatasource _ubicacion;
   final RutaDatasource _ruta;
   final NavegacionExternaDatasource _navegacion;
@@ -94,6 +102,12 @@ class ViajeConductorViewModel extends ChangeNotifier {
   bool isSendingArrival = false;
   bool isValidatingCodigo = false;
   bool isFinalizandoViaje = false;
+  bool isCancelandoViaje = false;
+
+  /// Distingue, al llegar `cancelado` por el stream, si lo canceló este
+  /// conductor (mensaje de salida propio, sin aviso local de "el cliente
+  /// canceló") o el cliente.
+  bool _canceladoPorMi = false;
   bool hasReportedArrival = false;
   String? errorText;
 
@@ -233,8 +247,8 @@ class ViajeConductorViewModel extends ChangeNotifier {
     // Sin destino la falla es PERMANENTE y trabaría el viaje: `destino
     // .ubicacion` queda en `null` cuando Firestore guardó `destino` como
     // `GeoPoint` o sin `lat`/`lng` (`viaje_model._destinoFromMap`), y el
-    // conductor no tiene botón de cancelar (lo cancela el cliente, ver
-    // `DriverTripCard`). Ahí se abre el botón: el gate existe para frenar un
+    // conductor quedaría obligado a cancelar un viaje que sí hizo. Ahí se
+    // abre el botón: el gate existe para frenar un
     // cierre prematuro, no para dejar un viaje imposible de cerrar.
     if (objetivo == null) return true;
 
@@ -570,12 +584,54 @@ class ViajeConductorViewModel extends ChangeNotifier {
     _safeNotify();
   }
 
-  // El conductor NO cancela el viaje: por diseño del negocio eso lo hace el
-  // cliente, y este lado solo reacciona al estado `cancelado` que llega por el
-  // stream (ver `_handleEstadoTransition`). Antes había un `cancelarViaje()`
-  // con su botón en `DriverTripCard`; se retiró junto con la marca
-  // `_canceladoPorMi`, que servía únicamente para distinguir el mensaje de
-  // salida cuando el origen era este conductor.
+  /// `true` mientras el viaje siga activo: después ya no hay qué cancelar.
+  bool get puedeCancelarViaje {
+    final estado = viaje?.estado;
+    return estado != null &&
+        SolicitudEstado.isSesionActiva(estado) &&
+        !debeSalir;
+  }
+
+  /// Aviso de cercanía al límite de cancelaciones para el diálogo de
+  /// confirmación. Best-effort: si no se puede leer, no se avisa (el
+  /// servidor igual cuenta la cancelación).
+  Future<String?> avisoLimiteCancelaciones() async {
+    final repo = _sanciones;
+    if (repo == null) return null;
+    try {
+      final sancion = await repo.obtener(conductorId);
+      return sancion.avisoAntesDeCancelar(_now());
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Cancela el viaje desde el conductor. La salida de la pantalla la
+  /// dispara el snapshot `cancelado` (`_handleEstadoTransition`), igual que
+  /// cuando cancela el cliente.
+  Future<void> cancelarViaje(String motivo) async {
+    if (isCancelandoViaje || !puedeCancelarViaje) return;
+
+    isCancelandoViaje = true;
+    errorText = null;
+    // Antes del await: con la compensación de latencia de Firestore, el
+    // snapshot `cancelado` puede llegar antes de que el `set` resuelva.
+    _canceladoPorMi = true;
+    _safeNotify();
+    try {
+      await _cancelarViaje(viajeId: viajeId, motivo: motivo);
+      // Deja de compartir ubicación ya: el viaje está cerrado y las reglas
+      // rechazarían cualquier escritura más sobre él.
+      unawaited(_ubicacion.detener());
+      unawaited(stopBackgroundTrackingService());
+    } catch (e) {
+      _canceladoPorMi = false;
+      errorText = 'No se pudo cancelar el viaje: $e';
+    } finally {
+      isCancelandoViaje = false;
+      _safeNotify();
+    }
+  }
 
   Future<void> abrirNavegacionExterna() async {
     final objetivo = objetivoActual;
@@ -756,7 +812,11 @@ class ViajeConductorViewModel extends ChangeNotifier {
     if (estado == SolicitudEstado.cancelado) {
       _closeWaitingModal();
       debeSalir = true;
-      // Solo el cliente cancela, así que el origen no es ambiguo.
+      if (_canceladoPorMi) {
+        mensajeSalida = 'Cancelaste el viaje. El cliente fue notificado.';
+        _safeNotify();
+        return;
+      }
       mensajeSalida = 'El cliente canceló la solicitud.';
       unawaited(
         _notify(

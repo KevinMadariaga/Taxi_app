@@ -9,9 +9,11 @@ abstract class ViajeRepository {
     Map<String, dynamic>? extra,
   });
 
+  /// [motivo] queda en `cancelReason` (lo elige el conductor al cancelar).
   Future<void> cancelar({
     required String viajeId,
     required String canceladoPor,
+    String? motivo,
   });
 
   /// Actualiza solo campos de `conductor.*` en la solicitud (nombre, foto,

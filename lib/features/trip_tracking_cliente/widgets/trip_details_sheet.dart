@@ -25,6 +25,7 @@ class TripDetailsSheet extends StatelessWidget {
     this.labelRecoger = 'Recoger en',
     this.mostrarVehiculo = true,
     this.mostrarCalificacion = true,
+    this.pie,
   });
 
   final String tituloPersona; // 'Conductor' o 'Cliente'
@@ -44,6 +45,10 @@ class TripDetailsSheet extends StatelessWidget {
   final String labelRecoger;
   final bool mostrarVehiculo;
   final bool mostrarCalificacion;
+
+  /// Acción opcional al final de la hoja (p. ej. "Cancelar viaje" del
+  /// conductor).
+  final Widget? pie;
 
   @override
   Widget build(BuildContext context) {
@@ -196,6 +201,7 @@ class TripDetailsSheet extends StatelessWidget {
                   ],
                 ),
               ),
+              if (pie != null) ...[const SizedBox(height: 20), pie!],
             ],
           ),
         ),

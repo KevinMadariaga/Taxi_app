@@ -16,6 +16,7 @@ import 'package:taxi_app/caracteristicas/verificacion_recogida/dominio/entidades
 import 'package:taxi_app/caracteristicas/verificacion_recogida/dominio/repositorios/codigo_verificacion_repository.dart';
 import 'package:taxi_app/caracteristicas/viaje_conductor/datos/fuentes/driver_ubicacion_datasource.dart';
 import 'package:taxi_app/caracteristicas/viaje_conductor/datos/fuentes/navegacion_externa_datasource.dart';
+import 'package:taxi_app/caracteristicas/viaje_conductor/dominio/casos_uso/cancelar_viaje_conductor_usecase.dart';
 import 'package:taxi_app/caracteristicas/viaje_conductor/dominio/casos_uso/finalizar_viaje_usecase.dart';
 import 'package:taxi_app/caracteristicas/viaje_conductor/dominio/casos_uso/iniciar_ruta_destino_usecase.dart';
 import 'package:taxi_app/caracteristicas/viaje_conductor/dominio/casos_uso/reportar_llegada_usecase.dart';
@@ -47,6 +48,7 @@ class _FakeViajeRepository implements ViajeRepository {
   Future<void> cancelar({
     required String viajeId,
     required String canceladoPor,
+    String? motivo,
   }) async {}
 
   @override
@@ -58,8 +60,7 @@ class _FakeViajeRepository implements ViajeRepository {
 
 class _FakeCodigoRepository implements CodigoVerificacionRepository {
   @override
-  Future<CodigoVerificacionEntity?> obtenerCodigo(String viajeId) async =>
-      null;
+  Future<CodigoVerificacionEntity?> obtenerCodigo(String viajeId) async => null;
 
   @override
   Stream<CodigoVerificacionEntity?> watchCodigo(String viajeId) =>
@@ -120,6 +121,7 @@ ViajeConductorViewModel _buildVm() {
       validarCodigo: ValidarCodigoVerificacionUseCase(codigoRepo),
     ),
     finalizarViaje: FinalizarViajeUseCase(actualizar),
+    cancelarViaje: CancelarViajeConductorUseCase(viajeRepo),
     ubicacionDatasource: DriverUbicacionDatasource(),
     rutaDatasource: RutaDatasource(),
     navegacionDatasource: NavegacionExternaDatasource(),
@@ -211,7 +213,8 @@ void main() {
       (tester) async {
         final medida = await _medir(tester, pantalla: size);
         final techo =
-            size.height * TripCardMetrics.forHeight(size.height).alturaMaximaFactor;
+            size.height *
+            TripCardMetrics.forHeight(size.height).alturaMaximaFactor;
 
         // Cabe entera bajo el techo — antes `ConstrainedBox(minHeight:)` la
         // estiraba a toda la mitad de `InfoMapSplit` sin importar su
@@ -219,7 +222,8 @@ void main() {
         expect(
           medida.alturaCard,
           lessThanOrEqualTo(techo),
-          reason: '$nombre: la card (${medida.alturaCard}) supera su techo ($techo)',
+          reason:
+              '$nombre: la card (${medida.alturaCard}) supera su techo ($techo)',
         );
 
         // El hueco entre "Terminar viaje" y el borde inferior de la card es

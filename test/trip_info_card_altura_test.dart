@@ -39,6 +39,7 @@ class _FakeViajeRepository implements ViajeRepository {
   Future<void> cancelar({
     required String viajeId,
     required String canceladoPor,
+    String? motivo,
   }) async {}
 
   @override
@@ -166,7 +167,8 @@ void main() {
     ) async {
       final alto = await _alturaTarjeta(tester, pantalla: size);
       final techo =
-          size.height * TripCardMetrics.forHeight(size.height).alturaMaximaFactor;
+          size.height *
+          TripCardMetrics.forHeight(size.height).alturaMaximaFactor;
 
       // Cabe entera bajo el techo => no scrollea.
       expect(
@@ -184,27 +186,30 @@ void main() {
     });
   });
 
-  testWidgets('con el código PIN visible la tarjeta crece pero sigue cabiendo', (
-    tester,
-  ) async {
-    const size = Size(390, 844);
-    final sinCodigo = await _alturaTarjeta(tester, pantalla: size);
-    final conCodigo = await _alturaTarjeta(
-      tester,
-      pantalla: size,
-      codigo: CodigoVerificacionEntity(
-        codigo: '1234',
-        generadoEn: DateTime(2026, 1, 1),
-        validadoEn: null,
-      ),
-    );
+  testWidgets(
+    'con el código PIN visible la tarjeta crece pero sigue cabiendo',
+    (tester) async {
+      const size = Size(390, 844);
+      final sinCodigo = await _alturaTarjeta(tester, pantalla: size);
+      final conCodigo = await _alturaTarjeta(
+        tester,
+        pantalla: size,
+        codigo: CodigoVerificacionEntity(
+          codigo: '1234',
+          generadoEn: DateTime(2026, 1, 1),
+          validadoEn: null,
+        ),
+      );
 
-    expect(conCodigo, greaterThan(sinCodigo));
-    expect(
-      conCodigo,
-      lessThanOrEqualTo(size.height * TripCardMetrics.normal.alturaMaximaFactor),
-    );
-  });
+      expect(conCodigo, greaterThan(sinCodigo));
+      expect(
+        conCodigo,
+        lessThanOrEqualTo(
+          size.height * TripCardMetrics.normal.alturaMaximaFactor,
+        ),
+      );
+    },
+  );
 
   test('las medidas se eligen por franja de alto de pantalla', () {
     expect(TripCardMetrics.forHeight(640), same(TripCardMetrics.compacta));
