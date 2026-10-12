@@ -52,7 +52,23 @@ class ClientUserFirestoreDataSource {
     String? photoUrl,
   }) async {
     final foto = (photoUrl ?? '').trim();
-    final doc = await _firestore.collection('usuarios').doc(uid).get();
+    final ref = _firestore.collection('usuarios').doc(uid);
+
+    // Siempre del servidor. En una instalación nueva `FcmService` guarda
+    // `{fcmToken}` con merge apenas hay sesión, y un `get()` normal podía
+    // devolver esa vista local (solo el token, como escritura pendiente):
+    // la cuenta real parecía un alta nueva y se le escribía `foto: ''` e
+    // `isProfileComplete: false` encima, mandándola a completar perfil.
+    final DocumentSnapshot<Map<String, dynamic>> doc;
+    try {
+      doc = await ref.get(const GetOptions(source: Source.server));
+    } on FirebaseException catch (e) {
+      // No pisar/duplicar una cuenta real por no poder verificarla.
+      throw StateError(
+        'No se pudo verificar tu cuenta por falta de conexión. '
+        'Verifica tu conexión e intenta de nuevo. (${e.code})',
+      );
+    }
 
     // Un doc sin rol no es una cuenta: es el `fcmToken` que FcmService
     // guardó al iniciar sesión, a veces antes que el perfil. Tratarlo como
@@ -101,21 +117,6 @@ class ClientUserFirestoreDataSource {
       return (await getById(uid)) ?? existing;
     }
 
-    // El doc no existe en ESTA lectura, pero si vino solo de caché local
-    // (sin confirmar con el servidor) no es seguro asumir que es un alta
-    // nueva — puede ser una cuenta YA registrada en un dispositivo que
-    // nunca cacheó su doc (p. ej. iOS: la sesión de FirebaseAuth sobrevive
-    // una reinstalación vía Keychain, pero el caché de Firestore no).
-    // Crear un doc nuevo acá pisaría/duplicaría una cuenta real y mandaría
-    // a un usuario ya registrado a "Completar perfil" de cero, en vez de
-    // avisarle que el problema fue la conexión.
-    if (doc.metadata.isFromCache) {
-      throw StateError(
-        'No se pudo verificar tu cuenta por falta de conexión. '
-        'Verifica tu conexión e intenta de nuevo.',
-      );
-    }
-
     // Confirmado con el servidor: alta genuinamente nueva. Separar
     // displayName en nombre + apellido (lo que venga del proveedor).
     final full = (displayName ?? '').trim();
@@ -136,11 +137,23 @@ class ClientUserFirestoreDataSource {
       'createdAt': FieldValue.serverTimestamp(),
     };
 
-    // merge: conserva el `fcmToken` si ya estaba guardado.
-    await _firestore
-        .collection('usuarios')
-        .doc(uid)
-        .set(payload, SetOptions(merge: true));
+    // En transacción: relee del servidor y solo escribe si sigue sin
+    // perfil, así nada que haya cambiado entre la lectura y la escritura
+    // (otro dispositivo, el token FCM) se pisa. `update` conserva `fcmToken`.
+    final esAltaNueva = await _firestore.runTransaction((tx) async {
+      final actual = await tx.get(ref);
+      if (actual.exists && tienePerfil(actual.data())) return false;
+      if (actual.exists) {
+        tx.update(ref, payload);
+      } else {
+        tx.set(ref, payload);
+      }
+      return true;
+    });
+    if (!esAltaNueva) {
+      final existente = await getById(uid);
+      if (existente != null) return existente;
+    }
 
     return (await getById(uid)) ??
         ClientUserModel(
