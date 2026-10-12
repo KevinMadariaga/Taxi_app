@@ -17,6 +17,7 @@ class OpcionesViajeRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final vm = context.watch<ConfirmarSolicitudViewModel>();
     final esNequi = vm.metodoPago.toLowerCase().contains('nequi');
+    final esTransferencia = vm.metodoPago.toLowerCase().contains('transfer');
     final tieneNota = vm.comentario.trim().isNotEmpty;
 
     return Row(
@@ -40,6 +41,12 @@ class OpcionesViajeRow extends StatelessWidget {
                       height: 18,
                       fit: BoxFit.cover,
                     ),
+                  )
+                : esTransferencia
+                ? const Icon(
+                    Icons.account_balance_rounded,
+                    size: 20,
+                    color: AppColores.secondary,
                   )
                 : const Icon(
                     Icons.payments_rounded,

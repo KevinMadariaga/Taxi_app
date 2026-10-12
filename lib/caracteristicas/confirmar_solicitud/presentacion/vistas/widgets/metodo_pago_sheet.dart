@@ -12,6 +12,9 @@ Future<void> mostrarMetodoPagoSheet(
   return showModalBottomSheet<void>(
     context: context,
     showDragHandle: true,
+    // Con tres opciones no entra en el 9/16 de alto por defecto de un
+    // teléfono bajo: que tome lo que necesite y desplace si no cabe.
+    isScrollControlled: true,
     backgroundColor: context.palette.surface,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
@@ -23,7 +26,7 @@ Future<void> mostrarMetodoPagoSheet(
       }
 
       return SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -60,6 +63,19 @@ Future<void> mostrarMetodoPagoSheet(
                 descripcion: 'Transfieres desde tu app de Nequi',
                 seleccionado: vm.metodoPago == 'Nequi',
                 onTap: () => elegir('Nequi'),
+              ),
+              const SizedBox(height: 10),
+              _OpcionPago(
+                icono: const Icon(
+                  Icons.account_balance_rounded,
+                  color: AppColores.secondary,
+                  size: 24,
+                ),
+                fondoIcono: AppColores.secondary.withValues(alpha: 0.12),
+                titulo: 'Transferencia',
+                descripcion: 'Transfieres desde tu banco al conductor',
+                seleccionado: vm.metodoPago == 'Transferencia',
+                onTap: () => elegir('Transferencia'),
               ),
             ],
           ),

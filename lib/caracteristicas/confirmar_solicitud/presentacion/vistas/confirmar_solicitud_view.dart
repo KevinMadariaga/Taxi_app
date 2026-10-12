@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart' hide DeviceType;
 import 'package:provider/provider.dart';
 
+import 'package:taxi_app/caracteristicas/seleccion_destino/presentacion/vistas/editar_ubicacion_screen.dart';
 import 'package:taxi_app/caracteristicas/seleccion_destino/presentacion/vistas/seleccion_destino_screen.dart';
 import 'package:taxi_app/caracteristicas/seleccion_destino/presentacion/vistas/seleccionar_ubicacion_mapa_view.dart';
 import 'package:taxi_app/core/helpers/responsive_helper.dart';
@@ -93,18 +94,34 @@ class _ConfirmarSolicitudViewState extends State<ConfirmarSolicitudView>
     );
   }
 
+  /// Cambiar recogida o destino: buscar por texto, pegar una ubicación de
+  /// un chat o elegir en el mapa; lo elegido se confirma en el mapa.
+  Future<SeleccionUbicacionResult?> _buscarYConfirmar({
+    required LocationModel actual,
+    required String titulo,
+    required String etiquetaCampo,
+    required String tituloMapa,
+  }) {
+    return Navigator.of(context).push<SeleccionUbicacionResult>(
+      transicionSuave(
+        EditarUbicacionScreen(
+          actual: actual,
+          cercaDe: _vm.origen.position,
+          titulo: titulo,
+          etiquetaCampo: etiquetaCampo,
+          tituloMapa: tituloMapa,
+        ),
+      ),
+    );
+  }
+
   Future<void> _ajustarOrigen() async {
-    final origenActual = _vm.origen;
-    final resultado = await Navigator.of(context)
-        .push<SeleccionUbicacionResult>(
-          transicionSuave(
-            SeleccionarUbicacionMapaView(
-              ubicacionInicial: origenActual.position,
-              titulo: 'Ajusta tu ubicación en el mapa',
-              direccionInicial: origenActual.title ?? origenActual.subtitle,
-            ),
-          ),
-        );
+    final resultado = await _buscarYConfirmar(
+      actual: _vm.origen,
+      titulo: '¿Dónde te recogemos?',
+      etiquetaCampo: 'Punto de recogida',
+      tituloMapa: 'Confirma el punto de recogida',
+    );
     if (resultado == null || !mounted) return;
     await _vm.actualizarOrigen(
       resultado.position,
@@ -113,17 +130,12 @@ class _ConfirmarSolicitudViewState extends State<ConfirmarSolicitudView>
   }
 
   Future<void> _ajustarDestino() async {
-    final destinoActual = _vm.destino;
-    final resultado = await Navigator.of(context)
-        .push<SeleccionUbicacionResult>(
-          transicionSuave(
-            SeleccionarUbicacionMapaView(
-              ubicacionInicial: destinoActual.position,
-              titulo: 'Ajusta tu destino en el mapa',
-              direccionInicial: destinoActual.title ?? destinoActual.subtitle,
-            ),
-          ),
-        );
+    final resultado = await _buscarYConfirmar(
+      actual: _vm.destino,
+      titulo: 'Cambia tu destino',
+      etiquetaCampo: 'Tu destino',
+      tituloMapa: 'Confirma tu destino',
+    );
     if (resultado == null || !mounted) return;
     await _vm.actualizarDestino(
       resultado.position,
