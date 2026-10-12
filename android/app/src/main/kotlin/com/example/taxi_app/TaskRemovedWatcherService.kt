@@ -7,6 +7,9 @@ import android.os.IBinder
 import androidx.work.Data
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
+import androidx.work.await
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Servicio liviano (no foreground, sin UI) cuyo único propósito es recibir
@@ -20,6 +23,14 @@ import androidx.work.WorkManager
  * corre aunque el proceso ya no exista) para cancelar en el servidor la
  * solicitud 'buscando' que el cliente dejó activa, evitando que un
  * conductor la acepte mientras la app está cerrada.
+ *
+ * Después termina el proceso. Sin esto quedaba vivo un proceso "zombi":
+ * el servicio en primer plano del GPS (`GeolocatorLocationService`, que abre
+ * el inicio del conductor) no se detiene mientras siga conectado el motor
+ * de Flutter de los push en segundo plano, y al reabrir la app arrancaba
+ * dentro de ese proceso y se quedaba para siempre en el logo nativo. Ese GPS
+ * ya no le servía a nadie (mandaba posiciones a un motor desconectado), y
+ * los push siguen llegando: Android levanta el proceso cuando llega uno.
  */
 class TaskRemovedWatcherService : Service() {
 
@@ -45,11 +56,16 @@ class TaskRemovedWatcherService : Service() {
                     .setInputData(data)
                     .build()
 
-                WorkManager.getInstance(applicationContext).enqueue(request)
+                // Esperar a que quede guardado antes de terminar el proceso
+                // (encolar escribe en la base de WorkManager en otro hilo).
+                val operacion = WorkManager.getInstance(applicationContext)
+                    .enqueue(request)
+                runBlocking { withTimeoutOrNull(3000) { operacion.await() } }
             }
         } catch (_: Exception) {
         } finally {
             stopSelf()
+            android.os.Process.killProcess(android.os.Process.myPid())
         }
     }
 }
