@@ -7,6 +7,7 @@ import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:taxi_app/core/app_navigator.dart';
+import 'package:taxi_app/core/constants/canales_notificacion.dart';
 import 'package:taxi_app/core/helpers/session_helper.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:taxi_app/core/services/avisos_solicitud_store.dart';
@@ -59,10 +60,16 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       body: body,
       // Sin esto caía en el canal genérico del sistema, que el usuario puede
       // tener silenciado — justo para el aviso más importante del conductor.
-      channelId: data['channelId'] as String?,
+      // `canal` lo manda el backend con sonido propio; `channelId` queda
+      // para las versiones de la app que no conocen esos canales (si lo
+      // vieran, Android crearía el canal sin el sonido y ya no se podría
+      // arreglar en ese teléfono).
+      channelId: (data['canal'] ?? data['channelId']) as String?,
       payload: payloadDeMensaje(data),
       push: AvisoPush.desdeDatos(data),
       desdePush: true,
+      // En el bolsillo: la solicitud suena en bucle hasta que la atiendan.
+      insistente: true,
     );
     await _recordarAvisoMostrado(data);
   }
@@ -677,7 +684,19 @@ class FcmService {
     }
 
     // La pantalla del viaje está montada: sus listeners avisan en tiempo real.
+    // Solo falta el sonido del cambio de estado, una vez por evento (si un
+    // aviso local de la pantalla ya lo reclamó, ese ya sonó).
     if (_pantallasDeViaje.containsKey(solicitudId)) {
+      final push = AvisoPush.desdeDatos(message.data);
+      if (CanalesNotificacion.para(push.tipo, estado: push.estado) ==
+          CanalesNotificacion.estadoViaje) {
+        unawaited(() async {
+          if (!await RegistroAvisos.reclamar(push.claveEvento)) return;
+          await NotificacionesServicio.instance.sonarEstadoViaje(
+            message.notification?.title ?? '${message.data['title'] ?? ''}',
+          );
+        }());
+      }
       return;
     }
 
@@ -690,14 +709,31 @@ class FcmService {
     // canal de viajes mientras que en background cada push era una entrada
     // nueva, así que la misma notificación era irreconocible entre un estado
     // y el otro — y ninguna se podía cancelar por evento.
-    NotificacionesServicio.instance.showTripNotification(
-      id: idNotificacionDeMensaje(message.data),
-      title: title,
-      body: body,
-      payload: payloadDeMensaje(message.data),
-      push: AvisoPush.desdeDatos(message.data),
-      desdePush: true,
-    );
+    final push = AvisoPush.desdeDatos(message.data);
+    final canal =
+        CanalesNotificacion.porId(message.data['canal'] as String?) ??
+        CanalesNotificacion.para(push.tipo, estado: push.estado);
+    if (canal != null) {
+      // Con la app abierta suena una vez: el conductor ya ve la solicitud.
+      NotificacionesServicio.instance.showNotification(
+        id: idNotificacionDeMensaje(message.data),
+        title: title,
+        body: body,
+        channelId: canal.id,
+        payload: payloadDeMensaje(message.data),
+        push: push,
+        desdePush: true,
+      );
+    } else {
+      NotificacionesServicio.instance.showTripNotification(
+        id: idNotificacionDeMensaje(message.data),
+        title: title,
+        body: body,
+        payload: payloadDeMensaje(message.data),
+        push: push,
+        desdePush: true,
+      );
+    }
     unawaited(_recordarAvisoMostrado(message.data));
   }
 

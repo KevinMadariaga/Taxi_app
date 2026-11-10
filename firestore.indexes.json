@@ -17,6 +17,14 @@
       ]
     },
     {
+      "collectionGroup": "solicitudes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "estado", "order": "ASCENDING" },
+        { "fieldPath": "programadaPara", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "usuarios",
       "queryScope": "COLLECTION",
       "fields": [

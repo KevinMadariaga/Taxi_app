@@ -344,6 +344,18 @@ void main() {
       expect(f.vm.waitingCanStartTrip, isTrue);
     });
 
+    test('con el PIN validado la modal no vuelve aunque el snapshot siga '
+        'en camino (taparía el aviso "Vamos al destino")', () {
+      final f = _Fixture();
+      f.vm.viaje = _viaje(SolicitudEstado.enCamino);
+
+      f.vm.abrirIngresoCodigo();
+      f.vm.cerrarIngresoCodigo(validado: true);
+
+      expect(f.vm.codigoSheetVisible, isFalse);
+      expect(f.vm.waitingModalVisible, isFalse);
+    });
+
     test('volver del PIN no reinicia el plazo de 180 s', () {
       final f = _Fixture();
       f.vm.viaje = _viaje(SolicitudEstado.enEspera);

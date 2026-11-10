@@ -81,6 +81,59 @@ function idNotificacion(clave) {
 }
 
 /**
+ * Canales Android y sonidos propios de Ride. La mitad JS de un contrato con
+ * `lib/core/constants/canales_notificacion.dart`: los dos lados deben elegir
+ * el mismo canal para el mismo evento.
+ *
+ * Un canal Android no se puede modificar una vez creado: cambiar un sonido
+ * exige un id nuevo (`_v2`) en los dos lados.
+ */
+const CANALES = {
+  solicitudes: { id: "solicitudes_conductor_v1", sonido: "nueva_solicitud", urgente: true },
+  estadoViaje: { id: "estado_viaje_v1", sonido: "estado_viaje" },
+  cancelado: { id: "viaje_cancelado_v1", sonido: "viaje_cancelado" },
+  mensajes: { id: "mensajes_v1", sonido: "mensaje" },
+  promociones: { id: "promociones_v2", sonido: "mensaje" },
+  avisos: { id: "avisos_v1", sonido: "mensaje" },
+};
+
+/** Lo que no lleva sonido de la familia: las emergencias conservan su alarma. */
+const TIPOS_SIN_FAMILIA = new Set(["emergencia"]);
+
+/** Buenas noticias del viaje, para los dos roles (`buscando`: se activó un programado). */
+const ESTADOS_DEL_VIAJE = new Set(["buscando", "asignado", "en espera", "en camino", "en ruta", "completado"]);
+const ESTADOS_CANCELADOS = new Set(["cancelado", "sin respuesta"]);
+
+/**
+ * Canal con sonido de la familia Ride para el evento; `null` solo para
+ * [TIPOS_SIN_FAMILIA], que siguen en su canal de siempre.
+ *
+ * @param {string} type
+ * @param {string} [estado]
+ */
+function canalPara(type, estado) {
+  if (TIPOS_SIN_FAMILIA.has(type)) return null;
+  switch (type) {
+    case "nueva_solicitud":
+      return CANALES.solicitudes;
+    case "conductor_cerca":
+    case "contraoferta":
+      return CANALES.estadoViaje;
+    case "trip_status_change":
+      if (ESTADOS_DEL_VIAJE.has(estado)) return CANALES.estadoViaje;
+      return ESTADOS_CANCELADOS.has(estado) ? CANALES.cancelado : CANALES.avisos;
+    case "trip_chat_message":
+    case "soporte_chat":
+    case "soporte_chat_respuesta":
+      return CANALES.mensajes;
+    case "promo":
+      return CANALES.promociones;
+    default:
+      return CANALES.avisos;
+  }
+}
+
+/**
  * Arma el mensaje FCM con la deduplicación ya aplicada.
  *
  * @param {object} opts
@@ -104,6 +157,9 @@ function idNotificacion(clave) {
  *   OJO: Android NO entrega data-only si el usuario forzó el cierre de la app.
  *   Quien lo use tiene que tener una red de seguridad del lado de la app.
  * @param {string} [opts.channelId] Canal Android (default `taxi_trip_channel`).
+ *   Si el evento tiene canal propio ([canalPara]), ese gana en Android y su
+ *   sonido va también a iOS; `channelId` queda en `data.channelId` para las
+ *   versiones viejas de la app (ver `data.canal`).
  * @returns {object} Mensaje para `send()` o `sendEachForMulticast()`.
  */
 function buildFcmMessage({
@@ -119,6 +175,8 @@ function buildFcmMessage({
 }) {
   const clave = claveNotificacion(type, entidad);
   const notifId = idNotificacion(clave);
+  const canal = canalPara(type, extraData.estado);
+  const sonido = canal && canal.sonido;
 
   const base = {
     data: {
@@ -131,6 +189,10 @@ function buildFcmMessage({
       // cuando el mensaje es data-only: sin esto caía en el canal genérico
       // del sistema, que el usuario puede tener silenciado.
       channelId,
+      // Solo lo lee la app que ya trae los canales con sonido. Una versión
+      // vieja que viera este id en `channelId` crearía el canal sin el
+      // sonido, y en ese teléfono ya no se podría corregir.
+      ...(canal ? { canal: canal.id } : {}),
       ...extraData,
     },
     apns: {
@@ -138,7 +200,9 @@ function buildFcmMessage({
         aps: {
           alert: { title, body },
           badge: 0,
-          sound: "default",
+          // Sin el archivo en el bundle (app vieja), iOS usa el de siempre.
+          sound: sonido ? `${sonido}.caf` : "default",
+          ...(canal && canal.urgente ? { "interruption-level": "time-sensitive" } : {}),
           contentAvailable: true,
           mutableContent: true,
         },
@@ -165,8 +229,8 @@ function buildFcmMessage({
   if (!soloData) {
     base.notification = { title, body };
     base.android.notification = {
-      channelId,
-      sound: "default",
+      channelId: canal ? canal.id : channelId,
+      sound: sonido || "default",
       priority: "high",
       // Reemplaza la anterior YA ENTREGADA en la bandeja.
       tag: clave,
@@ -215,6 +279,8 @@ function buildRetiroMessage({ token, tokens, clave, extraData = {} }) {
 
 module.exports = {
   MAX_CLAVE_BYTES,
+  CANALES,
+  canalPara,
   claveNotificacion,
   idNotificacion,
   buildFcmMessage,

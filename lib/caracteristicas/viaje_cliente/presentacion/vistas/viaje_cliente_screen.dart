@@ -292,6 +292,11 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen>
       if (estado == SolicitudEstado.enRuta && anterior != null) {
         _refitPendienteTramoDestino = true;
         _rutaVersionAlEntrarTramo = _vm.rutaVersion;
+        // Solo en vivo (`anterior != null`): al reabrir la app con el viaje
+        // ya en ruta no hay nada que anunciar.
+        WidgetsBinding.instance.addPostFrameCallback(
+          (_) => _avisarRumboAlDestino(),
+        );
       }
     }
     if (_refitPendienteTramoDestino &&
@@ -304,6 +309,26 @@ class _ViajeClienteScreenState extends State<ViajeClienteScreen>
         _fitCamera(force: true);
       }
     }
+  }
+
+  /// El conductor validó el código: mismo aviso que ve él, para que el
+  /// pasajero sepa que ya van hacia su destino.
+  bool _avisoRumboDestinoMostrado = false;
+
+  Future<void> _avisarRumboAlDestino() async {
+    if (!mounted || _avisoRumboDestinoMostrado) return;
+    if (ModalRoute.of(context)?.isCurrent != true) return;
+    _avisoRumboDestinoMostrado = true;
+    final destino = _vm.viaje?.destino.direccion.trim() ?? '';
+    await showIntermediateTransitionOverlay(
+      context: context,
+      delay: const Duration(milliseconds: 2200),
+      title: 'Código correcto',
+      subtitle: destino.isEmpty
+          ? 'Vamos hacia tu destino'
+          : 'Vamos hacia tu destino:\n$destino',
+      icon: Icons.route_rounded,
+    );
   }
 
   void _persistOrClearSession() {

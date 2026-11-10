@@ -548,6 +548,14 @@ class InitialScreenResolver {
       // que llegara un conductor), cancelarla automáticamente al reabrir y
       // borrarla a los 3 s (igual que una cancelación normal), para que
       // desaparezca de la lista de solicitudes de los conductores.
+      //
+      // Salvo que el cliente haya pedido que le avisen: ahí se fue a propósito
+      // y la búsqueda sigue viva. Va al inicio, donde la muestra el banner.
+      if (estado == SolicitudEstado.buscando &&
+          data['avisarAlEncontrar'] == true) {
+        await SessionHelper.clearActiveSolicitud();
+        return null;
+      }
       if (estado == SolicitudEstado.buscando) {
         final docRef = FirebaseFirestore.instance
             .collection('solicitudes')
@@ -719,6 +727,13 @@ class InitialScreenResolver {
         );
 
         if (SolicitudEstado.isTerminal(estado)) {
+          continue;
+        }
+        // Ni un viaje programado ni una búsqueda con "Avísame" son un viaje en
+        // curso que haya que restaurar: los muestra el banner del inicio.
+        if (estado == SolicitudEstado.programada ||
+            (estado == SolicitudEstado.buscando &&
+                data['avisarAlEncontrar'] == true)) {
           continue;
         }
 

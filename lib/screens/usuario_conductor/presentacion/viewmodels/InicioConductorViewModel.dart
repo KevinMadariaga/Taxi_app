@@ -253,8 +253,31 @@ class InicioConductorViewmodel extends ChangeNotifier {
   void applyLocalContraoferta(double valor) =>
       _previewController.applyLocalContraoferta(valor);
 
-  void selectPreview(PreviewSolicitud preview) =>
-      _previewController.selectPreview(preview);
+  void selectPreview(PreviewSolicitud preview) {
+    _previewController.selectPreview(preview);
+    _marcarVista(preview.id);
+  }
+
+  /// Ya sumaron su "visto" en esta sesión.
+  final Set<String> _solicitudesVistas = {};
+
+  /// "N conductores vieron tu solicitud" en la pantalla del pasajero. Mejor
+  /// esfuerzo: si falla, solo se pierde el número. Las reglas exigen sumar de
+  /// a uno (`sumaVisto`), así que un reintento no infla el conteo.
+  void _marcarVista(String solicitudId) {
+    if (solicitudId.isEmpty || !_solicitudesVistas.add(solicitudId)) return;
+    _firestore
+        .collection('solicitudes')
+        .doc(solicitudId)
+        .update({'vistasConductores': FieldValue.increment(1)})
+        .catchError((Object e, StackTrace st) {
+          ErrorReporter.report(
+            e,
+            st,
+            reason: 'InicioConductorViewModel: visto',
+          );
+        });
+  }
 
   void clearPreviewAndRoutes() => _previewController.clearPreviewAndRoutes();
 
@@ -672,11 +695,9 @@ class InicioConductorViewmodel extends ChangeNotifier {
     String uid, {
     Map<String, dynamic>? doc,
   }) {
-    final foto = _firstNonEmptyDoc(doc, const [
-      'foto',
-      'fotoUrl',
-      'photoUrl',
-    ]) ?? photoUrl;
+    final foto =
+        _firstNonEmptyDoc(doc, const ['foto', 'fotoUrl', 'photoUrl']) ??
+        photoUrl;
     final placa = _firstNonEmptyDoc(doc, const ['placa']) ?? vehiclePlate ?? '';
     final fotoVehiculo =
         _firstNonEmptyDoc(doc, const ['fotoVehiculo', 'vehiclePhotoUrl']) ??
@@ -691,8 +712,7 @@ class InicioConductorViewmodel extends ChangeNotifier {
       'colorVehiculo': _firstNonEmptyDoc(doc, const ['colorVehiculo']) ?? '',
       if (currentLocation != null) 'lat': currentLocation!.latitude,
       if (currentLocation != null) 'lng': currentLocation!.longitude,
-      if ((fotoVehiculo ?? '').trim().isNotEmpty)
-        'fotoVehiculo': fotoVehiculo,
+      if ((fotoVehiculo ?? '').trim().isNotEmpty) 'fotoVehiculo': fotoVehiculo,
       // Rating para que el cliente lo vea en la modal de ofertas.
       'calificacionPromedio': rating,
       'totalCalificaciones': totalRatings,
@@ -711,60 +731,60 @@ class InicioConductorViewmodel extends ChangeNotifier {
         .collection('solicitudes')
         .doc(solicitudId)
         .snapshots()
-        .listen((snap) async {
-          try {
-            if (_previewStatusHandled) return;
+        .listen(
+          (snap) async {
+            try {
+              if (_previewStatusHandled) return;
 
-            if (!snap.exists) {
-              _previewStatusHandled = true;
-              await onCanceladoOrRemoved();
-              return;
-            }
-
-            final data = snap.data();
-            final status = data?['estado'] ?? data?['status'];
-            if (status is! String) return;
-
-            final normalizado = SolicitudEstado.normalize(status);
-            if (normalizado == SolicitudEstado.cancelado) {
-              _previewStatusHandled = true;
-              await onCanceladoOrRemoved();
-              return;
-            }
-
-            // La solicitud ya tiene conductor: solo navegar al viaje si ESE
-            // conductor soy yo. Sin esta comprobación, todo conductor con la
-            // preview abierta era arrastrado al viaje que ganó otro — su GPS
-            // terminaba escribiéndose en un viaje ajeno (o, con las reglas
-            // desplegadas, quedaba encerrado en una pantalla de error con
-            // `PopScope(canPop: false)` y sin salida). Para él la solicitud
-            // simplemente dejó de estar disponible.
-            if (SolicitudEstado.isSesionActiva(normalizado) ||
-                SolicitudEstado.isTerminal(normalizado)) {
-              _previewStatusHandled = true;
-              final conductor = data?['conductor'];
-              final conductorId = conductor is Map
-                  ? (conductor['id'] ?? conductor['uid'])?.toString()
-                  : null;
-              final esMio =
-                  conductorId != null &&
-                  conductorId.isNotEmpty &&
-                  conductorId == _auth.currentUser?.uid;
-              if (esMio && normalizado == SolicitudEstado.asignado) {
-                await onAsignado();
-              } else {
+              if (!snap.exists) {
+                _previewStatusHandled = true;
                 await onCanceladoOrRemoved();
+                return;
               }
-              return;
+
+              final data = snap.data();
+              final status = data?['estado'] ?? data?['status'];
+              if (status is! String) return;
+
+              final normalizado = SolicitudEstado.normalize(status);
+              if (normalizado == SolicitudEstado.cancelado) {
+                _previewStatusHandled = true;
+                await onCanceladoOrRemoved();
+                return;
+              }
+
+              // La solicitud ya tiene conductor: solo navegar al viaje si ESE
+              // conductor soy yo. Sin esta comprobación, todo conductor con la
+              // preview abierta era arrastrado al viaje que ganó otro — su GPS
+              // terminaba escribiéndose en un viaje ajeno (o, con las reglas
+              // desplegadas, quedaba encerrado en una pantalla de error con
+              // `PopScope(canPop: false)` y sin salida). Para él la solicitud
+              // simplemente dejó de estar disponible.
+              if (SolicitudEstado.isSesionActiva(normalizado) ||
+                  SolicitudEstado.isTerminal(normalizado)) {
+                _previewStatusHandled = true;
+                final conductor = data?['conductor'];
+                final conductorId = conductor is Map
+                    ? (conductor['id'] ?? conductor['uid'])?.toString()
+                    : null;
+                final esMio =
+                    conductorId != null &&
+                    conductorId.isNotEmpty &&
+                    conductorId == _auth.currentUser?.uid;
+                if (esMio && normalizado == SolicitudEstado.asignado) {
+                  await onAsignado();
+                } else {
+                  await onCanceladoOrRemoved();
+                }
+                return;
+              }
+            } catch (e, st) {
+              ErrorReporter.report(e, st, reason: 'InicioConductorViewModel');
             }
-          } catch (e, st) {
-            ErrorReporter.report(e, st, reason: 'InicioConductorViewModel');
-          }
-        }, onError: (Object e, StackTrace st) => handlePreviewStatusError(
-              e,
-              st,
-              onCanceladoOrRemoved,
-            ));
+          },
+          onError: (Object e, StackTrace st) =>
+              handlePreviewStatusError(e, st, onCanceladoOrRemoved),
+        );
   }
 
   /// Cuando la solicitud sale de "buscando" (otro conductor la tomó, el

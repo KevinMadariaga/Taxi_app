@@ -49,7 +49,21 @@ class CrearSolicitudUseCase {
     // transitorio permitía acumular solicitudes simultáneas del mismo cliente.
     final String? activa;
     try {
-      activa = await _solicitudRepository.buscarActivaDeCliente(cliente.id);
+      final programadaPara = borrador.programadaPara;
+      if (programadaPara != null) {
+        // Programar no choca con un viaje en curso, pero uno a la vez.
+        final ya = await _solicitudRepository.buscarProgramadaDeCliente(
+          cliente.id,
+        );
+        if (ya != null) {
+          return const CrearSolicitudFallo(
+            'Ya tienes un viaje programado. Cancélalo para programar otro.',
+          );
+        }
+        activa = null;
+      } else {
+        activa = await _solicitudRepository.buscarActivaDeCliente(cliente.id);
+      }
     } catch (e, st) {
       ErrorReporter.report(e, st, reason: 'crear_solicitud_usecase');
       return const CrearSolicitudFallo(
@@ -74,6 +88,7 @@ class CrearSolicitudUseCase {
           : borrador.metodoPago.trim(),
       comentario: borrador.comentario.trim(),
       valorServicio: _parseValor(borrador.valorServicio),
+      programadaPara: borrador.programadaPara,
     );
     return SolicitudCreada(id);
   }

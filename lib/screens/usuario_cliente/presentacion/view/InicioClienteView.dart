@@ -31,6 +31,7 @@ import 'package:taxi_app/widgets/campana_notificaciones.dart';
 import 'package:taxi_app/caracteristicas/anuncios/presentacion/widgets/carrusel_anuncios.dart';
 import 'package:taxi_app/caracteristicas/anuncios/dominio/entidades/promocion.dart';
 import 'package:taxi_app/caracteristicas/anuncios/presentacion/widgets/oyente_promociones.dart';
+import 'package:taxi_app/caracteristicas/viaje_pendiente/presentacion/banner_viaje_pendiente.dart';
 import 'package:taxi_app/widgets/confirmar_dialog.dart';
 import 'package:taxi_app/features/resumen_viaje/services/resumen_viaje_firestore_service.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/ResumenClienteView.dart';
@@ -813,6 +814,8 @@ class _InicioClienteViewState extends State<InicioClienteView>
                                     onTap: _navigateToDestinoSeleccion,
                                   ),
                                 ),
+                                // Viaje programado o búsqueda con "Avísame".
+                                const BannerViajePendiente(),
                                 SizedBox(height: 16.h),
                                 KeyedSubtree(
                                   key: _tourFavoritos,
@@ -836,31 +839,51 @@ class _InicioClienteViewState extends State<InicioClienteView>
                           Expanded(
                             child: Padding(
                               padding: EdgeInsets.fromLTRB(hPad, 16, hPad, 12),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  SizedBox(
-                                    height: carouselHeight,
-                                    child: KeyedSubtree(
-                                      key: _tourPublicidad,
-                                      child: CarruselAnuncios(
-                                        tarjetaFinal: _TarjetaPromociona(
-                                          onTap: _mostrarPromoWhatsApp,
+                              child: LayoutBuilder(
+                                builder: (context, c) {
+                                  // El banner de viaje pendiente le quita alto
+                                  // a este bloque: en un teléfono bajo el
+                                  // carrusel cede espacio al mapa, y si ya no
+                                  // cabe con un tamaño útil no se muestra.
+                                  const altoMinimoMapa = 110.0;
+                                  const altoMinimoCarrusel = 100.0;
+                                  final separacion = 18.h;
+                                  final altoCarrusel =
+                                      (c.maxHeight -
+                                              separacion -
+                                              altoMinimoMapa)
+                                          .clamp(0.0, carouselHeight);
+                                  return Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      if (altoCarrusel >=
+                                          altoMinimoCarrusel) ...[
+                                        SizedBox(
+                                          height: altoCarrusel,
+                                          child: KeyedSubtree(
+                                            key: _tourPublicidad,
+                                            child: CarruselAnuncios(
+                                              tarjetaFinal: _TarjetaPromociona(
+                                                onTap: _mostrarPromoWhatsApp,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        SizedBox(height: separacion),
+                                      ],
+                                      Expanded(
+                                        child: KeyedSubtree(
+                                          key: _tourMapa,
+                                          child: _HomeClienteMap(
+                                            currentLocationNotifier:
+                                                vm.currentLocationNotifier,
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                  ),
-                                  SizedBox(height: 18.h),
-                                  Expanded(
-                                    child: KeyedSubtree(
-                                      key: _tourMapa,
-                                      child: _HomeClienteMap(
-                                        currentLocationNotifier:
-                                            vm.currentLocationNotifier,
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                                    ],
+                                  );
+                                },
                               ),
                             ),
                           ),

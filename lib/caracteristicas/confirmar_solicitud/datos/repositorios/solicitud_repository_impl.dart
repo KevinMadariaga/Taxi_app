@@ -49,6 +49,17 @@ class SolicitudRepositoryImpl implements SolicitudRepository {
   }
 
   @override
+  Future<String?> buscarProgramadaDeCliente(String clienteId) async {
+    final existing = await _firestore
+        .collection('solicitudes')
+        .where('cliente.id', isEqualTo: clienteId)
+        .where('estado', isEqualTo: SolicitudEstado.programada)
+        .limit(1)
+        .get();
+    return existing.docs.isEmpty ? null : existing.docs.first.id;
+  }
+
+  @override
   Future<String> crear({
     required ClienteActual cliente,
     required LocationModel origen,
@@ -59,6 +70,7 @@ class SolicitudRepositoryImpl implements SolicitudRepository {
     required String metodoPago,
     required String comentario,
     required double valorServicio,
+    DateTime? programadaPara,
   }) async {
     final origenPos = origen.position;
     final destinoPos = destino.position;
@@ -86,7 +98,14 @@ class SolicitudRepositoryImpl implements SolicitudRepository {
         'lat': destinoPos.latitude,
         'lng': destinoPos.longitude,
       },
-      'estado': SolicitudEstado.buscando,
+      'estado': programadaPara == null
+          ? SolicitudEstado.buscando
+          : SolicitudEstado.programada,
+      if (programadaPara != null) ...{
+        'programadaPara': Timestamp.fromDate(programadaPara),
+        // Cuando salga a buscar, el pasajero no va a estar mirando la pantalla.
+        'avisarAlEncontrar': true,
+      },
       'tipoVehiculo': tipoVehiculo.firestoreKey,
       'metodoPago': metodoPago,
       'comentario': comentario,

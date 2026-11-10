@@ -197,6 +197,42 @@ puede saltarse pasos (p. ej. no se pasa a `completado` sin haber estado `en_ruta
 
 ---
 
+## 8b. Sonidos de notificación
+
+| Canal Android | Sonido (familia Ride: marimba, motivo sol–si–re, ≈1 s) | Eventos | Quién |
+|---|---|---|---|
+| `solicitudes_conductor_v1` | `nueva_solicitud` (motivo + remate arriba; en bucle en Android) | `nueva_solicitud` | Conductor |
+| `estado_viaje_v1` | `estado_viaje` (motivo subiendo) | `trip_status_change` buscando (programado activado) / asignado / en espera / en camino / en ruta / completado, `conductor_cerca`, `contraoferta` | Ambos |
+| `viaje_cancelado_v1` | `viaje_cancelado` (motivo bajando) | `trip_status_change` cancelado / sin respuesta | Ambos |
+| `mensajes_v1` | `mensaje` (dos notas, suave) | `trip_chat_message`, `soporte_chat`, `soporte_chat_respuesta` | Ambos |
+| `promociones_v2` | `mensaje` | `promo` | Ambos |
+| `avisos_v1` | `mensaje` | todo lo demás (membresía, método de pago, admin, avisos locales) | Ambos |
+| `taxi_emergencia_channel` | del sistema, a propósito | `emergencia` | Admin |
+
+Canales retirados (se borran al iniciar): `promociones_v1`. Los `taxi_*` viejos
+quedan creados pero sin uso, salvo emergencias y progreso del viaje (silencioso).
+
+- La regla evento → canal vive en dos lados que deben coincidir:
+  `lib/core/constants/canales_notificacion.dart` y `canalPara` en
+  `functions/notificaciones.js`. Lo fijan `test/canales_notificacion_test.dart`
+  y `functions/notificaciones.test.js`.
+- **Un canal Android no se modifica una vez creado**: para cambiar sonido o
+  importancia, crear un id nuevo (`_v2`) en los dos lados y borrar el viejo.
+- El backend manda el canal nuevo en `data.canal` y deja `data.channelId` con
+  el de siempre: una app vieja que viera el id nuevo crearía el canal sin el
+  sonido y en ese teléfono ya no se podría corregir.
+- Audios: se generan con `tool/generar_sonidos.py` en `assets/sonidos/` (ver su `LEEME.md`);
+  Android `android/app/src/main/res/raw/*.mp3` (listados en `keep.xml`, el
+  release usa `shrinkResources`); iOS `ios/Runner/Sonidos/*.caf` (PCM 16 bits,
+  < 30 s, en Copy Bundle Resources). Nombres en minúsculas, sin espacios ni
+  guiones.
+- En segundo plano la solicitud suena en bucle (`FLAG_INSISTENT`) hasta que el
+  conductor la toca o la descarta, la solicitud deja de estar disponible
+  (push de retirada) o pasan 90 s. Con la app abierta suena una vez. iOS no
+  permite bucle: suena una vez.
+
+---
+
 ## 9. Reglas duras — NUNCA hagas esto
 
 - ❌ **Nunca** hagas commit de claves, secretos ni credenciales.

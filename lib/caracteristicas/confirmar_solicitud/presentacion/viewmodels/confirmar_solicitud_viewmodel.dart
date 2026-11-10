@@ -301,7 +301,11 @@ class ConfirmarSolicitudViewModel extends ChangeNotifier {
 
   /// Crea la solicitud. El resultado distingue entre creada, ya existía una
   /// activa, y fallo — la vista necesita tratarlos distinto.
-  Future<CrearSolicitudResultado> crearSolicitud() async {
+  ///
+  /// Con [programadaPara] la deja programada en vez de salir a buscar ahora.
+  Future<CrearSolicitudResultado> crearSolicitud({
+    DateTime? programadaPara,
+  }) async {
     if (isSubmitting) {
       return const CrearSolicitudFallo('Ya se está enviando la solicitud.');
     }
@@ -316,6 +320,7 @@ class ConfirmarSolicitudViewModel extends ChangeNotifier {
         metodoPago: metodoPago,
         comentario: comentario,
         valorServicio: _valorServicio,
+        programadaPara: programadaPara,
       );
       return await _crearSolicitudUseCase(borrador);
     } catch (e, st) {

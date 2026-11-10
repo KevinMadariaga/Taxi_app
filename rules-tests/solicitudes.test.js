@@ -613,3 +613,64 @@ describe('solicitudes — pausa por cancelaciones del conductor', () => {
     await assertFails(como(env, ADMIN).doc(`sanciones_conductores/${CONDUCTOR}`).delete());
   });
 });
+
+describe('búsqueda: visto por conductores y viajes programados', () => {
+  const base = {
+    cliente: { id: CLIENTE },
+    estado: 'buscando',
+    tipoVehiculo: 'carro',
+  };
+
+  test('un conductor suma 1 a las vistas de una solicitud abierta', async () => {
+    await sembrar(env, 'solicitudes/v1', base);
+    await assertSucceeds(
+      como(env, CONDUCTOR).doc('solicitudes/v1').update({ vistasConductores: 1 }),
+    );
+  });
+
+  test('no puede saltarse el conteo ni colar otro campo', async () => {
+    await sembrar(env, 'solicitudes/v2', { ...base, vistasConductores: 2 });
+    const db = como(env, CONDUCTOR);
+    await assertFails(db.doc('solicitudes/v2').update({ vistasConductores: 50 }));
+    await assertFails(
+      db.doc('solicitudes/v2').update({ vistasConductores: 3, tipoVehiculo: 'moto' }),
+    );
+  });
+
+  test('el cliente programa un viaje a futuro, no en el pasado', async () => {
+    const db = como(env, CLIENTE);
+    const nuevo = (fecha) => ({
+      cliente: { id: CLIENTE },
+      estado: 'programada',
+      programadaPara: fecha,
+    });
+    await assertSucceeds(
+      db.doc('solicitudes/p1').set(nuevo(new Date(Date.now() + 3600000))),
+    );
+    await assertFails(
+      db.doc('solicitudes/p2').set(nuevo(new Date(Date.now() - 3600000))),
+    );
+  });
+
+  test('un conductor no ve un viaje programado', async () => {
+    await sembrar(env, 'solicitudes/p3', { ...base, estado: 'programada' });
+    await assertFails(como(env, CONDUCTOR).doc('solicitudes/p3').get());
+    await assertSucceeds(como(env, CLIENTE).doc('solicitudes/p3').get());
+  });
+
+  test('el cliente pide que le avisen y cancela su programado', async () => {
+    await sembrar(env, 'solicitudes/a1', base);
+    await assertSucceeds(
+      como(env, CLIENTE).doc('solicitudes/a1').update({ avisarAlEncontrar: true }),
+    );
+    await sembrar(env, 'solicitudes/p4', { ...base, estado: 'programada' });
+    await assertSucceeds(
+      como(env, CLIENTE).doc('solicitudes/p4').update({
+        estado: 'cancelado',
+        cancelledAt: new Date(),
+        cancelledBy: 'cliente',
+      }),
+    );
+  });
+});
+

@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart' hide DeviceType;
 import 'package:provider/provider.dart';
 
+import 'package:taxi_app/caracteristicas/disponibilidad_conductores/presentacion/aviso_disponibilidad_en_vivo.dart';
 import 'package:taxi_app/caracteristicas/seleccion_destino/presentacion/vistas/editar_ubicacion_screen.dart';
+import 'package:taxi_app/core/modelos/vehicle_type.dart';
 import 'package:taxi_app/caracteristicas/seleccion_destino/presentacion/vistas/seleccion_destino_screen.dart';
 import 'package:taxi_app/caracteristicas/seleccion_destino/presentacion/vistas/seleccionar_ubicacion_mapa_view.dart';
-import 'package:taxi_app/core/helpers/responsive_helper.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/utils/transicion_pagina.dart';
 import 'package:taxi_app/widgets/ajustes_ui.dart';
@@ -175,7 +175,7 @@ class _ConfirmarSolicitudViewState extends State<ConfirmarSolicitudView>
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                SizedBox(height: 8.h),
+                const SizedBox(height: 8),
                 const Expanded(child: _MapaSection()),
                 // El panel toma el alto de su contenido y el mapa el resto:
                 // con un porcentaje fijo de pantalla la información no
@@ -203,18 +203,21 @@ class _ConfirmarSolicitudViewState extends State<ConfirmarSolicitudView>
 class _MapaSection extends StatelessWidget {
   const _MapaSection();
 
+  /// Llena todo el alto que deja el panel: centrado con su alto propio
+  /// dejaba una franja vacía arriba y otra abajo.
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: EdgeInsets.symmetric(
-          horizontal: MediaQuery.of(context).size.width * 0.04,
-        ),
-        child: const SizedBox(width: double.infinity, child: MapaRutaCard()),
+    return Padding(
+      padding: EdgeInsets.symmetric(
+        horizontal: (MediaQuery.sizeOf(context).width * 0.04).clamp(12.0, 24.0),
       ),
+      child: const SizedBox.expand(child: MapaRutaCard()),
     );
   }
 }
+
+/// Ancho a partir del cual el panel deja de crecer (tablet, horizontal).
+const double _anchoMaximoPanel = 640;
 
 class _BottomContent extends StatelessWidget {
   const _BottomContent({
@@ -246,41 +249,79 @@ class _BottomContent extends StatelessWidget {
       ),
       child: SafeArea(
         top: false,
-        child: SingleChildScrollView(
-          padding: EdgeInsets.fromLTRB(
-            ResponsiveHelper.wp(context, 4),
-            12,
-            ResponsiveHelper.wp(context, 4),
-            ResponsiveHelper.hp(context, 1.2),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 12),
-                  decoration: BoxDecoration(
-                    color: palette.grey300,
-                    borderRadius: BorderRadius.circular(99),
-                  ),
-                ),
-              ),
-              RutaParadasCard(
-                origen: vm.resolviendoDireccionOrigen
-                    ? 'Buscando tu ubicación…'
-                    : (vm.direccionOrigen ?? vm.origen.title ?? 'Ubicación'),
-                destino: vm.destino.title ?? vm.destino.subtitle ?? 'Destino',
-                onEditarOrigen: onAjustarOrigen,
-                onEditarDestino: onAjustarDestino,
-              ),
-              const SizedBox(height: 10),
-              const OpcionesViajeRow(),
-              const SizedBox(height: 12),
-              ConfirmarSolicitudSubmitBar(onSolicitudCreada: onSolicitudCreada),
-            ],
+        // En tablet el panel no se estira de borde a borde: los botones y
+        // las tarjetas a 1000 px de ancho se leen mal.
+        // `heightFactor: 1`: centra a lo ancho pero mide lo que su contenido.
+        // Sin él, `Center` tomaba todo el alto permitido (65%) y dejaba un
+        // hueco entre el mapa y la tarjeta de recogida.
+        child: Center(
+          heightFactor: 1,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: _anchoMaximoPanel),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final margen = (constraints.maxWidth * 0.04).clamp(12.0, 24.0);
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        margin: const EdgeInsets.symmetric(vertical: 8),
+                        decoration: BoxDecoration(
+                          color: palette.grey300,
+                          borderRadius: BorderRadius.circular(99),
+                        ),
+                      ),
+                    ),
+                    // Lo informativo se desplaza; la acción no: "Buscar
+                    // conductor" queda siempre a la vista, abajo.
+                    Flexible(
+                      child: SingleChildScrollView(
+                        padding: EdgeInsets.symmetric(horizontal: margen),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            RutaParadasCard(
+                              origen: vm.resolviendoDireccionOrigen
+                                  ? 'Buscando tu ubicación…'
+                                  : (vm.direccionOrigen ??
+                                        vm.origen.title ??
+                                        'Ubicación'),
+                              destino:
+                                  vm.destino.title ??
+                                  vm.destino.subtitle ??
+                                  'Destino',
+                              onEditarOrigen: onAjustarOrigen,
+                              onEditarDestino: onAjustarDestino,
+                            ),
+                            const SizedBox(height: 8),
+                            const OpcionesViajeRow(),
+                            AvisoDisponibilidadEnVivo(
+                              lat: vm.origen.position.latitude,
+                              lng: vm.origen.position.longitude,
+                              esMoto: vm.tipoVehiculo == VehicleType.moto,
+                              onCambiarVehiculo: (moto) => vm.setTipoVehiculo(
+                                moto ? VehicleType.moto : VehicleType.carro,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(margen, 10, margen, 8),
+                      child: ConfirmarSolicitudSubmitBar(
+                        onSolicitudCreada: onSolicitudCreada,
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
           ),
         ),
       ),

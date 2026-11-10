@@ -173,8 +173,12 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
   // 2 s tras destrucción del motor → cancelar solicitud.
   static const Duration _umbralDetachedCancel = Duration(seconds: 2);
 
-  /// Cada cuánto se le propone al cliente cambiar el valor de la oferta: a
-  /// los 5 min de búsqueda, y otra vez 5 min después de cada respuesta suya.
+  /// A los 3 min se le pregunta al cliente qué hacer: cambiar la oferta, seguir
+  /// buscando o que le avisen. La búsqueda no queda abierta sin fin esperando
+  /// que él decida cancelar.
+  static const int segundosPrimeraPropuesta = 180;
+
+  /// Después de cada respuesta suya, la pregunta vuelve a los 5 min.
   static const int segundosProponerOferta = 300;
 
   /// Cuánto se espera una respuesta a esa propuesta antes de cancelar la
@@ -187,6 +191,24 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
   /// Hito del contador pendiente de atender por la vista, o `null`. La vista
   /// lo consume con [consumirEvento] apenas lo lee.
   EventoBusqueda? get eventoPendiente => _eventoPendiente;
+
+  /// Personas a las que el servidor avisó de esta solicitud; `null` hasta que
+  /// termina de repartirla.
+  int? get conductoresNotificados => _conductoresNotificados;
+  int? _conductoresNotificados;
+
+  /// Conductores que abrieron la solicitud.
+  int get vistasConductores => _vistasConductores;
+  int _vistasConductores = 0;
+
+  /// El cliente pidió que le avisen: no se cancela porque él no esté mirando.
+  bool get avisarAlEncontrar => _avisarAlEncontrar;
+  bool _avisarAlEncontrar = false;
+
+  /// Llegó el primer snapshot de conectados. Antes de esto "ninguno" significa
+  /// "todavía no sé", no "no hay".
+  bool get conectadosCargados => _conectadosCargados;
+  bool _conectadosCargados = false;
 
   bool get isCancelling => _isCancelling;
   bool get isUpdatingValor => _isUpdatingValor;
@@ -313,6 +335,11 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
     valor ??= _toDouble(data['valor']);
     _valorServicioActual = valor ?? 0;
     _tipoVehiculo = data['tipoVehiculo']?.toString();
+    final notificados = data['conductoresNotificados'];
+    _conductoresNotificados = notificados is num ? notificados.toInt() : null;
+    final vistas = data['vistasConductores'];
+    _vistasConductores = vistas is num ? vistas.toInt() : 0;
+    _avisarAlEncontrar = data['avisarAlEncontrar'] == true;
 
     final destino = data['destino'];
     if (destino is Map) {
@@ -1043,6 +1070,7 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
     _conductoresConectadosSub = streamConductoresConectados().listen(
       (positions) {
         conectados = Map<String, ConductorConectado>.from(positions);
+        _conectadosCargados = true;
         _safeNotify();
       },
       onError: (Object e, StackTrace st) {
@@ -1056,7 +1084,7 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
   void startSearchTimer() {
     _searchTimer?.cancel();
     searchSeconds = 0;
-    _segundosProximoModal = segundosProponerOferta;
+    _segundosProximoModal = segundosPrimeraPropuesta;
     _esperandoRespuestaDesde = null;
     _eventoPendiente = null;
     _searchTimer = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -1074,7 +1102,9 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
     // timer sigue vivo hasta `finalizarTrackingConductores()`, que corre
     // después de un `await`. Sin esto, en esa ventana se alcanza a mandar la
     // notificación y a levantar un evento sobre una solicitud ya cerrada.
-    if (flujoTerminado) return;
+    //
+    // Con "Avísame" tampoco: el cliente ya contestó y el plazo es del servidor.
+    if (flujoTerminado || _avisarAlEncontrar) return;
 
     final esperando = _esperandoRespuestaDesde;
     if (esperando != null) {
@@ -1156,7 +1186,8 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
   // ── Ciclo de vida de la app ───────────────────────────────────────────────
 
   void handleAppLifecycleState(AppLifecycleState state) {
-    if (flujoTerminado) return;
+    // Con "Avísame" salir de la app es justamente lo que el cliente quería.
+    if (flujoTerminado || _avisarAlEncontrar) return;
 
     if (state == AppLifecycleState.detached) {
       // Motor Flutter destruido (app cerrada por completo).
@@ -1180,6 +1211,33 @@ class BuscandoTaxiViewModel extends ChangeNotifier {
       _bgCancelTimer?.cancel();
       _detachedCancelTimer?.cancel();
     }
+  }
+
+  /// "Avísame cuando haya un conductor": la búsqueda sigue sin que el cliente
+  /// esté en esta pantalla. `false` si no se pudo guardar.
+  ///
+  /// Saca la solicitud de la sesión activa para que el cierre de la app no la
+  /// cancele (`TaskRemovedWatcherService` lee esa clave), y el servidor la deja
+  /// seguir hasta 30 min (`motivoDeVencimiento`).
+  Future<bool> activarAviso() async {
+    final solicitudId = _solicitudId;
+    if (solicitudId == null || solicitudId.isEmpty) return false;
+    try {
+      await _firestore.collection('solicitudes').doc(solicitudId).update({
+        'avisarAlEncontrar': true,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e, st) {
+      ErrorReporter.report(e, st, reason: 'buscando_taxi_viewmodel: aviso');
+      return false;
+    }
+    _avisarAlEncontrar = true;
+    _bgCancelTimer?.cancel();
+    _detachedCancelTimer?.cancel();
+    _esperandoRespuestaDesde = null;
+    SessionHelper.clearActiveSolicitud().ignore();
+    SessionHelper.clearActiveSolicitudScreen().ignore();
+    return true;
   }
 
   /// Marca el flujo como terminado (navegación a viaje asignado, o

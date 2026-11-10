@@ -137,13 +137,14 @@ void main() {
   });
 
   // Lo que mantiene viva la búsqueda es que el cliente CONTESTE, no el reloj:
-  // cada 5 min se le propone cambiar la oferta, y si deja una propuesta sin
+  // a los 3 min se le propone cambiar la oferta (después, cada 5), y si deja una propuesta sin
   // responder 5 min, la solicitud se cancela sola.
   group('hitos del contador', () {
-    const proponer = BuscandoTaxiViewModel.segundosProponerOferta;
+    const proponer = BuscandoTaxiViewModel.segundosPrimeraPropuesta;
+    const siguiente = BuscandoTaxiViewModel.segundosProponerOferta;
     const sinRespuesta = BuscandoTaxiViewModel.segundosSinRespuestaParaCancelar;
 
-    test('no propone nada antes de los 5 minutos', () {
+    test('no propone nada antes de los 3 minutos', () {
       fakeAsync((async) {
         vm.startSearchTimer();
         async.elapse(Duration(seconds: proponer - 1));
@@ -153,7 +154,7 @@ void main() {
       });
     });
 
-    test('propone cambiar la oferta a los 5 minutos', () {
+    test('propone cambiar la oferta a los 3 minutos', () {
       fakeAsync((async) {
         vm.startSearchTimer();
         async.elapse(Duration(seconds: proponer));
@@ -244,7 +245,7 @@ void main() {
         vm.registrarRespuestaOferta();
 
         // La cuenta de silencio quedó apagada: pasa el plazo y no cancela.
-        async.elapse(Duration(seconds: proponer - 1));
+        async.elapse(Duration(seconds: siguiente - 1));
         expect(vm.eventoPendiente, isNull);
 
         async.elapse(const Duration(seconds: 1));
@@ -257,14 +258,14 @@ void main() {
       fakeAsync((async) {
         vm.startSearchTimer();
         for (var ronda = 0; ronda < 4; ronda++) {
-          async.elapse(Duration(seconds: proponer));
+          async.elapse(Duration(seconds: ronda == 0 ? proponer : siguiente));
           expect(vm.eventoPendiente, EventoBusqueda.proponerCambioOferta);
           vm.consumirEvento();
           vm.registrarPropuestaMostrada();
           vm.registrarRespuestaOferta();
         }
         expect(vm.eventoPendiente, isNull);
-        expect(vm.searchSeconds, proponer * 4);
+        expect(vm.searchSeconds, proponer + siguiente * 3);
       });
     });
 
@@ -560,6 +561,40 @@ void main() {
       SolicitudEstado.sinRespuesta,
       SolicitudEstado.completado,
     ]) {
+      test(
+        '"Avísame" lo guarda y salir de la app ya no cancela la búsqueda',
+        () async {
+          await firestore.collection('solicitudes').doc(solicitudId).set({
+            'estado': 'buscando',
+            'cliente': {'id': 'c1'},
+          });
+          terminalVm.iniciarEscucha(
+            solicitudId: solicitudId,
+            onAsignada: (id) async {},
+            onTerminada: (estado) async {},
+          );
+          await Future<void>.delayed(Duration.zero);
+
+          expect(await terminalVm.activarAviso(), isTrue);
+
+          final doc = await firestore
+              .collection('solicitudes')
+              .doc(solicitudId)
+              .get();
+          expect(doc.data()?['avisarAlEncontrar'], isTrue);
+          expect(terminalVm.avisarAlEncontrar, isTrue);
+
+          terminalVm.handleAppLifecycleState(AppLifecycleState.detached);
+          await Future<void>.delayed(const Duration(seconds: 3));
+          expect(terminalVm.marcarCanceladaCount, 0);
+          expect(
+            (await firestore.collection('solicitudes').doc(solicitudId).get())
+                .data()?['estado'],
+            'buscando',
+          );
+        },
+      );
+
       test('estado "$estado" notifica onTerminada y no onAsignada', () async {
         final asignadas = <String>[];
         final terminales = escuchar(asignadas: asignadas);

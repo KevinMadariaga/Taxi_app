@@ -84,8 +84,15 @@ class BandejaNotificaciones {
 
   int get noLeidos => avisos.value.where((a) => !a.leido).length;
 
-  /// Tipos que no son avisos para el usuario.
-  static const Set<String> _ignorados = {'retirar_notificacion'};
+  /// Lo único que llega a la campana: lo que el usuario querría revisar
+  /// después. Solicitudes, estados del viaje, chat del viaje y demás ya se
+  /// atendieron en su pantalla y solo llenaban la lista.
+  static const Set<String> tiposVisibles = {
+    'soporte_chat_respuesta', // soporte le respondió (quejas, reportes)
+    'soporte_chat', // admin: mensaje nuevo de un usuario a soporte
+    'reporte', // admin: reporte o queja nueva
+    'promo',
+  };
 
   /// Guarda un push desde cualquier isolate. Repetir el mismo [id] (p. ej. el
   /// mismo mensaje visto al llegar y al tocarlo) no lo duplica.
@@ -97,7 +104,7 @@ class BandejaNotificaciones {
     String entidad = '',
     DateTime? fecha,
   }) async {
-    if (_ignorados.contains(tipo)) return;
+    if (!tiposVisibles.contains(tipo)) return;
     if (titulo.trim().isEmpty && cuerpo.trim().isEmpty) return;
     final prefs = await SharedPreferences.getInstance();
     await prefs.reload();
@@ -143,9 +150,11 @@ class BandejaNotificaciones {
     try {
       final crudo = jsonDecode(prefs.getString(_clave) ?? '[]');
       if (crudo is! List) return [];
+      // Filtra también al leer: lo guardado antes de este filtro se va solo.
       return crudo
           .map(AvisoBandeja.fromJson)
           .whereType<AvisoBandeja>()
+          .where((a) => tiposVisibles.contains(a.tipo))
           .toList();
     } catch (_) {
       return [];

@@ -11,7 +11,11 @@ abstract class SolicitudRepository {
   /// tiene ninguna en curso.
   Future<String?> buscarActivaDeCliente(String clienteId);
 
-  /// Crea la solicitud y devuelve su id.
+  /// Id del viaje programado pendiente del cliente, o `null`.
+  Future<String?> buscarProgramadaDeCliente(String clienteId);
+
+  /// Crea la solicitud y devuelve su id. Con [programadaPara] queda programada
+  /// en vez de salir a buscar conductor.
   Future<String> crear({
     required ClienteActual cliente,
     required LocationModel origen,
@@ -22,5 +26,6 @@ abstract class SolicitudRepository {
     required String metodoPago,
     required String comentario,
     required double valorServicio,
+    DateTime? programadaPara,
   });
 }

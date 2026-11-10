@@ -209,7 +209,8 @@ service cloud.firestore {
       // Nada de tarifa, destino, origen ni datos del cliente.
       function escrituraDeConductorAjeno() {
         let cambios = request.resource.data.diff(resource.data).affectedKeys();
-        return aceptaParaSiMismo(cambios) || ofertaSuContraoferta(cambios);
+        return aceptaParaSiMismo(cambios) || ofertaSuContraoferta(cambios) ||
+          sumaVisto(cambios);
       }
 
       function aceptaParaSiMismo(cambios) {
@@ -217,6 +218,16 @@ service cloud.firestore {
             'contraoferta', 'fecha de aceptacion conductor', 'updatedAt']) &&
           request.resource.data.estado == 'asignado' &&
           request.resource.data.conductor.id == request.auth.uid;
+      }
+
+      // "N conductores vieron tu solicitud": el conductor que abre la tarjeta
+      // suma exactamente 1 a este contador y no toca nada más. Es un número y
+      // no una lista de uids porque cualquier conductor puede leer una
+      // solicitud abierta.
+      function sumaVisto(cambios) {
+        return cambios.hasOnly(['vistasConductores']) &&
+          request.resource.data.vistasConductores ==
+            resource.data.get('vistasConductores', 0) + 1;
       }
 
       function ofertaSuContraoferta(cambios) {
@@ -233,9 +244,15 @@ service cloud.firestore {
       allow read: if isOwner() || isAssignedConductor() ||
         (isConductorRole() && isOpenForConductores());
 
+      // 'programada': "Pedir para más tarde". No es visible para los conductores
+      // (`isOpenForConductores`) hasta que `cancelarSolicitudesBuscandoInactivas`
+      // la pasa a 'buscando' un rato antes de la hora.
       allow create: if isSignedIn() &&
         request.resource.data.cliente.id == request.auth.uid &&
-        request.resource.data.estado == 'buscando';
+        (request.resource.data.estado == 'buscando' ||
+          (request.resource.data.estado == 'programada' &&
+            request.resource.data.programadaPara is timestamp &&
+            request.resource.data.programadaPara > request.time));
 
       // La propiedad del viaje (`cliente.id`) es inmutable en cualquier
       // update, esté o no terminal.

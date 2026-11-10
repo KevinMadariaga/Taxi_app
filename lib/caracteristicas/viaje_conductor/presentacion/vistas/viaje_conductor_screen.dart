@@ -343,16 +343,20 @@ class _ViajeConductorScreenState extends State<ViajeConductorScreen>
     } finally {
       // Si el conductor descartó el sheet sin validar, el VM devuelve la modal
       // de espera: sin eso quedaba sin ningún camino para reintentar.
-      _vm.cerrarIngresoCodigo();
+      _vm.cerrarIngresoCodigo(validado: validado == true);
     }
     // Solo con PIN correcto: cubre el frame en que el VM recalcula la ruta
     // hacia el destino (`_handleEstadoTransition`) y hace visible el cambio
     // de tramo, en vez de que la card se reconstruya en seco.
     if (validado == true && mounted) {
+      final destino = _vm.destinoDireccion.trim();
       await showIntermediateTransitionOverlay(
         context: context,
-        title: 'Ruta iniciada',
-        subtitle: 'Llevando al pasajero a su destino...',
+        delay: const Duration(milliseconds: 2200),
+        title: 'Código correcto',
+        subtitle: destino.isEmpty
+            ? 'Vamos hacia el destino del cliente'
+            : 'Vamos hacia el destino del cliente:\n$destino',
         icon: Icons.route_rounded,
       );
     }

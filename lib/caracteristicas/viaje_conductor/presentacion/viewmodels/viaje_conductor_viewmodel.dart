@@ -845,6 +845,11 @@ class ViajeConductorViewModel extends ChangeNotifier {
             title: '⚠️ Sin respuesta del cliente',
             body:
                 'El cliente no contestó la validación, se cancelará el servicio.',
+            push: AvisoPush(
+              'trip_status_change',
+              viajeId,
+              estado: SolicitudEstado.sinRespuesta,
+            ),
           ),
         );
       }
@@ -1047,11 +1052,19 @@ class ViajeConductorViewModel extends ChangeNotifier {
   /// El sheet del PIN se cerró. Si el código no llegó a validarse y el viaje
   /// sigue esperando al cliente, la modal de espera vuelve — sin ella el
   /// conductor se quedaba sin ningún camino para reintentar.
-  void cerrarIngresoCodigo() {
+  ///
+  /// Con [validado] no se reabre nada: el viaje ya pasó a `en ruta` aunque el
+  /// snapshot todavía diga `en camino`, y reabrir la modal tapaba el aviso
+  /// "Vamos al destino".
+  void cerrarIngresoCodigo({bool validado = false}) {
     if (!codigoSheetVisible) return;
     codigoSheetVisible = false;
 
     final estado = viaje?.estado;
+    if (validado) {
+      _safeNotify();
+      return;
+    }
     if (estado == SolicitudEstado.enEspera ||
         estado == SolicitudEstado.enCamino) {
       _openWaitingModal(reiniciarCuenta: false);

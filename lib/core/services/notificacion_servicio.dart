@@ -1,5 +1,8 @@
+import 'dart:typed_data';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:taxi_app/core/constants/canales_notificacion.dart';
 import 'package:taxi_app/core/services/registro_avisos.dart';
 import 'package:taxi_app/core/utils/notificacion_clave.dart';
 
@@ -28,6 +31,7 @@ class NotificacionesServicio {
   static const int tripNotificationId = 2;
   static const int systemNotificationId = 3;
   static const int progresoViajeNotificationId = 4;
+  static const int sonidoEstadoViajeNotificationId = 5;
 
   // Canales de notificación
   static const String _chatChannelId = 'taxi_chat_channel';
@@ -50,6 +54,9 @@ class NotificacionesServicio {
 
   static const String _emergenciaChannelId = 'taxi_emergencia_channel';
   static const String _emergenciaChannelName = 'Emergencias';
+
+  /// Lo más que suena en bucle una solicitud sin respuesta.
+  static const Duration _topeInsistente = Duration(seconds: 90);
 
   /// Inicializa el servicio de notificaciones.
   /// Solo se inicializa una vez, llamadas subsecuentes son ignoradas.
@@ -168,6 +175,25 @@ class NotificacionesServicio {
       ),
     );
 
+    for (final id in CanalesNotificacion.retirados) {
+      await androidPlugin?.deleteNotificationChannel(id);
+    }
+    for (final c in CanalesNotificacion.todos) {
+      await androidPlugin?.createNotificationChannel(
+        AndroidNotificationChannel(
+          c.id,
+          c.nombre,
+          description: c.descripcion,
+          importance: c.importancia,
+          playSound: true,
+          sound: c.sonido == null
+              ? null
+              : RawResourceAndroidNotificationSound(c.sonido),
+          enableVibration: true,
+        ),
+      );
+    }
+
     _initialized = true;
   }
 
@@ -213,26 +239,54 @@ class NotificacionesServicio {
     String? payload,
     AvisoPush? push,
     bool desdePush = false,
+    bool insistente = false,
   }) async {
     if (!await _debeMostrar(push, desdePush)) return;
     await _ensureInitialized();
 
+    // Todo suena a Ride: el canal con sonido que pidió el llamador o el del
+    // evento. Un id viejo (`taxi_*`, p.ej. de un backend anterior) no lo
+    // impide; solo las emergencias conservan su canal y su alarma.
+    final canal =
+        CanalesNotificacion.porId(channelId) ??
+        (channelId == _emergenciaChannelId
+            ? null
+            : push != null
+            ? CanalesNotificacion.para(push.tipo, estado: push.estado)
+            : CanalesNotificacion.avisos);
+
     final androidDetails = AndroidNotificationDetails(
-      channelId ?? _systemChannelId,
-      channelName ?? _systemChannelName,
-      importance: Importance.high,
+      canal?.id ?? channelId ?? _systemChannelId,
+      canal?.nombre ?? channelName ?? _systemChannelName,
+      channelDescription: canal?.descripcion,
+      importance: canal?.importancia ?? Importance.high,
       priority: Priority.high,
+      sound: canal?.sonido == null
+          ? null
+          : RawResourceAndroidNotificationSound(canal!.sonido),
+      // FLAG_INSISTENT: repite el sonido hasta que la toquen, la descarten
+      // o se retire (la solicitud dejó de estar disponible). Con tope: un
+      // conductor que no contesta no puede quedar sonando media hora.
+      additionalFlags: insistente && (canal?.insistente ?? false)
+          ? Int32List.fromList(const [4])
+          : null,
+      timeoutAfter: insistente && (canal?.insistente ?? false)
+          ? _topeInsistente.inMilliseconds
+          : null,
       icon: 'ic_notification',
       largeIcon: const DrawableResourceAndroidBitmap('ic_notification_color'),
       color: const Color(0xFF081B33),
     );
 
-    const iosDetails = DarwinNotificationDetails(
+    final iosDetails = DarwinNotificationDetails(
       presentAlert: true,
       presentBadge: false,
       presentSound: true,
+      sound: canal?.sonidoIos,
       threadIdentifier: 'sistema',
-      interruptionLevel: InterruptionLevel.active,
+      interruptionLevel: canal == CanalesNotificacion.solicitudes
+          ? InterruptionLevel.timeSensitive
+          : InterruptionLevel.active,
     );
 
     final notificationDetails = NotificationDetails(
@@ -259,23 +313,26 @@ class NotificacionesServicio {
     if (!await _debeMostrar(push, false)) return;
     await _ensureInitialized();
 
+    const canal = CanalesNotificacion.mensajes;
     final androidDetails = AndroidNotificationDetails(
-      _chatChannelId,
-      _chatChannelName,
-      channelDescription: 'Notificaciones de mensajes de chat',
-      importance: Importance.max,
+      canal.id,
+      canal.nombre,
+      channelDescription: canal.descripcion,
+      importance: canal.importancia,
       priority: Priority.high,
       enableVibration: true,
       playSound: true,
+      sound: RawResourceAndroidNotificationSound(canal.sonido),
       icon: 'ic_notification',
       largeIcon: const DrawableResourceAndroidBitmap('ic_notification_color'),
       color: const Color(0xFF081B33),
     );
 
-    const iosDetails = DarwinNotificationDetails(
+    final iosDetails = DarwinNotificationDetails(
       presentAlert: true,
       presentBadge: false,
       presentSound: true,
+      sound: canal.sonidoIos,
       threadIdentifier: 'chat',
       interruptionLevel: InterruptionLevel.timeSensitive,
     );
@@ -310,14 +367,23 @@ class NotificacionesServicio {
     if (!await _debeMostrar(push, desdePush)) return;
     await _ensureInitialized();
 
+    // Sin evento declarado es un aviso del viaje en curso.
+    final canal = push == null
+        ? CanalesNotificacion.estadoViaje
+        : CanalesNotificacion.para(push.tipo, estado: push.estado);
+
     final androidDetails = AndroidNotificationDetails(
-      _tripChannelId,
-      _tripChannelName,
-      channelDescription: 'Notificaciones relacionadas con viajes',
-      importance: Importance.high,
+      canal?.id ?? _tripChannelId,
+      canal?.nombre ?? _tripChannelName,
+      channelDescription:
+          canal?.descripcion ?? 'Notificaciones relacionadas con viajes',
+      importance: canal?.importancia ?? Importance.high,
       priority: Priority.high,
       enableVibration: vibrate,
       playSound: playSound,
+      sound: canal?.sonido == null
+          ? null
+          : RawResourceAndroidNotificationSound(canal!.sonido),
       icon: 'ic_notification',
       largeIcon: const DrawableResourceAndroidBitmap('ic_notification_color'),
       color: const Color(0xFF081B33),
@@ -327,6 +393,7 @@ class NotificacionesServicio {
       presentAlert: true,
       presentBadge: false,
       presentSound: playSound,
+      sound: canal?.sonidoIos,
       threadIdentifier: 'viaje',
       interruptionLevel: InterruptionLevel.timeSensitive,
     );
@@ -403,6 +470,40 @@ class NotificacionesServicio {
       title,
       body,
       notificationDetails,
+    );
+  }
+
+  /// El sonido de estado del viaje, para quien ya mira la pantalla del
+  /// viaje: en iOS solo suena; Android no suena sin notificación, así que
+  /// aparece y se retira sola a los pocos segundos.
+  Future<void> sonarEstadoViaje(String title) async {
+    await _ensureInitialized();
+    const canal = CanalesNotificacion.estadoViaje;
+    await _plugin.show(
+      sonidoEstadoViajeNotificationId,
+      title,
+      null,
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          canal.id,
+          canal.nombre,
+          channelDescription: canal.descripcion,
+          importance: canal.importancia,
+          priority: Priority.high,
+          sound: RawResourceAndroidNotificationSound(canal.sonido),
+          timeoutAfter: 4000,
+          icon: 'ic_notification',
+          color: const Color(0xFF081B33),
+        ),
+        iOS: DarwinNotificationDetails(
+          presentAlert: false,
+          presentBanner: false,
+          presentList: false,
+          presentBadge: false,
+          presentSound: true,
+          sound: canal.sonidoIos,
+        ),
+      ),
     );
   }
 

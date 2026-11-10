@@ -1,20 +1,21 @@
 import 'dart:async';
-import 'dart:math' as math;
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart' hide DeviceType;
 import 'package:geolocator/geolocator.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart' show LatLng;
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:taxi_app/core/utils/marker_icon_helper.dart';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:taxi_app/core/constants/rutas_app.dart';
+import 'package:taxi_app/caracteristicas/disponibilidad_conductores/dominio/disponibilidad_conductores.dart';
+import 'package:taxi_app/caracteristicas/disponibilidad_conductores/presentacion/tarjeta_aviso_disponibilidad.dart';
 import 'package:taxi_app/core/app_colores.dart';
 import 'package:taxi_app/core/theme/app_palette.dart';
 import 'package:taxi_app/core/theme/map_style.dart';
 import 'package:taxi_app/core/services/fcm_service.dart';
 import 'package:taxi_app/core/constants/solicitud_estado.dart';
-import 'package:taxi_app/core/services/app_remote_config_service.dart';
 import 'package:taxi_app/core/services/map_service_adapter.dart' as adapter;
 import 'package:taxi_app/caracteristicas/viaje_cliente/presentacion/vistas/viaje_cliente_screen.dart';
 import 'package:taxi_app/screens/usuario_cliente/presentacion/view/editar_oferta_busqueda_view.dart';
@@ -425,6 +426,11 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
             _modalOfertaAbierto) {
           return;
         }
+        // Con "Avísame", volver no cancela: la búsqueda sigue en el inicio.
+        if (_vm.avisarAlEncontrar) {
+          _seguirBuscandoEnSegundoPlano();
+          return;
+        }
         _cancelSolicitud();
       },
       child: Scaffold(
@@ -449,11 +455,10 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
               Expanded(
                 child: Padding(
                   padding: EdgeInsets.symmetric(horizontal: isTablet ? 32 : 16),
-                  child: _BuscandoTaxiStaticMap(
+                  child: _BuscandoTaxiMapa(
                     clientLocation: _clientLocation,
                     destinoLocation: _vm.destinoLocation,
                     routePoints: _vm.routePoints,
-                    isMoto: _vm.isMotoSolicitud,
                     // `conductoresActivos` (colección
                     // `conductores_conectados`, filtrada a los últimos 5
                     // min), NO `conductoresPositions`: ese otro lee
@@ -471,6 +476,36 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
           ),
         ),
       ),
+    );
+  }
+
+  /// `null` hasta tener con qué calcularla: sin el primer snapshot "ninguno"
+  /// no significa que no haya.
+  DisponibilidadConductores? _disponibilidad() {
+    final origen = _clientLocation;
+    if (origen == null || !_vm.conectadosCargados) return null;
+    return calcularDisponibilidad(
+      _vm.conductoresActivos.map(
+        (c) => ConductorPresente(
+          lat: c.ubicacion.latitude,
+          lng: c.ubicacion.longitude,
+          esMoto: c.isMoto,
+          visto: c.visto,
+        ),
+      ),
+      lat: origen.latitude,
+      lng: origen.longitude,
+      ahora: DateTime.now(),
+    );
+  }
+
+  /// Cambio de vehículo de un toque: el servidor reparte de nuevo a los
+  /// conductores del tipo nuevo (`onSolicitudVuelveARepartir`).
+  Future<void> _cambiarVehiculo(bool aMoto) async {
+    final ok = await _vm.actualizarTipoVehiculo(aMoto ? 'moto' : 'carro');
+    if (!mounted || ok) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('No se pudo cambiar. Intenta de nuevo.')),
     );
   }
 
@@ -593,10 +628,12 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
       return;
     }
     _modalOfertaAbierto = true;
+    var pidioAviso = false;
     final futuro = mostrarCambiarOfertaDialog(
       context,
       valorActual: _vm.valorServicioActual,
       validar: _vm.validarNuevoValor,
+      onAvisame: () => pidioAviso = true,
     );
     // Recién con el diálogo en pantalla arranca el plazo para responder.
     _vm.registrarPropuestaMostrada();
@@ -610,11 +647,50 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
     if (_vm.flujoTerminado || _saliendo) return;
     // Contestar es lo único que evita la cancelación y reagenda la próxima.
     _vm.registrarRespuestaOferta();
+    if (pidioAviso) {
+      await _seguirBuscandoEnSegundoPlano();
+      return;
+    }
     if (nuevoValor == null) return;
     final ok = await _vm.actualizarValorServicio(nuevoValor);
     if (!mounted || ok) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('No se pudo actualizar. Intenta de nuevo.')),
+    );
+  }
+
+  /// "Avísame cuando haya un conductor": guarda el pedido y lleva al inicio,
+  /// donde el banner muestra la búsqueda y abre el viaje al encontrarlo.
+  ///
+  /// La escritura va ANTES de reclamar la salida: si falla, el cliente sigue en
+  /// esta pantalla con la búsqueda intacta.
+  Future<void> _seguirBuscandoEnSegundoPlano() async {
+    final ok = _vm.avisarAlEncontrar || await _vm.activarAviso();
+    if (!mounted) return;
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No se pudo guardar. Revisa tu conexión.'),
+        ),
+      );
+      return;
+    }
+    if (!_reclamarSalida()) return;
+    await _cerrarModalesAbiertas();
+    if (!mounted) return;
+    await _vm.detenerEscucha();
+    if (!mounted) return;
+    _vm.finalizarTrackingConductores();
+    final navigator = Navigator.of(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Seguimos buscando. Te avisaremos cuando lo encontremos.',
+        ),
+      ),
+    );
+    unawaited(
+      navigator.pushNamedAndRemoveUntil(RutasApp.clienteInicio, (_) => false),
     );
   }
 
@@ -735,6 +811,21 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
     // Inset real de la barra de navegación + separación, para que el botón
     // no quede pegado a la barra de Android (gestos o 3 botones).
     final bottomPad = media.padding.bottom + 14.0;
+    final disponibilidad = _disponibilidad();
+    final esMoto = _vm.isMotoSolicitud;
+    final tiempoEstimado = disponibilidad == null
+        ? null
+        : textoTiempoEstimado(
+            esMoto
+                ? disponibilidad.metrosMotoMasCercana
+                : disponibilidad.metrosCarroMasCercano,
+          );
+    // Aquí solo si hay a qué cambiar: el "pocos conductores" ya se dijo antes
+    // de pedir y el progreso de arriba lo cubre.
+    final aviso = disponibilidad == null
+        ? null
+        : avisoDisponibilidad(disponibilidad, esMoto: esMoto);
+    final ofertaVehiculo = aviso?.ofrecerMoto == null ? null : aviso;
     return Container(
       padding: EdgeInsets.fromLTRB(
         isTablet ? 32 : 16,
@@ -762,16 +853,18 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
             ),
           ),
           SizedBox(height: 4.h),
-          Text(
-            'Buscamos al conductor más cercano para ti.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: context.palette.textSecondary,
-              fontSize: isTablet ? 14 : 12.5,
-              fontWeight: FontWeight.w600,
-              height: 1.3.h,
+          _buildProgresoBusqueda(isTablet),
+          if (tiempoEstimado != null) ...[
+            SizedBox(height: 2.h),
+            Text(
+              'Tiempo estimado: $tiempoEstimado',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: context.palette.textSecondary,
+                fontSize: isTablet ? 13 : 12,
+              ),
             ),
-          ),
+          ],
           SizedBox(height: 12.h),
           _buildSearchingDots(isTablet),
           SizedBox(height: 10.h),
@@ -785,7 +878,29 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
               letterSpacing: 2,
             ),
           ),
+          if (ofertaVehiculo != null) ...[
+            SizedBox(height: 12.h),
+            TarjetaAvisoDisponibilidad(
+              aviso: ofertaVehiculo,
+              onCambiarVehiculo: _vm.isUpdatingValor ? null : _cambiarVehiculo,
+            ),
+          ],
           SizedBox(height: 16.h),
+          if (_vm.avisarAlEncontrar) ...[
+            OutlinedButton(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: context.palette.textPrimary,
+                minimumSize: const Size.fromHeight(48),
+              ),
+              onPressed: _seguirBuscandoEnSegundoPlano,
+              child: const Text(
+                'Volver al inicio, avísame después',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+            SizedBox(height: 8.h),
+          ],
           _buildCancelButton(isTablet),
         ],
       ),
@@ -828,6 +943,79 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
     );
   }
 
+  /// Apenas un conductor ve la solicitud pasa de texto a insignia: es la señal
+  /// de que la búsqueda va bien. Da un salto cada vez que sube el número.
+  Widget _buildProgresoBusqueda(bool isTablet) {
+    final vistas = _vm.vistasConductores;
+    final texto = textoProgresoBusqueda(
+      notificados: _vm.conductoresNotificados,
+      vistas: vistas,
+    );
+    if (vistas < 1) {
+      return Text(
+        texto,
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          color: context.palette.textSecondary,
+          fontSize: isTablet ? 14 : 12.5,
+          fontWeight: FontWeight.w600,
+          height: 1.3.h,
+        ),
+      );
+    }
+    return Center(
+      child: TweenAnimationBuilder<double>(
+        key: ValueKey(vistas),
+        tween: Tween(begin: 0.8, end: 1),
+        duration: MediaQuery.disableAnimationsOf(context)
+            ? Duration.zero
+            : const Duration(milliseconds: 350),
+        curve: Curves.easeOutBack,
+        builder: (_, escala, hijo) =>
+            Transform.scale(scale: escala, child: hijo),
+        child: Container(
+          margin: EdgeInsets.symmetric(vertical: 4.h),
+          padding: EdgeInsets.symmetric(
+            horizontal: isTablet ? 18 : 14,
+            vertical: isTablet ? 9 : 7,
+          ),
+          decoration: BoxDecoration(
+            color: AppColores.primary,
+            borderRadius: BorderRadius.circular(999),
+            boxShadow: [
+              BoxShadow(
+                color: AppColores.primary.withValues(alpha: 0.4),
+                blurRadius: 14,
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.visibility_rounded,
+                size: isTablet ? 20 : 18,
+                color: AppColores.ink900,
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  texto,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: AppColores.ink900,
+                    fontSize: isTablet ? 15 : 13.5,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildSearchingDots(bool isTablet) {
     return AnimatedBuilder(
       animation: _dotsController,
@@ -857,477 +1045,279 @@ class _BuscandoTaxiViewState extends State<BuscandoTaxiView>
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Mapa estático de búsqueda (Static Maps API)
+// Mapa de búsqueda (GoogleMap interactivo)
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Mapa de la pantalla "buscando taxi" construido con una imagen estática de
-/// Google Static Maps API en vez de un `GoogleMap` embebido: un mapa en vivo
-/// gasta GPU/RAM en tiles renderizados solo para mostrar dos puntos fijos
-/// (origen y destino) que no se mueven mientras se busca conductor — mismo
-/// criterio ya aplicado en `_HomeClienteMap`/`_HomeConductorIdleMap`.
+/// Mapa en vivo de "buscando taxi": el pasajero lo mueve y acerca con gestos
+/// para ver los conductores activos de la zona mientras espera.
 ///
-/// Reemplaza a `SearchRouteMapWidget` (que queda huérfano/sin caller, no se
-/// borró por si se necesita como referencia). Decisiones tomadas acá:
+/// Reemplaza a la imagen de Static Maps: con imagen no había gestos y cada
+/// cambio de encuadre era una petición nueva. Sigue el patrón de
+/// `MapaInteractivoPrevisualizacionSolicitud` (íconos, encuadre con
+/// reintento, botón de centrar): la cámara se encuadra sola UNA vez y luego
+/// no se mueve, para no pisar los gestos.
 ///
-/// - **Encuadre**: se calcula el bounding box de origen+destino y se deriva
-///   un zoom continuo (fórmula estándar `getBoundsZoomLevel` de Google, misma
-///   familia de proyección Mercator que usa `_boundsZoom` abajo) para que
-///   ambos puntos quepan
-///   con margen — sin escalones fijos ni zoom constante: sigue funcionando
-///   igual de bien cerca que lejos.
-/// - **Marcador del cliente**: Static Maps no puede dibujar un ícono que es
-///   un asset local de Flutter (necesitaría URL pública), así que se
-///   proyecta la coordenada a un offset en píxeles respecto al centro de la
-///   imagen (misma familia de fórmula que el zoom) y se overlay-ea con
-///   `Positioned` el ícono real de carro/moto según `isMoto` (mismos assets
-///   que ya usaba `SearchRouteMapWidget`).
-/// - **Marcador de destino**: se overlay-ea con el mismo mecanismo (en vez
-///   del parámetro nativo `markers=` de Static Maps) para poder usar el pin
-///   de marca (`map_pin_red.png`, el mismo asset que el resto de la app) en
-///   vez del pin genérico de Google — el offset de proyección ya hacía
-///   falta para el ícono del cliente, así que reusarlo acá no cuesta
-///   matemática adicional.
-/// - **Ruta**: se dibuja también sobre la imagen vía `path=enc:<polyline>`,
-///   codificando `routePoints` (ya resuelto por calles en el ViewModel) con
-///   el algoritmo estándar de Google Polyline (`MapService.encodePolyline`,
-///   inverso de `decodePolyline`).
-/// - **Conductores conectados**: se dibujan detrás de los dos marcadores
-///   principales, con el ícono de carro más chico y traslúcido, para que el
-///   cliente vea de un vistazo que hay conductores activos por la zona
-///   mientras espera. Vienen de `conductores_conectados` (presencia real,
-///   ver [BuscandoTaxiViewModel.conectadosPositions]) — NO de
-///   `usuarios.ubicacion`, que no lo escribe nadie.
-class _BuscandoTaxiStaticMap extends StatelessWidget {
-  const _BuscandoTaxiStaticMap({
+/// Los conductores dibujados son los del radio del reparto (3 km,
+/// `repartirSolicitud`), es decir, a los que les llega la solicitud. Vienen de
+/// `conductores_conectados` (ver [BuscandoTaxiViewModel.conductoresActivos]).
+class _BuscandoTaxiMapa extends StatefulWidget {
+  const _BuscandoTaxiMapa({
     required this.clientLocation,
     required this.destinoLocation,
     required this.routePoints,
-    required this.isMoto,
     this.conductoresConectados = const [],
   });
 
   final LatLng? clientLocation;
   final LatLng? destinoLocation;
   final List<LatLng> routePoints;
-  final bool isMoto;
-
-  /// Conductores activos (últimos 5 min), solo para mostrar actividad en la
-  /// zona. No cambian el encuadre: el mapa se sigue encuadrando por cliente
-  /// + destino, y los que caen fuera del recuadro no se dibujan.
   final List<ConductorConectado> conductoresConectados;
 
+  @override
+  State<_BuscandoTaxiMapa> createState() => _BuscandoTaxiMapaState();
+}
+
+class _BuscandoTaxiMapaState extends State<_BuscandoTaxiMapa> {
   static const adapter.MapService _mapService = adapter.MapService();
+  static const double _paddingCamara = 64;
+  static const double _zoomUnPunto = 15;
 
-  // Zoom fijo mientras solo se conoce el cliente (destino aún hidratándose
-  // desde Firestore) — mismo valor que usan los mapas estáticos de los home.
-  static const double _zoomSinDestino = 16;
-  static const double _zoomMin = 3;
-  static const double _zoomMax = 20;
+  /// Los más cercanos que entran en el primer encuadre: con un viaje corto,
+  /// encuadrar solo origen y destino dejaba fuera a los conductores a 1–3 km.
+  static const int _conductoresEncuadrados = 3;
 
-  static const double _vehicleIconSize = 40;
-  static const double _destinoIconSize = 44;
+  /// Tope de marcadores: en una zona densa el valor informativo se satura
+  /// mucho antes.
+  static const int _maxConductores = 20;
 
-  /// Más chico y traslúcido que el marcador del propio cliente: son contexto
-  /// ("hay movimiento por acá"), no puntos del viaje. Sin esta diferencia se
-  /// confunden con el marcador principal, que usa el mismo asset.
-  static const double _conductorIconSize = 26;
-  static const double _conductorIconOpacity = 0.85;
+  GoogleMapController? _controller;
+  BitmapDescriptor? _clienteIcon;
+  BitmapDescriptor? _destinoIcon;
+  BitmapDescriptor? _carroIcon;
+  BitmapDescriptor? _motoIcon;
 
-  /// Tope de íconos dibujados. En una zona densa la lista puede traer
-  /// decenas y el valor informativo se satura mucho antes: son widgets
-  /// posicionados, no píxeles de la imagen.
-  static const int _maxConductoresDibujados = 12;
+  /// El primer encuadre puede llegar antes que el primer snapshot de
+  /// conductores: cuando aparecen se re-encuadra UNA vez para incluirlos.
+  bool _encuadroConConductores = false;
+  int _fitGen = 0;
 
-  // ── Proyección Web Mercator (mismas fórmulas que usa Google Maps/Static
-  // Maps internamente para pasar de lat/lng a píxeles) ───────────────────
-
-  static Offset _project(LatLng point) {
-    final double sinLat = math
-        .sin(point.latitude * math.pi / 180)
-        .clamp(-0.9999, 0.9999)
-        .toDouble();
-    final double x = 128.0 + point.longitude * (256.0 / 360.0);
-    final double y =
-        128.0 -
-        (math.log((1.0 + sinLat) / (1.0 - sinLat)) / (4.0 * math.pi)) * 256.0;
-    return Offset(x, y);
+  @override
+  void initState() {
+    super.initState();
+    _cargarIconos();
   }
 
-  /// Íconos de los conductores conectados que de verdad caen dentro del
-  /// recuadro.
-  ///
-  /// El encuadre lo siguen mandando cliente + destino, así que un conductor
-  /// a 10 km queda fuera de la imagen: sin este filtro se construiría un
-  /// `Positioned` igual, que el `Stack` recorta pero que ya costó el widget.
-  List<Widget> _conductoresVisibles({
-    required LatLng center,
-    required double zoom,
-    required double width,
-    required double height,
-  }) {
-    if (conductoresConectados.isEmpty) return const [];
+  @override
+  void didUpdateWidget(covariant _BuscandoTaxiMapa oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final llegoDestino =
+        oldWidget.destinoLocation == null && widget.destinoLocation != null;
+    final llegaronConductores =
+        !_encuadroConConductores && _cercanos.isNotEmpty;
+    if (llegoDestino || llegaronConductores) _encuadrar();
+  }
 
-    final visibles = <Widget>[];
-    // Media caja más el ícono: así uno justo en el borde entra a medias en
-    // vez de desaparecer de golpe.
-    final limiteX = width / 2 + _conductorIconSize;
-    final limiteY = height / 2 + _conductorIconSize;
+  Future<void> _cargarIconos() async {
+    final r = await Future.wait([
+      MarkerIconHelper.fromIcon(
+        Icons.person,
+        44,
+        AppColores.ink900,
+        borderColor: Colors.white,
+        backgroundColor: AppColores.primary,
+      ),
+      MarkerIconHelper.fromIcon(
+        Icons.flag,
+        44,
+        AppColores.primaryDark,
+        borderColor: Colors.white,
+        backgroundColor: AppColores.brand200,
+      ),
+      MarkerIconHelper.fromAsset(
+        'assets/img/icono_carro.png',
+        size: const Size(34, 34),
+      ),
+      MarkerIconHelper.fromAsset(
+        'assets/img/icono_moto.png',
+        size: const Size(34, 34),
+      ),
+    ]);
+    if (!mounted) return;
+    setState(() {
+      _clienteIcon = r[0];
+      _destinoIcon = r[1];
+      _carroIcon = r[2];
+      _motoIcon = r[3];
+    });
+  }
 
-    for (final conductor in conductoresConectados) {
-      if (visibles.length >= _maxConductoresDibujados) break;
-      final offset = _pixelOffset(
-        center: center,
-        point: conductor.ubicacion,
-        zoom: zoom,
+  /// Los que reciben la solicitud: activos y dentro del radio del reparto,
+  /// del más cercano al más lejano.
+  List<ConductorConectado> get _cercanos {
+    final cliente = widget.clientLocation;
+    if (cliente == null) return const [];
+    double metros(ConductorConectado c) => distanciaMetros(
+      cliente.latitude,
+      cliente.longitude,
+      c.ubicacion.latitude,
+      c.ubicacion.longitude,
+    );
+    final lista = [
+      for (final c in widget.conductoresConectados)
+        if (metros(c) <= radioBusquedaMetros) c,
+    ]..sort((a, b) => metros(a).compareTo(metros(b)));
+    return lista.take(_maxConductores).toList();
+  }
+
+  List<LatLng> get _puntosEncuadre => [
+    ?widget.clientLocation,
+    ?widget.destinoLocation,
+    for (final c in _cercanos.take(_conductoresEncuadrados)) c.ubicacion,
+  ];
+
+  /// `newLatLngBounds` falla si el mapa aún no tiene su tamaño final: un
+  /// reintento tras un instante alcanza (mismo patrón que la previsualización
+  /// de la solicitud). [_fitGen] descarta reintentos viejos.
+  Future<void> _encuadrar() async {
+    final gen = ++_fitGen;
+    if (await _intentarEncuadre(gen)) return;
+    await Future.delayed(const Duration(milliseconds: 300));
+    if (gen != _fitGen) return;
+    await _intentarEncuadre(gen);
+  }
+
+  Future<bool> _intentarEncuadre(int gen) async {
+    final controller = _controller;
+    final puntos = _puntosEncuadre;
+    if (controller == null || !mounted || puntos.isEmpty) return false;
+    final conConductores = _cercanos.isNotEmpty;
+    final update = puntos.length < 2
+        ? _mapService.cameraToPosition(puntos.first, zoom: _zoomUnPunto)
+        : _mapService.cameraToBoundsFromPoints(puntos, padding: _paddingCamara);
+    if (update == null) return false;
+    try {
+      await controller.animateCamera(update);
+    } catch (_) {
+      return false;
+    }
+    if (gen == _fitGen && identical(_controller, controller)) {
+      _encuadroConConductores = conConductores;
+    }
+    return true;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cliente = widget.clientLocation;
+    final destino = widget.destinoLocation;
+    final decoracion = BoxDecoration(
+      color: context.palette.cardBackground,
+      borderRadius: BorderRadius.circular(16.r),
+      border: Border.all(color: context.palette.borderSubtle),
+      boxShadow: const [
+        BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 2)),
+      ],
+    );
+    if (cliente == null) {
+      return Container(
+        decoration: decoracion,
+        clipBehavior: Clip.antiAlias,
+        child: const _MapaBusquedaCargando(),
       );
-      if (offset.dx.abs() > limiteX || offset.dy.abs() > limiteY) continue;
+    }
 
-      visibles.add(
-        _MapPinOverlay(
-          offset: offset,
-          boxWidth: width,
-          boxHeight: height,
-          iconSize: _conductorIconSize,
-          // Vista cenital, igual que el marcador del cliente: se ancla por
-          // el centro, no por una punta.
-          anchorBottom: false,
-          child: Opacity(
-            opacity: _conductorIconOpacity,
-            // Carro o moto según lo que publicó cada conductor en su propio
-            // doc de presencia.
-            child: Image.asset(
-              conductor.isMoto
-                  ? 'assets/img/icono_moto.png'
-                  : 'assets/img/icono_carro.png',
-              width: _conductorIconSize,
-              height: _conductorIconSize,
+    final markers = <Marker>{
+      for (final (i, c) in _cercanos.indexed)
+        Marker(
+          markerId: MarkerId('conductor_$i'),
+          position: c.ubicacion,
+          anchor: const Offset(0.5, 0.5),
+          // Debajo del pasajero y del destino: son contexto, no el viaje.
+          zIndexInt: 0,
+          icon:
+              (c.isMoto ? _motoIcon : _carroIcon) ??
+              BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+        ),
+      Marker(
+        markerId: const MarkerId('cliente'),
+        position: cliente,
+        anchor: const Offset(0.5, 0.5),
+        zIndexInt: 2,
+        icon:
+            _clienteIcon ??
+            BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
+      ),
+      if (destino != null)
+        Marker(
+          markerId: const MarkerId('destino'),
+          position: destino,
+          anchor: const Offset(0.5, 0.5),
+          zIndexInt: 1,
+          icon:
+              _destinoIcon ??
+              BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+        ),
+    };
+
+    // El routing "engancha" la ruta al punto ruteable más cercano: se
+    // agregan las coordenadas exactas para que la línea toque los íconos.
+    final polylines = <Polyline>{
+      if (destino != null && widget.routePoints.length >= 2)
+        Polyline(
+          polylineId: const PolylineId('ruta'),
+          points: [cliente, ...widget.routePoints, destino],
+          color: AppColores.primary,
+          width: 5,
+        ),
+    };
+
+    return Container(
+      decoration: decoracion,
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          GoogleMap(
+            initialCameraPosition: CameraPosition(
+              target: cliente,
+              zoom: _zoomUnPunto,
+            ),
+            myLocationButtonEnabled: false,
+            zoomControlsEnabled: false,
+            compassEnabled: false,
+            mapToolbarEnabled: false,
+            style: Theme.of(context).brightness == Brightness.dark
+                ? MapStyle.googleMapJson
+                : null,
+            markers: markers,
+            polylines: polylines,
+            onMapCreated: (controller) {
+              _controller = controller;
+              WidgetsBinding.instance.addPostFrameCallback((_) => _encuadrar());
+            },
+          ),
+          Positioned(
+            bottom: 12,
+            right: 12,
+            child: FloatingActionButton(
+              heroTag: 'centrarMapaBusqueda',
+              mini: true,
+              tooltip: 'Centrar mapa',
+              backgroundColor: context.palette.surface,
+              foregroundColor: context.palette.textPrimary,
+              onPressed: _encuadrar,
+              child: const Icon(Icons.center_focus_strong),
             ),
           ),
-        ),
-      );
-    }
-    return visibles;
-  }
-
-  /// Offset en píxeles (respecto a [center]) de [point], al [zoom] dado.
-  /// Misma unidad de píxeles que el parámetro `size` de Static Maps: el
-  /// `scale=2` de retina no afecta esta cuenta, solo aumenta la densidad de
-  /// la imagen, no el área geográfica que cubre.
-  static Offset _pixelOffset({
-    required LatLng center,
-    required LatLng point,
-    required double zoom,
-  }) {
-    final double scale = math.pow(2, zoom).toDouble();
-    final Offset centerPx = _project(center);
-    final Offset pointPx = _project(point);
-    return Offset(
-      (pointPx.dx - centerPx.dx) * scale,
-      (pointPx.dy - centerPx.dy) * scale,
-    );
-  }
-
-  static double _latRad(double lat) {
-    final double sinLat = math
-        .sin(lat * math.pi / 180)
-        .clamp(-0.9999, 0.9999)
-        .toDouble();
-    final double radX2 = math.log((1.0 + sinLat) / (1.0 - sinLat)) / 2.0;
-    return radX2.clamp(-math.pi, math.pi) / 2.0;
-  }
-
-  /// Zoom continuo que encuadra el bounding box de [a] y [b] dentro de un
-  /// viewport de [widthPx]x[heightPx] (fórmula estándar `getBoundsZoomLevel`
-  /// de Google): el zoom sigue bajando de forma continua a medida que crece
-  /// la distancia entre los puntos, sin techo/piso a mitad de escala.
-  static double _boundsZoom(
-    LatLng a,
-    LatLng b,
-    double widthPx,
-    double heightPx,
-  ) {
-    const double worldDim = 256.0;
-    // Margen para que los íconos (que tienen alto/ancho propio, no son
-    // puntos infinitesimales) no queden pegados al borde de la imagen.
-    final double effectiveWidth = math.max(40.0, widthPx - 90.0);
-    final double effectiveHeight = math.max(40.0, heightPx - 120.0);
-
-    final LatLng sw = LatLng(
-      math.min(a.latitude, b.latitude),
-      math.min(a.longitude, b.longitude),
-    );
-    final LatLng ne = LatLng(
-      math.max(a.latitude, b.latitude),
-      math.max(a.longitude, b.longitude),
-    );
-
-    final double latFraction =
-        (_latRad(ne.latitude) - _latRad(sw.latitude)) / math.pi;
-    final double lngDiff = ne.longitude - sw.longitude;
-    final double lngFraction =
-        (lngDiff < 0 ? lngDiff + 360.0 : lngDiff) / 360.0;
-
-    double zoomFor(double mapPx, double fraction) {
-      if (fraction <= 0) return _zoomMax;
-      return math.log(mapPx / worldDim / fraction) / math.ln2;
-    }
-
-    final double latZoom = zoomFor(effectiveHeight, latFraction.abs());
-    final double lngZoom = zoomFor(effectiveWidth, lngFraction.abs());
-
-    return math.min(latZoom, lngZoom).clamp(_zoomMin, _zoomMax).toDouble();
-  }
-
-  String _staticMapUrl({
-    required LatLng center,
-    required double zoom,
-    required int width,
-    required int height,
-    required String apiKey,
-    required bool isDark,
-    String? encodedPath,
-  }) {
-    final uri = Uri.https('maps.googleapis.com', '/maps/api/staticmap', {
-      'center': '${center.latitude},${center.longitude}',
-      'zoom': zoom.floor().toString(),
-      'size': '${width}x$height',
-      'scale': '2',
-      'maptype': 'roadmap',
-      'key': apiKey,
-      if (isDark) 'style': MapStyle.staticMapsQueryParams,
-      // Static Maps espera RRGGBBAA (hex, sin '#', alpha al final) — se
-      // arma desde `AppColores.primary` (naranja de marca) en vez de un
-      // hex suelto para no volver a desincronizarse si el color cambia.
-      // Un solo `path=` (sin doble trazo): para una ruta corta de búsqueda
-      // no hace falta la técnica de doble polyline que sí usa el mapa de
-      // tracking en vivo.
-      if (encodedPath != null)
-        'path': 'color:0x${_routePathHex()}|weight:5|enc:$encodedPath',
-    });
-    return uri.toString();
-  }
-
-  /// `RRGGBBAA` (Static Maps) desde `AppColores.primary` con ~80% opacidad
-  /// — el `Color` de Flutter guarda alpha primero (`AARRGGBB`).
-  String _routePathHex() {
-    final rgb = (AppColores.primary.toARGB32() & 0xFFFFFF)
-        .toRadixString(16)
-        .padLeft(6, '0');
-    return '${rgb}CC';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: context.palette.cardBackground,
-        borderRadius: BorderRadius.circular(16.r),
-        border: Border.all(color: context.palette.borderSubtle),
-        boxShadow: const [
-          BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 2)),
         ],
       ),
-      clipBehavior: Clip.antiAlias,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final client = clientLocation;
-          if (client == null) {
-            return const _MapaBusquedaCargando();
-          }
-
-          // Static Maps API acepta como máximo 640x640 en "size" (antes de
-          // aplicar "scale") — mismo límite que ya respetan los mapas
-          // estáticos de los home de cliente/conductor.
-          final double width = constraints.maxWidth
-              .clamp(100.0, 640.0)
-              .toDouble();
-          final double height = constraints.maxHeight
-              .clamp(100.0, 640.0)
-              .toDouble();
-
-          final destino = destinoLocation;
-          final bool hasDestino = destino != null;
-          final LatLng center = hasDestino
-              ? LatLng(
-                  (client.latitude + destino.latitude) / 2,
-                  (client.longitude + destino.longitude) / 2,
-                )
-              : client;
-          // Redondeado ACÁ, una sola vez: Static Maps solo acepta zoom
-          // entero, así que la imagen real siempre se renderiza al valor
-          // truncado. Si los offsets de los íconos se calculan con el zoom
-          // sin truncar (ej. 14.9) mientras la imagen se pidió a 14, la
-          // matemática de posición asume una imagen más acercada de la que
-          // realmente llegó — los íconos terminan empujados fuera del
-          // cuadro. Truncar antes de derivar todo lo demás mantiene la
-          // imagen pedida y los offsets consistentes entre sí.
-          final double zoom =
-              (hasDestino
-                      ? _boundsZoom(client, destino, width, height)
-                      : _zoomSinDestino)
-                  .floorToDouble();
-
-          // El routing (OSRM/Directions) "engancha" la ruta al punto
-          // ruteable más cercano, que casi nunca es exactamente la
-          // coordenada del cliente/destino — sin esto, la línea quedaba
-          // flotando a un tramo del ícono de vehículo y del pin en vez de
-          // salir/llegar justo desde/hacia ellos. Se antepone/agrega la
-          // coordenada exacta como primer/último punto para que la traza
-          // siempre toque los dos íconos.
-          final String? encodedPath = (hasDestino && routePoints.length >= 2)
-              ? _mapService.encodePolyline([client, ...routePoints, destino])
-              : null;
-
-          return FutureBuilder<String>(
-            future: AppRemoteConfigService.instance.fetchStaticMapsApiKey(),
-            builder: (context, keySnapshot) {
-              if (keySnapshot.connectionState != ConnectionState.done) {
-                return const _MapaBusquedaCargando();
-              }
-              final apiKey = keySnapshot.data ?? '';
-              if (apiKey.isEmpty) {
-                return const _MapaBusquedaPlaceholder();
-              }
-
-              final url = _staticMapUrl(
-                center: center,
-                zoom: zoom,
-                width: width.round(),
-                height: height.round(),
-                apiKey: apiKey,
-                isDark: Theme.of(context).brightness == Brightness.dark,
-                encodedPath: encodedPath,
-              );
-
-              return Stack(
-                fit: StackFit.expand,
-                children: [
-                  CachedNetworkImage(
-                    key: ValueKey(url),
-                    imageUrl: url,
-                    fit: BoxFit.cover,
-                    placeholder: (context, _) => const _MapaBusquedaCargando(),
-                    errorWidget: (context, _, error) {
-                      ErrorReporter.report(
-                        error,
-                        StackTrace.current,
-                        reason:
-                            'buscando_taxi_view: falló imagen de Static Maps',
-                      );
-                      return const _MapaBusquedaPlaceholder();
-                    },
-                  ),
-                  // Antes que los marcadores del viaje: son fondo, no deben
-                  // taparlos.
-                  ..._conductoresVisibles(
-                    center: center,
-                    zoom: zoom,
-                    width: width,
-                    height: height,
-                  ),
-                  if (hasDestino)
-                    _MapPinOverlay(
-                      offset: _pixelOffset(
-                        center: center,
-                        point: destino,
-                        zoom: zoom,
-                      ),
-                      boxWidth: width,
-                      boxHeight: height,
-                      iconSize: _destinoIconSize,
-                      child: Image.asset(
-                        'assets/img/map_pin_red.png',
-                        width: _destinoIconSize,
-                        height: _destinoIconSize,
-                      ),
-                    ),
-                  _MapPinOverlay(
-                    offset: hasDestino
-                        ? _pixelOffset(
-                            center: center,
-                            point: client,
-                            zoom: zoom,
-                          )
-                        : Offset.zero,
-                    boxWidth: width,
-                    boxHeight: height,
-                    iconSize: _vehicleIconSize,
-                    anchorBottom: false,
-                    child: Image.asset(
-                      isMoto
-                          ? 'assets/img/icono_moto.png'
-                          : 'assets/img/icono_carro.png',
-                      width: _vehicleIconSize,
-                      height: _vehicleIconSize,
-                    ),
-                  ),
-                ],
-              );
-            },
-          );
-        },
-      ),
     );
   }
-}
-
-/// Posiciona un ícono exacto sobre un punto del mapa, dado su [offset] en
-/// píxeles respecto al centro de la imagen.
-///
-/// [anchorBottom] controla qué parte del ícono cae sobre el punto:
-/// - `true` (pin/gota, ej. `map_pin_red.png`): la PUNTA, borde inferior
-///   central del asset — `Center` sola centraría el cuadrado del ícono, no
-///   la punta (mismo criterio que el pin de `_HomeClienteMap`).
-/// - `false` (vista cenital, ej. `icono_carro.png`/`icono_moto.png`): el
-///   CENTRO del asset, porque ahí es donde está el vehículo en un ícono
-///   visto desde arriba — anclarlo por la punta lo desplazaría ~medio alto
-///   de ícono hacia arriba de su ubicación real.
-class _MapPinOverlay extends StatelessWidget {
-  const _MapPinOverlay({
-    required this.offset,
-    required this.boxWidth,
-    required this.boxHeight,
-    required this.iconSize,
-    required this.child,
-    this.anchorBottom = true,
-  });
-
-  final Offset offset;
-  final double boxWidth;
-  final double boxHeight;
-  final double iconSize;
-  final Widget child;
-  final bool anchorBottom;
 
   @override
-  Widget build(BuildContext context) {
-    return Positioned(
-      left: boxWidth / 2 + offset.dx - iconSize / 2,
-      top: boxHeight / 2 + offset.dy - (anchorBottom ? iconSize : iconSize / 2),
-      width: iconSize,
-      height: iconSize,
-      child: child,
-    );
-  }
-}
-
-/// Fondo mostrado si falla la imagen (sin red / sin key configurada) o si la
-/// key de Remote Config está vacía. Evita el ícono de imagen rota y deja la
-/// pantalla usable sin mapa.
-class _MapaBusquedaPlaceholder extends StatelessWidget {
-  const _MapaBusquedaPlaceholder();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: context.palette.grey300.withValues(alpha: 0.35),
-      alignment: Alignment.center,
-      child: Icon(
-        Icons.map_outlined,
-        size: 40,
-        color: context.palette.textSecondary.withValues(alpha: 0.6),
-      ),
-    );
+  void dispose() {
+    _controller = null;
+    super.dispose();
   }
 }
 

@@ -22,12 +22,16 @@ Future<double?> mostrarCambiarOfertaDialog(
   BuildContext context, {
   required double valorActual,
   required String? Function(String digits) validar,
+  VoidCallback? onAvisame,
 }) {
   return showDialog<double>(
     context: context,
     barrierDismissible: false,
-    builder: (_) =>
-        _CambiarOfertaDialog(valorActual: valorActual, validar: validar),
+    builder: (_) => _CambiarOfertaDialog(
+      valorActual: valorActual,
+      validar: validar,
+      onAvisame: onAvisame,
+    ),
   );
 }
 
@@ -35,10 +39,14 @@ class _CambiarOfertaDialog extends StatefulWidget {
   const _CambiarOfertaDialog({
     required this.valorActual,
     required this.validar,
+    this.onAvisame,
   });
 
   final double valorActual;
   final String? Function(String digits) validar;
+
+  /// "Avísame cuando haya un conductor". Se llama con el diálogo ya cerrado.
+  final VoidCallback? onAvisame;
 
   @override
   State<_CambiarOfertaDialog> createState() => _CambiarOfertaDialogState();
@@ -187,6 +195,24 @@ class _CambiarOfertaDialogState extends State<_CambiarOfertaDialog> {
                 fontSize: 15.sp,
                 onPressed: () => Navigator.pop(context),
               ),
+              if (widget.onAvisame != null) ...[
+                SizedBox(height: 4.h),
+                TextButton(
+                  style: TextButton.styleFrom(
+                    foregroundColor: palette.textPrimary,
+                    minimumSize: const Size.fromHeight(48),
+                  ),
+                  onPressed: () {
+                    Navigator.pop(context);
+                    widget.onAvisame!();
+                  },
+                  child: const Text(
+                    'Avísame cuando haya un conductor',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ],
             ],
           ),
         ],

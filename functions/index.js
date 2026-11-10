@@ -23,6 +23,12 @@ const {
 } = require("./notificaciones");
 const { diaYHoraColombia, resultadoNuevo } = require("./estadisticas");
 const { unaVez, consumirCupo } = require("./limites");
+const {
+  TIMEOUT_BUSQUEDA_MS,
+  ANTICIPACION_PROGRAMADA_MS,
+  debeRepartirDeNuevo,
+  motivoDeVencimiento,
+} = require("./busqueda");
 const { calificacionNueva, acumular } = require("./calificaciones");
 const { esRegistroDeClienteCompletado } = require("./usuarios");
 const { canceladoPorConductor, registrarCancelacion } = require("./sanciones");
@@ -194,6 +200,16 @@ const ESTADO_MENSAJES = {
     title: "⚠️ Sin respuesta",
     body: "La solicitud quedó sin respuesta y fue cancelada.",
   },
+};
+
+const MENSAJE_PROGRAMADA_ACTIVADA = {
+  title: "🚕 Buscando tu conductor",
+  body: "Ya estamos buscando conductor para tu viaje programado.",
+};
+
+const MENSAJE_SIN_CONDUCTOR = {
+  title: "Sin conductores disponibles",
+  body: "No encontramos conductor para tu viaje. Puedes intentar de nuevo.",
 };
 
 const MENSAJE_CANCELADO_POR_CONDUCTOR = {
@@ -484,10 +500,19 @@ exports.onSolicitudEstadoChange = onDocumentUpdated(
     );
 
     // Verificar si tenemos un mensaje configurado para este estado
-    const mensaje =
-      estadoNuevo === "cancelado" && canceladoPorConductor(afterData)
-        ? MENSAJE_CANCELADO_POR_CONDUCTOR
-        : ESTADO_MENSAJES[estadoNuevo];
+    // Cancelar un viaje programado lo hace el propio cliente desde su inicio:
+    // no hay nada que avisarle.
+    if (estadoAnterior === "programada" && estadoNuevo === "cancelado") {
+      return null;
+    }
+    let mensaje = ESTADO_MENSAJES[estadoNuevo];
+    if (estadoAnterior === "programada" && estadoNuevo === "buscando") {
+      mensaje = MENSAJE_PROGRAMADA_ACTIVADA;
+    } else if (estadoNuevo === "cancelado" && canceladoPorConductor(afterData)) {
+      mensaje = MENSAJE_CANCELADO_POR_CONDUCTOR;
+    } else if (estadoNuevo === "cancelado" && afterData.cancelReason === "sin_conductor") {
+      mensaje = MENSAJE_SIN_CONDUCTOR;
+    }
     if (!mensaje) {
       console.log(`Sin mensaje configurado para estado: "${estadoNuevo}"`);
       return null;
@@ -632,6 +657,25 @@ exports.onNuevaSolicitudCreada = onDocumentCreated(
       return null;
     }
 
+    return repartirSolicitud(event, data, "onNuevaSolicitudCreada");
+  }
+);
+
+/** A cuántos conductores se avisó: la app del cliente lo muestra como progreso
+ * de la búsqueda. `update` y no `set`: si la solicitud ya se borró, falla en
+ * vez de resucitarla (ver el comentario de `COLECCION_NOTIFICADOS`). */
+async function registrarNotificados(db, solicitudId, cantidad) {
+  await db
+    .collection("solicitudes")
+    .doc(solicitudId)
+    .update({ conductoresNotificados: cantidad })
+    .catch((err) =>
+      console.error(`No se pudo guardar conductoresNotificados: ${err.message}`)
+    );
+}
+
+/** Avisa a los conductores conectados, disponibles y cercanos a [data]. */
+async function repartirSolicitud(event, data, nombreEvento) {
     const pickup = extractPickupPoint(data);
     if (!pickup) {
       console.log("Solicitud sin ubicación de recogida, no se puede notificar.");
@@ -660,6 +704,7 @@ exports.onNuevaSolicitudCreada = onDocumentCreated(
 
     if (candidatos.size === 0) {
       console.log("No hay conductores conectados para notificar.");
+      await registrarNotificados(db, event.params.solicitudId, 0);
       return null;
     }
 
@@ -732,6 +777,7 @@ exports.onNuevaSolicitudCreada = onDocumentCreated(
 
     if (cercanos.length === 0) {
       console.log("Ningún conductor conectado está dentro del radio de 3 km.");
+      await registrarNotificados(db, event.params.solicitudId, 0);
       return null;
     }
 
@@ -780,22 +826,28 @@ exports.onNuevaSolicitudCreada = onDocumentCreated(
     await db
       .collection(COLECCION_NOTIFICADOS)
       .doc(event.params.solicitudId)
-      .set({
-        uids: destinatarios.map((c) => c.uid),
-        notifClave: message.data.notifClave,
-        clienteId: clienteIdSolicitud || event.params.solicitudId,
-        createdAt: FieldValue.serverTimestamp(),
-      })
+      .set(
+        {
+          // arrayUnion: en un segundo reparto (cambio de vehículo) hay que
+          // poder retirarle el aviso también a los del primero.
+          uids: FieldValue.arrayUnion(...destinatarios.map((c) => c.uid)),
+          notifClave: message.data.notifClave,
+          clienteId: clienteIdSolicitud || event.params.solicitudId,
+          createdAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      )
       .catch((err) =>
         console.error(`No se pudo guardar destinatarios: ${err.message}`)
       );
 
     try {
-      if (!(await unaVez(event, "onNuevaSolicitudCreada"))) return null;
+      if (!(await unaVez(event, nombreEvento))) return null;
       const resp = await getMessaging().sendEachForMulticast(message);
       console.log(
         `✅ Notif. nueva solicitud: ${resp.successCount}/${tokens.length} conductores notificados.`
       );
+      await registrarNotificados(db, event.params.solicitudId, resp.successCount);
 
       // Antes ningún `sendEachForMulticast` miraba los errores por token, así
       // que los tokens muertos se acumulaban para siempre y cada envío
@@ -826,8 +878,7 @@ exports.onNuevaSolicitudCreada = onDocumentCreated(
     }
 
     return null;
-  }
-);
+}
 
 /**
  * Cloud Function: retira de la bandeja de los conductores la notificación
@@ -858,6 +909,22 @@ exports.onSolicitudDejaDeBuscar = onDocumentUpdated(
     const before = event.data.before.data();
     const after = event.data.after.data();
     if (!before || !after) return null;
+
+    // Volver a repartir: un viaje programado que se activó o un cambio de
+    // vehículo a mitad de búsqueda (los conductores del tipo nuevo nunca
+    // recibieron el aviso). Va aquí y no en un trigger propio porque este ya
+    // corre con cada escritura de la solicitud: uno más sumaría una invocación
+    // por cada ubicación que escribe el conductor durante el viaje.
+    if (
+      debeRepartirDeNuevo(
+        normalizeEstado(before.estado || before.status || ""),
+        normalizeEstado(after.estado || after.status || ""),
+        before,
+        after
+      )
+    ) {
+      return repartirSolicitud(event, after, "repartirDeNuevo");
+    }
 
     const norm = (d) => (d.estado || d.status || "").toString().toLowerCase().trim();
     const estabaBuscando = ESTADOS_BUSCANDO.includes(norm(before));
@@ -1804,7 +1871,6 @@ exports.onSugerenciaCreada = onDocumentCreated(
 // que responder la mantenga viva de verdad habría que filtrar por `updatedAt`
 // (y tocarlo en cada respuesta del cliente), lo que pide un índice compuesto
 // nuevo `estado + updatedAt`.
-const SOLICITUD_BUSCANDO_TIMEOUT_MS = 15 * 60 * 1000;
 // Retención de las solicitudes canceladas antes de borrarlas. La base guarda
 // solo activas y terminadas; las canceladas se purgan, pero no al instante:
 // 30 min evitan cualquier carrera con un conductor que estuviera aceptando en
@@ -1895,6 +1961,12 @@ exports.cancelarSolicitudPorCierreApp = onRequest(
         return;
       }
 
+      // "Avísame cuando haya un conductor": el cliente se fue a propósito.
+      if (data.avisarAlEncontrar === true) {
+        res.status(200).send("no-op: el cliente pidió que le avisen");
+        return;
+      }
+
       await docRef.update({
         estado: "cancelado",
         cancelledAt: FieldValue.serverTimestamp(),
@@ -1916,6 +1988,56 @@ exports.cancelarSolicitudPorCierreApp = onRequest(
   }
 );
 
+// Activa los viajes programados a los que ya les toca buscar conductor. Va
+// dentro de la tarea de cada 2 min y no en una propia: Cloud Scheduler da 3
+// tareas gratis y ya hay 3. Reinicia `createdAt`: los plazos de búsqueda
+// corren desde que empieza a buscar, no desde que se programó.
+async function activarViajesProgramados(db) {
+  try {
+    const hasta = Timestamp.fromMillis(Date.now() + ANTICIPACION_PROGRAMADA_MS);
+    const snap = await db
+      .collection("solicitudes")
+      .where("estado", "==", "programada")
+      .where("programadaPara", "<=", hasta)
+      .get();
+    if (snap.empty) return;
+
+    // Eliminar la cuenta no toca las solicitudes: el viaje de una cuenta que ya
+    // no existe no debe salir a buscar conductor.
+    const clientes = await db.getAll(
+      ...snap.docs.map((doc) =>
+        db.collection("usuarios").doc(String(extractClienteId(doc.data())))
+      )
+    );
+    const clienteActivo = new Map(
+      snap.docs.map((doc, i) => [
+        doc.id,
+        clientes[i].exists && clientes[i].get("deshabilitado") !== true,
+      ])
+    );
+
+    await commitEnLotes(db, snap.docs, (batch, doc) => {
+      batch.update(
+        doc.ref,
+        clienteActivo.get(doc.id)
+          ? {
+              estado: "buscando",
+              createdAt: FieldValue.serverTimestamp(),
+              updatedAt: FieldValue.serverTimestamp(),
+            }
+          : {
+              estado: "cancelado",
+              cancelledAt: FieldValue.serverTimestamp(),
+              cancelReason: "cuenta_no_disponible",
+            }
+      );
+    });
+    console.log(`🕒 ${snap.size} viaje(s) programado(s) procesado(s).`);
+  } catch (err) {
+    console.error("❌ Error activando viajes programados:", err.message);
+  }
+}
+
 exports.cancelarSolicitudesBuscandoInactivas = onSchedule(
   {
     schedule: "every 2 minutes",
@@ -1924,9 +2046,10 @@ exports.cancelarSolicitudesBuscandoInactivas = onSchedule(
   },
   async () => {
     const db = getFirestore();
-    const cutoff = Timestamp.fromMillis(
-      Date.now() - SOLICITUD_BUSCANDO_TIMEOUT_MS
-    );
+    await activarViajesProgramados(db);
+
+    const ahora = Date.now();
+    const cutoff = Timestamp.fromMillis(ahora - TIMEOUT_BUSQUEDA_MS);
 
     let snap;
     try {
@@ -1945,16 +2068,31 @@ exports.cancelarSolicitudesBuscandoInactivas = onSchedule(
 
     if (snap.empty) return null;
 
+    // Las de "Avísame" tienen más margen: la consulta las trae desde los
+    // 15 min, pero recién se cancelan a los 30.
+    const vencidas = [];
+    for (const doc of snap.docs) {
+      const data = doc.data();
+      const motivo = motivoDeVencimiento(data, data.createdAt.toMillis(), ahora);
+      if (motivo) vencidas.push({ doc, motivo });
+    }
+    if (vencidas.length === 0) return null;
+    const motivoDe = new Map(vencidas.map((v) => [v.doc.id, v.motivo]));
+
     try {
-      await commitEnLotes(db, snap.docs, (batch, doc) => {
-        batch.update(doc.ref, {
-          estado: "cancelado",
-          cancelledAt: FieldValue.serverTimestamp(),
-          cancelReason: "inactividad_timeout",
-        });
-      });
+      await commitEnLotes(
+        db,
+        vencidas.map((v) => v.doc),
+        (batch, doc) => {
+          batch.update(doc.ref, {
+            estado: "cancelado",
+            cancelledAt: FieldValue.serverTimestamp(),
+            cancelReason: motivoDe.get(doc.id),
+          });
+        }
+      );
       console.log(
-        `🛑 ${snap.size} solicitud(es) 'buscando' canceladas por inactividad.`
+        `🛑 ${vencidas.length} solicitud(es) 'buscando' canceladas por inactividad.`
       );
     } catch (err) {
       console.error("❌ Error cancelando solicitudes vencidas:", err.message);
@@ -2246,30 +2384,35 @@ exports.estadisticasSolicitudCreada = onDocumentCreated(
   async (event) => {
     const data = event.data?.data();
     if (!data) return;
-    const { dia, hora } = diaYHoraColombia(
-      msDeCreacion(data, Date.parse(event.time))
-    );
-    const clienteId = extractClienteId(data);
+    // Un viaje programado cuenta el día que sale a buscar, no el que se pidió
+    // (ver `estadisticasSolicitudEstado`).
+    if (normalizeEstado(data.estado) === "programada") return;
     if (!(await unaVez(event, "estadisticasSolicitudCreada"))) return;
-    try {
-      await getFirestore()
-        .collection("estadisticas_diarias")
-        .doc(dia)
-        .set(
-          {
-            fecha: dia,
-            creadas: FieldValue.increment(1),
-            porHora: { [hora]: FieldValue.increment(1) },
-            ...(clienteId ? { clientes: FieldValue.arrayUnion(clienteId) } : {}),
-            actualizadoEn: FieldValue.serverTimestamp(),
-          },
-          { merge: true }
-        );
-    } catch (err) {
-      console.error("❌ estadisticasSolicitudCreada:", err.message);
-    }
+    await sumarSolicitudCreada(data, Date.parse(event.time));
   }
 );
+
+async function sumarSolicitudCreada(data, respaldoMs) {
+  const { dia, hora } = diaYHoraColombia(msDeCreacion(data, respaldoMs));
+  const clienteId = extractClienteId(data);
+  try {
+    await getFirestore()
+      .collection("estadisticas_diarias")
+      .doc(dia)
+      .set(
+        {
+          fecha: dia,
+          creadas: FieldValue.increment(1),
+          porHora: { [hora]: FieldValue.increment(1) },
+          ...(clienteId ? { clientes: FieldValue.arrayUnion(clienteId) } : {}),
+          actualizadoEn: FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+  } catch (err) {
+    console.error("❌ sumarSolicitudCreada:", err.message);
+  }
+}
 
 exports.estadisticasSolicitudEstado = onDocumentUpdated(
   { document: "solicitudes/{solicitudId}", region: "us-central1" },
@@ -2277,10 +2420,16 @@ exports.estadisticasSolicitudEstado = onDocumentUpdated(
     const antes = event.data?.before.data();
     const despues = event.data?.after.data();
     if (!antes || !despues) return;
-    const contador = resultadoNuevo(
-      normalizeEstado(antes.estado),
-      normalizeEstado(despues.estado)
-    );
+    const estadoAntes = normalizeEstado(antes.estado);
+    const estadoDespues = normalizeEstado(despues.estado);
+    if (estadoAntes === "programada") {
+      // Un programado que nunca salió a buscar no es una solicitud del día.
+      if (estadoDespues !== "buscando") return;
+      if (!(await unaVez(event, "estadisticasSolicitudProgramada"))) return;
+      await sumarSolicitudCreada(despues, Date.parse(event.time));
+      return;
+    }
+    const contador = resultadoNuevo(estadoAntes, estadoDespues);
     if (!contador) return;
     const { dia } = diaYHoraColombia(
       msDeCreacion(despues, Date.parse(event.time))

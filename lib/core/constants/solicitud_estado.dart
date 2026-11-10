@@ -1,6 +1,9 @@
 class SolicitudEstado {
   SolicitudEstado._();
 
+  /// "Pedir para más tarde": todavía no busca conductor. La pasa a [buscando]
+  /// el servidor un rato antes de la hora (`activarViajesProgramados`).
+  static const String programada = 'programada';
   static const String buscando = 'buscando';
   static const String asignado = 'asignado';
   static const String enEspera = 'en espera';

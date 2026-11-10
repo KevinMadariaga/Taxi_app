@@ -13,6 +13,7 @@ class SolicitudBorrador {
     required this.metodoPago,
     required this.comentario,
     required this.valorServicio,
+    this.programadaPara,
   });
 
   final LocationModel origen;
@@ -24,4 +25,7 @@ class SolicitudBorrador {
   /// Texto crudo del input (solo dígitos + posibles separadores de miles);
   /// el caso de uso lo parsea a número al construir la solicitud.
   final String valorServicio;
+
+  /// "Pedir para más tarde": cuándo es el viaje. `null` = buscar ahora.
+  final DateTime? programadaPara;
 }
